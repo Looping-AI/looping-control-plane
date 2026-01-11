@@ -29,7 +29,7 @@ module {
     name : Text;
   };
 
-  /// Optional auxiliary data for BIP341 taproot tweak
+  /// Unused optional type. Related with Bitcoin signing.
   public type SchnorrAux = {
     #bip341 : {
       merkle_root_hash : Blob;

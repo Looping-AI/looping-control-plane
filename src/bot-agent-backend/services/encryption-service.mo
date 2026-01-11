@@ -22,19 +22,21 @@ module {
   // Constants
   let NONCE_SIZE : Nat = 8;
 
-  /// Generate unique 8-byte nonce from caller principal hash + timestamp
+  /// Generate unique 8-byte nonce by hashing caller principal + timestamp
+  /// Uses SHA256 for proper entropy distribution across all bytes
   func generateNonce(caller : Principal) : [Nat8] {
-    let time = Int.abs(Time.now());
-    let principalHash = Principal.hash(caller);
-    let combined = Nat32.toNat(principalHash) + time;
-    // Convert to 8 bytes (big-endian)
-    Array.tabulate<Nat8>(
-      8,
-      func(i : Nat) : Nat8 {
-        let shift = Nat.sub(7, i) * 8;
-        Nat8.fromNat((combined / Nat.pow(256, shift)) % 256);
-      },
-    );
+    let timeBytes = nat64ToBytes(Nat64.fromNat(Int.abs(Time.now())));
+    let principalBytes = Blob.toArray(Principal.toBlob(caller));
+
+    // Concatenate principal + timestamp and hash
+    let input = List.empty<Nat8>();
+    for (byte in principalBytes.vals()) { List.add(input, byte) };
+    for (byte in timeBytes.vals()) { List.add(input, byte) };
+
+    // Hash and take first 8 bytes
+    let hashBlob = Sha256.fromArray(#sha256, List.toArray(input));
+    let hashBytes = Blob.toArray(hashBlob);
+    Array.tabulate<Nat8>(NONCE_SIZE, func(i : Nat) : Nat8 { hashBytes[i] });
   };
 
   /// Convert Nat64 to big-endian byte array (8 bytes)
