@@ -12,6 +12,7 @@ import ConversationService "./services/conversation-service";
 import ApiKeysService "./services/api-keys-service";
 import KeyDerivationService "./services/key-derivation-service";
 import Constants "./constants";
+import GroqWrapper "./wrappers/groq-wrapper";
 // import LLMWrapper "./wrappers/llm-wrapper";
 
 persistent actor {
@@ -160,49 +161,73 @@ persistent actor {
       #err("Please login before calling this function");
     } else {
 
-      // get api key (requires deriving encryption key first)
-      let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, caller);
-      let _apiKey = ApiKeysService.getApiKeyForCallerAndAgent(apiKeys, encryptionKey, caller, agentId, #groq);
+      // Get the agent to determine which provider to use
+      let agent = AgentService.getAgent(agentId, agents);
+      switch (agent) {
+        case (null) { return #err("Agent not found") };
+        case (?foundAgent) {
+          // get api key (requires deriving encryption key first)
+          let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, caller);
+          let apiKey = ApiKeysService.getApiKeyForCallerAndAgent(apiKeys, encryptionKey, caller, agentId, foundAgent.provider);
 
-      ConversationService.addMessageToConversation(
-        conversations,
-        caller,
-        agentId,
-        {
-          author = #user;
-          content = message;
-          timestamp = Time.now();
-        },
-      );
+          ConversationService.addMessageToConversation(
+            conversations,
+            caller,
+            agentId,
+            {
+              author = #user;
+              content = message;
+              timestamp = Time.now();
+            },
+          );
 
-      // decide which tool?
-      // for now, just mo:llm
+          // Generate response based on provider and API key availability
+          var response : Text = "";
 
-      // call the tool
-      // call chat mo:llm with the conversation history
-      // Initialize LLM wrapper with default model
-      // commenting, since there isn't a local / test version of llm canister
-      // let llmWrapper = LLMWrapper.LLMWrapper(null);
-      // var response = await llmWrapper.chat(message);
+          switch (foundAgent.provider) {
+            case (#groq) {
+              switch (apiKey) {
+                case (null) {
+                  response := "Error: No Groq API key found for this agent. Please store your API key first.";
+                };
+                case (?key) {
+                  let groqResult = await GroqWrapper.chat(key, message, ?foundAgent.model);
+                  switch (groqResult) {
+                    case (#ok(groqResponse)) { response := groqResponse };
+                    case (#err(error)) {
+                      response := "Groq API Error: " # error;
+                    };
+                  };
+                };
+              };
+            };
+            case (#openai) {
+              response := "OpenAI integration not yet implemented. Using placeholder response.";
+            };
+            case (#llmcanister) {
+              response := "LLM Canister integration not yet implemented. Using placeholder response.";
+            };
+          };
 
-      var response = "Hello! This is a placeholder response from the AI agent.";
+          if (response == "") {
+            response := "Hello! This is a placeholder response from the AI agent.";
+          };
 
-      // evaluate response and decide to terminate loop or continue
-      // for now, just terminate
+          // Store and Deliver response
+          ConversationService.addMessageToConversation(
+            conversations,
+            caller,
+            agentId,
+            {
+              author = #agent;
+              content = response;
+              timestamp = Time.now();
+            },
+          );
 
-      // Store and Deliver response
-      ConversationService.addMessageToConversation(
-        conversations,
-        caller,
-        agentId,
-        {
-          author = #agent;
-          content = response;
-          timestamp = Time.now();
-        },
-      );
-
-      #ok("Response from AI Agent " # debug_show (agentId) # ": " # response);
+          #ok("Response from AI Agent " # debug_show (agentId) # ": " # response);
+        };
+      };
     };
   };
 
