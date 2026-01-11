@@ -36,8 +36,8 @@ describe("API Key Encryption & Cache Management", () => {
 
     // Set up two regular users
     ({ userIdentity } = setupRegularUser(actor));
-
-    user2Identity = generateRandomIdentity();
+    const user2 = setupRegularUser(actor);
+    user2Identity = user2.userIdentity;
   });
 
   afterEach(async () => {
@@ -135,7 +135,7 @@ describe("API Key Encryption & Cache Management", () => {
     );
     expectOk(storeResult1);
 
-    // is able to use talkTo
+    // User is able to use talkTo
     const result = await actor.talkTo(agentId, "Hello Agent");
     expectOk(result);
 

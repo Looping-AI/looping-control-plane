@@ -91,8 +91,7 @@ describe("API Key Management", () => {
         { groq: null },
         "test-groq-key",
       );
-      expect("err" in result).toBe(true);
-      const errorMsg = "err" in result ? result.err : "";
+      const errorMsg = expectErr(result);
       expect(errorMsg).toContain("Provider mismatch");
       expect(errorMsg).toContain("openai");
       expect(errorMsg).toContain("groq");
@@ -243,8 +242,7 @@ describe("API Key Management", () => {
 
       // Try to delete a key for a different provider (non-existent)
       const deleteResult = await actor.deleteApiKey(agentId, { groq: null });
-      expect("err" in deleteResult).toBe(true);
-      const errorMsg = "err" in deleteResult ? deleteResult.err : "";
+      const errorMsg = expectErr(deleteResult);
       expect(errorMsg).toContain("No API key found for agent");
       expect(errorMsg).toContain("groq");
 

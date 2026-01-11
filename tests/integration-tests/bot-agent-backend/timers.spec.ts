@@ -3,7 +3,6 @@ import type { PocketIc, Actor } from "@dfinity/pic";
 import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
 import {
   createTestEnvironment,
-  generateTestPrincipal,
   setupAdminUser,
   setupRegularUser,
   createTestAgent,
@@ -28,7 +27,6 @@ describe("Timer Management", () => {
     it("should clear the key cache after 30 days", async () => {
       // Set up admin (first caller becomes admin automatically)
       const { adminIdentity } = await setupAdminUser(actor);
-      await actor.addAdmin(generateTestPrincipal(999));
 
       // Create an agent as admin
       const agentId = await createTestAgent(
