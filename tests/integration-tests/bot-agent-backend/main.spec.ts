@@ -601,21 +601,33 @@ describe("Bot Agent Backend", () => {
       actor.setIdentity(userIdentity);
     });
 
+    it("should reject anonymous users from API key operations", async () => {
+      actor.setPrincipal(Principal.anonymous());
+
+      const storeResult = await actor.storeApiKey(
+        agentId,
+        { openai: null },
+        "test-key",
+      );
+      expect("err" in storeResult).toBe(true);
+      expect("err" in storeResult ? storeResult.err : "").toEqual(
+        "Please login before calling this function",
+      );
+
+      const getResult = await actor.getMyApiKeys();
+      expect("err" in getResult).toBe(true);
+      expect("err" in getResult ? getResult.err : "").toEqual(
+        "Please login before calling this function",
+      );
+
+      const deleteResult = await actor.deleteApiKey(agentId, { openai: null });
+      expect("err" in deleteResult).toBe(true);
+      expect("err" in deleteResult ? deleteResult.err : "").toEqual(
+        "Please login before calling this function",
+      );
+    });
+
     describe("store_api_key", () => {
-      it("should reject anonymous users from storing API keys", async () => {
-        actor.setPrincipal(Principal.anonymous());
-
-        const result = await actor.storeApiKey(
-          agentId,
-          { openai: null },
-          "test-key-123",
-        );
-        expect("err" in result).toBe(true);
-        expect("err" in result ? result.err : "").toEqual(
-          "Please login before calling this function",
-        );
-      });
-
       it("should reject storing API key for non-existent agent", async () => {
         const result = await actor.storeApiKey(
           999n,
@@ -658,55 +670,39 @@ describe("Bot Agent Backend", () => {
         expect(errorMsg).toContain("openai");
         expect(errorMsg).toContain("groq");
       });
+
+      it("should allow updating API key (replace existing)", async () => {
+        // Store first API key
+        const storeResult1 = await actor.storeApiKey(
+          agentId,
+          { openai: null },
+          "first-api-key",
+        );
+        expect("ok" in storeResult1).toBe(true);
+
+        // Update with new key (same agent, same provider)
+        const storeResult2 = await actor.storeApiKey(
+          agentId,
+          { openai: null },
+          "updated-api-key",
+        );
+        expect("ok" in storeResult2).toBe(true);
+
+        // Should still only have one key entry
+        const keysResult = await actor.getMyApiKeys();
+        expect("ok" in keysResult).toBe(true);
+        if ("ok" in keysResult) {
+          expect(keysResult.ok.length).toBe(1);
+        }
+      });
     });
 
     describe("get_my_api_keys", () => {
-      it("should reject anonymous users from retrieving API keys", async () => {
-        actor.setPrincipal(Principal.anonymous());
-
-        const result = await actor.getMyApiKeys();
-        expect("err" in result).toBe(true);
-        expect("err" in result ? result.err : "").toEqual(
-          "Please login before calling this function",
-        );
-      });
-
       it("should return empty array when user has no API keys", async () => {
         const result = await actor.getMyApiKeys();
         expect("ok" in result).toBe(true);
         const keys = "ok" in result ? result.ok : [];
         expect(keys).toEqual([]);
-      });
-
-      it("should return only caller's API keys, not other users' keys", async () => {
-        // Store key as first user
-        await actor.storeApiKey(agentId, { openai: null }, "user-one-key");
-
-        // Switch to second user
-        const secondUserIdentity = generateRandomIdentity();
-        actor.setIdentity(secondUserIdentity);
-
-        // Second user should have no keys
-        const resultBefore = await actor.getMyApiKeys();
-        expect("ok" in resultBefore).toBe(true);
-        const keysBefore = "ok" in resultBefore ? resultBefore.ok : [];
-        expect(keysBefore.length).toEqual(0);
-
-        // Store a key as second user
-        await actor.storeApiKey(agentId, { openai: null }, "user-two-key");
-
-        // Now second user should have exactly 1 key
-        const resultAfter = await actor.getMyApiKeys();
-        expect("ok" in resultAfter).toBe(true);
-        const keysAfter = "ok" in resultAfter ? resultAfter.ok : [];
-        expect(keysAfter.length).toEqual(1);
-
-        // Switch back to first user
-        actor.setIdentity(userIdentity);
-        const firstUserResult = await actor.getMyApiKeys();
-        expect("ok" in firstUserResult).toBe(true);
-        const firstUserKeys = "ok" in firstUserResult ? firstUserResult.ok : [];
-        expect(firstUserKeys.length).toEqual(1);
       });
 
       it("should maintain API key list after storing multiple keys", async () => {
@@ -764,16 +760,6 @@ describe("Bot Agent Backend", () => {
     });
 
     describe("delete_api_key", () => {
-      it("should reject anonymous users from deleting API keys", async () => {
-        actor.setPrincipal(Principal.anonymous());
-
-        const result = await actor.deleteApiKey(agentId, { openai: null });
-        expect("err" in result).toBe(true);
-        expect("err" in result ? result.err : "").toEqual(
-          "Please login before calling this function",
-        );
-      });
-
       it("should return error when trying to delete API key for principal with no keys", async () => {
         const result = await actor.deleteApiKey(agentId, { openai: null });
         expect("err" in result).toBe(true);
@@ -911,120 +897,9 @@ describe("Bot Agent Backend", () => {
     });
   });
 
-  // ============ KEY CACHE MANAGEMENT TESTS ============
+  // ============ API KEY ENCRYPTION & CACHE MANAGEMENT TESTS ============
 
-  describe("Key Cache Management", () => {
-    let adminIdentity: ReturnType<typeof generateRandomIdentity>;
-    let adminPrincipal: Principal;
-    let userIdentity: ReturnType<typeof generateRandomIdentity>;
-    let agentId: bigint;
-
-    beforeEach(async () => {
-      // Set up an admin
-      adminIdentity = generateRandomIdentity();
-      adminPrincipal = adminIdentity.getPrincipal();
-      actor.setIdentity(adminIdentity);
-      await actor.addAdmin(adminPrincipal);
-
-      // Create a test agent
-      const createResult = await actor.createAgent(
-        "Cache Test Agent",
-        { groq: null },
-        "mixtral",
-      );
-      if ("err" in createResult) {
-        throw new Error(`Failed to create agent: ${createResult.err}`);
-      }
-      agentId = createResult.ok;
-
-      // Set up a regular user
-      userIdentity = generateRandomIdentity();
-      actor.setIdentity(userIdentity);
-    });
-
-    describe("getKeyCacheStats", () => {
-      it("should reject non-admin users from viewing cache stats", async () => {
-        // User is not admin
-        const result = await actor.getKeyCacheStats();
-        expect("err" in result).toBe(true);
-        expect("err" in result ? result.err : "").toEqual(
-          "Only admins can view cache stats",
-        );
-      });
-
-      it("should return cache stats for admin", async () => {
-        actor.setIdentity(adminIdentity);
-        const result = await actor.getKeyCacheStats();
-        expect("ok" in result).toBe(true);
-        if ("ok" in result) {
-          expect(typeof result.ok.size).toBe("bigint");
-        }
-      });
-
-      it("should show increased cache size after storing API key", async () => {
-        // Check initial cache size as admin
-        actor.setIdentity(adminIdentity);
-        const initialResult = await actor.getKeyCacheStats();
-        expect("ok" in initialResult).toBe(true);
-        const initialSize = "ok" in initialResult ? initialResult.ok.size : 0n;
-
-        // Store an API key as user (this will derive and cache an encryption key)
-        actor.setIdentity(userIdentity);
-        const storeResult = await actor.storeApiKey(
-          agentId,
-          { groq: null },
-          "test-api-key-12345",
-        );
-        expect("ok" in storeResult).toBe(true);
-
-        // Check cache size again as admin
-        actor.setIdentity(adminIdentity);
-        const afterResult = await actor.getKeyCacheStats();
-        expect("ok" in afterResult).toBe(true);
-        const afterSize = "ok" in afterResult ? afterResult.ok.size : 0n;
-
-        // Cache should have grown by 1 (for the user's encryption key)
-        expect(afterSize).toBe(initialSize + 1n);
-      });
-    });
-
-    describe("clearKeyCache", () => {
-      it("should reject non-admin users from clearing cache", async () => {
-        // User is not admin
-        const result = await actor.clearKeyCache();
-        expect("err" in result).toBe(true);
-        expect("err" in result ? result.err : "").toEqual(
-          "Only admins can clear the key cache",
-        );
-      });
-
-      it("should successfully clear cache as admin", async () => {
-        // First store an API key to populate cache
-        const storeResult = await actor.storeApiKey(
-          agentId,
-          { groq: null },
-          "test-key-for-clear",
-        );
-        expect("ok" in storeResult).toBe(true);
-
-        // Clear cache as admin
-        actor.setIdentity(adminIdentity);
-        const clearResult = await actor.clearKeyCache();
-        expect("ok" in clearResult).toBe(true);
-
-        // Verify cache is empty
-        const statsResult = await actor.getKeyCacheStats();
-        expect("ok" in statsResult).toBe(true);
-        if ("ok" in statsResult) {
-          expect(statsResult.ok.size).toBe(0n);
-        }
-      });
-    });
-  });
-
-  // ============ API KEY ENCRYPTION TESTS ============
-
-  describe("API Key Encryption", () => {
+  describe("API Key Encryption & Cache Management", () => {
     let adminIdentity: ReturnType<typeof generateRandomIdentity>;
     let adminPrincipal: Principal;
     let userIdentity: ReturnType<typeof generateRandomIdentity>;
@@ -1055,51 +930,13 @@ describe("Bot Agent Backend", () => {
       actor.setIdentity(userIdentity);
     });
 
-    it("should successfully store and track encrypted API key", async () => {
-      // Store an API key
-      const storeResult = await actor.storeApiKey(
-        agentId,
-        { groq: null },
-        "my-secret-api-key-xyz",
-      );
-      expect("ok" in storeResult).toBe(true);
+    it("should isolate encrypted keys between users and populate cache", async () => {
+      // Check initial cache size as admin
+      actor.setIdentity(adminIdentity);
+      const initialResult = await actor.getKeyCacheStats();
+      expect("ok" in initialResult).toBe(true);
+      const initialSize = "ok" in initialResult ? initialResult.ok.size : 0n;
 
-      // Verify the key is tracked
-      const keysResult = await actor.getMyApiKeys();
-      expect("ok" in keysResult).toBe(true);
-      if ("ok" in keysResult) {
-        expect(keysResult.ok.length).toBe(1);
-        expect(keysResult.ok[0][0]).toBe(agentId);
-        expect(keysResult.ok[0][1]).toBe("groq");
-      }
-    });
-
-    it("should allow updating API key with new encryption", async () => {
-      // Store first API key
-      const storeResult1 = await actor.storeApiKey(
-        agentId,
-        { groq: null },
-        "first-api-key",
-      );
-      expect("ok" in storeResult1).toBe(true);
-
-      // Update with new key (same agent, same provider)
-      const storeResult2 = await actor.storeApiKey(
-        agentId,
-        { groq: null },
-        "updated-api-key",
-      );
-      expect("ok" in storeResult2).toBe(true);
-
-      // Should still only have one key entry
-      const keysResult = await actor.getMyApiKeys();
-      expect("ok" in keysResult).toBe(true);
-      if ("ok" in keysResult) {
-        expect(keysResult.ok.length).toBe(1);
-      }
-    });
-
-    it("should isolate encrypted keys between different users", async () => {
       // User 1 stores a key
       actor.setIdentity(userIdentity);
       const storeResult1 = await actor.storeApiKey(
@@ -1139,7 +976,56 @@ describe("Bot Agent Backend", () => {
       const cacheStats = await actor.getKeyCacheStats();
       expect("ok" in cacheStats).toBe(true);
       if ("ok" in cacheStats) {
-        expect(cacheStats.ok.size).toBe(2n); // Two different users = two cached keys
+        expect(cacheStats.ok.size).toBe(initialSize + 2n); // Two different users = two cached keys
+      }
+    });
+
+    it("should reject non-admin users from viewing cache stats", async () => {
+      // User is not admin
+      const result = await actor.getKeyCacheStats();
+      expect("err" in result).toBe(true);
+      expect("err" in result ? result.err : "").toEqual(
+        "Only admins can view cache stats",
+      );
+    });
+
+    it("should return cache stats for admin", async () => {
+      actor.setIdentity(adminIdentity);
+      const result = await actor.getKeyCacheStats();
+      expect("ok" in result).toBe(true);
+      if ("ok" in result) {
+        expect(typeof result.ok.size).toBe("bigint");
+      }
+    });
+
+    it("should reject non-admin users from clearing cache", async () => {
+      // User is not admin
+      const result = await actor.clearKeyCache();
+      expect("err" in result).toBe(true);
+      expect("err" in result ? result.err : "").toEqual(
+        "Only admins can clear the key cache",
+      );
+    });
+
+    it("should successfully clear cache as admin", async () => {
+      // First store an API key to populate cache
+      const storeResult = await actor.storeApiKey(
+        agentId,
+        { groq: null },
+        "test-key-for-clear",
+      );
+      expect("ok" in storeResult).toBe(true);
+
+      // Clear cache as admin
+      actor.setIdentity(adminIdentity);
+      const clearResult = await actor.clearKeyCache();
+      expect("ok" in clearResult).toBe(true);
+
+      // Verify cache is empty
+      const statsResult = await actor.getKeyCacheStats();
+      expect("ok" in statsResult).toBe(true);
+      if ("ok" in statsResult) {
+        expect(statsResult.ok.size).toBe(0n);
       }
     });
 
@@ -1152,27 +1038,22 @@ describe("Bot Agent Backend", () => {
       );
       expect("ok" in storeResult1).toBe(true);
 
+      // is able to use talkTo
+      const result = await actor.talkTo(agentId, "Hello Agent");
+      expect("ok" in result).toBe(true);
+
       // Admin clears cache
       actor.setIdentity(adminIdentity);
       await actor.clearKeyCache();
 
-      // User stores another key (should re-derive encryption key)
+      // Go back to User identity
       actor.setIdentity(userIdentity);
 
-      // User updates a key
-      const storeResult2 = await actor.storeApiKey(
-        agentId,
-        { groq: null },
-        "key-after-clear",
-      );
-      expect("ok" in storeResult2).toBe(true);
-
-      // User should still be able to list their keys
-      const keysResult = await actor.getMyApiKeys();
-      expect("ok" in keysResult).toBe(true);
-      if ("ok" in keysResult) {
-        expect(keysResult.ok.length).toBe(1);
-      }
+      // User is able to use talkTo again,
+      // which requires re-deriving the same key successfully,
+      // so that API key can be decrypted
+      const result2 = await actor.talkTo(agentId, "Hello Agent");
+      expect("ok" in result2).toBe(true);
     });
   });
 });

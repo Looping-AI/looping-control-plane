@@ -1,7 +1,6 @@
 import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Nat8 "mo:core/Nat8";
-import Nat32 "mo:core/Nat32";
 import Nat64 "mo:core/Nat64";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
