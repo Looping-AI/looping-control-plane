@@ -5,6 +5,8 @@ import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import Bool "mo:core/Bool";
 import HttpWrapper "./http-wrapper";
+import Json "mo:json";
+import { str; int; float; bool; obj; arr } "mo:json";
 
 module {
   // ============================================
@@ -80,92 +82,84 @@ module {
     };
   };
 
-  /// Serialize a ChatMessage to JSON string
-  private func serializeMessage(message : ChatMessage) : Text {
-    "{\"role\": \"" # roleToString(message.role) # "\", \"content\": \"" # escapeJsonString(message.content) # "\"}";
-  };
-
-  /// Escape special characters for JSON string
-  private func escapeJsonString(input : Text) : Text {
-    // Simple escape for quotes and newlines - could be more comprehensive
-    let withQuotes = replaceText(input, "\"", "\\\"");
-    let withNewlines = replaceText(withQuotes, "\n", "\\n");
-    let withTabs = replaceText(withNewlines, "\t", "\\t");
-    withTabs;
-  };
-
-  /// Helper function to join array elements with separator since Text.join doesn't exist
-  private func joinArrayWithSeparator(arr : [Text], sep : Text) : Text {
-    if (arr.size() == 0) {
-      return "";
-    };
-    if (arr.size() == 1) {
-      return arr[0];
-    };
-    var result = arr[0];
-    var i = 1;
-    while (i < arr.size()) {
-      result := result # sep # arr[i];
-      i += 1;
-    };
-    result;
-  };
-
-  /// Helper function to replace text since Text.replace doesn't exist in mo:core
-  private func replaceText(input : Text, old : Text, new : Text) : Text {
-    // Simple implementation - can be improved for better performance
-    let oldSize = old.size();
-    if (oldSize == 0) { return input };
-
-    var result = "";
-    let inputArray = Text.toArray(input);
-    var i = 0;
-
-    while (i < inputArray.size()) {
-      if (i + oldSize <= inputArray.size()) {
-        let potential = Text.fromArray(Array.tabulate<Char>(oldSize, func(j) { inputArray[i + j] }));
-        if (potential == old) {
-          result #= new;
-          i += oldSize;
-        } else {
-          result #= Text.fromArray([inputArray[i]]);
-          i += 1;
-        };
-      } else {
-        result #= Text.fromArray([inputArray[i]]);
-        i += 1;
-      };
-    };
-    result;
+  /// Convert a ChatMessage to JSON
+  private func messageToJson(message : ChatMessage) : Json.Json {
+    obj([
+      ("role", str(roleToString(message.role))),
+      ("content", str(message.content)),
+    ]);
   };
 
   /// Serialize ChatCompletionRequest to JSON string
   private func serializeRequest(request : ChatCompletionRequest) : Text {
-    let messagesJson = joinArrayWithSeparator(Array.map<ChatMessage, Text>(request.messages, serializeMessage), ",");
+    let messagesJson = arr(Array.map<ChatMessage, Json.Json>(request.messages, messageToJson));
 
-    var json = "{\"model\": \"" # request.model # "\", \"messages\": [" # messagesJson # "]";
+    // Build request object by conditionally adding fields
+    var requestFields : [(Text, Json.Json)] = [
+      ("model", str(request.model)),
+      ("messages", messagesJson),
+    ];
 
+    // Add optional parameters
     switch (request.temperature) {
-      case (?temp) { json #= ", \"temperature\": " # Float.toText(temp) };
-      case (null) {};
+      case (?temp) {
+        requestFields := [
+          ("model", str(request.model)),
+          ("messages", messagesJson),
+          ("temperature", float(temp)),
+        ];
+      };
+      case (null) {
+        requestFields := [
+          ("model", str(request.model)),
+          ("messages", messagesJson),
+        ];
+      };
     };
 
     switch (request.max_tokens) {
-      case (?tokens) { json #= ", \"max_tokens\": " # Nat.toText(tokens) };
+      case (?tokens) {
+        requestFields := Array.tabulate<(Text, Json.Json)>(
+          requestFields.size() + 1,
+          func(i) {
+            if (i < requestFields.size()) {
+              requestFields[i];
+            } else { ("max_tokens", int(tokens)) };
+          },
+        );
+      };
       case (null) {};
     };
 
     switch (request.top_p) {
-      case (?p) { json #= ", \"top_p\": " # Float.toText(p) };
+      case (?p) {
+        requestFields := Array.tabulate<(Text, Json.Json)>(
+          requestFields.size() + 1,
+          func(i) {
+            if (i < requestFields.size()) {
+              requestFields[i];
+            } else { ("top_p", float(p)) };
+          },
+        );
+      };
       case (null) {};
     };
 
     switch (request.stream) {
-      case (?s) { json #= ", \"stream\": " # Bool.toText(s) };
+      case (?s) {
+        requestFields := Array.tabulate<(Text, Json.Json)>(
+          requestFields.size() + 1,
+          func(i) {
+            if (i < requestFields.size()) {
+              requestFields[i];
+            } else { ("stream", bool(s)) };
+          },
+        );
+      };
       case (null) {};
     };
 
-    json # "}";
+    Json.stringify(obj(requestFields), null);
   };
 
   // ============================================
@@ -257,112 +251,33 @@ module {
 
   /// Parse Groq API response and extract the assistant's message content
   ///
-  /// This is a simplified JSON parser that looks for the content field
-  /// in the first choice. In production, you'd want more robust JSON parsing.
+  /// Uses the JSON library for robust parsing
   ///
   /// @param responseBody - Raw JSON response from Groq API
   /// @returns Result with extracted content or error message
   private func parseGroqResponse(responseBody : Text) : Result.Result<Text, Text> {
-    // Simple string-based parsing - look for first "content" field in choices
-    // This is fragile but works for the expected Groq response format
-
-    // Look for "choices":[{"message":{"content":"..."}
-    let searchPattern = "\"content\":\"";
-    switch (findSubstring(responseBody, searchPattern)) {
-      case (null) {
-        #err("Could not find content in response: " # responseBody);
+    switch (Json.parse(responseBody)) {
+      case (#err(error)) {
+        #err("Failed to parse JSON response: " # debug_show error);
       };
-      case (?startIndex) {
-        let afterContent = dropText(responseBody, startIndex + searchPattern.size());
-
-        // Find the closing quote (handling escaped quotes is complex, so we'll do simple approach)
-        switch (findClosingQuote(afterContent, 0)) {
+      case (#ok(json)) {
+        // Try to get the content from choices[0].message.content
+        switch (Json.get(json, "choices[0].message.content")) {
           case (null) {
-            #err("Could not parse content from response");
+            #err("Could not find choices[0].message.content in response");
           };
-          case (?endIndex) {
-            let content = takeText(afterContent, endIndex);
-            let unescaped = unescapeJsonString(content);
-            #ok(unescaped);
+          case (?contentJson) {
+            switch (contentJson) {
+              case (#string(content)) {
+                #ok(content);
+              };
+              case (_) {
+                #err("Content field is not a string");
+              };
+            };
           };
         };
       };
     };
-  };
-
-  /// Find the index of the closing quote for a JSON string value
-  /// This is a simplified approach that doesn't handle all edge cases
-  private func findClosingQuote(text : Text, startPos : Nat) : ?Nat {
-    let chars = Text.toArray(text);
-    var i = startPos;
-    var escaped = false;
-
-    while (i < chars.size()) {
-      let char = chars[i];
-
-      if (escaped) {
-        escaped := false;
-      } else if (char == '\\') {
-        escaped := true;
-      } else if (char == '\"') {
-        return ?i;
-      };
-
-      i += 1;
-    };
-
-    null;
-  };
-
-  /// Basic unescape for JSON strings
-  private func unescapeJsonString(input : Text) : Text {
-    let withQuotes = replaceText(input, "\\\"", "\"");
-    let withNewlines = replaceText(withQuotes, "\\n", "\n");
-    let withTabs = replaceText(withNewlines, "\\t", "\t");
-    withTabs;
-  };
-
-  /// Find substring in text and return index
-  private func findSubstring(text : Text, pattern : Text) : ?Nat {
-    let textArray = Text.toArray(text);
-    let patternArray = Text.toArray(pattern);
-    let patternSize = patternArray.size();
-
-    if (patternSize == 0) { return ?0 };
-    if (textArray.size() < patternSize) { return null };
-
-    var i = 0;
-    while (i + patternSize <= textArray.size()) {
-      var match = true;
-      var j = 0;
-      while (j < patternSize and match) {
-        if (textArray[i + j] != patternArray[j]) {
-          match := false;
-        };
-        j += 1;
-      };
-      if (match) {
-        return ?i;
-      };
-      i += 1;
-    };
-    null;
-  };
-
-  /// Drop the first n characters from text
-  private func dropText(text : Text, n : Nat) : Text {
-    let textArray = Text.toArray(text);
-    if (n >= textArray.size()) {
-      return "";
-    };
-    let remainingSize = Nat.sub(textArray.size(), n);
-    Text.fromArray(Array.tabulate<Char>(remainingSize, func(i) { textArray[n + i] }));
-  };
-
-  /// Take the first n characters from text
-  private func takeText(text : Text, n : Nat) : Text {
-    let textArray = Text.toArray(text);
-    let size = if (n < textArray.size()) n else textArray.size();
-    Text.fromArray(Array.tabulate<Char>(size, func(i) { textArray[i] }));
   };
 };
