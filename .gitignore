@@ -24,7 +24,7 @@ dist/
 
 # environment variables
 .env
-
+test-env.mo
 .mops
 
 # linter binary file

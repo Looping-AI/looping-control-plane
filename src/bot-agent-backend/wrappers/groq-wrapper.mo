@@ -4,6 +4,7 @@ import Result "mo:core/Result";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import Bool "mo:core/Bool";
+import List "mo:core/List";
 import HttpWrapper "./http-wrapper";
 import Json "mo:json";
 import { str; int; float; bool; obj; arr } "mo:json";
@@ -66,9 +67,6 @@ module {
   /// Groq API base URL
   private let GROQ_API_BASE_URL : Text = "https://api.groq.com/openai/v1";
 
-  /// Default model for Groq
-  public let DEFAULT_MODEL : Text = "llama-3.3-70b-versatile";
-
   // ============================================
   // Helper Functions
   // ============================================
@@ -94,159 +92,41 @@ module {
   private func serializeRequest(request : ChatCompletionRequest) : Text {
     let messagesJson = arr(Array.map<ChatMessage, Json.Json>(request.messages, messageToJson));
 
-    // Build request object by conditionally adding fields
-    var requestFields : [(Text, Json.Json)] = [
-      ("model", str(request.model)),
-      ("messages", messagesJson),
-    ];
+    // Start with required fields in a list
+    let requestFields = List.empty<(Text, Json.Json)>();
+    List.add(requestFields, ("model", str(request.model)));
+    List.add(requestFields, ("messages", messagesJson));
 
-    // Add optional parameters
+    // Add optional parameters individually
     switch (request.temperature) {
       case (?temp) {
-        requestFields := [
-          ("model", str(request.model)),
-          ("messages", messagesJson),
-          ("temperature", float(temp)),
-        ];
+        List.add(requestFields, ("temperature", float(temp)));
       };
-      case (null) {
-        requestFields := [
-          ("model", str(request.model)),
-          ("messages", messagesJson),
-        ];
-      };
+      case (null) {};
     };
 
     switch (request.max_tokens) {
       case (?tokens) {
-        requestFields := Array.tabulate<(Text, Json.Json)>(
-          requestFields.size() + 1,
-          func(i) {
-            if (i < requestFields.size()) {
-              requestFields[i];
-            } else { ("max_tokens", int(tokens)) };
-          },
-        );
+        List.add(requestFields, ("max_tokens", int(tokens)));
       };
       case (null) {};
     };
 
     switch (request.top_p) {
       case (?p) {
-        requestFields := Array.tabulate<(Text, Json.Json)>(
-          requestFields.size() + 1,
-          func(i) {
-            if (i < requestFields.size()) {
-              requestFields[i];
-            } else { ("top_p", float(p)) };
-          },
-        );
+        List.add(requestFields, ("top_p", float(p)));
       };
       case (null) {};
     };
 
     switch (request.stream) {
       case (?s) {
-        requestFields := Array.tabulate<(Text, Json.Json)>(
-          requestFields.size() + 1,
-          func(i) {
-            if (i < requestFields.size()) {
-              requestFields[i];
-            } else { ("stream", bool(s)) };
-          },
-        );
+        List.add(requestFields, ("stream", bool(s)));
       };
       case (null) {};
     };
 
-    Json.stringify(obj(requestFields), null);
-  };
-
-  // ============================================
-  // Main Functions
-  // ============================================
-
-  /// Chat completion using Groq API
-  ///
-  /// @param apiKey - The Groq API key
-  /// @param messages - Array of chat messages
-  /// @param model - Optional model name (defaults to DEFAULT_MODEL)
-  /// @param temperature - Optional temperature setting (0.0-1.0)
-  /// @param maxTokens - Optional maximum tokens in response
-  /// @returns Result with assistant's response or error message
-  public func chatCompletion(
-    apiKey : Text,
-    messages : [ChatMessage],
-    model : ?Text,
-    temperature : ?Float,
-    maxTokens : ?Nat,
-  ) : async {
-    #ok : Text;
-    #err : Text;
-  } {
-
-    if (Text.trim(apiKey, #char ' ') == "") {
-      return #err("API key cannot be empty");
-    };
-
-    if (messages.size() == 0) {
-      return #err("Messages array cannot be empty");
-    };
-
-    let requestModel = switch (model) {
-      case (?m) { m };
-      case (null) { DEFAULT_MODEL };
-    };
-
-    let request : ChatCompletionRequest = {
-      model = requestModel;
-      messages;
-      temperature;
-      max_tokens = maxTokens;
-      top_p = null;
-      stream = ?false; // Always false for simplicity
-    };
-
-    let requestBody = serializeRequest(request);
-    let url = GROQ_API_BASE_URL # "/chat/completions";
-
-    let headers : [HttpWrapper.HttpHeader] = [
-      { name = "Authorization"; value = "Bearer " # apiKey },
-      { name = "Content-Type"; value = "application/json" },
-    ];
-
-    // Make the HTTP POST request
-    let httpResult = await HttpWrapper.post(url, headers, requestBody);
-
-    switch (httpResult) {
-      case (#err(error)) {
-        #err("HTTP request failed: " # error);
-      };
-      case (#ok(responseBody)) {
-        // Simple response parsing - extract content from first choice
-        parseGroqResponse(responseBody);
-      };
-    };
-  };
-
-  /// Simple chat function with just message content
-  ///
-  /// @param apiKey - The Groq API key
-  /// @param userMessage - The user's message
-  /// @param model - Optional model name
-  /// @returns Result with assistant's response or error message
-  public func chat(
-    apiKey : Text,
-    userMessage : Text,
-    model : ?Text,
-  ) : async {
-    #ok : Text;
-    #err : Text;
-  } {
-
-    let messages : [ChatMessage] = [{ role = #user; content = userMessage }];
-
-    await chatCompletion(apiKey, messages, model, null, null);
+    Json.stringify(obj(List.toArray(requestFields)), null);
   };
 
   /// Parse Groq API response and extract the assistant's message content
@@ -279,5 +159,84 @@ module {
         };
       };
     };
+  };
+
+  // ============================================
+  // Private Functions
+  // ============================================
+
+  /// Chat completion using Groq API
+  ///
+  /// @param apiKey - The Groq API key
+  /// @param messages - Array of chat messages
+  /// @param model - Model name
+  /// @param temperature - Optional temperature setting (0.0-1.0)
+  /// @param maxTokens - Optional maximum tokens in response
+  /// @returns Result with assistant's response or error message
+  private func chatCompletion(
+    apiKey : Text,
+    messages : [ChatMessage],
+    model : Text,
+    temperature : ?Float,
+    maxTokens : ?Nat,
+  ) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    assert messages.size() > 0;
+    assert Text.trim(model, #char ' ') != "";
+
+    let request : ChatCompletionRequest = {
+      model;
+      messages;
+      temperature;
+      max_tokens = maxTokens;
+      top_p = null;
+      stream = ?false; // Always false for simplicity
+    };
+
+    let requestBody = serializeRequest(request);
+    let url = GROQ_API_BASE_URL # "/chat/completions";
+
+    let headers : [HttpWrapper.HttpHeader] = [
+      { name = "Authorization"; value = "Bearer " # apiKey },
+      { name = "Content-Type"; value = "application/json" },
+    ];
+
+    // Make the HTTP POST request
+    let httpResult = await HttpWrapper.post(url, headers, requestBody);
+
+    switch (httpResult) {
+      case (#err(error)) {
+        #err("HTTP request failed: " # error);
+      };
+      case (#ok(responseBody)) {
+        // Simple response parsing - extract content from first choice
+        parseGroqResponse(responseBody);
+      };
+    };
+  };
+
+  // ============================================
+  // Public Functions
+  // ============================================
+
+  /// Simple chat function with just message content
+  ///
+  /// @param apiKey - The Groq API key
+  /// @param userMessage - The user's message
+  /// @param model - Optional model name
+  /// @returns Result with assistant's response or error message
+  public func chat(
+    apiKey : Text,
+    userMessage : Text,
+    model : Text,
+  ) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    let messages : [ChatMessage] = [{ role = #user; content = userMessage }];
+
+    await chatCompletion(apiKey, messages, model, null, null);
   };
 };

@@ -159,17 +159,46 @@ persistent actor {
   } {
     if (Principal.isAnonymous(caller)) {
       #err("Please login before calling this function");
+    } else if (Text.trim(message, #char ' ') == "") {
+      #err("Message cannot be empty");
     } else {
-
       // Get the agent to determine which provider to use
       let agent = AgentService.getAgent(agentId, agents);
       switch (agent) {
         case (null) { return #err("Agent not found") };
         case (?foundAgent) {
-          // get api key (requires deriving encryption key first)
+          // Get api key (requires deriving encryption key first)
           let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, caller);
           let apiKey = ApiKeysService.getApiKeyForCallerAndAgent(apiKeys, encryptionKey, caller, agentId, foundAgent.provider);
 
+          // Generate response based on provider and API key availability
+          var response : Text = "";
+          switch (foundAgent.provider) {
+            case (#groq) {
+              switch (apiKey) {
+                case (null) {
+                  return #err("No Groq API key found for this agent. Please store your API key first.");
+                };
+                case (?key) {
+                  let groqResult = await GroqWrapper.chat(key, message, foundAgent.model);
+                  switch (groqResult) {
+                    case (#ok(groqResponse)) { response := groqResponse };
+                    case (#err(error)) {
+                      return #err("Groq API Error: " # error);
+                    };
+                  };
+                };
+              };
+            };
+            case (#openai) {
+              return #err("OpenAI integration not yet implemented.");
+            };
+            case (#llmcanister) {
+              return #err("LLM Canister integration not yet implemented.");
+            };
+          };
+
+          // Once successful, store the user message and agent response in the conversation history
           ConversationService.addMessageToConversation(
             conversations,
             caller,
@@ -181,39 +210,6 @@ persistent actor {
             },
           );
 
-          // Generate response based on provider and API key availability
-          var response : Text = "";
-
-          switch (foundAgent.provider) {
-            case (#groq) {
-              switch (apiKey) {
-                case (null) {
-                  response := "Error: No Groq API key found for this agent. Please store your API key first.";
-                };
-                case (?key) {
-                  let groqResult = await GroqWrapper.chat(key, message, ?foundAgent.model);
-                  switch (groqResult) {
-                    case (#ok(groqResponse)) { response := groqResponse };
-                    case (#err(error)) {
-                      response := "Groq API Error: " # error;
-                    };
-                  };
-                };
-              };
-            };
-            case (#openai) {
-              response := "OpenAI integration not yet implemented. Using placeholder response.";
-            };
-            case (#llmcanister) {
-              response := "LLM Canister integration not yet implemented. Using placeholder response.";
-            };
-          };
-
-          if (response == "") {
-            response := "Hello! This is a placeholder response from the AI agent.";
-          };
-
-          // Store and Deliver response
           ConversationService.addMessageToConversation(
             conversations,
             caller,
@@ -225,7 +221,7 @@ persistent actor {
             },
           );
 
-          #ok("Response from AI Agent " # debug_show (agentId) # ": " # response);
+          #ok(response);
         };
       };
     };
