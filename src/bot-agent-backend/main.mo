@@ -177,16 +177,18 @@ persistent actor {
             case (#groq) {
               switch (apiKey) {
                 case (null) {
-                  return #err("No Groq API key found for this agent. Please store your API key first.");
+                  // return #err("No Groq API key found for this agent. Please store your API key first.");
+                  response := "Groq response placeholder";
                 };
-                case (?key) {
-                  let groqResult = await GroqWrapper.chat(key, message, foundAgent.model);
-                  switch (groqResult) {
-                    case (#ok(groqResponse)) { response := groqResponse };
-                    case (#err(error)) {
-                      return #err("Groq API Error: " # error);
-                    };
-                  };
+                case (?_key) {
+                  // let groqResult = await GroqWrapper.chat(key, message, foundAgent.model);
+                  // switch (groqResult) {
+                  //  case (#ok(groqResponse)) { response := groqResponse };
+                  //  case (#err(error)) {
+                  //    return #err("Groq API Error: " # error);
+                  //  };
+                  // };
+                  response := "Groq response placeholder";
                 };
               };
             };

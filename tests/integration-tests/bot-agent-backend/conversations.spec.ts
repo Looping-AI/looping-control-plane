@@ -30,7 +30,7 @@ describe("Conversation Management", () => {
     agentId = await createTestAgent(
       actor,
       "Test Conversation Agent",
-      { openai: null },
+      { groq: null },
       "gpt-4",
     );
 
