@@ -7,6 +7,10 @@ Link for backend with Internet Identity login button working: http://127.0.0.1:4
 Install Lintoko (https://github.com/caffeinelabs/lintoko) with:
 `curl --proto '=https' --tlsv1.2 -LsSf https://github.com/caffeinelabs/lintoko/releases/download/v0.7.0/lintoko-installer.sh | sh`
 
+### Test Debugging
+
+In tests that use HTTP Outcalls, when it fails, the trap log gives a long array of CBOR bytes (certificate), which hides the reason in the upper part. Run "mops test {test filename} 2>&1 | head -100" and you should be able to see it.
+
 ---
 
 # `bot-agent`

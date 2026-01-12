@@ -135,7 +135,10 @@ module {
   ///
   /// @param responseBody - Raw JSON response from Groq API
   /// @returns Result with extracted content or error message
-  private func parseGroqResponse(responseBody : Text) : Result.Result<Text, Text> {
+  private func parseGroqResponse(responseBody : Text) : {
+    #ok : Text;
+    #err : Text;
+  } {
     switch (Json.parse(responseBody)) {
       case (#err(error)) {
         #err("Failed to parse JSON response: " # debug_show error);

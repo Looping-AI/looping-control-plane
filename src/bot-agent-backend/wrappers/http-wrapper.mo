@@ -92,7 +92,7 @@ module {
 
       #ok(decodedText);
     } catch (error : Error) {
-      #err("HTTP request failed: " # Error.message(error));
+      #err("HTTP request failed. Error Code: " # debug_show Error.code(error) # ". With message: " # Error.message(error));
     };
   };
 
