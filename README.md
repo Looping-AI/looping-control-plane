@@ -9,7 +9,7 @@ Install Lintoko (https://github.com/caffeinelabs/lintoko) with:
 
 ### Test Debugging
 
-In tests that use HTTP Outcalls, when it fails, the trap log gives a long array of CBOR bytes (certificate), which hides the reason in the upper part. Run "mops test {test filename} 2>&1 | head -100" and you should be able to see it.
+In tests that use HTTP Outcalls, when it fails, the trap log gives a long array of CBOR bytes (certificate), which hides the reason in the upper part. Run `mops test {test filename} 2>&1 | head -100` and you should be able to see it.
 
 ---
 

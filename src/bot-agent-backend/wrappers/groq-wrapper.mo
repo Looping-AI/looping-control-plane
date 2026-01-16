@@ -1,6 +1,5 @@
 import Text "mo:core/Text";
 import Array "mo:core/Array";
-import Result "mo:core/Result";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import Bool "mo:core/Bool";
