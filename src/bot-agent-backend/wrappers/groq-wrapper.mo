@@ -212,9 +212,14 @@ module {
       case (#err(error)) {
         #err("HTTP request failed: " # error);
       };
-      case (#ok(responseBody)) {
-        // Simple response parsing - extract content from first choice
-        parseGroqResponse(responseBody);
+      case (#ok((status, responseBody))) {
+        if (status == 200) {
+          // Parse successful response
+          parseGroqResponse(responseBody);
+        } else {
+          // Return error with status and response details
+          #err("Groq API returned status " # Nat.toText(status) # ": " # responseBody);
+        };
       };
     };
   };

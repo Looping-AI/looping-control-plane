@@ -10,7 +10,7 @@ import GroqWrapper "../../../src/bot-agent-backend/wrappers/groq-wrapper";
 
 shared ({ caller = parent }) persistent actor class TestCanister() {
   public shared ({ caller }) func httpGet(url : Text, headers : [HttpWrapper.HttpHeader]) : async {
-    #ok : Text;
+    #ok : (Nat, Text);
     #err : Text;
   } {
     assert caller == parent;
@@ -18,7 +18,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   public shared ({ caller }) func httpPost(url : Text, headers : [HttpWrapper.HttpHeader], body : Text) : async {
-    #ok : Text;
+    #ok : (Nat, Text);
     #err : Text;
   } {
     assert caller == parent;

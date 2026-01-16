@@ -1,18 +1,23 @@
 import { suite; test; expect } "mo:test/async";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
+import Nat "mo:core/Nat";
 import TestCanister "../test-canister";
 import HttpWrapper "../../../../src/bot-agent-backend/wrappers/http-wrapper";
 
 persistent actor {
-  func resultToText(r : Result.Result<Text, Text>) : Text {
+  type HttpResponse = (Nat, Text);
+
+  func resultToText(r : Result.Result<HttpResponse, Text>) : Text {
     switch (r) {
-      case (#ok v) { "#ok(" # v # ")" };
+      case (#ok(status, body)) {
+        "#ok(" # Nat.toText(status) # ", " # body # ")";
+      };
       case (#err e) { "#err(" # e # ")" };
     };
   };
 
-  func resultEqual(r1 : Result.Result<Text, Text>, r2 : Result.Result<Text, Text>) : Bool {
+  func resultEqual(r1 : Result.Result<HttpResponse, Text>, r2 : Result.Result<HttpResponse, Text>) : Bool {
     r1 == r2;
   };
 
@@ -32,9 +37,10 @@ persistent actor {
           "HTTP GET: successful request returns ok and contains expected content",
           func() : async () {
             let res = await testCanister.httpGet("https://example.com", []);
-            expect.result<Text, Text>(res, resultToText, resultEqual).isOk();
+            expect.result<HttpResponse, Text>(res, resultToText, resultEqual).isOk();
             switch (res) {
-              case (#ok body) {
+              case (#ok(status, body)) {
+                expect.nat(status).equal(200);
                 expect.text(body).contains("Example Domain");
               };
               case (#err _) {};
@@ -47,11 +53,11 @@ persistent actor {
           func() : async () {
             // Invalid URL format
             let res1 = await testCanister.httpGet("not-a-valid-url", []);
-            expect.result<Text, Text>(res1, resultToText, resultEqual).isErr();
+            expect.result<HttpResponse, Text>(res1, resultToText, resultEqual).isErr();
 
             // Non-existent domain
             let res2 = await testCanister.httpGet("https://this-domain-definitely-does-not-exist-12345.com", []);
-            expect.result<Text, Text>(res2, resultToText, resultEqual).isErr();
+            expect.result<HttpResponse, Text>(res2, resultToText, resultEqual).isErr();
           },
         );
 
@@ -67,9 +73,10 @@ persistent actor {
             ];
             let body = "{\"message\": \"hello from ICP\"}";
             let res = await testCanister.httpPost("https://httpbin.org/post", headers, body);
-            expect.result<Text, Text>(res, resultToText, resultEqual).isOk();
+            expect.result<HttpResponse, Text>(res, resultToText, resultEqual).isOk();
             switch (res) {
-              case (#ok responseBody) {
+              case (#ok(status, responseBody)) {
+                expect.nat(status).equal(200);
                 expect.text(responseBody).contains("hello from ICP");
               };
               case (#err _) {};
@@ -85,7 +92,7 @@ persistent actor {
               { name = "Content-Type"; value = "text/plain" },
             ];
             let res1 = await testCanister.httpPost("https://httpbin.org/post", plainHeaders, "Plain text message");
-            expect.result<Text, Text>(res1, resultToText, resultEqual).isOk();
+            expect.result<HttpResponse, Text>(res1, resultToText, resultEqual).isOk();
 
             // Form-encoded
             let formHeaders : [HttpWrapper.HttpHeader] = [
@@ -95,11 +102,11 @@ persistent actor {
               },
             ];
             let res2 = await testCanister.httpPost("https://httpbin.org/post", formHeaders, "key1=value1&key2=value2");
-            expect.result<Text, Text>(res2, resultToText, resultEqual).isOk();
+            expect.result<HttpResponse, Text>(res2, resultToText, resultEqual).isOk();
 
             // Empty body
             let res3 = await testCanister.httpPost("https://httpbin.org/post", [], "");
-            expect.result<Text, Text>(res3, resultToText, resultEqual).isOk();
+            expect.result<HttpResponse, Text>(res3, resultToText, resultEqual).isOk();
           },
         );
 
@@ -108,11 +115,11 @@ persistent actor {
           func() : async () {
             // Invalid URL
             let res1 = await testCanister.httpPost("not-a-valid-url", [], "test data");
-            expect.result<Text, Text>(res1, resultToText, resultEqual).isErr();
+            expect.result<HttpResponse, Text>(res1, resultToText, resultEqual).isErr();
 
             // Non-existent endpoint
             let res2 = await testCanister.httpPost("https://this-domain-definitely-does-not-exist-12345.com/api", [], "test data");
-            expect.result<Text, Text>(res2, resultToText, resultEqual).isErr();
+            expect.result<HttpResponse, Text>(res2, resultToText, resultEqual).isErr();
           },
         );
 
@@ -128,7 +135,7 @@ persistent actor {
             ];
             let body = "{\"message\": \"Testing: !@#$%^&*()_+-=[]{}|;':,.<>?\"}";
             let res = await testCanister.httpPost("https://httpbin.org/post", headers, body);
-            expect.result<Text, Text>(res, resultToText, resultEqual).isOk();
+            expect.result<HttpResponse, Text>(res, resultToText, resultEqual).isOk();
           },
         );
 
@@ -140,7 +147,7 @@ persistent actor {
             ];
             let body = "{\"message\": \"Hello 世界 🌍\"}";
             let res = await testCanister.httpPost("https://httpbin.org/post", headers, body);
-            expect.result<Text, Text>(res, resultToText, resultEqual).isOk();
+            expect.result<HttpResponse, Text>(res, resultToText, resultEqual).isOk();
           },
         );
 
@@ -149,7 +156,8 @@ persistent actor {
           func() : async () {
             let res = await testCanister.httpGet("https://httpbin.org/get?param1=value1&param2=value2", []);
             switch (res) {
-              case (#ok body) {
+              case (#ok(status, body)) {
+                expect.nat(status).equal(200);
                 expect.text(body).contains("param1");
                 expect.text(body).contains("param2");
                 expect.text(body).contains("value2");
@@ -171,7 +179,8 @@ persistent actor {
             ];
             let res = await testCanister.httpGet("https://httpbin.org/headers", headers);
             switch (res) {
-              case (#ok body) {
+              case (#ok(status, body)) {
+                expect.nat(status).equal(200);
                 // httpbin.org/headers echoes back the headers
                 expect.text(body).contains("X-Custom-Header-1");
                 expect.text(body).contains("X-Custom-Header-2");

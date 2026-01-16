@@ -161,10 +161,10 @@ module {
   ///              end-to-end when using HTTPS URLs
   ///
   /// # Returns
-  /// - `#ok(response)` : The HTTP response body as plain text
+  /// - `#ok(statusCode, response)` : Tuple of HTTP status code and response body as plain text
   /// - `#err(message)` : Error message if the request fails
   public func get(url : Text, headers : [HttpHeader]) : async {
-    #ok : Text;
+    #ok : (Nat, Text);
     #err : Text;
   } {
     try {
@@ -192,13 +192,13 @@ module {
       // Cycles are calculated dynamically based on request size
       let httpResponse = await (with cycles = cyclesNeeded) ic.http_request(http_request_args);
 
-      // 4. DECODE THE RESPONSE
+      // 5. DECODE THE RESPONSE
       let decodedText : Text = switch (Text.decodeUtf8(httpResponse.body)) {
         case (null) { "No value returned" };
         case (?y) { y };
       };
 
-      #ok(decodedText);
+      #ok((httpResponse.status, decodedText));
     } catch (error : Error) {
       #err("HTTP request failed. Error Code: " # debug_show Error.code(error) # ". With message: " # Error.message(error));
     };
@@ -213,10 +213,10 @@ module {
   /// - `body` : The request body to send. Encrypted end-to-end when using HTTPS URLs
   ///
   /// # Returns
-  /// - `#ok(response)` : The HTTP response body as plain text
+  /// - `#ok(statusCode, response)` : Tuple of HTTP status code and response body as plain text
   /// - `#err(message)` : Error message if the request fails
   public func post(url : Text, headers : [HttpHeader], body : Text) : async {
-    #ok : Text;
+    #ok : (Nat, Text);
     #err : Text;
   } {
     try {
@@ -254,7 +254,7 @@ module {
         case (?y) { y };
       };
 
-      #ok(decodedText);
+      #ok((httpResponse.status, decodedText));
     } catch (error : Error) {
       #err("HTTP request failed: " # Error.message(error));
     };
