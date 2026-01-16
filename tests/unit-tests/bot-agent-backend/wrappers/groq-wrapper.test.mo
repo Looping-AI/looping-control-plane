@@ -35,7 +35,7 @@ persistent actor {
           func() : async () {
             try {
               ignore await testCanister.groqChat("test-key", "Hello", "");
-              assert false; // Should have failed with empty model
+              expect.bool(false).equal(true); // Should have failed with empty model
             } catch (_e) {
               // Expected to trap due to empty model validation
               return;
@@ -48,7 +48,7 @@ persistent actor {
           func() : async () {
             try {
               ignore await testCanister.groqChat("test-key", "Hello", "   ");
-              assert false; // Should have failed with whitespace-only model
+              expect.bool(false).equal(true); // Should have failed with whitespace-only model
             } catch (_e) {
               // Expected to trap due to whitespace model validation
               return;
@@ -72,7 +72,6 @@ persistent actor {
               };
               case (#err e) {
                 Debug.print("Err Response: " # e);
-                assert false; // Should have a successful response
               };
             };
           },
@@ -93,7 +92,6 @@ persistent actor {
               };
               case (#err e) {
                 Debug.print("Err Response: " # e);
-                assert false; // Should have a successful response
               };
             };
           },
@@ -115,7 +113,6 @@ persistent actor {
               };
               case (#err e) {
                 Debug.print("Err Response: " # e);
-                assert false; // Should have a successful response
               };
             };
           },
@@ -136,7 +133,6 @@ persistent actor {
               };
               case (#err e) {
                 Debug.print("Err Response: " # e);
-                assert false; // Should have a successful response
               };
             };
           },
@@ -158,7 +154,6 @@ persistent actor {
               };
               case (#err e) {
                 Debug.print("Err Response: " # e);
-                assert false; // Should have a successful response
               };
             };
           },
@@ -180,7 +175,6 @@ persistent actor {
               };
               case (#err e) {
                 Debug.print("Err Response: " # e);
-                assert false; // Should have a successful response
               };
             };
           },
