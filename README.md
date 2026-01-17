@@ -11,6 +11,33 @@ Install Lintoko (https://github.com/caffeinelabs/lintoko) with:
 
 In tests that use HTTP Outcalls, when it fails, the trap log gives a long array of CBOR bytes (certificate), which hides the reason in the upper part. Run `mops test {test filename} 2>&1 | head -100` and you should be able to see it.
 
+### Setting Up the Test Environment File
+
+The `test-env.mo` file is required for running unit tests but is intentionally excluded from version control (see `.gitignore`). This file contains sensitive credentials needed for API testing.
+
+**Creating the test-env.mo file:**
+
+1. Navigate to the unit tests directory:
+
+   ```bash
+   cd tests/unit-tests/bot-agent-backend
+   ```
+
+2. Create a `test-env.mo` file with the following structure:
+
+   ```motoko
+   module {
+     public let GROQ_TEST_KEY : Text = "your-groq-api-key-here";
+   };
+
+   ```
+
+3. Replace `"your-groq-api-key-here"` with your actual [Groq API key](https://console.groq.com/keys).
+
+**Where it's used:**
+
+The `test-env.mo` module is imported by the wrapper tests (e.g.: `wrappers/groq-wrapper.test.mo`) to provide credentials for integration testing with the APIs.
+
 ---
 
 # `bot-agent`

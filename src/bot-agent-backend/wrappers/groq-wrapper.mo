@@ -88,7 +88,7 @@ module {
   };
 
   /// Serialize ChatCompletionRequest to JSON string
-  private func serializeRequest(request : ChatCompletionRequest) : Text {
+  private func serializeChatCompletionRequest(request : ChatCompletionRequest) : Text {
     let messagesJson = arr(Array.map<ChatMessage, Json.Json>(request.messages, messageToJson));
 
     // Start with required fields in a list
@@ -197,7 +197,7 @@ module {
       stream = ?false; // Always false for simplicity
     };
 
-    let requestBody = serializeRequest(request);
+    let requestBody = serializeChatCompletionRequest(request);
     let url = GROQ_API_BASE_URL # "/chat/completions";
 
     let headers : [HttpWrapper.HttpHeader] = [

@@ -126,7 +126,7 @@ module {
   /// base_fee = (3_000_000 + 60_000 * n) * n
   /// size_fee = (400 * request_bytes + 800 * max_response_bytes) * n
   /// where n = number of nodes in the subnet
-  ///  
+  ///
   /// The result is multiplied by a safety factor to handle uncertainty and subnet variations.
   /// Excess cycles are automatically refunded.
   ///
@@ -143,7 +143,7 @@ module {
     // Calculate base fee: (3_000_000 + 60_000 * n) * n
     let baseFee = (3_000_000 + 60_000 * n) * n;
 
-    // Calculate size fee: (400 * request_bytes + 800 * max_response_bytes) * n    
+    // Calculate size fee: (400 * request_bytes + 800 * max_response_bytes) * n
     let sizeFee = (400 * requestBytes + 800 * Nat64.toNat(MAX_RESPONSE_BYTES)) * n;
 
     // Total fee with safety multiplier
@@ -200,7 +200,7 @@ module {
 
       #ok((httpResponse.status, decodedText));
     } catch (error : Error) {
-      #err("HTTP request failed. Error Code: " # debug_show Error.code(error) # ". With message: " # Error.message(error));
+      #err("HTTP request trapped. Error Code: " # debug_show Error.code(error) # ". Message: " # Error.message(error));
     };
   };
 
@@ -256,7 +256,7 @@ module {
 
       #ok((httpResponse.status, decodedText));
     } catch (error : Error) {
-      #err("HTTP request failed: " # Error.message(error));
+      #err("HTTP request trapped. Error Code: " # debug_show Error.code(error) # ". Message: " # Error.message(error));
     };
   };
 };

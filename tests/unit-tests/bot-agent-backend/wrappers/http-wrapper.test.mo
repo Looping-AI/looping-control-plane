@@ -2,6 +2,7 @@ import { suite; test; expect } "mo:test/async";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
+import Debug "mo:core/Debug";
 import TestCanister "../test-canister";
 import HttpWrapper "../../../../src/bot-agent-backend/wrappers/http-wrapper";
 
@@ -43,7 +44,9 @@ persistent actor {
                 expect.nat(status).equal(200);
                 expect.text(body).contains("Example Domain");
               };
-              case (#err _) {};
+              case (#err e) {
+                Debug.print("Err Response: " # e);
+              };
             };
           },
         );
@@ -79,7 +82,9 @@ persistent actor {
                 expect.nat(status).equal(200);
                 expect.text(responseBody).contains("hello from ICP");
               };
-              case (#err _) {};
+              case (#err e) {
+                Debug.print("Err Response: " # e);
+              };
             };
           },
         );
@@ -155,6 +160,7 @@ persistent actor {
           "HTTP GET: handles query parameters correctly",
           func() : async () {
             let res = await testCanister.httpGet("https://httpbin.org/get?param1=value1&param2=value2", []);
+            expect.result<HttpResponse, Text>(res, resultToText, resultEqual).isOk();
             switch (res) {
               case (#ok(status, body)) {
                 expect.nat(status).equal(200);
@@ -162,8 +168,8 @@ persistent actor {
                 expect.text(body).contains("param2");
                 expect.text(body).contains("value2");
               };
-              case (#err _) {
-                assert false; // Request should not have failed
+              case (#err e) {
+                Debug.print("Err Response: " # e);
               };
             };
           },
@@ -178,6 +184,7 @@ persistent actor {
               { name = "Accept"; value = "application/json" },
             ];
             let res = await testCanister.httpGet("https://httpbin.org/headers", headers);
+            expect.result<HttpResponse, Text>(res, resultToText, resultEqual).isOk();
             switch (res) {
               case (#ok(status, body)) {
                 expect.nat(status).equal(200);
@@ -186,8 +193,8 @@ persistent actor {
                 expect.text(body).contains("X-Custom-Header-2");
                 expect.text(body).contains("value2");
               };
-              case (#err _) {
-                assert false; // Request should not have failed
+              case (#err e) {
+                Debug.print("Err Response: " # e);
               };
             };
           },
