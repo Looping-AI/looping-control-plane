@@ -185,9 +185,6 @@ module {
     #ok : Text;
     #err : Text;
   } {
-    assert messages.size() > 0;
-    assert Text.trim(model, #char ' ') != "";
-
     let request : ChatCompletionRequest = {
       model;
       messages;
@@ -242,6 +239,10 @@ module {
     #ok : Text;
     #err : Text;
   } {
+    assert Text.trim(apiKey, #char ' ') != "";
+    assert Text.trim(userMessage, #char ' ') != "";
+    assert Text.trim(model, #char ' ') != "";
+
     let messages : [ChatMessage] = [{ role = #user; content = userMessage }];
 
     await chatCompletion(apiKey, messages, model, null, null);
