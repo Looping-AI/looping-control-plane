@@ -59,6 +59,13 @@ export type HttpMethod = "GET" | "POST" | "HEAD";
 export type HttpHeader = [string, string];
 
 /**
+ * Body encoding type for cassette storage.
+ * - "text": Plain UTF-8 text (human-readable, editable)
+ * - "base64": Base64-encoded binary data
+ */
+export type BodyEncoding = "text" | "base64";
+
+/**
  * Captured HTTP request from a canister outcall.
  */
 export interface CassetteRequest {
@@ -72,11 +79,19 @@ export interface CassetteRequest {
   headers: HttpHeader[];
 
   /**
-   * Request body encoded as base64.
-   * Base64 encoding ensures binary safety and JSON compatibility.
+   * Request body.
+   * Encoding depends on the `bodyEncoding` field.
    * Empty string if no body.
    */
   body: string;
+
+  /**
+   * How the body is encoded in this cassette.
+   * - "text": Plain UTF-8 text (default for JSON/text content)
+   * - "base64": Base64-encoded (for binary content)
+   * Defaults to "base64" if not specified (backward compatibility).
+   */
+  bodyEncoding?: BodyEncoding;
 }
 
 // =============================================================================
@@ -94,10 +109,18 @@ export interface CassetteResponse {
   headers: HttpHeader[];
 
   /**
-   * Response body encoded as base64.
-   * Base64 encoding ensures binary safety and JSON compatibility.
+   * Response body.
+   * Encoding depends on the `bodyEncoding` field.
    */
   body: string;
+
+  /**
+   * How the body is encoded in this cassette.
+   * - "text": Plain UTF-8 text (default for JSON/text content)
+   * - "base64": Base64-encoded (for binary content)
+   * Defaults to "base64" if not specified (backward compatibility).
+   */
+  bodyEncoding?: BodyEncoding;
 }
 
 // =============================================================================

@@ -18,7 +18,7 @@ import {
   CassetteMatchError,
   DEFAULT_STALE_WARNING_DAYS,
 } from "./cassette-types";
-import { matchRequest, base64DecodeToBytes } from "./cassette-matcher";
+import { matchRequest, decodeBodyToBytes } from "./cassette-matcher";
 
 // =============================================================================
 // Main Playback Function
@@ -107,7 +107,7 @@ async function mockOutcallResponse(
   interaction: Interaction,
 ): Promise<void> {
   const response = interaction.response;
-  const bodyBytes = base64DecodeToBytes(response.body);
+  const bodyBytes = decodeBodyToBytes(response.body, response.bodyEncoding);
 
   await pic.mockPendingHttpsOutcall({
     requestId: pending.requestId,

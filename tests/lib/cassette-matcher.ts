@@ -11,6 +11,7 @@ import type {
   MatchRules,
   MatchResult,
   HttpHeader,
+  BodyEncoding,
 } from "./cassette-types";
 
 // =============================================================================
@@ -59,7 +60,10 @@ export function matchRequest(
     }
 
     // Check body match
-    const recordedBody = base64Decode(interaction.request.body);
+    const recordedBody = decodeStoredBody(
+      interaction.request.body,
+      interaction.request.bodyEncoding,
+    );
     if (!matchBody(pendingBody, recordedBody, rules)) {
       continue;
     }
@@ -140,6 +144,8 @@ function stripQueryParams(url: string): string {
 
 /**
  * Match pending request body against recorded body.
+ * Handles JSON normalization to compare semantically equivalent JSON bodies
+ * that may have different formatting (compact vs pretty-printed).
  */
 function matchBody(
   pendingBody: string,
@@ -151,23 +157,24 @@ function matchBody(
     return true;
   }
 
-  // If no fields to ignore, do exact match
-  if (!rules?.ignoreBodyFields || rules.ignoreBodyFields.length === 0) {
-    return pendingBody === recordedBody;
-  }
-
-  // Try JSON comparison with ignored fields
+  // Try to parse both as JSON for semantic comparison
   try {
     const pendingJson = JSON.parse(pendingBody);
     const recordedJson = JSON.parse(recordedBody);
 
-    return matchJsonWithIgnoredFields(
-      pendingJson,
-      recordedJson,
-      rules.ignoreBodyFields,
-    );
+    // If fields to ignore, use field-ignoring comparison
+    if (rules?.ignoreBodyFields && rules.ignoreBodyFields.length > 0) {
+      return matchJsonWithIgnoredFields(
+        pendingJson,
+        recordedJson,
+        rules.ignoreBodyFields,
+      );
+    }
+
+    // Otherwise, compare normalized JSON (handles pretty-print vs compact)
+    return JSON.stringify(pendingJson) === JSON.stringify(recordedJson);
   } catch {
-    // Not valid JSON, fall back to exact match
+    // Not valid JSON, fall back to exact string match
     return pendingBody === recordedBody;
   }
 }
@@ -391,6 +398,27 @@ function decodeBody(body: Uint8Array): string {
 }
 
 /**
+ * Decode stored body based on encoding type.
+ * Handles backward compatibility - defaults to base64 if encoding not specified.
+ */
+function decodeStoredBody(
+  body: string,
+  encoding: BodyEncoding | undefined,
+): string {
+  if (!body) {
+    return "";
+  }
+
+  // "text" encoding means body is stored as plain UTF-8 string
+  if (encoding === "text") {
+    return body;
+  }
+
+  // Default to base64 for backward compatibility
+  return base64Decode(body);
+}
+
+/**
  * Decode base64 string to UTF-8 string.
  */
 function base64Decode(base64: string): string {
@@ -424,9 +452,38 @@ export function base64Encode(data: string | Uint8Array): string {
 }
 
 /**
+ * Decode stored body to Uint8Array based on encoding type.
+ * Handles backward compatibility - defaults to base64 if encoding not specified.
+ */
+export function decodeBodyToBytes(
+  body: string,
+  encoding: BodyEncoding | undefined,
+): Uint8Array {
+  if (!body) {
+    return new Uint8Array(0);
+  }
+
+  // "text" encoding means body is stored as plain UTF-8 string
+  if (encoding === "text") {
+    return new TextEncoder().encode(body);
+  }
+
+  // Default to base64 for backward compatibility
+  return base64DecodeFromString(body);
+}
+
+/**
  * Decode base64 to Uint8Array.
+ * @deprecated Use decodeBodyToBytes which handles encoding types
  */
 export function base64DecodeToBytes(base64: string): Uint8Array {
+  return base64DecodeFromString(base64);
+}
+
+/**
+ * Internal: Decode base64 string to Uint8Array.
+ */
+function base64DecodeFromString(base64: string): Uint8Array {
   if (!base64) {
     return new Uint8Array(0);
   }

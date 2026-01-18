@@ -190,6 +190,7 @@ function cleanForSave(cassette: Cassette): Cassette {
     ...cassette,
     interactions: cassette.interactions.map((interaction) => {
       // Create a copy without the _used field
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { _used, ...clean } = interaction;
       return clean;
     }),

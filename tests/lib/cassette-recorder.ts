@@ -16,6 +16,7 @@ import type {
   PendingOutcall,
   HttpMethod,
   HttpHeader,
+  BodyEncoding,
 } from "./cassette-types";
 import { DEFAULT_REDACT_HEADERS } from "./cassette-types";
 import { base64Encode } from "./cassette-matcher";
@@ -195,11 +196,16 @@ function buildRequestRecord(
     bodyString = options.transformRequest(bodyString, contentType);
   }
 
+  // Determine encoding - use text for readable content, base64 for binary
+  const contentType = findHeader(pending.headers, "content-type") ?? "";
+  const { body, encoding } = encodeBodyForStorage(bodyString, contentType);
+
   return {
     url: pending.url,
     method: pending.httpMethod as HttpMethod,
     headers,
-    body: base64Encode(bodyString),
+    body,
+    bodyEncoding: encoding,
   };
 }
 
@@ -232,10 +238,15 @@ function buildResponseRecord(
     }
   });
 
+  // Determine encoding - use text for readable content, base64 for binary
+  const contentType = response.headers.get("content-type") ?? "";
+  const { body, encoding } = encodeBodyForStorage(bodyString, contentType);
+
   return {
     statusCode: response.status,
     headers,
-    body: base64Encode(bodyString),
+    body,
+    bodyEncoding: encoding,
   };
 }
 
@@ -266,6 +277,53 @@ async function mockWithBufferedResponse(
       body: bodyBytes,
     },
   });
+}
+
+// =============================================================================
+// Body Encoding Utilities
+// =============================================================================
+
+/**
+ * Content types that should be stored as plain text (human-readable).
+ */
+const TEXT_CONTENT_TYPES = [
+  "application/json",
+  "text/plain",
+  "text/html",
+  "text/xml",
+  "application/xml",
+  "text/css",
+  "text/javascript",
+  "application/javascript",
+];
+
+/**
+ * Determine how to encode a body for cassette storage.
+ * Uses plain text for JSON/text content, base64 for binary.
+ */
+function encodeBodyForStorage(
+  body: string,
+  contentType: string,
+): { body: string; encoding: BodyEncoding } {
+  if (!body) {
+    return { body: "", encoding: "text" };
+  }
+
+  // Check if content type indicates text content
+  const isTextContent = TEXT_CONTENT_TYPES.some((type) =>
+    contentType.toLowerCase().includes(type),
+  );
+
+  if (isTextContent) {
+    // Store text content as plain text (compact, not pretty-printed)
+    return { body, encoding: "text" };
+  }
+
+  // Binary content - use base64
+  return {
+    body: base64Encode(body),
+    encoding: "base64",
+  };
 }
 
 // =============================================================================
