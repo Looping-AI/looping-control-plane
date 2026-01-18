@@ -76,14 +76,35 @@ async function recordSingleOutcall(
   // Make real HTTP request
   const realResponse = await makeRealRequest(pending);
 
-  // Build interaction record
-  const interaction = await buildInteraction(pending, realResponse, options);
+  // Buffer the response body immediately - Response body can only be read once!
+  const responseBodyBuffer = await realResponse.arrayBuffer();
+  const responseBodyBytes = new Uint8Array(responseBodyBuffer);
+
+  // Extract headers from response
+  const responseHeaders: HttpHeader[] = [];
+  realResponse.headers.forEach((value, name) => {
+    responseHeaders.push([name, value]);
+  });
+
+  // Build interaction record (using buffered body)
+  const interaction = await buildInteraction(
+    pending,
+    realResponse,
+    responseBodyBytes,
+    options,
+  );
 
   // Add to cassette
   cassette.interactions.push(interaction);
 
-  // Mock PocketIC with the real response
-  await mockWithRealResponse(pic, pending, realResponse);
+  // Mock PocketIC with the real response (using buffered body)
+  await mockWithBufferedResponse(
+    pic,
+    pending,
+    realResponse.status,
+    responseHeaders,
+    responseBodyBytes,
+  );
 }
 
 // =============================================================================
@@ -130,13 +151,18 @@ async function makeRealRequest(pending: PendingOutcall): Promise<Response> {
 async function buildInteraction(
   pending: PendingOutcall,
   response: Response,
+  responseBodyBytes: Uint8Array,
   options?: RecordOptions,
 ): Promise<Interaction> {
   // Build request record
   const request = buildRequestRecord(pending, options);
 
-  // Build response record
-  const cassetteResponse = await buildResponseRecord(response, options);
+  // Build response record (using pre-buffered body)
+  const cassetteResponse = buildResponseRecord(
+    response,
+    responseBodyBytes,
+    options,
+  );
 
   return {
     request,
@@ -179,14 +205,15 @@ function buildRequestRecord(
 
 /**
  * Build cassette response from real HTTP response.
+ * Uses pre-buffered body bytes since Response body can only be read once.
  */
-async function buildResponseRecord(
+function buildResponseRecord(
   response: Response,
+  responseBodyBytes: Uint8Array,
   options?: RecordOptions,
-): Promise<CassetteResponse> {
-  // Get response body
-  const responseBuffer = await response.arrayBuffer();
-  let bodyString = new TextDecoder().decode(new Uint8Array(responseBuffer));
+): CassetteResponse {
+  // Decode body from pre-buffered bytes
+  let bodyString = new TextDecoder().decode(responseBodyBytes);
 
   // Apply custom transform
   if (bodyString && options?.transformResponse) {
@@ -217,29 +244,16 @@ async function buildResponseRecord(
 // =============================================================================
 
 /**
- * Mock PocketIC with the real response.
+ * Mock PocketIC with pre-buffered response data.
+ * This avoids issues with Response body being consumed.
  */
-async function mockWithRealResponse(
+async function mockWithBufferedResponse(
   pic: PocketIc,
   pending: PendingOutcall,
-  response: Response,
+  statusCode: number,
+  headers: HttpHeader[],
+  bodyBytes: Uint8Array,
 ): Promise<void> {
-  // We need to read the body again since it was consumed
-  // Clone wasn't used to avoid complexity, so we re-fetch the body from the already-built response
-  // Actually, Response body can only be read once, so we need to clone or buffer it
-
-  // Get response data - we already consumed it, so we'll use the recorded data
-  // This is handled by the caller - we just need the status and headers here
-
-  // Re-read body (this is a workaround - in practice the body was already read)
-  const bodyBuffer = await response.clone().arrayBuffer();
-  const bodyBytes = new Uint8Array(bodyBuffer);
-
-  const headers: HttpHeader[] = [];
-  response.headers.forEach((value, name) => {
-    headers.push([name, value]);
-  });
-
   await pic.mockPendingHttpsOutcall({
     requestId: pending.requestId,
     subnetId: pending.subnetId as Parameters<
@@ -247,7 +261,7 @@ async function mockWithRealResponse(
     >[0]["subnetId"],
     response: {
       type: "success",
-      statusCode: response.status,
+      statusCode,
       headers,
       body: bodyBytes,
     },

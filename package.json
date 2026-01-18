@@ -4,7 +4,7 @@
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "lint": "eslint . && lintoko -r .lintoko src tests",
-    "test": "tsc && dfx build && bun test && mops test"
+    "test": "tsc && dfx build && mops test && bun test"
   },
   "dependencies": {
     "@dfinity/agent": "^3.4.3",

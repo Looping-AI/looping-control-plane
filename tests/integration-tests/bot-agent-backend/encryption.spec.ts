@@ -154,6 +154,7 @@ describe("API Key Encryption & Cache Management", () => {
       pic,
       "encryption/re-derive-key-after-cache-clear",
       () => deferredActor.talkTo(agentId, "What is capital of France?"),
+      { ticks: 5 }, // More ticks needed for key derivation before HTTP outcall
     );
     const response = expectOk(await result);
     expect(response).toContain("Paris");
