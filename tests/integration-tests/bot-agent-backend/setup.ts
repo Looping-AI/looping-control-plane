@@ -147,11 +147,18 @@ export async function createGroqAgent(
   userIdentity: ReturnType<typeof generateRandomIdentity>,
   model: string = "llama-3.1-8b-instant",
 ): Promise<bigint> {
-  const apiKey = process.env["GROQ_TEST_KEY"];
+  let apiKey = process.env["GROQ_TEST_KEY"];
+
+  // In GitHub CI environment without GROQ_TEST_KEY, use a placeholder
+  // (tests will use cassettes and won't make real API calls)
   if (!apiKey) {
-    throw new Error(
-      "GROQ_TEST_KEY environment variable is not set. Please ensure .env.test file exists with GROQ_TEST_KEY defined.",
-    );
+    if (process.env["GITHUB_ACTIONS"]) {
+      apiKey = "not-needed-due-to-cassette";
+    } else {
+      throw new Error(
+        "GROQ_TEST_KEY environment variable is not set. Please ensure .env.test file exists with GROQ_TEST_KEY defined.",
+      );
+    }
   }
 
   // Switch to admin identity to create the agent
