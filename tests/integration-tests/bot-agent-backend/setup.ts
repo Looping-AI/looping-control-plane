@@ -9,6 +9,10 @@ import { Principal } from "@dfinity/principal";
 import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
 import { idlFactory } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
 
+// Re-export for use with deferred actors
+export { idlFactory };
+export type { _SERVICE };
+
 // Load environment variables from .env.test
 const envFile = resolve(import.meta.dir, "..", "..", "..", ".env.test");
 try {
@@ -51,11 +55,12 @@ export const WASM_PATH = resolve(
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
- * @returns Object with PocketIC instance and actor
+ * @returns Object with PocketIC instance, actor, and canisterId
  */
 export async function createTestEnvironment(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
+  canisterId: import("@dfinity/principal").Principal;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "", {
     fiduciary: {
@@ -68,7 +73,7 @@ export async function createTestEnvironment(): Promise<{
     wasm: WASM_PATH,
   });
 
-  return { pic, actor: fixture.actor };
+  return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
 }
 
 /**

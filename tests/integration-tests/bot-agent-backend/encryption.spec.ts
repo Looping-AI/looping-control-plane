@@ -1,19 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import type { PocketIc, Actor } from "@dfinity/pic";
+import type { PocketIc, Actor, DeferredActor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
+import type { Principal } from "@dfinity/principal";
 import {
   createTestEnvironment,
   setupAdminUser,
   setupRegularUser,
   createTestAgent,
   createGroqAgent,
+  idlFactory,
+  type _SERVICE,
 } from "./setup.ts";
 import { expectOk, expectErr } from "./helpers.ts";
+import { withCassette } from "../../lib/cassette";
 
 describe("API Key Encryption & Cache Management", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
+  let canisterId: Principal;
   let adminIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
   let user2Identity: ReturnType<typeof generateRandomIdentity>;
@@ -23,6 +27,7 @@ describe("API Key Encryption & Cache Management", () => {
     const testEnv = await createTestEnvironment();
     pic = testEnv.pic;
     actor = testEnv.actor;
+    canisterId = testEnv.canisterId;
 
     // Set up an admin
     ({ adminIdentity } = await setupAdminUser(actor));
@@ -135,14 +140,22 @@ describe("API Key Encryption & Cache Management", () => {
     actor.setIdentity(adminIdentity);
     await actor.clearKeyCache();
 
-    // Go back to User identity
-    actor.setIdentity(userIdentity);
+    // Create a deferred actor for the HTTP outcall test
+    const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+      idlFactory,
+      canisterId,
+    );
+    deferredActor.setIdentity(userIdentity);
 
     // User is able to use talkTo again,
     // which requires re-deriving the same key successfully,
     // so that API key can be decrypted
-    const result2 = await actor.talkTo(agentId, "What is capital of France?");
-    const response = expectOk(result2);
+    const { result } = await withCassette(
+      pic,
+      "encryption/re-derive-key-after-cache-clear",
+      () => deferredActor.talkTo(agentId, "What is capital of France?"),
+    );
+    const response = expectOk(await result);
     expect(response).toContain("Paris");
   });
 });
