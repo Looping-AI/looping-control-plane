@@ -7,6 +7,48 @@ Link for backend with Internet Identity login button working: http://127.0.0.1:4
 Install Lintoko (https://github.com/caffeinelabs/lintoko) with:
 `curl --proto '=https' --tlsv1.2 -LsSf https://github.com/caffeinelabs/lintoko/releases/download/v0.7.0/lintoko-installer.sh | sh`
 
+### Test Debugging
+
+In tests that use HTTP Outcalls, when it fails, the trap log gives a long array of CBOR bytes (certificate), which hides the reason in the upper part. Run `mops test {test filename} 2>&1 | head -100` and you should be able to see it.
+
+### Setting Up the Test Environment Files
+
+Two environment files are required for running tests and are intentionally excluded from version control (see `.gitignore`). These files contain sensitive credentials needed for API testing.
+
+**Creating the test-env.mo file (for Motoko unit tests):**
+
+1. Navigate to the unit tests directory:
+
+   ```bash
+   cd tests/unit-tests/bot-agent-backend
+   ```
+
+2. Create a `test-env.mo` file with the following structure:
+
+   ```motoko
+   module {
+     public let GROQ_TEST_KEY : Text = "your-groq-api-key-here";
+   };
+
+   ```
+
+3. Replace `"your-groq-api-key-here"` with your actual [Groq API key](https://console.groq.com/keys).
+
+**Creating the .env.test file (for TypeScript integration tests):**
+
+1. On project root, create a `.env.test` file with the following structure:
+
+   ```
+   GROQ_TEST_KEY=your-groq-api-key-here
+   ```
+
+2. Replace `your-groq-api-key-here` with your actual [Groq API key](https://console.groq.com/keys).
+
+**Where they're used:**
+
+- The `test-env.mo` module is imported by the wrapper tests (e.g.: `wrappers/groq-wrapper.test.mo`) to provide credentials for Motoko unit testing with the APIs.
+- The `.env.test` file is loaded by the TypeScript integration tests in the `tests/integration-tests/` directory to provide credentials for testing the canister endpoints.
+
 ---
 
 # `bot-agent`

@@ -1,19 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Principal } from "@dfinity/principal";
-import type { PocketIc, Actor } from "@dfinity/pic";
+import type { PocketIc, Actor, DeferredActor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
 import {
   createTestEnvironment,
   setupAdminUser,
   setupRegularUser,
-  createTestAgent,
+  createGroqAgent,
+  idlFactory,
+  type _SERVICE,
 } from "./setup.ts";
 import { expectOk, expectErr } from "./helpers.ts";
+import { withCassette } from "../../lib/cassette";
 
 describe("Conversation Management", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
+  let canisterId: Principal;
   let adminIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
   let agentId: bigint;
@@ -22,20 +25,14 @@ describe("Conversation Management", () => {
     const testEnv = await createTestEnvironment();
     pic = testEnv.pic;
     actor = testEnv.actor;
+    canisterId = testEnv.canisterId;
 
     // Set up an admin
     ({ adminIdentity } = await setupAdminUser(actor));
 
-    // Create a test agent
-    agentId = await createTestAgent(
-      actor,
-      "Test Conversation Agent",
-      { openai: null },
-      "gpt-4",
-    );
-
-    // Set up a regular user
+    // Create a Groq agent with real API key for HTTP outcall tests
     ({ userIdentity } = setupRegularUser(actor));
+    agentId = await createGroqAgent(actor, adminIdentity, userIdentity);
   });
 
   afterEach(async () => {
@@ -53,8 +50,20 @@ describe("Conversation Management", () => {
     });
 
     it("should accept message from authenticated user", async () => {
-      const result = await actor.talkTo(agentId, "Hello Agent");
-      expectOk(result);
+      // Create a deferred actor for the HTTP outcall test
+      const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+        idlFactory,
+        canisterId,
+      );
+      deferredActor.setIdentity(userIdentity);
+
+      const { result } = await withCassette(
+        pic,
+        "conversations/accept-message-authenticated-user",
+        () => deferredActor.talkTo(agentId, "Hello Agent"),
+        { ticks: 5 },
+      );
+      expectOk(await result);
     });
   });
 
@@ -67,8 +76,21 @@ describe("Conversation Management", () => {
     });
 
     it("should contain correct message content in conversation history", async () => {
-      const testMessage = "This is a test message";
-      await actor.talkTo(agentId, testMessage);
+      const testMessage = "What is the capital of Germany?";
+
+      // Create a deferred actor for the HTTP outcall
+      const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+        idlFactory,
+        canisterId,
+      );
+      deferredActor.setIdentity(userIdentity);
+
+      await withCassette(
+        pic,
+        "conversations/correct-message-content",
+        () => deferredActor.talkTo(agentId, testMessage),
+        { ticks: 5 },
+      );
 
       const result = await actor.getConversation(agentId);
       const messages = expectOk(result);
@@ -82,13 +104,37 @@ describe("Conversation Management", () => {
     });
 
     it("should maintain conversation history across multiple messages", async () => {
-      const message1 = "First message";
-      const message2 = "Second message";
-      const message3 = "Third message";
+      const message1 = "What is 2 + 2?";
+      const message2 = "What is 3 + 3?";
+      const message3 = "What is 4 + 4?";
 
-      await actor.talkTo(agentId, message1);
-      await actor.talkTo(agentId, message2);
-      await actor.talkTo(agentId, message3);
+      // Create a deferred actor for the HTTP outcalls
+      const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+        idlFactory,
+        canisterId,
+      );
+      deferredActor.setIdentity(userIdentity);
+
+      await withCassette(
+        pic,
+        "conversations/history-message-1",
+        () => deferredActor.talkTo(agentId, message1),
+        { ticks: 5 },
+      );
+
+      await withCassette(
+        pic,
+        "conversations/history-message-2",
+        () => deferredActor.talkTo(agentId, message2),
+        { ticks: 5 },
+      );
+
+      await withCassette(
+        pic,
+        "conversations/history-message-3",
+        () => deferredActor.talkTo(agentId, message3),
+        { ticks: 5 },
+      );
 
       const result = await actor.getConversation(agentId);
       const messages = expectOk(result);
@@ -96,24 +142,48 @@ describe("Conversation Management", () => {
     });
 
     it("should isolate conversations between different agents", async () => {
-      // Create another agent
-      actor.setIdentity(adminIdentity);
-      const agentId2 = await createTestAgent(
+      // Create another Groq agent
+      const user2 = setupRegularUser(actor);
+      const agentId2 = await createGroqAgent(
         actor,
-        "Another Agent",
-        { groq: null },
-        "mixtral",
+        adminIdentity,
+        user2.userIdentity,
       );
 
-      // Switch back to user and send messages to different agents
-      actor.setIdentity(userIdentity);
-      const message1 = "Message for first agent";
-      const message2 = "Message for second agent";
+      const message1 = "What is the capital of France?";
+      const message2 = "What is the capital of Spain?";
 
-      await actor.talkTo(agentId, message1);
-      await actor.talkTo(agentId2, message2);
+      // Create deferred actors for both users
+      const deferredActor1: DeferredActor<_SERVICE> = pic.createDeferredActor(
+        idlFactory,
+        canisterId,
+      );
+      deferredActor1.setIdentity(userIdentity);
+
+      const deferredActor2: DeferredActor<_SERVICE> = pic.createDeferredActor(
+        idlFactory,
+        canisterId,
+      );
+      deferredActor2.setIdentity(user2.userIdentity);
+
+      // Send message to first agent
+      await withCassette(
+        pic,
+        "conversations/isolate-agent-1",
+        () => deferredActor1.talkTo(agentId, message1),
+        { ticks: 5 },
+      );
+
+      // Send message to second agent
+      await withCassette(
+        pic,
+        "conversations/isolate-agent-2",
+        () => deferredActor2.talkTo(agentId2, message2),
+        { ticks: 5 },
+      );
 
       // Check conversation history for first agent
+      actor.setIdentity(userIdentity);
       const result1 = await actor.getConversation(agentId);
       const messages1 = expectOk(result1);
       const foundMsg1 = messages1.some(
@@ -122,6 +192,7 @@ describe("Conversation Management", () => {
       expect(foundMsg1).toBe(true);
 
       // Check conversation history for second agent
+      actor.setIdentity(user2.userIdentity);
       const result2 = await actor.getConversation(agentId2);
       const messages2 = expectOk(result2);
       const foundMsg2 = messages2.some(

@@ -9,6 +9,27 @@ import { Principal } from "@dfinity/principal";
 import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
 import { idlFactory } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
 
+// Re-export for use with deferred actors
+export { idlFactory };
+export type { _SERVICE };
+
+// Load environment variables from .env.test
+const envFile = resolve(import.meta.dir, "..", "..", "..", ".env.test");
+try {
+  const envContent = await Bun.file(envFile).text();
+  envContent.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#")) {
+      const [key, value] = trimmed.split("=");
+      if (key && value) {
+        process.env[key] = value.replace(/^['"]|['"]$/g, "");
+      }
+    }
+  });
+} catch {
+  // .env.test file not found, continue without it
+}
+
 // Helper to generate valid principals for testing
 export function generateTestPrincipal(seed: number): Principal {
   // Create a valid principal from seed
@@ -34,11 +55,12 @@ export const WASM_PATH = resolve(
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
- * @returns Object with PocketIC instance and actor
+ * @returns Object with PocketIC instance, actor, and canisterId
  */
 export async function createTestEnvironment(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
+  canisterId: import("@dfinity/principal").Principal;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "", {
     fiduciary: {
@@ -51,7 +73,7 @@ export async function createTestEnvironment(): Promise<{
     wasm: WASM_PATH,
   });
 
-  return { pic, actor: fixture.actor };
+  return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
 }
 
 /**
@@ -107,4 +129,50 @@ export async function createTestAgent(
     throw new Error(`Failed to create agent: ${result.err}`);
   }
   return result.ok;
+}
+
+/**
+ * Creates a Groq agent with the API key fetched from .env.test
+ * Internally switches to admin identity to create the agent, then to user identity to store the API key
+ * @param actor - The canister actor
+ * @param adminIdentity - Admin identity for creating the agent
+ * @param userIdentity - User identity for storing the API key
+ * @param model - Groq model name (default: "llama-3.1-8b-instant")
+ * @returns Agent ID if successful
+ * @throws Error if creation fails or GROQ_TEST_KEY is not set
+ */
+export async function createGroqAgent(
+  actor: Actor<_SERVICE>,
+  adminIdentity: ReturnType<typeof generateRandomIdentity>,
+  userIdentity: ReturnType<typeof generateRandomIdentity>,
+  model: string = "llama-3.1-8b-instant",
+): Promise<bigint> {
+  let apiKey = process.env["GROQ_TEST_KEY"];
+
+  // In GitHub CI environment without GROQ_TEST_KEY, use a placeholder
+  // (tests will use cassettes and won't make real API calls)
+  if (!apiKey) {
+    if (process.env["GITHUB_ACTIONS"]) {
+      apiKey = "not-needed-due-to-cassette";
+    } else {
+      throw new Error(
+        "GROQ_TEST_KEY environment variable is not set. Please ensure .env.test file exists with GROQ_TEST_KEY defined.",
+      );
+    }
+  }
+
+  // Switch to admin identity to create the agent
+  actor.setIdentity(adminIdentity);
+  const agentId = await createTestAgent(
+    actor,
+    "Groq Agent",
+    { groq: null },
+    model,
+  );
+
+  // Switch to user identity to store the API key
+  actor.setIdentity(userIdentity);
+  await actor.storeApiKey(agentId, { groq: null }, apiKey);
+
+  return agentId;
 }
