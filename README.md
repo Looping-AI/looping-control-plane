@@ -11,11 +11,11 @@ Install Lintoko (https://github.com/caffeinelabs/lintoko) with:
 
 In tests that use HTTP Outcalls, when it fails, the trap log gives a long array of CBOR bytes (certificate), which hides the reason in the upper part. Run `mops test {test filename} 2>&1 | head -100` and you should be able to see it.
 
-### Setting Up the Test Environment File
+### Setting Up the Test Environment Files
 
-The `test-env.mo` file is required for running unit tests but is intentionally excluded from version control (see `.gitignore`). This file contains sensitive credentials needed for API testing.
+Two environment files are required for running tests and are intentionally excluded from version control (see `.gitignore`). These files contain sensitive credentials needed for API testing.
 
-**Creating the test-env.mo file:**
+**Creating the test-env.mo file (for Motoko unit tests):**
 
 1. Navigate to the unit tests directory:
 
@@ -34,9 +34,20 @@ The `test-env.mo` file is required for running unit tests but is intentionally e
 
 3. Replace `"your-groq-api-key-here"` with your actual [Groq API key](https://console.groq.com/keys).
 
-**Where it's used:**
+**Creating the .env.test file (for TypeScript integration tests):**
 
-The `test-env.mo` module is imported by the wrapper tests (e.g.: `wrappers/groq-wrapper.test.mo`) to provide credentials for integration testing with the APIs.
+1. On project root, create a `.env.test` file with the following structure:
+
+   ```
+   GROQ_TEST_KEY=your-groq-api-key-here
+   ```
+
+2. Replace `your-groq-api-key-here` with your actual [Groq API key](https://console.groq.com/keys).
+
+**Where they're used:**
+
+- The `test-env.mo` module is imported by the wrapper tests (e.g.: `wrappers/groq-wrapper.test.mo`) to provide credentials for Motoko unit testing with the APIs.
+- The `.env.test` file is loaded by the TypeScript integration tests in the `tests/integration-tests/` directory to provide credentials for testing the canister endpoints.
 
 ---
 
