@@ -9,6 +9,23 @@ import { Principal } from "@dfinity/principal";
 import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
 import { idlFactory } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
 
+// Load environment variables from .env.test
+const envFile = resolve(import.meta.dir, "..", "..", "..", ".env.test");
+try {
+  const envContent = await Bun.file(envFile).text();
+  envContent.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#")) {
+      const [key, value] = trimmed.split("=");
+      if (key && value) {
+        process.env[key] = value.replace(/^['"]|['"]$/g, "");
+      }
+    }
+  });
+} catch {
+  // .env.test file not found, continue without it
+}
+
 // Helper to generate valid principals for testing
 export function generateTestPrincipal(seed: number): Principal {
   // Create a valid principal from seed
@@ -107,4 +124,43 @@ export async function createTestAgent(
     throw new Error(`Failed to create agent: ${result.err}`);
   }
   return result.ok;
+}
+
+/**
+ * Creates a Groq agent with the API key fetched from .env.test
+ * Internally switches to admin identity to create the agent, then to user identity to store the API key
+ * @param actor - The canister actor
+ * @param adminIdentity - Admin identity for creating the agent
+ * @param userIdentity - User identity for storing the API key
+ * @param model - Groq model name (default: "llama-3.1-8b-instant")
+ * @returns Agent ID if successful
+ * @throws Error if creation fails or GROQ_TEST_KEY is not set
+ */
+export async function createGroqAgent(
+  actor: Actor<_SERVICE>,
+  adminIdentity: ReturnType<typeof generateRandomIdentity>,
+  userIdentity: ReturnType<typeof generateRandomIdentity>,
+  model: string = "llama-3.1-8b-instant",
+): Promise<bigint> {
+  const apiKey = process.env["GROQ_TEST_KEY"];
+  if (!apiKey) {
+    throw new Error(
+      "GROQ_TEST_KEY environment variable is not set. Please ensure .env.test file exists with GROQ_TEST_KEY defined.",
+    );
+  }
+
+  // Switch to admin identity to create the agent
+  actor.setIdentity(adminIdentity);
+  const agentId = await createTestAgent(
+    actor,
+    "Groq Agent",
+    { groq: null },
+    model,
+  );
+
+  // Switch to user identity to store the API key
+  actor.setIdentity(userIdentity);
+  await actor.storeApiKey(agentId, { groq: null }, apiKey);
+
+  return agentId;
 }

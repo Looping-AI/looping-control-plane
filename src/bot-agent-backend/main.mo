@@ -12,7 +12,7 @@ import ConversationService "./services/conversation-service";
 import ApiKeysService "./services/api-keys-service";
 import KeyDerivationService "./services/key-derivation-service";
 import Constants "./constants";
-// import GroqWrapper "./wrappers/groq-wrapper";
+import GroqWrapper "./wrappers/groq-wrapper";
 // import LLMWrapper "./wrappers/llm-wrapper";
 
 persistent actor {
@@ -177,18 +177,16 @@ persistent actor {
             case (#groq) {
               switch (apiKey) {
                 case (null) {
-                  // return #err("No Groq API key found for this agent. Please store your API key first.");
-                  response := "Groq response placeholder";
+                  return #err("No Groq API key found for this agent. Please store your API key first.");
                 };
-                case (?_key) {
-                  // let groqResult = await GroqWrapper.chat(key, message, foundAgent.model);
-                  // switch (groqResult) {
-                  //  case (#ok(groqResponse)) { response := groqResponse };
-                  //  case (#err(error)) {
-                  //    return #err("Groq API Error: " # error);
-                  //  };
-                  // };
-                  response := "Groq response placeholder";
+                case (?key) {
+                  let groqResult = await GroqWrapper.chat(key, message, foundAgent.model);
+                  switch (groqResult) {
+                    case (#ok(groqResponse)) { response := groqResponse };
+                    case (#err(error)) {
+                      return #err("Groq API Error: " # error);
+                    };
+                  };
                 };
               };
             };

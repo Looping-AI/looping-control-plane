@@ -7,6 +7,7 @@ import {
   setupAdminUser,
   setupRegularUser,
   createTestAgent,
+  createGroqAgent,
 } from "./setup.ts";
 import { expectOk, expectErr } from "./helpers.ts";
 
@@ -127,17 +128,8 @@ describe("API Key Encryption & Cache Management", () => {
   });
 
   it("should re-derive encryption key after cache clear", async () => {
-    // User stores a key
-    const storeResult1 = await actor.storeApiKey(
-      agentId,
-      { groq: null },
-      "key-before-clear",
-    );
-    expectOk(storeResult1);
-
-    // User is able to use talkTo
-    const result = await actor.talkTo(agentId, "Hello Agent");
-    expectOk(result);
+    // Create a Groq Agent with valid test API key
+    const agentId = await createGroqAgent(actor, adminIdentity, userIdentity);
 
     // Admin clears cache
     actor.setIdentity(adminIdentity);
@@ -149,7 +141,8 @@ describe("API Key Encryption & Cache Management", () => {
     // User is able to use talkTo again,
     // which requires re-deriving the same key successfully,
     // so that API key can be decrypted
-    const result2 = await actor.talkTo(agentId, "Hello Agent");
-    expectOk(result2);
+    const result2 = await actor.talkTo(agentId, "What is capital of France?");
+    const response = expectOk(result2);
+    expect(response).toContain("Paris");
   });
 });
