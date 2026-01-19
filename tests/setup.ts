@@ -6,15 +6,15 @@ import {
   type Actor,
 } from "@dfinity/pic";
 import { Principal } from "@dfinity/principal";
-import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
-import { idlFactory } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
+import type { _SERVICE } from "../.dfx/local/canisters/bot-agent-backend/service.did.js";
+import { idlFactory } from "../.dfx/local/canisters/bot-agent-backend/service.did.js";
 
 // Re-export for use with deferred actors
 export { idlFactory };
 export type { _SERVICE };
 
 // Load environment variables from .env.test
-const envFile = resolve(import.meta.dir, "..", "..", "..", ".env.test");
+const envFile = resolve(import.meta.dir, "..", "..", ".env.test");
 try {
   const envContent = await Bun.file(envFile).text();
   envContent.split("\n").forEach((line) => {
@@ -42,7 +42,6 @@ export function generateTestPrincipal(seed: number): Principal {
 // Define the path to the canister's WASM file
 export const WASM_PATH = resolve(
   import.meta.dir,
-  "..",
   "..",
   "..",
   ".dfx",

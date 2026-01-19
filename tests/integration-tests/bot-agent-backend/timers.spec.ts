@@ -6,8 +6,8 @@ import {
   setupAdminUser,
   setupRegularUser,
   createTestAgent,
-} from "./setup.ts";
-import { expectOk } from "./helpers.ts";
+} from "../../setup.ts";
+import { expectOk } from "../../helpers.ts";
 
 describe("Timer Management", () => {
   let pic: PocketIc;

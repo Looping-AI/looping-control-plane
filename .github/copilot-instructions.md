@@ -46,6 +46,8 @@ Refer to `.mops/test@{version}/README.md` for complete `expect` documentation an
 
 ## How to Verify Your Work
 
+**Always start by checking for errors using the get_errors tool.** This catches compilation errors, type issues, and lint warnings. Once confirmed, use the language-specific checks below.
+
 ### For Motoko Code
 
 Use dfx build with the `--check` flag to verify Motoko src code without creating canisters:

@@ -10,8 +10,8 @@ import {
   createGroqAgent,
   idlFactory,
   type _SERVICE,
-} from "./setup.ts";
-import { expectOk, expectErr } from "./helpers.ts";
+} from "../../setup.ts";
+import { expectOk, expectErr } from "../../helpers.ts";
 import { withCassette } from "../../lib/cassette";
 
 describe("API Key Encryption & Cache Management", () => {

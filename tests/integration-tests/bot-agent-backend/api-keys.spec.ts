@@ -8,8 +8,8 @@ import {
   setupAdminUser,
   setupRegularUser,
   createTestAgent,
-} from "./setup.ts";
-import { expectOk, expectErr } from "./helpers.ts";
+} from "../../setup.ts";
+import { expectOk, expectErr } from "../../helpers.ts";
 
 describe("API Key Management", () => {
   let pic: PocketIc;
