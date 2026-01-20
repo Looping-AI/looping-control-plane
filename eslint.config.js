@@ -2,7 +2,7 @@ import tseslint from "typescript-eslint";
 
 export default [
   {
-    ignores: ["node_modules", "dist", ".dfx", ".mops"],
+    ignores: ["node_modules", "dist", ".dfx", ".mops", "tests/builds"],
   },
   ...tseslint.configs.recommended,
   {

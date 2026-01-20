@@ -6,8 +6,8 @@ import {
   type Actor,
 } from "@dfinity/pic";
 import { Principal } from "@dfinity/principal";
-import type { _SERVICE } from "../.dfx/local/canisters/bot-agent-backend/service.did.js";
-import { idlFactory } from "../.dfx/local/canisters/bot-agent-backend/service.did.js";
+import type { _SERVICE } from "./builds/bot-agent-backend.did.d.ts";
+import { idlFactory } from "./builds/bot-agent-backend.did.js";
 
 // Re-export for use with deferred actors
 export { idlFactory };
@@ -42,12 +42,7 @@ export function generateTestPrincipal(seed: number): Principal {
 // Define the path to the canister's WASM file
 export const WASM_PATH = resolve(
   import.meta.dir,
-  "..",
-  "..",
-  ".dfx",
-  "local",
-  "canisters",
-  "bot-agent-backend",
+  "builds",
   "bot-agent-backend.wasm",
 );
 

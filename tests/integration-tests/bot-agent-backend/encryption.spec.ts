@@ -152,7 +152,7 @@ describe("API Key Encryption & Cache Management", () => {
     // so that API key can be decrypted
     const { result } = await withCassette(
       pic,
-      "encryption/re-derive-key-after-cache-clear",
+      "integration-tests/bot-agent-backend/encryption/re-derive-key-after-cache-clear",
       () => deferredActor.talkTo(agentId, "What is capital of France?"),
       { ticks: 5 }, // More ticks needed for key derivation before HTTP outcall
     );
