@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "post-plain-text",
+  "recordedAt": "2026-01-20T11:11:03.023Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://httpbin.org/post",
+        "method": "POST",
+        "headers": [["Content-Type", "text/plain"]],
+        "body": "Plain text message",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-credentials", "true"],
+          ["access-control-allow-origin", "*"],
+          ["content-length", "449"],
+          ["content-type", "application/json"],
+          ["date", "Tue, 20 Jan 2026 11:11:03 GMT"],
+          ["server", "gunicorn/19.9.0"]
+        ],
+        "body": "{\n  \"args\": {}, \n  \"data\": \"Plain text message\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept\": \"*/*\", \n    \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \n    \"Content-Length\": \"18\", \n    \"Content-Type\": \"text/plain\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Bun/1.3.5\", \n    \"X-Amzn-Trace-Id\": \"Root=1-696f62c7-7c83c73f19033a86506afb79\"\n  }, \n  \"json\": null, \n  \"origin\": \"149.90.42.23\", \n  \"url\": \"https://httpbin.org/post\"\n}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

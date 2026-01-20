@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "basic-chat",
+  "recordedAt": "2026-01-20T11:10:50.925Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c0e20b14bd7979a-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Tue, 20 Jan 2026 11:10:51 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "fra"],
+          ["x-ratelimit-limit-requests", "14400"],
+          ["x-ratelimit-limit-tokens", "6000"],
+          ["x-ratelimit-remaining-requests", "14399"],
+          ["x-ratelimit-remaining-tokens", "5962"],
+          ["x-ratelimit-reset-requests", "6s"],
+          ["x-ratelimit-reset-tokens", "380ms"],
+          ["x-request-id", "req_01kfdhkarke87tvqnaq9bnmbh3"],
+          [
+            "set-cookie",
+            "__cf_bm=Gw5.AfarplrZp8zVm1CpvLgEU1H0wwHqS3M4QWnig.g-1768907451-1.0.1.1-i50i9OQg123AMWeDF_4Ai7_uVQiFKuf1EpNzZEdusIN.91b1MiPToCAM6biRu8_WTqJCHzCDa_MPPGqvN.zRH.vMx8AvbMurOmYWlq9BTDA; path=/; expires=Tue, 20-Jan-26 11:40:51 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"chatcmpl-9a479459-1a01-47b7-97a3-152e92975f2a\",\"object\":\"chat.completion\",\"created\":1768907451,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello. How are you today?\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.094049139,\"prompt_tokens\":37,\"prompt_time\":0.006105438,\"completion_tokens\":8,\"completion_time\":0.009920132,\"total_tokens\":45,\"total_time\":0.01602557},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_ff2b098aaf\",\"x_groq\":{\"id\":\"req_01kfdhkarke87tvqnaq9bnmbh3\",\"seed\":251791746},\"service_tier\":\"on_demand\"}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

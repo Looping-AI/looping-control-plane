@@ -3,8 +3,8 @@ import { Principal } from "@dfinity/principal";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
 import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
-import { createTestEnvironment, generateTestPrincipal } from "./setup.ts";
-import { expectErr } from "./helpers.ts";
+import { createTestEnvironment, generateTestPrincipal } from "../../setup.ts";
+import { expectErr } from "../../helpers.ts";
 
 describe("Admin Management", () => {
   let pic: PocketIc;

@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "special-chars",
+  "recordedAt": "2026-01-20T11:10:51.834Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"Echo this: !@#$%^&*()\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c0e20b68e50979a-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Tue, 20 Jan 2026 11:10:52 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "fra"],
+          ["x-ratelimit-limit-requests", "14400"],
+          ["x-ratelimit-limit-tokens", "6000"],
+          ["x-ratelimit-remaining-requests", "14398"],
+          ["x-ratelimit-remaining-tokens", "5954"],
+          ["x-ratelimit-reset-requests", "12s"],
+          ["x-ratelimit-reset-tokens", "459ms"],
+          ["x-request-id", "req_01kfdhkbj0e89b7fttb9temjc6"],
+          [
+            "set-cookie",
+            "__cf_bm=3ziQmfC_HvgV_K501V7xQnxsmjegkHQTqAopj56f4Gs-1768907452-1.0.1.1-rgTRUhzXcRI87_kutTEyTZgJCAIhpiuWKvmE9vev5DqK5b_VbPThSspXdT.KysGPUJ6sazh7Qx4ClmFCL2VyxU3uljgu_.xJ6C8mm3tvWmA; path=/; expires=Tue, 20-Jan-26 11:40:52 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"chatcmpl-a23fc149-5c1b-46f1-99f7-12bdafecab47\",\"object\":\"chat.completion\",\"created\":1768907452,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"!@#$%^\\u0026*()\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.475123062,\"prompt_tokens\":45,\"prompt_time\":0.005128472,\"completion_tokens\":8,\"completion_time\":0.006141397,\"total_tokens\":53,\"total_time\":0.011269869},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_ff2b098aaf\",\"x_groq\":{\"id\":\"req_01kfdhkbj0e89b7fttb9temjc6\",\"seed\":1929960011},\"service_tier\":\"on_demand\"}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

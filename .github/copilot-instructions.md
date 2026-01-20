@@ -16,7 +16,10 @@ Examples:
 
 - `bun install` - Install dependencies
 - `bun run <script>` - Run scripts from package.json
-- `bun run test` - Run tests
+- `bun run test` - Run full tests flow
+- `bun run test:build` - Rebuild canisters when src code modified
+- `bun run test:unit` - Run unit tests
+- `bun run test:integration` - Run integration tests
 - `bun run format` - Run code formatter
 - `bun run lint` - Run linter
 
@@ -46,6 +49,8 @@ Refer to `.mops/test@{version}/README.md` for complete `expect` documentation an
 
 ## How to Verify Your Work
 
+**Always start by checking for errors using the get_errors tool.** This catches compilation errors, type issues, and lint warnings. Once confirmed, use the language-specific checks below.
+
 ### For Motoko Code
 
 Use dfx build with the `--check` flag to verify Motoko src code without creating canisters:
@@ -55,10 +60,10 @@ Use dfx build with the `--check` flag to verify Motoko src code without creating
 dfx build bot-agent-backend --check
 ```
 
-If it's unit tests you modified, run the tests instead:
+If it's tests written in Motoko you modified, run the mops test instead:
 
 ```bash
-# Run unit tests
+# Run Motoko tests
 mops test
 ```
 
