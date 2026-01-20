@@ -9,7 +9,7 @@ Install Lintoko (https://github.com/caffeinelabs/lintoko) with:
 
 ### Setting Up the Test Environment File
 
-One environment file is required for running tests and are intentionally excluded from version control (see `.gitignore`). This file contain sensitive credentials needed for API testing.
+One environment file is required for running tests and is intentionally excluded from version control (see `.gitignore`). This file contains sensitive credentials needed for API testing.
 
 **Creating the .env.test file (for TypeScript tests):**
 
