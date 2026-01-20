@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "name": "example-com-get",
-  "recordedAt": "2026-01-20T11:10:57.359Z",
+  "name": "get-invalid-url-format",
+  "recordedAt": "2026-01-20T11:10:57.986Z",
   "interactions": [
     {
       "request": {
-        "url": "https://example.com",
+        "url": "https://www.example.com",
         "method": "GET",
         "headers": [],
         "body": "",
@@ -14,12 +14,12 @@
       "response": {
         "statusCode": 200,
         "headers": [
-          ["age", "12357"],
+          ["age", "8884"],
           ["allow", "GET, HEAD"],
           ["cf-cache-status", "HIT"],
-          ["cf-ray", "9c0e20d93f73f53d-LIS"],
+          ["cf-ray", "9c0e20dd4a4ab59b-LIS"],
           ["content-type", "text/html"],
-          ["date", "Tue, 20 Jan 2026 11:10:57 GMT"],
+          ["date", "Tue, 20 Jan 2026 11:10:58 GMT"],
           ["last-modified", "Mon, 19 Jan 2026 19:33:01 GMT"],
           ["server", "cloudflare"],
           ["vary", "Accept-Encoding"]

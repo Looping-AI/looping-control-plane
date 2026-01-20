@@ -81,6 +81,24 @@ module {
   // Helper Functions
   // ============================================
 
+  /// Validates and normalizes a URL, ensuring it has a valid http/s scheme
+  ///
+  /// If the URL doesn't start with "http://" or "https://", this function
+  /// automatically prepends "https://" to make it a valid HTTPS URL.
+  ///
+  /// # Parameters
+  /// - `url` : The URL to validate and normalize
+  ///
+  /// # Returns
+  /// A valid URL with http/s scheme
+  public func validateAndNormalizeUrl(url : Text) : Text {
+    if (Text.startsWith(url, #text "https://") or Text.startsWith(url, #text "http://")) {
+      url;
+    } else {
+      "https://" # url;
+    };
+  };
+
   /// Calculates the total size of an HTTP request in bytes
   ///
   /// Formula: request_size = url.len + header_len + body.len
@@ -171,13 +189,16 @@ module {
       // Get reference to management canister
       let ic : ManagementCanister = actor ("aaaaa-aa");
 
-      // 1. Calculate cycles needed based on request size
-      let requestBytes = calculateRequestBytes(url, headers, null);
+      // 1. Validate and normalize the URL
+      let validatedUrl = validateAndNormalizeUrl(url);
+
+      // 2. Calculate cycles needed based on request size
+      let requestBytes = calculateRequestBytes(validatedUrl, headers, null);
       let cyclesNeeded = calculateHttpOutcallCycles(requestBytes);
 
-      // 2. Build the HTTP request args
+      // 3. Build the HTTP request args
       let http_request_args : HttpRequestArgs = {
-        url;
+        url = validatedUrl;
         max_response_bytes = null;
         headers;
         body = null;
@@ -186,7 +207,7 @@ module {
         is_replicated = ?false;
       };
 
-      // 3. ADD CYCLES TO PAY FOR HTTP REQUEST
+      // 4. ADD CYCLES TO PAY FOR HTTP REQUEST
       // The IC management canister will make the HTTP request so it needs cycles
       // We attach cycles using the with cycles syntax before making the call
       // Cycles are calculated dynamically based on request size
@@ -223,17 +244,20 @@ module {
       // Get reference to management canister
       let ic : ManagementCanister = actor ("aaaaa-aa");
 
-      // 1. SETUP ARGUMENTS FOR HTTP POST request
+      // 1. Validate and normalize the URL
+      let validatedUrl = validateAndNormalizeUrl(url);
+
+      // 2. SETUP ARGUMENTS FOR HTTP POST request
       // Use the provided body text
       let requestBody = Text.encodeUtf8(body);
 
-      // 2. Calculate cycles needed based on request size (including body)
-      let requestBytes = calculateRequestBytes(url, headers, ?requestBody);
+      // 3. Calculate cycles needed based on request size (including body)
+      let requestBytes = calculateRequestBytes(validatedUrl, headers, ?requestBody);
       let cyclesNeeded = calculateHttpOutcallCycles(requestBytes);
 
-      // 3. Build the HTTP request args
+      // 4. Build the HTTP request args
       let http_request_args : HttpRequestArgs = {
-        url;
+        url = validatedUrl;
         max_response_bytes = null;
         headers;
         body = ?requestBody;
@@ -242,13 +266,13 @@ module {
         is_replicated = ?false;
       };
 
-      // 4. ADD CYCLES TO PAY FOR HTTP REQUEST
+      // 5. ADD CYCLES TO PAY FOR HTTP REQUEST
       // The IC management canister will make the HTTP request so it needs cycles
       // We attach cycles using the with cycles syntax before making the call
       // Cycles are calculated dynamically based on request size
       let httpResponse = await (with cycles = cyclesNeeded) ic.http_request(http_request_args);
 
-      // 5. DECODE THE RESPONSE
+      // 6. DECODE THE RESPONSE
       let decodedText : Text = switch (Text.decodeUtf8(httpResponse.body)) {
         case (null) { "No value returned" };
         case (?y) { y };

@@ -43,19 +43,42 @@ describe("HTTP Wrapper Unit Tests", () => {
     });
 
     it("should handle invalid URLs and non-existent domains", async () => {
-      // Invalid URL format - should return error immediately (no HTTP call)
-      const invalidUrlResult = await testCanister.httpGet(
-        "not-a-valid-url",
-        [],
+      // Invalid URL format - should add https:// and succeed
+      const { result } = await withCassette(
+        pic,
+        "unit-tests/bot-agent-backend/wrappers/http-wrapper/get-invalid-url-format",
+        () => testCanister.httpGet("www.example.com", []),
+        { ticks: 5 },
       );
-      expect("err" in invalidUrlResult).toBe(true);
+      const invalidFormatResult = await result;
+      expect("ok" in invalidFormatResult).toBe(true);
 
-      // Non-existent domain - will make HTTP call but should fail
-      const response = await testCanister.httpGet(
+      // Non-existent domain - mock a trap response
+      const executeGetRequest = await testCanister.httpGet(
         "https://this-domain-definitely-does-not-exist-12345.com",
         [],
       );
+      await pic.tick(5);
+
+      const pendingHttpsOutcalls = await pic.getPendingHttpsOutcalls();
+      const pendingRequest = pendingHttpsOutcalls[0];
+
+      await pic.mockPendingHttpsOutcall({
+        requestId: pendingRequest.requestId,
+        subnetId: pendingRequest.subnetId,
+        response: {
+          type: "reject",
+          statusCode: 4,
+          message: "Trap caused by DNS resolution failure",
+        },
+      });
+
+      const response = await executeGetRequest();
       expect("err" in response).toBe(true);
+      if ("err" in response) {
+        expect(response.err).toContain("#canister_reject");
+        expect(response.err).toContain("Trap caused by DNS resolution failure");
+      }
     });
 
     it("should handle query parameters correctly", async () => {
@@ -193,23 +216,43 @@ describe("HTTP Wrapper Unit Tests", () => {
     });
 
     it("should handle invalid URLs and non-existent endpoints", async () => {
-      // Invalid URL - should return error immediately (no HTTP call)
-      const invalidUrlResult = await testCanister.httpPost(
-        "not-a-valid-url",
-        [],
-        "test data",
+      // Invalid URL format
+      const { result } = await withCassette(
+        pic,
+        "unit-tests/bot-agent-backend/wrappers/http-wrapper/post-invalid-url-format",
+        () => testCanister.httpPost("httpbin.org/post", [], "test data"),
+        { ticks: 5 },
       );
-      expect("err" in invalidUrlResult).toBe(true);
-      console.log(invalidUrlResult);
+      const invalidUrlFormatResult = await result;
+      expect("ok" in invalidUrlFormatResult).toBe(true);
 
-      // Non-existent endpoint - will make HTTP call but should fail
-      const response = await testCanister.httpPost(
+      // Non-existent endpoint - mock a trap response
+      const executePostRequest = await testCanister.httpPost(
         "https://this-domain-definitely-does-not-exist-12345.com/api",
         [],
         "test data",
       );
+      await pic.tick(2);
+
+      const pendingHttpsOutcalls = await pic.getPendingHttpsOutcalls();
+      const pendingRequest = pendingHttpsOutcalls[0];
+
+      await pic.mockPendingHttpsOutcall({
+        requestId: pendingRequest.requestId,
+        subnetId: pendingRequest.subnetId,
+        response: {
+          type: "reject",
+          statusCode: 4,
+          message: "Trap caused by DNS resolution failure",
+        },
+      });
+
+      const response = await executePostRequest();
       expect("err" in response).toBe(true);
-      console.log(response);
+      if ("err" in response) {
+        expect(response.err).toContain("#canister_reject");
+        expect(response.err).toContain("Trap caused by DNS resolution failure");
+      }
     });
 
     it("should handle special characters in body", async () => {

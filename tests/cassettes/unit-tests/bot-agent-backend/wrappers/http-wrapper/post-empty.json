@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "post-empty",
-  "recordedAt": "2026-01-20T01:25:07.259Z",
+  "recordedAt": "2026-01-20T11:11:04.172Z",
   "interactions": [
     {
       "request": {
@@ -14,32 +14,14 @@
       "response": {
         "statusCode": 200,
         "headers": [
-          [
-            "access-control-allow-credentials",
-            "true"
-          ],
-          [
-            "access-control-allow-origin",
-            "*"
-          ],
-          [
-            "content-length",
-            "395"
-          ],
-          [
-            "content-type",
-            "application/json"
-          ],
-          [
-            "date",
-            "Tue, 20 Jan 2026 01:25:07 GMT"
-          ],
-          [
-            "server",
-            "gunicorn/19.9.0"
-          ]
+          ["access-control-allow-credentials", "true"],
+          ["access-control-allow-origin", "*"],
+          ["content-length", "395"],
+          ["content-type", "application/json"],
+          ["date", "Tue, 20 Jan 2026 11:11:04 GMT"],
+          ["server", "gunicorn/19.9.0"]
         ],
-        "body": "{\n  \"args\": {}, \n  \"data\": \"\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept\": \"*/*\", \n    \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \n    \"Content-Length\": \"0\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Bun/1.3.5\", \n    \"X-Amzn-Trace-Id\": \"Root=1-696ed973-60acf50802a594983c799196\"\n  }, \n  \"json\": null, \n  \"origin\": \"149.90.42.23\", \n  \"url\": \"https://httpbin.org/post\"\n}\n",
+        "body": "{\n  \"args\": {}, \n  \"data\": \"\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept\": \"*/*\", \n    \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \n    \"Content-Length\": \"0\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Bun/1.3.5\", \n    \"X-Amzn-Trace-Id\": \"Root=1-696f62c8-570b08e8285831ee25fad202\"\n  }, \n  \"json\": null, \n  \"origin\": \"149.90.42.23\", \n  \"url\": \"https://httpbin.org/post\"\n}\n",
         "bodyEncoding": "text"
       }
     }
