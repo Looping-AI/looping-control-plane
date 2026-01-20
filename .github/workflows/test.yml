@@ -28,17 +28,14 @@ jobs:
       - name: Setup DIDC
         shell: bash
         run: |
-          # Get latest release tag
+          # Get latest release tag using jq for robust JSON parsing
           export VERSION_DIDC=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" \
-            | grep -e '"tag_name"' | cut -c 16-25)
+            | jq -r '.tag_name')
 
           # Download and install
           wget https://github.com/dfinity/candid/releases/download/${VERSION_DIDC}/didc-linux64
           sudo mv didc-linux64 /usr/local/bin/didc
-          chmod +x /usr/local/bin/didc
-
-          # Verify
-          didc --version
+          sudo chmod +x /usr/local/bin/didc
 
       - name: Setup Mops
         uses: dfinity/setup-mops@v1
