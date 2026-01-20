@@ -4,14 +4,21 @@ import {
   generateRandomIdentity,
   SubnetStateType,
   type Actor,
+  type DeferredActor,
 } from "@dfinity/pic";
 import { Principal } from "@dfinity/principal";
 import type { _SERVICE } from "./builds/bot-agent-backend.did.d.ts";
 import { idlFactory } from "./builds/bot-agent-backend.did.js";
+import type { _SERVICE as TestCanisterService } from "./builds/test-canister.did.d.ts";
+import { idlFactory as testCanisterIdlFactory } from "./builds/test-canister.did.js";
 
 // Re-export for use with deferred actors
-export { idlFactory };
-export type { _SERVICE };
+export { idlFactory, testCanisterIdlFactory };
+export type { _SERVICE, TestCanisterService };
+
+// Test constants for unit tests
+export const TEST_API_KEY = process.env["GROQ_TEST_KEY"] || "not-needed-due-to-cassette";
+export const TEST_MODEL = "llama-3.1-8b-instant";
 
 // Load environment variables from .env.test
 const envFile = resolve(import.meta.dir, "..", "..", ".env.test");
@@ -46,6 +53,13 @@ export const WASM_PATH = resolve(
   "bot-agent-backend.wasm",
 );
 
+// Define the path to the test canister's WASM file
+export const TEST_CANISTER_WASM_PATH = resolve(
+  import.meta.dir,
+  "builds",
+  "test-canister.wasm",
+);
+
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
@@ -68,6 +82,31 @@ export async function createTestEnvironment(): Promise<{
   });
 
   return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
+}
+
+/**
+ * Creates a new PocketIC test environment with test canister
+ * @returns Object with PocketIC instance, test canister deferred actor, and canisterId
+ */
+export async function createTestCanisterEnvironment(): Promise<{
+  pic: PocketIc;
+  actor: DeferredActor<TestCanisterService>;
+  canisterId: import("@dfinity/principal").Principal;
+}> {
+  const pic = await PocketIc.create(process.env.PIC_URL || "");
+
+  const fixture = await pic.setupCanister<TestCanisterService>({
+    idlFactory: testCanisterIdlFactory,
+    wasm: TEST_CANISTER_WASM_PATH,
+  });
+
+  // Create a deferred actor instead of regular actor
+  const deferredActor = pic.createDeferredActor<TestCanisterService>(
+    testCanisterIdlFactory,
+    fixture.canisterId,
+  );
+
+  return { pic, actor: deferredActor, canisterId: fixture.canisterId };
 }
 
 /**
@@ -139,16 +178,13 @@ export async function createGroqAgent(
   actor: Actor<_SERVICE>,
   adminIdentity: ReturnType<typeof generateRandomIdentity>,
   userIdentity: ReturnType<typeof generateRandomIdentity>,
-  model: string = "llama-3.1-8b-instant",
+  model: string = TEST_MODEL,
 ): Promise<bigint> {
-  let apiKey = process.env["GROQ_TEST_KEY"];
+  const apiKey = TEST_API_KEY;
 
-  // In GitHub CI environment without GROQ_TEST_KEY, use a placeholder
-  // (tests will use cassettes and won't make real API calls)
-  if (!apiKey) {
-    if (process.env["GITHUB_ACTIONS"]) {
-      apiKey = "not-needed-due-to-cassette";
-    } else {
+  // Validate that API key is available
+  if (!apiKey || apiKey === "not-needed-due-to-cassette") {
+    if (!process.env["GITHUB_ACTIONS"]) {
       throw new Error(
         "GROQ_TEST_KEY environment variable is not set. Please ensure .env.test file exists with GROQ_TEST_KEY defined.",
       );

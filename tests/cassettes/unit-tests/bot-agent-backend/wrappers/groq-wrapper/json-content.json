@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "name": "json-content",
+  "recordedAt": "2026-01-20T01:24:59.782Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          [
+            "Authorization",
+            "[REDACTED]"
+          ],
+          [
+            "Content-Type",
+            "application/json"
+          ]
+        ],
+        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=86400"
+          ],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          [
+            "cf-cache-status",
+            "DYNAMIC"
+          ],
+          [
+            "cf-ray",
+            "9c0ac6823b2f6938-LIS"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ],
+          [
+            "date",
+            "Tue, 20 Jan 2026 01:25:00 GMT"
+          ],
+          [
+            "server",
+            "cloudflare"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=15552000"
+          ],
+          [
+            "vary",
+            "Origin"
+          ],
+          [
+            "via",
+            "1.1 google"
+          ],
+          [
+            "x-groq-region",
+            "fra"
+          ],
+          [
+            "x-ratelimit-limit-requests",
+            "14400"
+          ],
+          [
+            "x-ratelimit-limit-tokens",
+            "6000"
+          ],
+          [
+            "x-ratelimit-remaining-requests",
+            "14396"
+          ],
+          [
+            "x-ratelimit-remaining-tokens",
+            "5937"
+          ],
+          [
+            "x-ratelimit-reset-requests",
+            "24s"
+          ],
+          [
+            "x-ratelimit-reset-tokens",
+            "630ms"
+          ],
+          [
+            "x-request-id",
+            "req_01kfcg2kc5ernssesf2n5ywjfc"
+          ],
+          [
+            "set-cookie",
+            "__cf_bm=J5ahddRQSX1AEiq7JK3lxjrJuektPHKII.2wMltxRn4-1768872300-1.0.1.1-KufLaAPj53.3TuQFQTTdVSVJ.bkp_NY5izU8SseqlUzyCfVsuRbzbokF4xaIYvNV5hMcfIdV3FoqgFV7Qhm0D6H5fm4X.tlFNL7raEu8qVg; path=/; expires=Tue, 20-Jan-26 01:55:00 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"chatcmpl-0af78d99-4248-4f5b-8b6b-73b405b4a4e4\",\"object\":\"chat.completion\",\"created\":1768872300,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"To find the second child in the given JSON, you need to access the second element of the array under the \\\"children\\\" key. Here's how you can do it:\\n\\n```json\\n{\\n  \\\"one\\\": \\\"two\\\",\\n  \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]\\n}\\n```\\n\\nYou can use the following code in Python to accomplish this:\\n\\n```python\\nimport json\\n\\n# Load the JSON data\\njson_data = '''\\n{\\n  \\\"one\\\": \\\"two\\\",\\n  \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]\\n}\\n'''\\n\\ndata = json.loads(json_data)\\n\\n# Access the second child\\nsecond_child = data[\\\"children\\\"][1]\\n\\nprint(second_child)  # Output: bar\\n```\\n\\nAlternatively, you can also use JavaScript to find the second child in the JSON:\\n\\n```javascript\\nconst jsonData = {\\n  one: 'two',\\n  children: ['foo', 'bar', 'xyz']\\n};\\n\\nconst secondChild = jsonData.children[1];\\n\\nconsole.log(secondChild);  // Output: bar\\n```\\n\\nRemember that array indices start at 0, so the first element is at index 0, the second element is at index 1, and so on.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.089418171,\"prompt_tokens\":62,\"prompt_time\":0.00335139,\"completion_tokens\":244,\"completion_time\":0.29309636,\"total_tokens\":306,\"total_time\":0.29644775},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_f757f4b0bf\",\"x_groq\":{\"id\":\"req_01kfcg2kc5ernssesf2n5ywjfc\",\"seed\":315820060},\"service_tier\":\"on_demand\"}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}
