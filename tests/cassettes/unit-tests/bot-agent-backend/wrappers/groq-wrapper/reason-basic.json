@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "name": "reason-basic",
+  "recordedAt": "2026-01-21T12:44:31.473Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          [
+            "Authorization",
+            "[REDACTED]"
+          ],
+          [
+            "Content-Type",
+            "application/json"
+          ]
+        ],
+        "body": "{\"input\":\"What are the key benefits of using renewable energy?\",\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Provide a clear, structured response with main points.\",\"reasoning\":{\"effort\":\"low\"},\"store\":false,\"stream\":false,\"user\":\"2vxsx-fae_1\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=86400"
+          ],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          [
+            "cf-cache-status",
+            "DYNAMIC"
+          ],
+          [
+            "cf-ray",
+            "9c16e749a859d665-LIS"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ],
+          [
+            "date",
+            "Wed, 21 Jan 2026 12:44:33 GMT"
+          ],
+          [
+            "server",
+            "cloudflare"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=15552000"
+          ],
+          [
+            "vary",
+            "Origin"
+          ],
+          [
+            "via",
+            "1.1 google"
+          ],
+          [
+            "x-groq-region",
+            "dls"
+          ],
+          [
+            "x-ratelimit-limit-requests",
+            "1000"
+          ],
+          [
+            "x-ratelimit-limit-tokens",
+            "8000"
+          ],
+          [
+            "x-ratelimit-remaining-requests",
+            "990"
+          ],
+          [
+            "x-ratelimit-remaining-tokens",
+            "7905"
+          ],
+          [
+            "x-ratelimit-reset-requests",
+            "14m24s"
+          ],
+          [
+            "x-ratelimit-reset-tokens",
+            "712ms"
+          ],
+          [
+            "x-request-id",
+            "req_01kfg9bjkxftqthwqgmw55hmzz"
+          ],
+          [
+            "set-cookie",
+            "__cf_bm=YQMIZZnpYKXuenCY_jJw37dE5QlXaoai1myxu0EPp7Q-1768999473-1.0.1.1-cyxKbjEcYFL1LeM2JVjORZhDWNhhWUwR9Q3J9wdiU_.zRerCatUaqnfu3n6FyPcUKiySKQUPQHhgBEXkTqWrXWmnbcuVYc_bdidg0Uqp8f4; path=/; expires=Wed, 21-Jan-26 13:14:33 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"resp_01kfg9bm0zftvtm2e667wet8bp\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1768999473,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfg9bm0zftwazk94bqp3syb0\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"Need to answer with clear structured response, main points.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfg9bm0zftwvwdmwhvkkkzmj\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Key Benefits of Using Renewable Energy**\\n\\n| Benefit | Description | Why It Matters |\\n|---------|-------------|----------------|\\n| **1. Environmental Protection** | - Reduces greenhouse‑gas emissions (CO₂, methane). \\u003cbr\\u003e- Lowers air pollutants (SO₂, NOₓ, particulates). \\u003cbr\\u003e- Decreases water usage and thermal pollution. | Mitigates climate change, improves public health, and preserves ecosystems. |\\n| **2. Energy Security \\u0026 Independence** | - Diversifies the energy mix. \\u003cbr\\u003e- Reduces reliance on imported fossil fuels. \\u003cbr\\u003e- Utilizes domestic resources (sun, wind, water, biomass). | Enhances national resilience to geopolitical shocks and price volatility. |\\n| **3. Economic Growth \\u0026 Job Creation** | - Generates jobs in manufacturing, installation, operation, and maintenance. \\u003cbr\\u003e- Stimulates local economies, especially in rural areas. \\u003cbr\\u003e- Attracts private investment and innovation. | Provides sustainable employment and boosts GDP without depleting resources. |\\n| **4. Cost Competitiveness** | - Falling capital costs (e.g., solar PV \\u003c $0.50 /W, onshore wind \\u003c $1 /W). \\u003cbr\\u003e- Near‑zero marginal operating costs (no fuel). \\u003cbr\\u003e- Predictable electricity prices over the plant’s lifetime. | Lowers electricity bills for consumers and reduces long‑term energy expenditures for businesses. |\\n| **5. Grid Resilience \\u0026 Flexibility** | - Distributed generation reduces transmission losses. \\u003cbr\\u003e- Paired with storage, demand‑response, and smart‑grid tech, renewables can balance supply and demand. | Improves reliability and reduces the risk of large‑scale outages. |\\n| **6. Health Benefits** | - Eliminates emissions that cause respiratory and cardiovascular diseases. \\u003cbr\\u003e- Reduces premature deaths and healthcare costs. | Directly improves quality of life and reduces public‑health expenditures. |\\n| **7. Technological Innovation** | - Drives advances in storage, grid management, and digital monitoring. \\u003cbr\\u003e- Encourages R\\u0026D in materials, manufacturing, and recycling. | Creates spill‑over benefits for other sectors (e.g., electric vehicles, aerospace). |\\n| **8. Sustainable Resource Use** | - Harnesses virtually inexhaustible sources (sunlight, wind, tides). \\u003cbr\\u003e- Reduces pressure on finite fossil‑fuel reserves. | Guarantees long‑term energy availability for future generations. |\\n| **9. Social Equity** | - Enables off‑grid solutions for remote or underserved communities. \\u003cbr\\u003e- Supports micro‑grids and community‑owned projects. | Promotes energy access, reduces poverty, and empowers local stakeholders. |\\n| **10. Climate‑Policy Alignment** | - Helps meet national and international targets (e.g., Paris Agreement, Net‑Zero by 2050). \\u003cbr\\u003e- Facilitates carbon‑pricing mechanisms and incentives. | Aligns economic development with climate commitments. |\\n\\n### Quick Takeaway\\nRenewable energy delivers **environmental, economic, and social advantages** that together enhance sustainability, reduce costs, and strengthen resilience. By transitioning to clean power sources, societies can protect the planet while fostering growth and security for present and future generations.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"low\"},\"max_output_tokens\":null,\"instructions\":\"Provide a clear, structured response with main points.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"2vxsx-fae_1\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":94,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":682,\"output_tokens_details\":{\"reasoning_tokens\":12},\"total_tokens\":776},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

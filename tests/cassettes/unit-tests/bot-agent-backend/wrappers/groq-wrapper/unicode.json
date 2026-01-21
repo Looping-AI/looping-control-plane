@@ -1,49 +1,106 @@
 {
   "version": 1,
   "name": "unicode",
-  "recordedAt": "2026-01-20T11:10:53.080Z",
+  "recordedAt": "2026-01-21T12:38:43.611Z",
   "interactions": [
     {
       "request": {
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "method": "POST",
         "headers": [
-          ["Authorization", "[REDACTED]"],
-          ["Content-Type", "application/json"]
+          [
+            "Authorization",
+            "[REDACTED]"
+          ],
+          [
+            "Content-Type",
+            "application/json"
+          ]
         ],
-        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"Translate to English: 世界\"}],\"stream\":false}",
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Translate to English: 世界\"}],\"stream\":false}",
         "bodyEncoding": "text"
       },
       "response": {
         "statusCode": 200,
         "headers": [
-          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=86400"
+          ],
           [
             "cache-control",
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
-          ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c0e20be6d93979a-LIS"],
-          ["content-type", "application/json"],
-          ["date", "Tue, 20 Jan 2026 11:10:53 GMT"],
-          ["server", "cloudflare"],
-          ["strict-transport-security", "max-age=15552000"],
-          ["vary", "Origin"],
-          ["via", "1.1 google"],
-          ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "14400"],
-          ["x-ratelimit-limit-tokens", "6000"],
-          ["x-ratelimit-remaining-requests", "14397"],
-          ["x-ratelimit-remaining-tokens", "5959"],
-          ["x-ratelimit-reset-requests", "18s"],
-          ["x-ratelimit-reset-tokens", "410ms"],
-          ["x-request-id", "req_01kfdhkcsrem8r88wszzv525v5"],
+          [
+            "cf-cache-status",
+            "DYNAMIC"
+          ],
+          [
+            "cf-ray",
+            "9c16decb4f6690b1-LIS"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ],
+          [
+            "date",
+            "Wed, 21 Jan 2026 12:38:43 GMT"
+          ],
+          [
+            "server",
+            "cloudflare"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=15552000"
+          ],
+          [
+            "vary",
+            "Origin"
+          ],
+          [
+            "via",
+            "1.1 google"
+          ],
+          [
+            "x-groq-region",
+            "fra"
+          ],
+          [
+            "x-ratelimit-limit-requests",
+            "1000"
+          ],
+          [
+            "x-ratelimit-limit-tokens",
+            "8000"
+          ],
+          [
+            "x-ratelimit-remaining-requests",
+            "994"
+          ],
+          [
+            "x-ratelimit-remaining-tokens",
+            "7913"
+          ],
+          [
+            "x-ratelimit-reset-requests",
+            "8m38.4s"
+          ],
+          [
+            "x-ratelimit-reset-tokens",
+            "652ms"
+          ],
+          [
+            "x-request-id",
+            "req_01kfg90ysme50bpqp5m63xec0d"
+          ],
           [
             "set-cookie",
-            "__cf_bm=h74qvq6CHXuGf66OGijn.fOlkXQ39YgYHIa4On4m9Yo-1768907453-1.0.1.1-J3_Q4c4c4WNsjS61nihJCUhlwP52xhlIRHyUgcAyUpEMh7LgD4a3tI58x249CzdT5qJQFE95kLuCGGiF_onmh8LQWAkBSo9nv1WpjQWJhaw; path=/; expires=Tue, 20-Jan-26 11:40:53 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=KiVWPZRKAuFTMHYIKfQEpQ.RgAdzbdXGga5ODAkPt0U-1768999123-1.0.1.1-oIl38bNxsLcqMLnxg1SR6ArSfg1nmh7lox3P3BMa10XeqME2eivQn_b1STai7Wjkx3TcgA2uJm5wY47eOxYaU3Gq1Eu4qXHpdoTAh49lrEQ; path=/; expires=Wed, 21-Jan-26 13:08:43 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-945850bd-1d30-456d-a3a1-6446668782c2\",\"object\":\"chat.completion\",\"created\":1768907453,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The translation is: \\\"World\\\".\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.089809821,\"prompt_tokens\":40,\"prompt_time\":0.002726762,\"completion_tokens\":8,\"completion_time\":0.019689013,\"total_tokens\":48,\"total_time\":0.022415775},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4387d3edbb\",\"x_groq\":{\"id\":\"req_01kfdhkcsrem8r88wszzv525v5\",\"seed\":1812031942},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-675fddfd-81ed-4969-912b-649496ef1fbd\",\"object\":\"chat.completion\",\"created\":1768999123,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"\\\"世界\\\" translates to **\\\"world\\\"** in English.\",\"reasoning\":\"The user wants translation of \\\"世界\\\" to English. That's \\\"world\\\". Provide translation.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017663874,\"prompt_tokens\":76,\"prompt_time\":0.003182651,\"completion_tokens\":41,\"completion_time\":0.086176575,\"total_tokens\":117,\"total_time\":0.089359226,\"completion_tokens_details\":{\"reasoning_tokens\":19}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_309cec8e88\",\"x_groq\":{\"id\":\"req_01kfg90ysme50bpqp5m63xec0d\",\"seed\":866371606},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

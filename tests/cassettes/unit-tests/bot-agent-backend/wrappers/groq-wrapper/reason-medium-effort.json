@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "name": "reason-medium-effort",
+  "recordedAt": "2026-01-21T12:44:34.061Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          [
+            "Authorization",
+            "[REDACTED]"
+          ],
+          [
+            "Content-Type",
+            "application/json"
+          ]
+        ],
+        "body": "{\"input\":\"Explain the concept of quantum computing in simple terms\",\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"store\":false,\"stream\":false,\"user\":\"2vxsx-fae_2\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=86400"
+          ],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          [
+            "cf-cache-status",
+            "DYNAMIC"
+          ],
+          [
+            "cf-ray",
+            "9c16e75998e9d665-LIS"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ],
+          [
+            "date",
+            "Wed, 21 Jan 2026 12:44:36 GMT"
+          ],
+          [
+            "server",
+            "cloudflare"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=15552000"
+          ],
+          [
+            "vary",
+            "Origin"
+          ],
+          [
+            "via",
+            "1.1 google"
+          ],
+          [
+            "x-groq-region",
+            "dls"
+          ],
+          [
+            "x-ratelimit-limit-requests",
+            "1000"
+          ],
+          [
+            "x-ratelimit-limit-tokens",
+            "8000"
+          ],
+          [
+            "x-ratelimit-remaining-requests",
+            "989"
+          ],
+          [
+            "x-ratelimit-remaining-tokens",
+            "7380"
+          ],
+          [
+            "x-ratelimit-reset-requests",
+            "15m50.4s"
+          ],
+          [
+            "x-ratelimit-reset-tokens",
+            "4.65s"
+          ],
+          [
+            "x-request-id",
+            "req_01kfg9bn2mfjpaazxenc8kyyaj"
+          ],
+          [
+            "set-cookie",
+            "__cf_bm=NHZigiN9Qa8oEM_5Pk_Wza4IjrC1xfPtRbF1pTqLxlE-1768999476-1.0.1.1-gVGREUZ5r0wWGjnAjlbWdY27GLvxLhjAVOV4IzW4zt_HAUQJtL0JY1VXOmeYBMHJK6ZWNKgQFx2TRmfhYyP4ElzunwJn4vymm8Hf1RPcbP8; path=/; expires=Wed, 21-Jan-26 13:14:36 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"resp_01kfg9bpxafk0b2p39ys6vfh2p\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1768999476,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfg9bpxafk0vw3zzt2kb440p\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to explain quantum computing in simple terms. Use analogies, avoid jargon, but can introduce bits vs qubits. Keep friendly.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfg9bpxafk19fj6af7qnxt5s\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Quantum Computing in Plain English**\\n\\n---\\n\\n### 1. The ordinary computer you already know  \\n\\n- **Bits** are the tiny switches inside any laptop, phone, or tablet.  \\n- Each bit can be **0** *or* **1** (think of a light that’s either off or on).  \\n- By combining millions or billions of bits, a computer can do calculations, play games, run apps, etc.\\n\\n---\\n\\n### 2. The “quantum” twist  \\n\\nA quantum computer doesn’t use ordinary bits. It uses **qubits** (quantum bits).  \\nA qubit can be:\\n\\n| State | What it means |\\n|-------|---------------|\\n| **0** | Like a light that’s off |\\n| **1** | Like a light that’s on |\\n| **Both 0 \\u0026 1 at the same time** | **Superposition** – the qubit is a mixture of “off” *and* “on” until you look at it |\\n\\nSo while a regular bit is a coin that must land heads **or** tails, a qubit is a *spinning* coin that is simultaneously heads **and** tails until you catch it.\\n\\n---\\n\\n### 3. Two special quantum tricks  \\n\\n| Trick | Everyday analogy |\\n|-------|------------------|\\n| **Superposition** | A spinning coin being both heads and tails at once. |\\n| **Entanglement** | Imagine two coins that are magically linked: if one ends up heads, the other *must* be tails, no matter how far apart they are. Changing one instantly determines the other. |\\n\\nThese tricks let quantum computers explore many possibilities **all at once** and coordinate their answers in ways classical computers can’t.\\n\\n---\\n\\n### 4. Why that matters – a simple picture  \\n\\nSuppose you have a huge maze and you want to find the shortest path.\\n\\n| Classical computer | Quantum computer |\\n|--------------------|------------------|\\n| Tries one route, checks if it works, then tries the next, and so on. It may need to explore millions of routes. | Puts the maze into a super‑position of *all* routes at the same time, lets the quantum rules “interfere” them, and the correct path pops out with high probability. |\\n\\nIt’s not that a quantum computer instantly solves everything, but for certain problems (like factoring huge numbers, simulating molecules, optimizing complex networks) the “many‑at‑once” ability can give a massive speed‑up.\\n\\n---\\n\\n### 5. The reality today  \\n\\n- **Quantum computers are still tiny** – today’s machines have on the order of tens to a few hundred qubits, and they’re very delicate (they need extreme cold, isolation from vibrations, etc.).  \\n- **They’re not replacements** for your phone or laptop. For everyday tasks, classical computers are far cheaper and faster.  \\n- **Scientists and engineers are building bigger, more reliable quantum chips** because the potential payoff (breakthroughs in cryptography, drug discovery, material design, logistics) is huge.\\n\\n---\\n\\n### 6. TL;DR – a quick analogy  \\n\\n- **Classical computer:** A librarian who looks up one book at a time.  \\n- **Quantum computer:** A magical librarian who can glance at *all* books simultaneously, and, thanks to a special rule, the right answer becomes visible almost immediately.\\n\\n---\\n\\n### 7. Key take‑aways  \\n\\n1. **Bits = 0 or 1.** Qubits = 0, 1, *or both* (superposition).  \\n2. **Entanglement** links qubits so the state of one instantly influences another.  \\n3. These properties let quantum computers try many solutions in parallel and solve some problems much faster than classical computers.  \\n4. The technology is still experimental, but it’s advancing quickly and could reshape fields like cryptography, chemistry, and optimization.\\n\\nHope that clears things up! If you’d like a deeper dive into any of the concepts (e.g., how superposition is measured, or what “quantum error correction” means), just let me know.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"2vxsx-fae_2\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":80,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":884,\"output_tokens_details\":{\"reasoning_tokens\":29},\"total_tokens\":964},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

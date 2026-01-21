@@ -442,18 +442,51 @@ module {
         #err("Failed to parse JSON response: " # debug_show error);
       };
       case (#ok(json)) {
-        // Try to get the content from output[0].content[0].text
-        switch (Json.get(json, "output[0].content[0].text")) {
+        // Look for the message output in the outputs array
+        switch (Json.get(json, "output")) {
           case (null) {
-            #err("Could not find output[0].content[0].text in response");
+            #err("Could not find output array in response");
           };
-          case (?textJson) {
-            switch (textJson) {
-              case (#string(content)) {
-                #ok(content);
+          case (?outputArrayJson) {
+            switch (outputArrayJson) {
+              case (#array(outputs)) {
+                // Find the output with type "message"
+                for (outputJson in outputs.vals()) {
+                  switch (Json.get(outputJson, "type")) {
+                    case (?typeJson) {
+                      switch (typeJson) {
+                        case (#string("message")) {
+                          // Found the message output, get the content
+                          switch (Json.get(outputJson, "content[0].text")) {
+                            case (?textJson) {
+                              switch (textJson) {
+                                case (#string(content)) {
+                                  return #ok(content);
+                                };
+                                case (_) {
+                                  // Continue searching if this content is not a string
+                                };
+                              };
+                            };
+                            case (null) {
+                              // Continue searching if no content found
+                            };
+                          };
+                        };
+                        case (_) {
+                          // Continue searching if not message type
+                        };
+                      };
+                    };
+                    case (null) {
+                      // Continue searching if no type found
+                    };
+                  };
+                };
+                #err("Could not find message output with text content in response");
               };
               case (_) {
-                #err("Content field is not a string");
+                #err("Output field is not an array");
               };
             };
           };

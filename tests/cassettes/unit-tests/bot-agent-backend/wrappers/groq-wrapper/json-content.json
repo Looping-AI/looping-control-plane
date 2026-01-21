@@ -1,49 +1,106 @@
 {
   "version": 1,
   "name": "json-content",
-  "recordedAt": "2026-01-20T11:10:53.925Z",
+  "recordedAt": "2026-01-21T12:38:44.609Z",
   "interactions": [
     {
       "request": {
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "method": "POST",
         "headers": [
-          ["Authorization", "[REDACTED]"],
-          ["Content-Type", "application/json"]
+          [
+            "Authorization",
+            "[REDACTED]"
+          ],
+          [
+            "Content-Type",
+            "application/json"
+          ]
         ],
-        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\"}],\"stream\":false}",
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\"}],\"stream\":false}",
         "bodyEncoding": "text"
       },
       "response": {
         "statusCode": 200,
         "headers": [
-          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=86400"
+          ],
           [
             "cache-control",
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
-          ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c0e20c3aa39979a-LIS"],
-          ["content-type", "application/json"],
-          ["date", "Tue, 20 Jan 2026 11:10:54 GMT"],
-          ["server", "cloudflare"],
-          ["strict-transport-security", "max-age=15552000"],
-          ["vary", "Origin"],
-          ["via", "1.1 google"],
-          ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "14400"],
-          ["x-ratelimit-limit-tokens", "6000"],
-          ["x-ratelimit-remaining-requests", "14396"],
-          ["x-ratelimit-remaining-tokens", "5937"],
-          ["x-ratelimit-reset-requests", "24s"],
-          ["x-ratelimit-reset-tokens", "630ms"],
-          ["x-request-id", "req_01kfdhkdk6f819wkhysdc4dx40"],
+          [
+            "cf-cache-status",
+            "DYNAMIC"
+          ],
+          [
+            "cf-ray",
+            "9c16ded18c6f90b1-LIS"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ],
+          [
+            "date",
+            "Wed, 21 Jan 2026 12:38:44 GMT"
+          ],
+          [
+            "server",
+            "cloudflare"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=15552000"
+          ],
+          [
+            "vary",
+            "Origin"
+          ],
+          [
+            "via",
+            "1.1 google"
+          ],
+          [
+            "x-groq-region",
+            "fra"
+          ],
+          [
+            "x-ratelimit-limit-requests",
+            "1000"
+          ],
+          [
+            "x-ratelimit-limit-tokens",
+            "8000"
+          ],
+          [
+            "x-ratelimit-remaining-requests",
+            "993"
+          ],
+          [
+            "x-ratelimit-remaining-tokens",
+            "7900"
+          ],
+          [
+            "x-ratelimit-reset-requests",
+            "10m4.8s"
+          ],
+          [
+            "x-ratelimit-reset-tokens",
+            "750ms"
+          ],
+          [
+            "x-request-id",
+            "req_01kfg90zsbf7vv1md3x55f7qnf"
+          ],
           [
             "set-cookie",
-            "__cf_bm=dKIHvr7aNpuxtnUeNNtrGcnXuGnG1WwjSTT972I9gbE-1768907454-1.0.1.1-1m9LHNgpn74XSvpX7NnwoSlCRUR.gh6fvmUXEqWeGRyrn4i76GC4.EgYDQOvj3sjAThDg69EX0Mq1oy63NvZwghE2AJIkshL6rR1L6TzrHc; path=/; expires=Tue, 20-Jan-26 11:40:54 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=t04VQBK2uThCfXqOna9a1irWVrkPwmC5FXiQXrLtWl0-1768999124-1.0.1.1-ih3.0RzC6EIDJCB7chsVrO2iw4Laex8JBukbRHPm.O3jdBVQCqV8qGjvQwQPAN2sDDltbi0qhUGpp2mDIvPVxD8EGFuKSlZ8UnRRX8O2boI; path=/; expires=Wed, 21-Jan-26 13:08:44 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-3cf1ef34-18bb-4c17-a01a-3d96486c1830\",\"object\":\"chat.completion\",\"created\":1768907454,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The second child in this JSON would be 'bar'. \\n\\nHere's the breakdown of how to extract it:\\n\\n1. The JSON is structured as a key-value pair, where \\\"children\\\" is the key and its corresponding value is a list.\\n2. The list has three elements: \\\"foo\\\", \\\"bar\\\", and \\\"xyz\\\".\\n3. Indexing in a list starts from 0, so the index of the first element is 0 (which is \\\"foo\\\").\\n4. The second element is at index 1, which corresponds to \\\"bar\\\".\\n\\nSo, the second child in this JSON is 'bar'.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.256815182,\"prompt_tokens\":62,\"prompt_time\":0.00501632,\"completion_tokens\":125,\"completion_time\":0.242033262,\"total_tokens\":187,\"total_time\":0.247049582},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4387d3edbb\",\"x_groq\":{\"id\":\"req_01kfdhkdk6f819wkhysdc4dx40\",\"seed\":248856811},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-0892abc3-b520-43e7-949c-5686b263f953\",\"object\":\"chat.completion\",\"created\":1768999124,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The second child is `\\\"bar\\\"`.\",\"reasoning\":\"User asks: \\\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\\\". They want the second child from the \\\"children\\\" array. That's \\\"bar\\\". So answer: bar.\\n\\nWe should be concise.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018276319,\"prompt_tokens\":99,\"prompt_time\":0.003675249,\"completion_tokens\":76,\"completion_time\":0.156034806,\"total_tokens\":175,\"total_time\":0.159710055,\"completion_tokens_details\":{\"reasoning_tokens\":59}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kfg90zsbf7vv1md3x55f7qnf\",\"seed\":1562240983},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }
