@@ -4,6 +4,7 @@ import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import Bool "mo:core/Bool";
 import List "mo:core/List";
+import Principal "mo:core/Principal";
 import HttpWrapper "./http-wrapper";
 import Json "mo:json";
 import { str; int; float; bool; obj; arr } "mo:json";
@@ -59,6 +60,128 @@ module {
     usage : ?Usage;
   };
 
+  /// Input for Groq Responses API (can be string or array of strings)
+  public type ResponseInput = {
+    #string : Text;
+    #array : [Text];
+  };
+
+  /// Reasoning effort levels for Responses API
+  public type ReasoningEffort = {
+    #low;
+    #medium;
+    #high;
+  };
+
+  /// Reasoning configuration for Responses API
+  public type ReasoningConfig = {
+    effort : ?ReasoningEffort;
+    summary : ?Bool;
+  };
+
+  /// Text format configuration
+  public type TextFormat = {
+    format_type : Text; // "text" or "json_schema"
+  };
+
+  /// Tool choice for Responses API
+  public type ToolChoice = {
+    #string : Text; // "none", "auto", "required"
+    #objectDef : { tool_type : Text; function_name : Text };
+  };
+
+  /// Function definition for tools
+  public type FunctionDef = {
+    name : Text;
+    description : ?Text;
+    parameters : ?Text; // JSON schema as string
+  };
+
+  /// Tool definition
+  public type Tool = {
+    tool_type : Text; // "function"
+    function : FunctionDef;
+  };
+
+  /// Request payload for Groq Responses API
+  public type ResponseRequest = {
+    input : ResponseInput;
+    model : Text;
+    instructions : ?Text;
+    max_output_tokens : ?Nat;
+    metadata : ?Text; // JSON string for custom key-value pairs
+    parallel_tool_calls : ?Bool;
+    reasoning : ?ReasoningConfig;
+    service_tier : ?Text; // "auto", "default", "flex"
+    store : ?Bool;
+    stream : ?Bool;
+    temperature : ?Float;
+    text : ?TextFormat;
+    tool_choice : ?ToolChoice;
+    tools : ?[Tool];
+    top_p : ?Float;
+    truncation : ?Text; // "auto", "disabled"
+    user : ?Text;
+  };
+
+  /// Output content from Responses API
+  public type ResponseOutputContent = {
+    content_type : Text; // "output_text"
+    text : Text;
+    annotations : [Text]; // Array of annotation strings
+  };
+
+  /// Message output from Responses API
+  public type ResponseMessage = {
+    output_type : Text; // "message"
+    id : Text;
+    status : Text; // "completed", "failed", "in_progress", "incomplete"
+    role : Text; // "assistant"
+    content : [ResponseOutputContent];
+  };
+
+  /// Response output array item
+  public type ResponseOutput = {
+    #message : ResponseMessage;
+  };
+
+  /// Usage details for Responses API
+  public type ResponseUsage = {
+    input_tokens : Nat;
+    input_tokens_details : ?{ cached_tokens : Nat };
+    output_tokens : Nat;
+    output_tokens_details : ?{ reasoning_tokens : Nat };
+    total_tokens : Nat;
+  };
+
+  /// Response payload from Groq Responses API
+  public type ResponseData = {
+    id : Text;
+    objectType : Text; // "response"
+    status : Text; // "completed", "failed", "in_progress", "incomplete"
+    created_at : Nat;
+    output : [ResponseOutput];
+    previous_response_id : ?Text;
+    model : Text;
+    reasoning : ?ReasoningConfig;
+    max_output_tokens : ?Nat;
+    instructions : ?Text;
+    text : ?TextFormat;
+    tools : [Tool];
+    tool_choice : ?ToolChoice;
+    truncation : Text;
+    metadata : ?Text;
+    temperature : Float;
+    top_p : Float;
+    user : ?Text;
+    service_tier : Text;
+    error : ?Text;
+    incomplete_details : ?Text;
+    usage : ResponseUsage;
+    parallel_tool_calls : Bool;
+    store : Bool;
+  };
+
   // ============================================
   // Constants
   // ============================================
@@ -85,6 +208,184 @@ module {
       ("role", str(roleToString(message.role))),
       ("content", str(message.content)),
     ]);
+  };
+
+  /// Convert ReasoningEffort to string for JSON serialization
+  private func reasoningEffortToString(effort : ReasoningEffort) : Text {
+    switch (effort) {
+      case (#low) { "low" };
+      case (#medium) { "medium" };
+      case (#high) { "high" };
+    };
+  };
+
+  /// Convert ResponseInput to JSON
+  private func inputToJson(input : ResponseInput) : Json.Json {
+    switch (input) {
+      case (#string(text)) { str(text) };
+      case (#array(texts)) { arr(Array.map<Text, Json.Json>(texts, str)) };
+    };
+  };
+
+  /// Convert ToolChoice to JSON
+  private func toolChoiceToJson(toolChoice : ToolChoice) : Json.Json {
+    switch (toolChoice) {
+      case (#string(choice)) { str(choice) };
+      case (#objectDef(toolObj)) {
+        obj([
+          ("type", str(toolObj.tool_type)),
+          ("function", obj([("name", str(toolObj.function_name))])),
+        ]);
+      };
+    };
+  };
+
+  /// Convert Tool to JSON
+  private func toolToJson(tool : Tool) : Json.Json {
+    let functionFields = List.empty<(Text, Json.Json)>();
+    List.add(functionFields, ("name", str(tool.function.name)));
+
+    switch (tool.function.description) {
+      case (?desc) { List.add(functionFields, ("description", str(desc))) };
+      case (null) {};
+    };
+
+    switch (tool.function.parameters) {
+      case (?params) {
+        // Parse the JSON schema string and add it
+        switch (Json.parse(params)) {
+          case (#ok(paramJson)) {
+            List.add(functionFields, ("parameters", paramJson));
+          };
+          case (#err(_)) {}; // Skip if invalid JSON
+        };
+      };
+      case (null) {};
+    };
+
+    obj([
+      ("type", str(tool.tool_type)),
+      ("function", obj(List.toArray(functionFields))),
+    ]);
+  };
+
+  /// Serialize ResponseRequest to JSON string
+  private func serializeResponseRequest(request : ResponseRequest) : Text {
+    // Start with required fields
+    let requestFields = List.empty<(Text, Json.Json)>();
+    List.add(requestFields, ("input", inputToJson(request.input)));
+    List.add(requestFields, ("model", str(request.model)));
+
+    // Add optional parameters
+    switch (request.instructions) {
+      case (?inst) { List.add(requestFields, ("instructions", str(inst))) };
+      case (null) {};
+    };
+
+    switch (request.max_output_tokens) {
+      case (?tokens) {
+        List.add(requestFields, ("max_output_tokens", int(tokens)));
+      };
+      case (null) {};
+    };
+
+    switch (request.metadata) {
+      case (?meta) {
+        // Parse the JSON metadata string
+        switch (Json.parse(meta)) {
+          case (#ok(metaJson)) {
+            List.add(requestFields, ("metadata", metaJson));
+          };
+          case (#err(_)) {}; // Skip if invalid JSON
+        };
+      };
+      case (null) {};
+    };
+
+    switch (request.parallel_tool_calls) {
+      case (?parallel) {
+        List.add(requestFields, ("parallel_tool_calls", bool(parallel)));
+      };
+      case (null) {};
+    };
+
+    switch (request.reasoning) {
+      case (?reasoning) {
+        let reasoningFields = List.empty<(Text, Json.Json)>();
+        switch (reasoning.effort) {
+          case (?effort) {
+            List.add(reasoningFields, ("effort", str(reasoningEffortToString(effort))));
+          };
+          case (null) {};
+        };
+        switch (reasoning.summary) {
+          case (?summary) {
+            List.add(reasoningFields, ("summary", bool(summary)));
+          };
+          case (null) {};
+        };
+        List.add(requestFields, ("reasoning", obj(List.toArray(reasoningFields))));
+      };
+      case (null) {};
+    };
+
+    switch (request.service_tier) {
+      case (?tier) { List.add(requestFields, ("service_tier", str(tier))) };
+      case (null) {};
+    };
+
+    switch (request.store) {
+      case (?store) { List.add(requestFields, ("store", bool(store))) };
+      case (null) {};
+    };
+
+    switch (request.stream) {
+      case (?stream) { List.add(requestFields, ("stream", bool(stream))) };
+      case (null) {};
+    };
+
+    switch (request.temperature) {
+      case (?temp) { List.add(requestFields, ("temperature", float(temp))) };
+      case (null) {};
+    };
+
+    switch (request.text) {
+      case (?textFormat) {
+        List.add(requestFields, ("text", obj([("format", obj([("type", str(textFormat.format_type))]))])));
+      };
+      case (null) {};
+    };
+
+    switch (request.tool_choice) {
+      case (?choice) {
+        List.add(requestFields, ("tool_choice", toolChoiceToJson(choice)));
+      };
+      case (null) {};
+    };
+
+    switch (request.tools) {
+      case (?tools) {
+        List.add(requestFields, ("tools", arr(Array.map<Tool, Json.Json>(tools, toolToJson))));
+      };
+      case (null) {};
+    };
+
+    switch (request.top_p) {
+      case (?p) { List.add(requestFields, ("top_p", float(p))) };
+      case (null) {};
+    };
+
+    switch (request.truncation) {
+      case (?trunc) { List.add(requestFields, ("truncation", str(trunc))) };
+      case (null) {};
+    };
+
+    switch (request.user) {
+      case (?user) { List.add(requestFields, ("user", str(user))) };
+      case (null) {};
+    };
+
+    Json.stringify(obj(List.toArray(requestFields)), null);
   };
 
   /// Serialize ChatCompletionRequest to JSON string
@@ -128,6 +429,39 @@ module {
     Json.stringify(obj(List.toArray(requestFields)), null);
   };
 
+  /// Parse Groq Responses API response and extract the text content
+  ///
+  /// @param responseBody - Raw JSON response from Groq Responses API
+  /// @returns Result with extracted content or error message
+  private func parseResponsesApiResponse(responseBody : Text) : {
+    #ok : Text;
+    #err : Text;
+  } {
+    switch (Json.parse(responseBody)) {
+      case (#err(error)) {
+        #err("Failed to parse JSON response: " # debug_show error);
+      };
+      case (#ok(json)) {
+        // Try to get the content from output[0].content[0].text
+        switch (Json.get(json, "output[0].content[0].text")) {
+          case (null) {
+            #err("Could not find output[0].content[0].text in response");
+          };
+          case (?textJson) {
+            switch (textJson) {
+              case (#string(content)) {
+                #ok(content);
+              };
+              case (_) {
+                #err("Content field is not a string");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
   /// Parse Groq API response and extract the assistant's message content
   ///
   /// Uses the JSON library for robust parsing
@@ -166,6 +500,81 @@ module {
   // ============================================
   // Private Functions
   // ============================================
+
+  /// Create response using Groq Responses API
+  ///
+  /// @param apiKey - The Groq API key
+  /// @param input - Input text or array of texts
+  /// @param model - Model name
+  /// @param instructions - Optional system instructions
+  /// @param temperature - Optional temperature setting (0.0-2.0)
+  /// @param maxOutputTokens - Optional maximum output tokens
+  /// @param reasoning - Optional reasoning configuration
+  /// @param tools - Optional tools for function calling
+  /// @param toolChoice - Optional tool choice configuration
+  /// @param user - Optional user identifier
+  /// @returns Result with response content or error message
+  private func createResponse(
+    apiKey : Text,
+    input : ResponseInput,
+    model : Text,
+    instructions : ?Text,
+    temperature : ?Float,
+    maxOutputTokens : ?Nat,
+    reasoning : ?ReasoningConfig,
+    tools : ?[Tool],
+    toolChoice : ?ToolChoice,
+    user : ?Text,
+  ) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    let request : ResponseRequest = {
+      input;
+      model;
+      instructions;
+      max_output_tokens = maxOutputTokens;
+      metadata = null;
+      parallel_tool_calls = null;
+      reasoning;
+      service_tier = null;
+      store = ?false;
+      stream = ?false; // Always false for simplicity
+      temperature;
+      text = null;
+      tool_choice = toolChoice;
+      tools;
+      top_p = null;
+      truncation = null;
+      user;
+    };
+
+    let requestBody = serializeResponseRequest(request);
+    let url = GROQ_API_BASE_URL # "/responses";
+
+    let headers : [HttpWrapper.HttpHeader] = [
+      { name = "Authorization"; value = "Bearer " # apiKey },
+      { name = "Content-Type"; value = "application/json" },
+    ];
+
+    // Make the HTTP POST request
+    let httpResult = await HttpWrapper.post(url, headers, requestBody);
+
+    switch (httpResult) {
+      case (#err(error)) {
+        #err("HTTP request failed: " # error);
+      };
+      case (#ok((status, responseBody))) {
+        if (status == 200) {
+          // Parse successful response
+          parseResponsesApiResponse(responseBody);
+        } else {
+          // Return error with status and response details
+          #err("Groq Responses API returned status " # Nat.toText(status) # ": " # responseBody);
+        };
+      };
+    };
+  };
 
   /// Chat completion using Groq API
   ///
@@ -224,6 +633,55 @@ module {
   // ============================================
   // Public Functions
   // ============================================
+
+  /// Generate reasoning response using Groq Responses API
+  ///
+  /// @param caller - Principal of the caller for user identification
+  /// @param agentId - Agent ID for user identification
+  /// @param apiKey - The Groq API key
+  /// @param input - Input text for reasoning
+  /// @param model - Model name (should support reasoning)
+  /// @param instructions - Optional system instructions
+  /// @param reasoningEffort - Optional reasoning effort level (#low, #medium, #high)
+  /// @returns Result with reasoning response or error message
+  public func reason(
+    caller : Principal,
+    agentId : Nat,
+    apiKey : Text,
+    input : Text,
+    model : Text,
+    instructions : ?Text,
+    reasoningEffort : ?ReasoningEffort,
+  ) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    assert Text.trim(apiKey, #char ' ') != "";
+    assert Text.trim(input, #char ' ') != "";
+    assert Text.trim(model, #char ' ') != "";
+
+    let inputData : ResponseInput = #string(input);
+    let reasoningConfig = switch (reasoningEffort) {
+      case (?effort) { ?{ effort = ?effort; summary = null } };
+      case (null) { null };
+    };
+
+    // Create user key from caller and agentId
+    let userKey = Principal.toText(caller) # "_" # Nat.toText(agentId);
+
+    await createResponse(
+      apiKey,
+      inputData,
+      model,
+      instructions,
+      null, // temperature
+      null, // maxOutputTokens
+      reasoningConfig,
+      null, // no tools for basic reasoning
+      null, // no tool choice
+      ?userKey // user key for identification
+    );
+  };
 
   /// Simple chat function with just message content
   ///
