@@ -22,7 +22,7 @@ describe("Groq Wrapper Unit Tests", () => {
     await pic.tearDown();
   });
 
-  describe("Input Validation", () => {
+  describe("Chat Method Tests", () => {
     it("should fail with empty model name", async () => {
       try {
         await testCanister.groqChat("test-key", "Hello", "");
@@ -42,9 +42,7 @@ describe("Groq Wrapper Unit Tests", () => {
         expect(error).toBeDefined();
       }
     });
-  });
 
-  describe("Successful API Calls", () => {
     it("should handle basic chat with valid API key", async () => {
       const { result } = await withCassette(
         pic,
@@ -231,7 +229,7 @@ describe("Groq Wrapper Unit Tests", () => {
               [],
               [{ medium: null }],
             ),
-          { ticks: 15 },
+          { ticks: 5 },
         );
 
         const response = await result;
@@ -269,7 +267,7 @@ describe("Groq Wrapper Unit Tests", () => {
               [instructions],
               [{ high: null }],
             ),
-          { ticks: 20 },
+          { ticks: 5 },
         );
 
         const response = await result;
@@ -292,7 +290,7 @@ describe("Groq Wrapper Unit Tests", () => {
       { timeout: 20000 },
     );
 
-    it("should handle reasoning without instructions", async () => {
+    it("should handle reasoning without instructions or effort", async () => {
       const agentId = 4n;
       const input = "What is machine learning?";
 
@@ -323,38 +321,6 @@ describe("Groq Wrapper Unit Tests", () => {
       }
     });
 
-    it("should handle reasoning without effort specification", async () => {
-      const agentId = 5n;
-      const input = "Describe the water cycle";
-      const instructions = "Keep it educational and clear.";
-
-      const { result } = await withCassette(
-        pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/reason-no-effort",
-        () =>
-          testCanister.groqReason(
-            agentId,
-            TEST_API_KEY,
-            input,
-            TEST_MODEL,
-            [instructions],
-            [],
-          ),
-        { ticks: 5 },
-      );
-
-      const response = await result;
-
-      if ("ok" in response) {
-        expect(response.ok.length).toBeGreaterThan(0);
-        expect(response.ok.toLowerCase()).toContain("water");
-      } else {
-        throw new Error(
-          "Expected successful response but got error: " + response.err,
-        );
-      }
-    });
-
     it(
       "should handle complex mathematical reasoning",
       async () => {
@@ -375,7 +341,7 @@ describe("Groq Wrapper Unit Tests", () => {
               [instructions],
               [{ medium: null }],
             ),
-          { ticks: 10 },
+          { ticks: 5 },
         );
 
         const response = await result;

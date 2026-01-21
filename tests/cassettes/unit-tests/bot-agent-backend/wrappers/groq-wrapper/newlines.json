@@ -8,14 +8,8 @@
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "method": "POST",
         "headers": [
-          [
-            "Authorization",
-            "[REDACTED]"
-          ],
-          [
-            "Content-Type",
-            "application/json"
-          ]
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
         ],
         "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Count new lines:\\nLine\\nAnother\\nline\\nhere\"}],\"stream\":false}",
         "bodyEncoding": "text"
@@ -23,78 +17,27 @@
       "response": {
         "statusCode": 200,
         "headers": [
-          [
-            "alt-svc",
-            "h3=\":443\"; ma=86400"
-          ],
+          ["alt-svc", "h3=\":443\"; ma=86400"],
           [
             "cache-control",
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
-          [
-            "cf-cache-status",
-            "DYNAMIC"
-          ],
-          [
-            "cf-ray",
-            "9c16ded8997190b1-LIS"
-          ],
-          [
-            "content-type",
-            "application/json"
-          ],
-          [
-            "date",
-            "Wed, 21 Jan 2026 12:38:46 GMT"
-          ],
-          [
-            "server",
-            "cloudflare"
-          ],
-          [
-            "strict-transport-security",
-            "max-age=15552000"
-          ],
-          [
-            "vary",
-            "Origin"
-          ],
-          [
-            "via",
-            "1.1 google"
-          ],
-          [
-            "x-groq-region",
-            "fra"
-          ],
-          [
-            "x-ratelimit-limit-requests",
-            "1000"
-          ],
-          [
-            "x-ratelimit-limit-tokens",
-            "8000"
-          ],
-          [
-            "x-ratelimit-remaining-requests",
-            "992"
-          ],
-          [
-            "x-ratelimit-remaining-tokens",
-            "7889"
-          ],
-          [
-            "x-ratelimit-reset-requests",
-            "11m31.2s"
-          ],
-          [
-            "x-ratelimit-reset-tokens",
-            "832ms"
-          ],
-          [
-            "x-request-id",
-            "req_01kfg910w3e51v3ja8ezqb0ax7"
-          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c16ded8997190b1-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Wed, 21 Jan 2026 12:38:46 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "fra"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "992"],
+          ["x-ratelimit-remaining-tokens", "7889"],
+          ["x-ratelimit-reset-requests", "11m31.2s"],
+          ["x-ratelimit-reset-tokens", "832ms"],
+          ["x-request-id", "req_01kfg910w3e51v3ja8ezqb0ax7"],
           [
             "set-cookie",
             "__cf_bm=GUgcDs8PkbG7.._0u0Dt2ojYf7ZCsC7zKTpgRVCuTSE-1768999126-1.0.1.1-30B5MUYlahd9pkIOLI7FXQT5mq7_R.6BBN8IOIkZg_19vfYGuUb34BfJcGZpfPBCCGo_WsDoYaArKvcnc7QyLrJz6qWrqAvxdi1d2yhlzKg; path=/; expires=Wed, 21-Jan-26 13:08:46 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"

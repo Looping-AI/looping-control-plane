@@ -1,21 +1,15 @@
 {
   "version": 1,
   "name": "reason-no-instructions",
-  "recordedAt": "2026-01-21T12:50:59.738Z",
+  "recordedAt": "2026-01-21T13:56:31.608Z",
   "interactions": [
     {
       "request": {
         "url": "https://api.groq.com/openai/v1/responses",
         "method": "POST",
         "headers": [
-          [
-            "Authorization",
-            "[REDACTED]"
-          ],
-          [
-            "Content-Type",
-            "application/json"
-          ]
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
         ],
         "body": "{\"input\":\"What is machine learning?\",\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"user\":\"2vxsx-fae_4\"}",
         "bodyEncoding": "text"
@@ -23,84 +17,33 @@
       "response": {
         "statusCode": 200,
         "headers": [
-          [
-            "alt-svc",
-            "h3=\":443\"; ma=86400"
-          ],
+          ["alt-svc", "h3=\":443\"; ma=86400"],
           [
             "cache-control",
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
-          [
-            "cf-cache-status",
-            "DYNAMIC"
-          ],
-          [
-            "cf-ray",
-            "9c16f0c449405910-LIS"
-          ],
-          [
-            "content-type",
-            "application/json"
-          ],
-          [
-            "date",
-            "Wed, 21 Jan 2026 12:51:01 GMT"
-          ],
-          [
-            "server",
-            "cloudflare"
-          ],
-          [
-            "strict-transport-security",
-            "max-age=15552000"
-          ],
-          [
-            "vary",
-            "Origin"
-          ],
-          [
-            "via",
-            "1.1 google"
-          ],
-          [
-            "x-groq-region",
-            "dls"
-          ],
-          [
-            "x-ratelimit-limit-requests",
-            "1000"
-          ],
-          [
-            "x-ratelimit-limit-tokens",
-            "8000"
-          ],
-          [
-            "x-ratelimit-remaining-requests",
-            "990"
-          ],
-          [
-            "x-ratelimit-remaining-tokens",
-            "7923"
-          ],
-          [
-            "x-ratelimit-reset-requests",
-            "14m24s"
-          ],
-          [
-            "x-ratelimit-reset-tokens",
-            "577ms"
-          ],
-          [
-            "x-request-id",
-            "req_01kfg9qdr5fxtab02zgmejfgzt"
-          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c1750c23ccecc1e-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Wed, 21 Jan 2026 13:56:34 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "dls"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "996"],
+          ["x-ratelimit-remaining-tokens", "2310"],
+          ["x-ratelimit-reset-requests", "5m45.6s"],
+          ["x-ratelimit-reset-tokens", "42.675s"],
+          ["x-request-id", "req_01kfgdfdenftxrhq1dxx256kkm"],
           [
             "set-cookie",
-            "__cf_bm=RTDCJfPaFFqvHxjpvnW3Q7S5B3iqXQ_m9OndrfkF4T8-1768999861-1.0.1.1-RZWoL19TQxyiL7YFZ.FbCiAOq8_S_AeUpr0M2NBu5r8rf.UDI7wzDhFQGM68lpPt5Llaj8bx6bIUq8rcrbj8f6rZVNYhLGzEMxgBPSQ6_jM; path=/; expires=Wed, 21-Jan-26 13:21:01 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=Eaw2Gfo1NFbUrUeHG.0VK6QYHfi_WeOdbgWGOa9ps4E-1769003794-1.0.1.1-Jrx5hB3SwgZD0zyio3TDE7iNb_sl8NgE2sjj2ukhvXzF72LzdOhwHrJr6BoLqyRGb2TFzFuGQp6Y8AxBr5YDSbaJ_rjoDY1gpow_FCZbxno; path=/; expires=Wed, 21-Jan-26 14:26:34 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"resp_01kfg9qfkgfxz91958137633w2\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1768999861,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfg9qfkgfxzs88jpaxp3vcq6\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks: \\\"What is machine learning?\\\" Provide concise explanation. Probably straightforward.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfg9qfkgfy0apbhrx39v4h7s\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Machine learning (ML)** is a branch of artificial intelligence that gives computers the ability to learn from data and improve their performance on a task without being explicitly programmed for every possible scenario.\\n\\n### Core Idea\\n- **Data → Model → Prediction/Decision**  \\n  1. **Collect data** (examples of inputs and, often, the desired outputs).  \\n  2. **Train a model** by adjusting its parameters so that it captures patterns in the data.  \\n  3. **Deploy the model** to make predictions or decisions on new, unseen data.\\n\\n### How It Works\\n1. **Representation** – Choose a mathematical structure (e.g., a linear equation, decision tree, neural network) that can express relationships between inputs and outputs.\\n2. **Objective (Loss) Function** – Define a metric that quantifies how well the model’s predictions match the true outcomes (e.g., mean‑squared error for regression, cross‑entropy for classification).\\n3. **Optimization** – Use algorithms (gradient descent, evolutionary strategies, etc.) to adjust the model’s parameters to minimize the loss on the training data.\\n4. **Generalization** – The goal is that the learned patterns apply to new data, not just the data used for training. Techniques like regularization, cross‑validation, and early stopping help avoid overfitting.\\n\\n### Main Categories\\n| Category | Typical Tasks | Common Algorithms |\\n|----------|---------------|--------------------|\\n| **Supervised Learning** | Predict labels from known examples (classification, regression) | Linear/logistic regression, SVM, random forests, neural networks |\\n| **Unsupervised Learning** | Find structure in unlabeled data (clustering, dimensionality reduction) | k‑means, Gaussian mixture models, PCA, autoencoders |\\n| **Semi‑supervised Learning** | Leverage a small labeled set plus abundant unlabeled data | Self‑training, co‑training, graph‑based methods |\\n| **Reinforcement Learning** | Learn actions that maximize cumulative reward through trial‑and‑error | Q‑learning, policy gradients, deep Q‑networks |\\n| **Self‑Supervised / Contrastive Learning** | Generate supervisory signals from the data itself (often for representation learning) | SimCLR, BYOL, masked language modeling (BERT) |\\n\\n### Real‑World Examples\\n- **Spam filtering** – Classify emails as spam/not‑spam (supervised).\\n- **Image tagging** – Identify objects in photos (deep convolutional neural networks).\\n- **Recommendation engines** – Suggest movies or products (collaborative filtering, matrix factorization).\\n- **Speech recognition** – Convert spoken words to text (RNNs, transformers).\\n- **Autonomous driving** – Detect lanes, pedestrians, and plan trajectories (combination of perception and reinforcement learning).\\n\\n### Why It Matters\\n- **Scalability:** Once trained, models can process massive amounts of data far faster than humans.\\n- **Adaptability:** Models can be retrained or fine‑tuned as new data becomes available.\\n- **Automation:** Enables tasks that were previously too complex or time‑consuming to automate.\\n\\n### Common Misconceptions\\n- **ML ≠ AI:** ML is one way to achieve AI, but AI also includes rule‑based systems, symbolic reasoning, etc.\\n- **More data always means better performance:** Quality, relevance, and diversity of data matter; noisy or biased data can degrade results.\\n- **ML models “understand” the world:** They capture statistical patterns, not genuine comprehension; they can fail spectacularly on out‑of‑distribution inputs.\\n\\n### Simple Analogy\\nThink of a child learning to recognize cats. The child sees many pictures labeled “cat” and “not cat.” Over time, the child extracts visual cues (whiskers, ears, shape) that help decide whether a new picture contains a cat. Machine learning does the same, except the “child” is a mathematical model and the “cues” are learned numeric parameters.\\n\\n---\\n\\n**Bottom line:** Machine learning is a data‑driven approach to building algorithms that automatically improve with experience, allowing computers to perform tasks ranging from simple predictions to complex perception and decision‑making.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"2vxsx-fae_4\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":76,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":885,\"output_tokens_details\":{\"reasoning_tokens\":17},\"total_tokens\":961},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kfgdfgb0fv8t748md4ppfk6b\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769003794,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfgdfgb0fv9bjm7j1bcmj917\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to answer the question: \\\"What is machine learning?\\\" Provide a clear definition, explanation, types, examples, maybe applications, and maybe a brief history. The user is asking a general question, so a concise yet thorough answer is appropriate.\\n\\nWe should follow policy: no disallowed content. It's fine.\\n\\nProceed to final.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfgdfgb0fv9rttzs3h1cjfr9\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Machine learning (ML)** is a subfield of artificial intelligence (AI) that focuses on developing algorithms and statistical models that enable computers to *learn from data* and improve their performance on a specific task without being explicitly programmed for every possible situation.\\n\\n### Core Idea\\n- **Learning from examples:** Instead of writing step‑by‑step rules, we feed a computer a collection of data (examples) and let it infer patterns, relationships, or decision boundaries.\\n- **Generalization:** The goal is that the model not only works well on the data it has seen (training data) but also on new, unseen data (test or real‑world data).\\n\\n### How It Works (High‑Level Workflow)\\n1. **Collect Data** – Gather relevant examples (images, text, sensor readings, etc.).\\n2. **Preprocess \\u0026 Engineer Features** – Clean the data, handle missing values, transform raw inputs into useful representations.\\n3. **Choose a Model** – Select an algorithm (e.g., linear regression, decision tree, neural network) that can map inputs to outputs.\\n4. **Train the Model** – Use the data to adjust the model’s internal parameters (weights, thresholds) so that its predictions minimize a loss function.\\n5. **Validate \\u0026 Tune** – Evaluate performance on a separate validation set, adjust hyper‑parameters, prevent overfitting.\\n6. **Deploy \\u0026 Monitor** – Put the trained model into production and continuously monitor its accuracy, updating it as new data arrives.\\n\\n### Main Types of Machine Learning\\n| Category | What It Does | Typical Algorithms | Example Tasks |\\n|----------|--------------|--------------------|---------------|\\n| **Supervised Learning** | Learns a mapping from inputs to known outputs (labels). | Linear regression, logistic regression, support vector machines, decision trees, random forests, neural networks. | Spam detection, image classification, house‑price prediction. |\\n| **Unsupervised Learning** | Finds structure in data without explicit labels. | K‑means clustering, hierarchical clustering, PCA, autoencoders, Gaussian mixture models. | Customer segmentation, anomaly detection, dimensionality reduction. |\\n| **Semi‑Supervised Learning** | Uses a small set of labeled data plus a large set of unlabeled data. | Self‑training, co‑training, graph‑based methods. | Text classification when labeling is expensive. |\\n| **Reinforcement Learning (RL)** | Learns to make sequential decisions by receiving rewards/punishments. | Q‑learning, policy gradients, deep Q‑networks (DQN), Proximal Policy Optimization (PPO). | Game playing (e.g., AlphaGo), robot navigation, recommendation systems. |\\n| **Self‑Supervised Learning** | Generates its own supervisory signal from raw data (often used in NLP \\u0026 vision). | Masked language modeling (BERT), contrastive learning (SimCLR). | Pre‑training large language models, image feature extraction. |\\n| **Transfer Learning** | Reuses knowledge from a pre‑trained model on a related task. | Fine‑tuning BERT, using ImageNet‑trained CNNs for new vision tasks. | Adapting a speech recognizer trained on English to a low‑resource language. |\\n\\n### Key Concepts \\u0026 Terminology\\n- **Model:** The mathematical representation (e.g., a set of equations, a neural network) that makes predictions.\\n- **Parameters:** Values learned during training (e.g., weights in a neural network).\\n- **Hyper‑parameters:** Settings chosen before training (e.g., learning rate, number of layers) that affect learning.\\n- **Loss Function:** Quantifies the error between predictions and true labels; the algorithm seeks to minimize it.\\n- **Overfitting vs. Underfitting:** Overfitting = model fits training data too closely and fails on new data; underfitting = model is too simple to capture underlying patterns.\\n- **Feature Engineering:** Crafting or selecting input variables that help the model learn effectively.\\n- **Evaluation Metrics:** Accuracy, precision, recall, F1‑score, ROC‑AUC for classification; MSE, MAE, R² for regression.\\n\\n### Popular Applications\\n- **Computer Vision:** Object detection, facial recognition, medical image analysis.\\n- **Natural Language Processing (NLP):** Sentiment analysis, machine translation, chatbots, text summarization.\\n- **Recommendation Systems:** Netflix/movie suggestions, product recommendations on e‑commerce sites.\\n- **Finance:** Credit scoring, algorithmic trading, fraud detection.\\n- **Healthcare:** Predicting disease risk, drug discovery, personalized treatment recommendations.\\n- **Autonomous Vehicles:** Perception, planning, and control based on sensor data.\\n\\n### Brief Historical Milestones\\n| Year | Milestone |\\n|------|-----------|\\n| 1950s | Early perceptron model (Rosenblatt) – first simple neural network. |\\n| 1960s–70s | Development of decision trees (ID3), k‑nearest neighbors, and the “nearest neighbor” rule. |\\n| 1980s | Backpropagation algorithm popularizes multi‑layer neural networks. |\\n| 1990s | Support Vector Machines (Vapnik) achieve strong theoretical guarantees; emergence of ensemble methods (bagging, boosting). |\\n| 2000s | Kernel methods and large‑scale data handling; rise of probabilistic graphical models. |\\n| 2010s | Deep learning breakthroughs (AlexNet 2012, ResNet 2015) dramatically improve image and speech tasks; transformer architecture (Vaswani et al., 2017) reshapes NLP. |\\n| 2020s | Massive pre‑trained models (GPT‑3/4, PaLM, DALL·E, Stable Diffusion) demonstrate few‑shot learning and generative capabilities; ML integrated into almost every industry. |\\n\\n### Why It Matters\\n- **Scalability:** Once trained, a model can make predictions at scale, far faster than a human could.\\n- **Adaptability:** Models can be updated continuously as new data arrives, allowing systems to evolve with changing environments.\\n- **Insight Discovery:** Uncovering hidden patterns can lead to new scientific hypotheses, business strategies, or operational efficiencies.\\n\\n---\\n\\n**In a nutshell:** Machine learning is about giving computers the ability to *learn* from data, automatically extracting patterns and making decisions or predictions, thereby enabling intelligent behavior without hard‑coded rules. It powers many of the smart technologies we interact with daily.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"2vxsx-fae_4\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":76,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":1399,\"output_tokens_details\":{\"reasoning_tokens\":68},\"total_tokens\":1475},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }
