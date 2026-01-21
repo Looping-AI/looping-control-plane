@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "newlines",
-  "recordedAt": "2026-01-20T11:10:55.104Z",
+  "recordedAt": "2026-01-21T12:38:45.740Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"Count new lines:\\nLine\\nAnother\\nline\\nhere\"}],\"stream\":false}",
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Count new lines:\\nLine\\nAnother\\nline\\nhere\"}],\"stream\":false}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,27 +23,27 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c0e20cafc24979a-LIS"],
+          ["cf-ray", "9c16ded8997190b1-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 20 Jan 2026 11:10:55 GMT"],
+          ["date", "Wed, 21 Jan 2026 12:38:46 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
           ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "14400"],
-          ["x-ratelimit-limit-tokens", "6000"],
-          ["x-ratelimit-remaining-requests", "14395"],
-          ["x-ratelimit-remaining-tokens", "5883"],
-          ["x-ratelimit-reset-requests", "30s"],
-          ["x-ratelimit-reset-tokens", "1.17s"],
-          ["x-request-id", "req_01kfdhker4f83st1c5y4fdwqx5"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "992"],
+          ["x-ratelimit-remaining-tokens", "7889"],
+          ["x-ratelimit-reset-requests", "11m31.2s"],
+          ["x-ratelimit-reset-tokens", "832ms"],
+          ["x-request-id", "req_01kfg910w3e51v3ja8ezqb0ax7"],
           [
             "set-cookie",
-            "__cf_bm=F6.Qx6JSEPxEewEdEPAc9k5Tfg6SzHOs66HvwVH0WN0-1768907455-1.0.1.1-xgFqUVrV938_BQVXUg.XuQX.qn1IwHYDWSeYRJz7fV6zjp_qQJxqgOYNM6HjPeejGrwiq1hIwGdQJvaQA0ZnIzVfcjUhyRjLzHX0D7z4vuc; path=/; expires=Tue, 20-Jan-26 11:40:55 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=GUgcDs8PkbG7.._0u0Dt2ojYf7ZCsC7zKTpgRVCuTSE-1768999126-1.0.1.1-30B5MUYlahd9pkIOLI7FXQT5mq7_R.6BBN8IOIkZg_19vfYGuUb34BfJcGZpfPBCCGo_WsDoYaArKvcnc7QyLrJz6qWrqAvxdi1d2yhlzKg; path=/; expires=Wed, 21-Jan-26 13:08:46 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-b6f7bada-673b-4fed-9a25-a202451cc50d\",\"object\":\"chat.completion\",\"created\":1768907455,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"There are 3 new lines.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.458146833,\"prompt_tokens\":46,\"prompt_time\":0.006936087,\"completion_tokens\":8,\"completion_time\":0.015859125,\"total_tokens\":54,\"total_time\":0.022795212},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_ff2b098aaf\",\"x_groq\":{\"id\":\"req_01kfdhker4f83st1c5y4fdwqx5\",\"seed\":457955901},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-55cf9be4-29fc-4d29-a230-f2ea1060fa38\",\"object\":\"chat.completion\",\"created\":1768999126,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"There are **4** newline characters in the text you provided.\",\"reasoning\":\"We need to count new lines. The user provided:\\n\\nCount new lines:\\nLine\\nAnother\\nline\\nhere\\n\\nWe need to count new lines in the given text. Usually new lines count is number of line breaks. The text lines: \\\"Count new lines:\\\" then \\\"Line\\\" then \\\"Another\\\" then \\\"line\\\" then \\\"here\\\". That's 5 lines, meaning 4 newline characters between them? If we count newlines present: after \\\"Count new lines:\\\" newline, after \\\"Line\\\" newline, after \\\"Another\\\" newline, after \\\"line\\\" newline. That's 4 newline characters. The user likely wants count of new lines: answer 4.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018290623,\"prompt_tokens\":82,\"prompt_time\":0.003539332,\"completion_tokens\":157,\"completion_time\":0.326884064,\"total_tokens\":239,\"total_time\":0.330423396,\"completion_tokens_details\":{\"reasoning_tokens\":135}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kfg910w3e51v3ja8ezqb0ax7\",\"seed\":1333872445},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

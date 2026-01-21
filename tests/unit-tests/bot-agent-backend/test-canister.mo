@@ -32,4 +32,19 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     assert caller == parent;
     await GroqWrapper.chat(apiKey, userMessage, model);
   };
+
+  public shared ({ caller }) func groqReason(
+    agentId : Nat,
+    apiKey : Text,
+    input : Text,
+    model : Text,
+    instructions : ?Text,
+    reasoningEffort : ?GroqWrapper.ReasoningEffort,
+  ) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    assert caller == parent;
+    await GroqWrapper.reason(caller, agentId, apiKey, input, model, instructions, reasoningEffort);
+  };
 };

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "math",
-  "recordedAt": "2026-01-20T11:10:56.340Z",
+  "recordedAt": "2026-01-21T12:38:47.043Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"What is 7 times 8?\"}],\"stream\":false}",
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"What is 7 times 8?\"}],\"stream\":false}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,27 +23,27 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c0e20d2bfbf979a-LIS"],
+          ["cf-ray", "9c16dee0b8b490b1-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 20 Jan 2026 11:10:56 GMT"],
+          ["date", "Wed, 21 Jan 2026 12:38:47 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
           ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "14400"],
-          ["x-ratelimit-limit-tokens", "6000"],
-          ["x-ratelimit-remaining-requests", "14394"],
-          ["x-ratelimit-remaining-tokens", "5954"],
-          ["x-ratelimit-reset-requests", "36s"],
-          ["x-ratelimit-reset-tokens", "459ms"],
-          ["x-request-id", "req_01kfdhkfyrf84bhj7aw9h65cwf"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "991"],
+          ["x-ratelimit-remaining-tokens", "7836"],
+          ["x-ratelimit-reset-requests", "12m57.599s"],
+          ["x-ratelimit-reset-tokens", "1.23s"],
+          ["x-request-id", "req_01kfg91274e53t4x2xkqp515rr"],
           [
             "set-cookie",
-            "__cf_bm=wduRa0ZzwNLmOBg3Q5EuuW_bHKS6SKzavrYEU7WQk20-1768907456-1.0.1.1-FfBCcs2g81VAxn5SzFkoLarCDXunnjxmvu8OTIG7oNeta5kbL7UyHKqRTCy5O9inmP0J1EDrVMxb8OeRHZGUVqAItCPgPL0BBRCNvQpNdmg; path=/; expires=Tue, 20-Jan-26 11:40:56 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=7en1XQAKxFpNKuGGqPMMwGqUWroqmCGraVCb85bfUW8-1768999127-1.0.1.1-ldSF.6a4Fu4bQ65KPLyzfve572ht.kK7LTnd660tsJ8SrXNOU89mMaHVyezsZDnq9TNrbWHnBxxJXDx3XLBfG3Yl78fcVOz1p_LsZ3WO_to; path=/; expires=Wed, 21-Jan-26 13:08:47 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-5129f464-348d-4310-b53f-cad3f0ec3405\",\"object\":\"chat.completion\",\"created\":1768907456,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"7 times 8 equals 56.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.155342531,\"prompt_tokens\":43,\"prompt_time\":0.03211148,\"completion_tokens\":9,\"completion_time\":0.009611975,\"total_tokens\":52,\"total_time\":0.041723455},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_020e283281\",\"x_groq\":{\"id\":\"req_01kfdhkfyrf84bhj7aw9h65cwf\",\"seed\":1278977728},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-6fda5a85-f5ff-437b-9dca-0110c8ded323\",\"object\":\"chat.completion\",\"created\":1768999127,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"7 × 8 = 56.\",\"reasoning\":\"The user asks a simple arithmetic question: 7 times 8 = 56. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017727336,\"prompt_tokens\":79,\"prompt_time\":0.00309522,\"completion_tokens\":40,\"completion_time\":0.082946197,\"total_tokens\":119,\"total_time\":0.086041417,\"completion_tokens_details\":{\"reasoning_tokens\":21}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_178e424650\",\"x_groq\":{\"id\":\"req_01kfg91274e53t4x2xkqp515rr\",\"seed\":672232661},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

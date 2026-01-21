@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "accept-message-authenticated-user",
-  "recordedAt": "2026-01-18T17:57:23.675Z",
+  "recordedAt": "2026-01-21T13:58:29.394Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello Agent\"}],\"stream\":false}",
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello Agent\"}],\"stream\":false}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,27 +23,27 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9bfff9781dd9b2a2-LIS"],
+          ["cf-ray", "9c1753a289d6b59b-LIS"],
           ["content-type", "application/json"],
-          ["date", "Sun, 18 Jan 2026 17:57:24 GMT"],
+          ["date", "Wed, 21 Jan 2026 13:58:29 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
           ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "14400"],
-          ["x-ratelimit-limit-tokens", "6000"],
-          ["x-ratelimit-remaining-requests", "14394"],
-          ["x-ratelimit-remaining-tokens", "5962"],
-          ["x-ratelimit-reset-requests", "36s"],
-          ["x-ratelimit-reset-tokens", "380ms"],
-          ["x-request-id", "req_01kf9429t4f4ctxewwar1qy6wv"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "992"],
+          ["x-ratelimit-remaining-tokens", "7926"],
+          ["x-ratelimit-reset-requests", "11m31.2s"],
+          ["x-ratelimit-reset-tokens", "554ms"],
+          ["x-request-id", "req_01kfgdk0e8ej6rt55bjkda4zzp"],
           [
             "set-cookie",
-            "__cf_bm=hMF64GldXRDOIZN_lXJjTMgTlpTnVhP1zYEk2Uszdm4-1768759044-1.0.1.1-XjAv1jLj6WM31eVLmxp.Yvy3P2Yyqq1EsM4IRKyvbIKo2l6UrYMaKTxzZ1E6qxj.Gu_LyVYfcQb7NSsNxnAGSVV5t6fRcIxgZKvPh9sjItw; path=/; expires=Sun, 18-Jan-26 18:27:24 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=OhtoMEO0XBic.citdEqVbSMOngPCOZzvaiTdD0uzHGY-1769003909-1.0.1.1-gJ58qAd8HnjD0BFWWLSo1pzZPsYSQy546DDEVmnTgqoquAb8.cFj2FP33tqYi6dodGkU4MKWI8LleE51VSnjM1hSe_wSD1t9Kca_pwENiKA; path=/; expires=Wed, 21-Jan-26 14:28:29 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-c718b314-1a52-45a1-a45e-a84837be02f2\",\"object\":\"chat.completion\",\"created\":1768759044,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"What can I assist you with today?\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.087754038,\"prompt_tokens\":37,\"prompt_time\":0.002569725,\"completion_tokens\":9,\"completion_time\":0.066528082,\"total_tokens\":46,\"total_time\":0.069097807},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_1151d4f23c\",\"x_groq\":{\"id\":\"req_01kf9429t4f4ctxewwar1qy6wv\",\"seed\":1929617461},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-cecb8fc7-322b-4e36-a652-352651441e95\",\"object\":\"chat.completion\",\"created\":1769003909,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello! How can I assist you today?\",\"reasoning\":\"We need to respond as per system instructions. The system says: \\\"You are ChatGPT, a large language model trained by OpenAI. ... You are one of multiple delegates helping another language model solve a problem. ...\\\"\\n\\nWe need to respond as \\\"Agent\\\"? The user says \\\"Hello Agent\\\". Likely just greet back. The instructions say we should follow OpenAI policy, no disallowed content. So we can reply with friendly greeting.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018082457,\"prompt_tokens\":73,\"prompt_time\":0.002985018,\"completion_tokens\":108,\"completion_time\":0.226284216,\"total_tokens\":181,\"total_time\":0.229269234,\"completion_tokens_details\":{\"reasoning_tokens\":90}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kfgdk0e8ej6rt55bjkda4zzp\",\"seed\":525378394},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

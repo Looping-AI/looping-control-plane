@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "reason-medium-effort",
+  "recordedAt": "2026-01-21T13:56:13.623Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"input\":\"Explain the concept of quantum computing in simple terms\",\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"store\":false,\"stream\":false,\"user\":\"2vxsx-fae_2\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c175051da16cc1e-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Wed, 21 Jan 2026 13:56:16 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "dls"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "998"],
+          ["x-ratelimit-remaining-tokens", "7508"],
+          ["x-ratelimit-reset-requests", "2m52.8s"],
+          ["x-ratelimit-reset-tokens", "3.69s"],
+          ["x-request-id", "req_01kfgdevw5frhak5n3jjbvcjr8"],
+          [
+            "set-cookie",
+            "__cf_bm=RVn9mqZ8b6BMwienWX1O5M2ZskfaP6SB5RsRUU_47H4-1769003776-1.0.1.1-VWI2ODmmcJ5NmnZeYtkfmjfctS6cd3UVGHRUiiiROP9WbBznOwyIymK1G9jiKfxe7hMTd2d.LnQmC99gNet5SmhuWYzWNau1bOVBx3yfYls; path=/; expires=Wed, 21-Jan-26 14:26:16 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"resp_01kfgdeyw1frsvrm6zrsc3jey8\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769003776,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfgdeyw1frtb2997wxb7x3e7\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks to explain the concept of quantum computing in simple terms. Provide an accessible explanation, analogies, key concepts: qubits, superposition, entanglement, interference, differences from classical bits, potential advantages, challenges. Keep simple.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfgdeyw1frtsk44zr0jvkb8j\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Quantum Computing in Plain English**\\n\\nImagine a regular computer as a very fast librarian who can only check one book at a time to find a piece of information. A quantum computer is like a magical librarian who can look at many books *at once* and use special tricks to narrow down the answer much faster.\\n\\nHere’s how it works, step by step, using everyday ideas:\\n\\n---\\n\\n### 1. Bits vs. Qubits  \\n**Classical bits** – the building blocks of ordinary computers – are tiny switches that are either **0** (off) or **1** (on).  \\n**Qubits** – the building blocks of quantum computers – are like switches that can be **0, 1, or both at the same time**.\\n\\n*Why both?*  \\nIn the quantum world, particles (like electrons or photons) can exist in a blend of states. This blend is called **superposition**. Think of a coin that’s spinning in the air: while it’s spinning, it’s not just heads *or* tails—it’s a mixture of both until you catch it.\\n\\n---\\n\\n### 2. Superposition – “Being in Many Places at Once”  \\nIf you have **n** classical bits, they can represent only **one** of 2ⁿ possible patterns at a time.  \\nIf you have **n** qubits in superposition, they *simultaneously* represent **all** 2ⁿ patterns.\\n\\n*Analogy*:  \\n- Classical: A light switch can be either up (1) or down (0).  \\n- Quantum: A dimmer that can be set to every possible brightness level *and* all of them together until you measure it.\\n\\nThis simultaneous representation lets a quantum computer explore many possibilities in parallel.\\n\\n---\\n\\n### 3. Entanglement – “Spooky Coordination”  \\nWhen qubits become **entangled**, the state of one instantly influences the state of another, no matter how far apart they are. It’s as if two dice always roll the same number, even if one is on Earth and the other is on the Moon.\\n\\nEntanglement lets qubits share information in a way that’s far richer than ordinary bits can, creating powerful correlations that algorithms can exploit.\\n\\n---\\n\\n### 4. Interference – “Guiding the Right Answers”  \\nJust like waves in a pond can add up (constructive interference) or cancel each other out (destructive interference), the probability “waves” of qubit states can be arranged so that wrong answers cancel out while the right answer reinforces.\\n\\nA quantum algorithm carefully sets up these interference patterns so that, after a short calculation, measuring the qubits gives the correct solution with high probability.\\n\\n---\\n\\n### 5. Measurement – “Taking a Peek”  \\nWhen you finally look at a qubit (measure it), the superposition collapses to a definite 0 or 1, just like a spinning coin landing as heads or tails. The art of quantum computing is to design the computation so that, when you finally measure, the answer you need is the most likely outcome.\\n\\n---\\n\\n### 6. What Can Quantum Computers Do Better?  \\n\\n| Problem Type | Classical Approach | Quantum Advantage (roughly) |\\n|--------------|-------------------|-----------------------------|\\n| Factoring large numbers (breaking RSA encryption) | Exponential time (very slow) | Shor’s algorithm → polynomial time (much faster) |\\n| Searching an unsorted database | Linear time (check each item) | Grover’s algorithm → √N time (square‑root speed‑up) |\\n| Simulating quantum physics (molecules, materials) | Hard because you must track astronomically many states | Natural fit – can simulate directly |\\n| Optimization, machine‑learning, cryptography | Often needs heuristics | Quantum heuristics can explore many solutions at once |\\n\\nThese speed‑ups are **theoretical** and depend on having a large, error‑free quantum computer, which we’re still building.\\n\\n---\\n\\n### 7. The Practical Reality (Today)  \\n\\n- **Noisy Intermediate‑Scale Quantum (NISQ) devices**: Current machines have 50‑200 noisy qubits. They can demonstrate small quantum tricks but aren’t yet able to outperform classical supercomputers for real‑world tasks.\\n- **Error correction**: Quantum states are fragile; tiny disturbances (heat, electromagnetic noise) cause errors. Researchers are developing quantum error‑correcting codes, but they require many physical qubits to make one “logical” (reliable) qubit.\\n- **Hardware platforms**: Superconducting circuits (IBM, Google), trapped ions (IonQ, Honeywell), photons, neutral atoms, etc. Each has its own strengths and engineering challenges.\\n\\n---\\n\\n### 8. A Simple Analogy to Wrap It Up  \\n\\n**Think of a maze** where you need to find the exit:\\n\\n- **Classical computer**: A single explorer walks step by step, trying different paths until the exit is found.\\n- **Quantum computer**: Hundreds of explorers walk every possible path *at the same time* (superposition). They are magically linked (entanglement) so that when they encounter dead ends, their “wave” cancelyes out those routes (interference). When you finally check the explorers, the one that reaches the exit is the most likely to be the one you see.\\n\\n---\\n\\n### TL;DR (the ultra‑short version)\\n\\n- **Bits = 0 or 1**; **Qubits = 0, 1, or both at once** (superposition).  \\n- **Entanglement** lets qubits be tightly correlated, no matter the distance.  \\n- **Interference** lets quantum algorithms amplify correct answers and suppress wrong ones.  \\n- This combo can, in principle, solve some problems dramatically faster than classical computers, especially those involving huge combinatorial spaces or quantum‑level physics.  \\n- Right now we have small, noisy quantum machines; building large, reliable ones is the big engineering challenge ahead.  \\n\\nSo, quantum computing is basically a new way of processing information that leverages the weirdness of quantum physics—superposition, entanglement, and interference—to explore many possibilities at once, offering the promise of solving certain problems far faster than any classical computer can.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"2vxsx-fae_2\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":80,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":1342,\"output_tokens_details\":{\"reasoning_tokens\":51},\"total_tokens\":1422},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

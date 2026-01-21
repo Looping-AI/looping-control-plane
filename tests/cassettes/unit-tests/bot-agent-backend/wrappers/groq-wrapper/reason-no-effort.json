@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "reason-no-effort",
+  "recordedAt": "2026-01-21T13:56:35.641Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"input\":\"Describe the water cycle\",\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Keep it educational and clear.\",\"store\":false,\"stream\":false,\"user\":\"2vxsx-fae_5\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c1750db6959cc1e-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Wed, 21 Jan 2026 13:56:38 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "dls"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "995"],
+          ["x-ratelimit-remaining-tokens", "1360"],
+          ["x-ratelimit-reset-requests", "7m12s"],
+          ["x-ratelimit-reset-tokens", "49.8s"],
+          ["x-request-id", "req_01kfgdfhbnfnxbdjsxvd49degj"],
+          [
+            "set-cookie",
+            "__cf_bm=L5b4T0nz4p.3lO.gAeQW2yQv0EafBjo_hPxuTCpigP0-1769003798-1.0.1.1-.ROdT5__rHo3WSlW7V2u1uw1mRfuBs0CjlVivxNhgq0O6p.E.oFiY2S71Hfz1SfnzmEi1ORFJFa6Xpyt3y0Y3cTaCMKGEjZSeQM8WXV964Q; path=/; expires=Wed, 21-Jan-26 14:26:38 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"resp_01kfgdfm14fp6t96yp6yb319qr\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769003798,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfgdfm14fp7ay6g6v8txcsnp\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks: \\\"Describe the water cycle\\\". The developer says keep it educational and clear. So I should give a clear educational description of the water cycle, likely covering evaporation, condensation, precipitation, collection, infiltration, runoff, transpiration, etc. No disallowed content. So just answer.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfgdfm14fp7s59y6kyzcxss2\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**The Water Cycle (Hydrologic Cycle) – An Educational Overview**\\n\\nThe water cycle is the continuous movement of water on, above, and below the Earth’s surface. It transfers water from the oceans, rivers, lakes, soils, and the atmosphere back and forth, shaping weather, climate, and life. Below is a step‑by‑step description of the main processes that drive this cycle.\\n\\n---\\n\\n## 1. Evaporation\\n- **What Happens:** Liquid water is heated by solar energy and changes into water vapor (gas).\\n- **Where It Occurs:** Primarily from oceans, seas, lakes, rivers, and moist ground surfaces.\\n- **Key Points:** Warm temperatures, wind, and low humidity increase evaporation rates. Oceans contribute about 90 % of the water vapor that enters the atmosphere.\\n\\n## 2. Transpiration\\n- **What Happens:** Plants absorb water through their roots and release it as water vapor through tiny leaf openings called *stomata*.\\n- **Why It Matters:** Transpiration adds a significant amount of moisture to the atmosphere, especially in forested regions. When combined with evaporation, the process is called **evapotranspiration**.\\n\\n## 3. Sublimation\\n- **What Happens:** Ice or snow turns directly into water vapor without first becoming liquid.\\n- **Where It Happens:** High‑altitude snowfields, glaciers, and polar ice caps. Strong sunlight, low pressure, and dry air promote sublimation.\\n\\n## 4. Condensation\\n- **What Happens:** Water vapor cools as it rises and changes back into tiny liquid droplets or ice crystals, forming clouds or fog.\\n- **Mechanism:** Cooling can occur when air rises (due to heating at the surface, mountains forcing air upward, or frontal systems) or when it mixes with colder air masses.\\n\\n## 5. Precipitation\\n- **What Happens:** When cloud droplets or ice crystals become heavy enough, they fall to Earth as rain, snow, sleet, or hail.\\n- **Factors Influencing Type:** Temperature profile of the atmosphere determines whether precipitation falls as liquid (rain) or solid (snow, sleet, hail).\\n\\n## 6. Collection (Surface Runoff \\u0026 Infiltration)\\n- **Surface Runoff:** Water that flows over the land surface into streams, rivers, lakes, and eventually back to the oceans.\\n- **Infiltration:** Some precipitation soaks into the soil, recharging groundwater aquifers.\\n- **Groundwater Flow:** Water moves slowly through porous rocks and sediments, emerging as springs or feeding streams.\\n\\n## 7. Storage\\n- **Reservoirs:** Water is temporarily stored in oceans, ice caps, glaciers, lakes, rivers, soil moisture, and groundwater.\\n- **Time Scales:** Some water stays in the atmosphere only days, while groundwater can be stored for centuries or even millennia.\\n\\n---\\n\\n### The Cycle in Action – A Simple Diagram (Textual)\\n\\n```\\n          Sun\\n           ↓\\n  Evaporation ↔ Transpiration (Evapotranspiration)\\n           ↓\\n       Water Vapor\\n           ↓\\n      Condensation → Clouds\\n           ↓\\n      Precipitation (rain, snow)\\n           ↓\\n   ┌───────────────┬───────────────┐\\n   │               │               │\\nSurface Runoff   Infiltration   Snow/Ice\\n   │               │               │\\n   ↓               ↓               ↓\\nRivers \\u0026 Streams   Groundwater   Glaciers\\n   \\\\               /               /\\n    \\\\           /               /\\n      \\\\       /               /\\n        \\\\   /               /\\n          Oceans (major reservoir)\\n```\\n\\n---\\n\\n## Why the Water Cycle Matters\\n\\n1. **Climate Regulation:** Water vapor is a powerful greenhouse gas; clouds reflect sunlight and trap heat, influencing temperature and weather patterns.\\n2. **Fresh Water Supply:** Most of the world’s drinking water, agriculture, and industry rely on the portion of the cycle that delivers fresh water to land.\\n3. **Ecosystem Support:** Wetlands, rivers, and forests depend on regular water input to sustain plant and animal life.\\n4. **Geological Shaping:** Runoff and groundwater flow erode rocks, transport sediments, and shape landscapes over geological time.\\n\\n---\\n\\n## Key Concepts to Remember\\n\\n| Process          | Energy Source | Phase Change | Typical Location |\\n|------------------|---------------|--------------|------------------|\\n| **Evaporation**  | Solar heat    | Liquid → Gas | Water bodies, soil |\\n| **Transpiration**| Solar heat (via plants) | Liquid → Gas | Vegetation |\\n| **Sublimation**  | Solar heat    | Solid → Gas  | Snow/ice fields |\\n| **Condensation** | Cooling of air| Gas → Liquid/solid | Atmosphere (clouds) |\\n| **Precipitation**| Gravity       | Liquid/solid → Liquid/solid (fall) | Atmosphere |\\n| **Runoff**       | Gravity       | No change    | Land surface |\\n| **Infiltration** | Gravity \\u0026 capillary forces | No change | Soil \\u0026 rock |\\n\\n---\\n\\n### Quick Recap (5‑Sentence Summary)\\n\\nThe water cycle moves water from Earth’s surface to the atmosphere through evaporation and plant transpiration, where it cools and condenses into clouds. When the droplets become heavy enough, they fall as precipitation (rain, snow, etc.). Some of this water runs over the land into rivers and oceans, while the rest infiltrates the ground, recharging aquifers. The stored water eventually returns to the oceans, completing the cycle. This continuous loop regulates climate, supplies fresh water, and shapes the planet’s landscapes.\\n\\n---\\n\\n**Feel free to explore each stage in more depth—whether you’re studying weather patterns, climate change, or simply the wonders of nature, the water cycle is a foundational concept that connects everything!**\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"Keep it educational and clear.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"2vxsx-fae_5\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":84,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":1275,\"output_tokens_details\":{\"reasoning_tokens\":61},\"total_tokens\":1359},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

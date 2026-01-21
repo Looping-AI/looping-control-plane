@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "basic-chat",
-  "recordedAt": "2026-01-20T11:10:50.925Z",
+  "recordedAt": "2026-01-21T12:38:41.404Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello\"}],\"stream\":false}",
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello\"}],\"stream\":false}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,27 +23,27 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c0e20b14bd7979a-LIS"],
+          ["cf-ray", "9c16debddbed90b1-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 20 Jan 2026 11:10:51 GMT"],
+          ["date", "Wed, 21 Jan 2026 12:38:41 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
           ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "14400"],
-          ["x-ratelimit-limit-tokens", "6000"],
-          ["x-ratelimit-remaining-requests", "14399"],
-          ["x-ratelimit-remaining-tokens", "5962"],
-          ["x-ratelimit-reset-requests", "6s"],
-          ["x-ratelimit-reset-tokens", "380ms"],
-          ["x-request-id", "req_01kfdhkarke87tvqnaq9bnmbh3"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "996"],
+          ["x-ratelimit-remaining-tokens", "7926"],
+          ["x-ratelimit-reset-requests", "5m45.6s"],
+          ["x-ratelimit-reset-tokens", "554ms"],
+          ["x-request-id", "req_01kfg90wqvf7pbhwfbye413rs7"],
           [
             "set-cookie",
-            "__cf_bm=Gw5.AfarplrZp8zVm1CpvLgEU1H0wwHqS3M4QWnig.g-1768907451-1.0.1.1-i50i9OQg123AMWeDF_4Ai7_uVQiFKuf1EpNzZEdusIN.91b1MiPToCAM6biRu8_WTqJCHzCDa_MPPGqvN.zRH.vMx8AvbMurOmYWlq9BTDA; path=/; expires=Tue, 20-Jan-26 11:40:51 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=LBFIKfjmANLF7xdhps2GuI4bQ.GpCb2UH8QnOqe.0HA-1768999121-1.0.1.1-9OhUpl4ElaCaERdhN43upbqDakZ.EUXi1q3ylIdv5xpvNB2aQRZY0WC.8ppCCbnSYLLVFkjgDnANSOfq4baTER8YWfEP5JObiy09LRQKRqY; path=/; expires=Wed, 21-Jan-26 13:08:41 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-9a479459-1a01-47b7-97a3-152e92975f2a\",\"object\":\"chat.completion\",\"created\":1768907451,\"model\":\"llama-3.1-8b-instant\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello. How are you today?\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.094049139,\"prompt_tokens\":37,\"prompt_time\":0.006105438,\"completion_tokens\":8,\"completion_time\":0.009920132,\"total_tokens\":45,\"total_time\":0.01602557},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_ff2b098aaf\",\"x_groq\":{\"id\":\"req_01kfdhkarke87tvqnaq9bnmbh3\",\"seed\":251791746},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-ed3119b2-e35c-4572-9dab-91fac05de161\",\"object\":\"chat.completion\",\"created\":1768999121,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello! 👋 How can I assist you today?\",\"reasoning\":\"The user asks \\\"Say hello\\\". The assistant should respond with a greeting. No policy issues. Simple.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017480143,\"prompt_tokens\":73,\"prompt_time\":0.002864055,\"completion_tokens\":42,\"completion_time\":0.089371631,\"total_tokens\":115,\"total_time\":0.092235686,\"completion_tokens_details\":{\"reasoning_tokens\":22}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kfg90wqvf7pbhwfbye413rs7\",\"seed\":345042103},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }
