@@ -9,11 +9,13 @@ import { expectErr } from "../../helpers.ts";
 describe("Admin Management", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
+  let ownerPrincipal: Principal;
 
   beforeEach(async () => {
     const testEnv = await createTestEnvironment();
     pic = testEnv.pic;
     actor = testEnv.actor;
+    ownerPrincipal = testEnv.ownerPrincipal;
   });
 
   afterEach(async () => {
@@ -21,22 +23,19 @@ describe("Admin Management", () => {
   });
 
   describe("add_admin", () => {
-    it("should reject anonymous users from adding admins", async () => {
-      // caller will be anonymous
-      actor.setPrincipal(Principal.anonymous());
+    it("should reject non-owner from adding admins", async () => {
+      // Set caller to non-owner principal
+      actor.setIdentity(generateRandomIdentity());
 
       const newAdminPrincipal = generateTestPrincipal(1);
       const result = await actor.addAdmin(newAdminPrincipal);
-      expect(expectErr(result)).toEqual("Anonymous users cannot be admins");
+      expect(expectErr(result)).toEqual("Only the owner can add admins");
     });
 
     it("should reject duplicate admin addition attempts", async () => {
       const samePrincipal = generateTestPrincipal(2);
 
-      // caller will be a non-anonymous principal
-      actor.setIdentity(generateRandomIdentity());
-
-      // add first admin
+      // Owner should be able to add
       await actor.addAdmin(samePrincipal);
 
       // Second call should fail due to being duplicate
@@ -46,36 +45,43 @@ describe("Admin Management", () => {
   });
 
   describe("get_admins", () => {
-    it("should return an array of admin principals", async () => {
+    it("should return an array of admin principals including the owner", async () => {
       const somePrincipal = generateTestPrincipal(1);
 
-      // caller will be a non-anonymous principal
-      actor.setIdentity(generateRandomIdentity());
-
-      // add first admin
+      // Owner adds a new admin
       await actor.addAdmin(somePrincipal);
 
       const adminsList = await actor.getAdmins();
+      // Owner should be at index 0, newly added admin at index 1
+      expect(adminsList[0]).toEqual(ownerPrincipal);
       expect(adminsList[1]).toEqual(somePrincipal);
     });
   });
 
   describe("is_caller_admin", () => {
     it("should return false for non-admin caller", async () => {
-      // Without setting up as admin, caller should not be admin
+      // Set caller to non-admin
+      actor.setIdentity(generateRandomIdentity());
+
       const isAdmin = await actor.isCallerAdmin();
       expect(isAdmin).toBe(false);
     });
 
-    it("should return true for admin caller", async () => {
+    it("should return true for owner caller", async () => {
+      // Owner should be admin
+      const isAdmin = await actor.isCallerAdmin();
+      expect(isAdmin).toBe(true);
+    });
+
+    it("should return true for added admin caller", async () => {
       const identity = generateRandomIdentity();
       const principalOfIdentity = identity.getPrincipal();
 
+      // Owner adds the caller as admin
+      await actor.addAdmin(principalOfIdentity);
+
       // Set the caller identity
       actor.setIdentity(identity);
-
-      // Add the caller as admin
-      await actor.addAdmin(principalOfIdentity);
 
       // Now check if caller is admin
       const isAdmin = await actor.isCallerAdmin();

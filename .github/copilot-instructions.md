@@ -75,3 +75,7 @@ Use the TypeScript compiler to verify integration tests code:
 # Type-check TypeScript without emitting
 bun run tsc --noEmit
 ```
+
+## Architecture
+
+Please be aware of an [ARCHITECTURE.md](../ARCHITECTURE.md) file in the repository that provides detailed information about the system architecture, design decisions, and component interactions. Reviewing this document will help you understand the overall structure and design principles of the project.

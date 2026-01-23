@@ -13,25 +13,14 @@ module {
     false;
   };
 
-  // Initialize first admin (first caller becomes admin)
-  // IMPORTANT: TODO: review security implications before use by third parties
-  // SECURITY WARNING: Ensure there isn't any chance of another party to front run the first caller to addAdmin().
-  public func initializeFirstAdmin(caller : Principal, admins : [Principal]) : [Principal] {
-    if (admins.size() == 0 and caller != getAnonymousPrincipal()) {
-      Array.concat(admins, [caller]);
-    } else {
-      admins;
+  // Validate new admin before adding (requires owner)
+  public func validateNewAdminAsOwner(newAdmin : Principal, caller : Principal, owner : Principal, admins : [Principal]) : Result.Result<(), Text> {
+    if (caller != owner) {
+      return #err("Only the owner can add admins");
     };
-  };
 
-  // Validate new admin before adding
-  public func validateNewAdmin(newAdmin : Principal, caller : Principal, admins : [Principal]) : Result.Result<(), Text> {
-    if (caller == getAnonymousPrincipal()) {
+    if (newAdmin == getAnonymousPrincipal()) {
       return #err("Anonymous users cannot be admins");
-    };
-
-    if (not isAdmin(caller, admins)) {
-      return #err("Only admins can add new admins");
     };
 
     if (isAdmin(newAdmin, admins)) {

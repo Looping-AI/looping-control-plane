@@ -64,12 +64,13 @@ export const TEST_CANISTER_WASM_PATH = resolve(
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
- * @returns Object with PocketIC instance, actor, and canisterId
+ * @returns Object with PocketIC instance, actor, canisterId, and owner principal
  */
 export async function createTestEnvironment(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
   canisterId: import("@dfinity/principal").Principal;
+  ownerPrincipal: Principal;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "", {
     fiduciary: {
@@ -77,12 +78,28 @@ export async function createTestEnvironment(): Promise<{
     },
   });
 
+  // Create owner identity
+  const ownerIdentity = generateRandomIdentity();
+  const ownerPrincipal = ownerIdentity.getPrincipal();
+
+  // Encode the owner principal as IDL arguments
+  const args = Principal.from(ownerPrincipal).toUint8Array();
+
   const fixture = await pic.setupCanister<_SERVICE>({
     idlFactory,
     wasm: WASM_PATH,
+    arg: args,
   });
 
-  return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
+  // Set the owner as the initial actor identity
+  fixture.actor.setIdentity(ownerIdentity);
+
+  return {
+    pic,
+    actor: fixture.actor,
+    canisterId: fixture.canisterId,
+    ownerPrincipal,
+  };
 }
 
 /**
