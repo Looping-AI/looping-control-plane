@@ -50,8 +50,8 @@ Primary code entrypoint: [src/bot-agent-backend/main.mo](src/bot-agent-backend/m
   - Services: deterministic state transitions and reusable business logic.
   - Wrappers: encapsulation of external calls (LLMs/APIs), so integration changes and cross actions live in one place.
 - “Plan fast, execute later”: request handlers should enqueue tasks instead of running long operations.
-- LLM's will use Policies, Tools and Knowledge as a flexible way to execute tasks, and will only code them as they become more frequent and easier to standardize.
-- Have explicit approval flows (Guard Rails) for context control, without micro-managing (tool access, spending limits, any other custom approval defined in a Policy).
+- LLMs will use Policies, Tools and Knowledge as a flexible way to execute tasks, and will only code them as they become more frequent and easier to standardize.
+- Have explicit approval flows, guard-rails, for context control, without micro-managing (tool access, spending limits, any other custom approval defined in a Policy).
 - Mixture of agents is desired as a strategy (Lower input/context window, easier A/B testing for cost/quality optimizing, lower risk on model upgrading).
 - Auditable: the system should be auditable (events and conversation history).
 - Avoid LLM Obedience: be resilient to prompt injection and spoofed events (Through Caller signature-checks, Data Classes and Policies).
@@ -205,8 +205,8 @@ Relevant code: [src/bot-agent-backend/main.mo](src/bot-agent-backend/main.mo)
 - Agents empowered with the use of:
   - LLM internal tools
   - Remote MCPs.
-  - Custom functions (ran inside the canister).
-  - Custom functions (ran externally, lambdas, RPCs).
+  - Custom functions (run inside the canister).
+  - Custom functions (run externally, lambdas, RPCs).
   - Deployed canisters with custom code.
 
 ## LLM Providers and Wrappers
@@ -280,7 +280,6 @@ See:
 - [tests/unit-tests](tests/unit-tests)
 - [tests/integration-tests](tests/integration-tests)
 - [tests/cassettes](tests/cassettes)
-- [lib/test-with-cassette.ts](lib/test-with-cassette.ts)
 
 ## Local Development and Reproducibility
 
@@ -292,7 +291,7 @@ See:
 - Controller layer: [src/bot-agent-backend/main.mo](src/bot-agent-backend/main.mo)
 - Services: [src/bot-agent-backend/services](src/bot-agent-backend/services)
 - Wrappers and outcalls: [src/bot-agent-backend/wrappers](src/bot-agent-backend/wrappers)
-- Cassette system: [lib](lib) and [tests/cassettes](tests/cassettes)
+- Cassette system: [tests/lib](tests/lib) and [tests/cassettes](tests/cassettes)
 
 ## Glossary
 
