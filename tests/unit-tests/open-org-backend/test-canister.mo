@@ -1,5 +1,5 @@
-import HttpWrapper "../../../src/bot-agent-backend/wrappers/http-wrapper";
-import GroqWrapper "../../../src/bot-agent-backend/wrappers/groq-wrapper";
+import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
+import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
 
 // ============================================
 // Test Canister

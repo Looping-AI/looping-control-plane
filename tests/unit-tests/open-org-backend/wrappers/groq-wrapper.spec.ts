@@ -46,7 +46,7 @@ describe("Groq Wrapper Unit Tests", () => {
     it("should handle basic chat with valid API key", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/basic-chat",
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/basic-chat",
         () => testCanister.groqChat(TEST_API_KEY, "Say hello", TEST_MODEL),
         { ticks: 5 },
       );
@@ -65,7 +65,7 @@ describe("Groq Wrapper Unit Tests", () => {
     it("should handle special characters in message", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/special-chars",
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/special-chars",
         () =>
           testCanister.groqChat(
             TEST_API_KEY,
@@ -89,7 +89,7 @@ describe("Groq Wrapper Unit Tests", () => {
     it("should handle unicode characters in message", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/unicode",
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/unicode",
         () =>
           testCanister.groqChat(
             TEST_API_KEY,
@@ -117,7 +117,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/json-content",
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/json-content",
         () => testCanister.groqChat(TEST_API_KEY, message, TEST_MODEL),
         { ticks: 5 },
       );
@@ -138,7 +138,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/newlines",
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/newlines",
         () => testCanister.groqChat(TEST_API_KEY, message, TEST_MODEL),
         { ticks: 5 },
       );
@@ -158,7 +158,7 @@ describe("Groq Wrapper Unit Tests", () => {
     it("should answer mathematical questions", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/math",
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/math",
         () =>
           testCanister.groqChat(TEST_API_KEY, "What is 7 times 8?", TEST_MODEL),
         { ticks: 5 },
@@ -185,7 +185,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/reason-basic",
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-basic",
         () =>
           testCanister.groqReason(
             agentId,
@@ -219,7 +219,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
         const { result } = await withCassette(
           pic,
-          "unit-tests/bot-agent-backend/wrappers/groq-wrapper/reason-medium-effort",
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-medium-effort",
           () =>
             testCanister.groqReason(
               agentId,
@@ -257,7 +257,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
         const { result } = await withCassette(
           pic,
-          "unit-tests/bot-agent-backend/wrappers/groq-wrapper/reason-high-effort",
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-high-effort",
           () =>
             testCanister.groqReason(
               agentId,
@@ -296,7 +296,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/groq-wrapper/reason-no-instructions",
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-no-instructions",
         () =>
           testCanister.groqReason(
             agentId,
@@ -331,7 +331,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
         const { result } = await withCassette(
           pic,
-          "unit-tests/bot-agent-backend/wrappers/groq-wrapper/reason-math",
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-math",
           () =>
             testCanister.groqReason(
               agentId,

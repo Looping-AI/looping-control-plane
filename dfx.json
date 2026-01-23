@@ -11,9 +11,11 @@
         }
       }
     },
-    "bot-agent-backend": {
-      "main": "src/bot-agent-backend/main.mo",
-      "type": "motoko"
+    "open-org-backend": {
+      "main": "src/open-org-backend/main.mo",
+      "type": "motoko",
+      "init_guide": "Use `dfx deploy --argument '(principal \"aaaaa-aa\")' open-org-backend` to set the owner, or configure with an 'init' argument below.",
+      "init_arg": "(principal \"aaaaa-aa\")"
     }
   },
   "defaults": {

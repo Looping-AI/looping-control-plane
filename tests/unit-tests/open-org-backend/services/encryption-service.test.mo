@@ -1,5 +1,5 @@
 import { test; suite; expect } "mo:test";
-import EncryptionService "../../../../src/bot-agent-backend/services/encryption-service";
+import EncryptionService "../../../../src/open-org-backend/services/encryption-service";
 import Array "mo:core/Array";
 import Nat8 "mo:core/Nat8";
 import Nat "mo:core/Nat";

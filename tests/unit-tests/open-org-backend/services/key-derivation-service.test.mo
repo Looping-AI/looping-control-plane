@@ -1,7 +1,7 @@
 import { test; suite; expect } "mo:test";
 import Principal "mo:core/Principal";
 import Map "mo:core/Map";
-import KeyDerivationService "../../../../src/bot-agent-backend/services/key-derivation-service";
+import KeyDerivationService "../../../../src/open-org-backend/services/key-derivation-service";
 
 // Test principals
 let principal1 = Principal.fromActor(actor "aaaaa-aa");

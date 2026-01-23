@@ -15,13 +15,14 @@ import Constants "./constants";
 import GroqWrapper "./wrappers/groq-wrapper";
 // import LLMWrapper "./wrappers/llm-wrapper";
 
-persistent actor {
+persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
   // State
   // ============================================
   var agents = Map.empty<Nat, AgentService.Agent>();
   var nextAgentId : Nat = 0;
-  var admins : [Principal] = [];
+  var orgOwner : Principal = owner;
+  var orgAdmins : [Principal] = [owner];
   var conversations = Map.empty<ConversationService.ConversationKey, List.List<ConversationService.Message>>();
   var apiKeys = Map.empty<Principal, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys
@@ -60,36 +61,34 @@ persistent actor {
   };
 
   // ============================================
-  // Admin Management
+  // OrgAdmin Management
   // ============================================
 
-  // Add a new admin
-  public shared ({ caller }) func addAdmin(newAdmin : Principal) : async {
+  // Add a new organization admin
+  public shared ({ caller }) func addOrgAdmin(newAdmin : Principal) : async {
     #ok : ();
     #err : Text;
   } {
-    admins := AdminService.initializeFirstAdmin(caller, admins);
-
-    let validation = AdminService.validateNewAdmin(newAdmin, caller, admins);
+    let validation = AdminService.validateNewAdminAsOwner(newAdmin, caller, orgOwner, orgAdmins);
     switch (validation) {
       case (#err(msg)) {
         #err(msg);
       };
       case (#ok(())) {
-        admins := AdminService.addAdminToList(newAdmin, admins);
+        orgAdmins := AdminService.addAdminToList(newAdmin, orgAdmins);
         #ok(());
       };
     };
   };
 
-  // Get list of admins
-  public query func getAdmins() : async [Principal] {
-    admins;
+  // Get list of organization admins
+  public query func getOrgAdmins() : async [Principal] {
+    orgAdmins;
   };
 
-  // Check if caller is admin
-  public shared ({ caller }) func isCallerAdmin() : async Bool {
-    AdminService.isAdmin(caller, admins);
+  // Check if caller is an organization admin
+  public shared ({ caller }) func isCallerOrgAdmin() : async Bool {
+    AdminService.isAdmin(caller, orgAdmins);
   };
 
   // ============================================
@@ -101,7 +100,7 @@ persistent actor {
     #ok : Nat;
     #err : Text;
   } {
-    if (not AdminService.isAdmin(caller, admins)) {
+    if (not AdminService.isAdmin(caller, orgAdmins)) {
       return #err("Only admins can create agents");
     };
     let (result, newId) = AgentService.createAgent(name, provider, model, agents, nextAgentId);
@@ -119,7 +118,7 @@ persistent actor {
     #ok : Bool;
     #err : Text;
   } {
-    if (not AdminService.isAdmin(caller, admins)) {
+    if (not AdminService.isAdmin(caller, orgAdmins)) {
       return #err("Only admins can update agents");
     };
     AgentService.updateAgent(id, newName, newProvider, newModel, agents);
@@ -130,7 +129,7 @@ persistent actor {
     #ok : Bool;
     #err : Text;
   } {
-    if (not AdminService.isAdmin(caller, admins)) {
+    if (not AdminService.isAdmin(caller, orgAdmins)) {
       return #err("Only admins can delete agents");
     };
     AgentService.deleteAgent(id, agents);
@@ -289,7 +288,7 @@ persistent actor {
     #ok : ();
     #err : Text;
   } {
-    if (not AdminService.isAdmin(caller, admins)) {
+    if (not AdminService.isAdmin(caller, orgAdmins)) {
       return #err("Only admins can clear the key cache");
     };
     keyCache := KeyDerivationService.clearCache();
@@ -301,7 +300,7 @@ persistent actor {
     #ok : { size : Nat };
     #err : Text;
   } {
-    if (not AdminService.isAdmin(caller, admins)) {
+    if (not AdminService.isAdmin(caller, orgAdmins)) {
       return #err("Only admins can view cache stats");
     };
     #ok({ size = KeyDerivationService.getCacheSize(keyCache) });

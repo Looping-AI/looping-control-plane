@@ -59,7 +59,7 @@ describe("Conversation Management", () => {
 
       const { result } = await withCassette(
         pic,
-        "integration-tests/bot-agent-backend/conversations/accept-message-authenticated-user",
+        "integration-tests/open-org-backend/conversations/accept-message-authenticated-user",
         () => deferredActor.talkTo(agentId, "Hello Agent"),
         { ticks: 5 },
       );
@@ -87,7 +87,7 @@ describe("Conversation Management", () => {
 
       await withCassette(
         pic,
-        "integration-tests/bot-agent-backend/conversations/correct-message-content",
+        "integration-tests/open-org-backend/conversations/correct-message-content",
         () => deferredActor.talkTo(agentId, testMessage),
         { ticks: 5 },
       );
@@ -117,21 +117,21 @@ describe("Conversation Management", () => {
 
       await withCassette(
         pic,
-        "integration-tests/bot-agent-backend/conversations/history-message-1",
+        "integration-tests/open-org-backend/conversations/history-message-1",
         () => deferredActor.talkTo(agentId, message1),
         { ticks: 5 },
       );
 
       await withCassette(
         pic,
-        "integration-tests/bot-agent-backend/conversations/history-message-2",
+        "integration-tests/open-org-backend/conversations/history-message-2",
         () => deferredActor.talkTo(agentId, message2),
         { ticks: 5 },
       );
 
       await withCassette(
         pic,
-        "integration-tests/bot-agent-backend/conversations/history-message-3",
+        "integration-tests/open-org-backend/conversations/history-message-3",
         () => deferredActor.talkTo(agentId, message3),
         { ticks: 5 },
       );
@@ -169,7 +169,7 @@ describe("Conversation Management", () => {
       // Send message to first agent
       await withCassette(
         pic,
-        "integration-tests/bot-agent-backend/conversations/isolate-agent-1",
+        "integration-tests/open-org-backend/conversations/isolate-agent-1",
         () => deferredActor1.talkTo(agentId, message1),
         { ticks: 5 },
       );
@@ -177,7 +177,7 @@ describe("Conversation Management", () => {
       // Send message to second agent
       await withCassette(
         pic,
-        "integration-tests/bot-agent-backend/conversations/isolate-agent-2",
+        "integration-tests/open-org-backend/conversations/isolate-agent-2",
         () => deferredActor2.talkTo(agentId2, message2),
         { ticks: 5 },
       );

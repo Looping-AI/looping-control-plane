@@ -3,7 +3,7 @@ import Principal "mo:core/Principal";
 import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Result "mo:core/Result";
-import ApiKeysService "../../../../src/bot-agent-backend/services/api-keys-service";
+import ApiKeysService "../../../../src/open-org-backend/services/api-keys-service";
 
 // Test key (32 bytes) - simulates a SHA256-hashed Schnorr signature
 let testKey : [Nat8] = [

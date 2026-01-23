@@ -7,8 +7,9 @@ import {
   type DeferredActor,
 } from "@dfinity/pic";
 import { Principal } from "@dfinity/principal";
-import type { _SERVICE } from "./builds/bot-agent-backend.did.d.ts";
-import { idlFactory } from "./builds/bot-agent-backend.did.js";
+import { IDL } from "@dfinity/candid";
+import type { _SERVICE } from "./builds/open-org-backend.did.d.ts";
+import { idlFactory } from "./builds/open-org-backend.did.js";
 import type { _SERVICE as TestCanisterService } from "./builds/test-canister.did.d.ts";
 import { idlFactory as testCanisterIdlFactory } from "./builds/test-canister.did.js";
 
@@ -51,7 +52,7 @@ export function generateTestPrincipal(seed: number): Principal {
 export const WASM_PATH = resolve(
   import.meta.dir,
   "builds",
-  "bot-agent-backend.wasm",
+  "open-org-backend.wasm",
 );
 
 // Define the path to the test canister's WASM file
@@ -64,12 +65,13 @@ export const TEST_CANISTER_WASM_PATH = resolve(
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
- * @returns Object with PocketIC instance, actor, and canisterId
+ * @returns Object with PocketIC instance, actor, canisterId, and owner principal
  */
 export async function createTestEnvironment(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
   canisterId: import("@dfinity/principal").Principal;
+  ownerPrincipal: Principal;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "", {
     fiduciary: {
@@ -77,12 +79,28 @@ export async function createTestEnvironment(): Promise<{
     },
   });
 
+  // Create owner identity
+  const ownerIdentity = generateRandomIdentity();
+  const ownerPrincipal = ownerIdentity.getPrincipal();
+
+  // Encode the owner principal as IDL arguments using the canister's init type
+  const args = IDL.encode([IDL.Principal], [ownerPrincipal]);
+
   const fixture = await pic.setupCanister<_SERVICE>({
     idlFactory,
     wasm: WASM_PATH,
+    arg: args,
   });
 
-  return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
+  // Set the owner as the initial actor identity
+  fixture.actor.setIdentity(ownerIdentity);
+
+  return {
+    pic,
+    actor: fixture.actor,
+    canisterId: fixture.canisterId,
+    ownerPrincipal,
+  };
 }
 
 /**
@@ -111,9 +129,10 @@ export async function createTestCanisterEnvironment(): Promise<{
 }
 
 /**
- * Sets up an admin user for testing
- * The first caller automatically becomes admin, then explicitly adds themselves
- * @param actor - The canister actor
+ * Sets up a test admin user (non-owner) for testing
+ * Only the owner can add admins, so this just creates a new identity
+ * and the caller (owner) can add them as an admin if needed
+ * @param actor - The canister actor (should be called by owner)
  * @returns Object with admin identity and principal
  */
 export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
@@ -122,8 +141,8 @@ export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
 }> {
   const adminIdentity = generateRandomIdentity();
   const adminPrincipal = adminIdentity.getPrincipal();
-  actor.setIdentity(adminIdentity);
-  await actor.addAdmin(adminPrincipal);
+  // Owner adds the new admin
+  await actor.addOrgAdmin(adminPrincipal);
   return { adminIdentity, adminPrincipal };
 }
 

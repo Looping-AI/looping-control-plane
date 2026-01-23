@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
-import { createTestEnvironment, setupAdminUser } from "../../setup.ts";
+import {
+  createTestEnvironment,
+  setupAdminUser,
+  type _SERVICE,
+} from "../../setup.ts";
 import { expectOk, expectNone, expectSome, expectErr } from "../../helpers.ts";
 
 describe("Agent Management", () => {

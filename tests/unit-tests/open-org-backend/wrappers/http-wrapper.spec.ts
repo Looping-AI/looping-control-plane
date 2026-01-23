@@ -25,7 +25,7 @@ describe("HTTP Wrapper Unit Tests", () => {
     it("should successfully request example.com and return expected content", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/example-com-get",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/example-com-get",
         () => testCanister.httpGet("https://example.com", []),
         { ticks: 5 },
       );
@@ -46,7 +46,7 @@ describe("HTTP Wrapper Unit Tests", () => {
       // Invalid URL format - should add https:// and succeed
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/get-invalid-url-format",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/get-invalid-url-format",
         () => testCanister.httpGet("www.example.com", []),
         { ticks: 5 },
       );
@@ -84,7 +84,7 @@ describe("HTTP Wrapper Unit Tests", () => {
     it("should handle query parameters correctly", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/query-parameters",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/query-parameters",
         () =>
           testCanister.httpGet(
             "https://httpbin.org/get?param1=value1&param2=value2",
@@ -116,7 +116,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/custom-headers",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/custom-headers",
         () => testCanister.httpGet("https://httpbin.org/headers", headers),
         { ticks: 5 },
       );
@@ -147,7 +147,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/post-json",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/post-json",
         () => testCanister.httpPost("https://httpbin.org/post", headers, body),
         { ticks: 5 },
       );
@@ -173,7 +173,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result: plainResult } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/post-plain-text",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/post-plain-text",
         () =>
           testCanister.httpPost(
             "https://httpbin.org/post",
@@ -192,7 +192,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result: formResult } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/post-form",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/post-form",
         () =>
           testCanister.httpPost(
             "https://httpbin.org/post",
@@ -207,7 +207,7 @@ describe("HTTP Wrapper Unit Tests", () => {
       // Empty body
       const { result: emptyResult } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/post-empty",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/post-empty",
         () => testCanister.httpPost("https://httpbin.org/post", [], ""),
         { ticks: 5 },
       );
@@ -219,7 +219,7 @@ describe("HTTP Wrapper Unit Tests", () => {
       // Invalid URL format
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/post-invalid-url-format",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/post-invalid-url-format",
         () => testCanister.httpPost("httpbin.org/post", [], "test data"),
         { ticks: 5 },
       );
@@ -265,7 +265,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/post-special-chars",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/post-special-chars",
         () => testCanister.httpPost("https://httpbin.org/post", headers, body),
         { ticks: 5 },
       );
@@ -281,7 +281,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/bot-agent-backend/wrappers/http-wrapper/post-unicode",
+        "unit-tests/open-org-backend/wrappers/http-wrapper/post-unicode",
         () => testCanister.httpPost("https://httpbin.org/post", headers, body),
         { ticks: 5 },
       );
