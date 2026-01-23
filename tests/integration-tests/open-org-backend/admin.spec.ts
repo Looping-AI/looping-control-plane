@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Principal } from "@dfinity/principal";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import { createTestEnvironment, generateTestPrincipal, type _SERVICE } from "../../setup.ts";
+import {
+  createTestEnvironment,
+  generateTestPrincipal,
+  type _SERVICE,
+} from "../../setup.ts";
 import { expectErr } from "../../helpers.ts";
 
 describe("Admin Management", () => {
