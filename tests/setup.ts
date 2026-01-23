@@ -7,6 +7,7 @@ import {
   type DeferredActor,
 } from "@dfinity/pic";
 import { Principal } from "@dfinity/principal";
+import { IDL } from "@dfinity/candid";
 import type { _SERVICE } from "./builds/bot-agent-backend.did.d.ts";
 import { idlFactory } from "./builds/bot-agent-backend.did.js";
 import type { _SERVICE as TestCanisterService } from "./builds/test-canister.did.d.ts";
@@ -82,8 +83,8 @@ export async function createTestEnvironment(): Promise<{
   const ownerIdentity = generateRandomIdentity();
   const ownerPrincipal = ownerIdentity.getPrincipal();
 
-  // Encode the owner principal as IDL arguments
-  const args = Principal.from(ownerPrincipal).toUint8Array();
+  // Encode the owner principal as IDL arguments using the canister's init type
+  const args = IDL.encode([IDL.Principal], [ownerPrincipal]);
 
   const fixture = await pic.setupCanister<_SERVICE>({
     idlFactory,
@@ -128,9 +129,10 @@ export async function createTestCanisterEnvironment(): Promise<{
 }
 
 /**
- * Sets up an admin user for testing
- * The first caller automatically becomes admin, then explicitly adds themselves
- * @param actor - The canister actor
+ * Sets up a test admin user (non-owner) for testing
+ * Only the owner can add admins, so this just creates a new identity
+ * and the caller (owner) can add them as an admin if needed
+ * @param actor - The canister actor (should be called by owner)
  * @returns Object with admin identity and principal
  */
 export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
@@ -139,7 +141,7 @@ export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
 }> {
   const adminIdentity = generateRandomIdentity();
   const adminPrincipal = adminIdentity.getPrincipal();
-  actor.setIdentity(adminIdentity);
+  // Owner adds the new admin
   await actor.addAdmin(adminPrincipal);
   return { adminIdentity, adminPrincipal };
 }
