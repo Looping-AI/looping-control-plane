@@ -1,24 +1,24 @@
 # yaml-language-server: $schema=https://github.com/dfinity/icp-cli/raw/refs/tags/v0.1.0-beta.3/docs/schemas/icp-yaml-schema.json
 
 canisters:
-  - name: bot-agent-backend
+  - name: open-org-backend
     recipe:
       type: "@dfinity/motoko"
       configuration:
-        main: src/bot-agent-backend/main.mo
+        main: src/open-org-backend/main.mo
         args: ""
 
   - name: test-canister
     recipe:
       type: "@dfinity/motoko"
       configuration:
-        main: tests/unit-tests/bot-agent-backend/test-canister.mo
+        main: tests/unit-tests/open-org-backend/test-canister.mo
         args: ""
 
 environments:
   - name: dev
     network: local
-    canisters: [bot-agent-backend]
+    canisters: [open-org-backend]
 
   - name: test
     network: local

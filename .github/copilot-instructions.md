@@ -4,7 +4,7 @@
 
 This is an **ICP (Internet Computer Protocol)** decentralized application built with:
 
-- **Motoko** for smart contract backend (`src/bot-agent-backend/`)
+- **Motoko** for smart contract backend (`src/open-org-backend/`)
 - **TypeScript** for tests (`tests/`) using PocketIC for local testing
 - **Bun** as the package manager and runtime
 
@@ -57,7 +57,7 @@ Use dfx build with the `--check` flag to verify Motoko src code without creating
 
 ```bash
 # Check Motoko files for compilation errors
-dfx build bot-agent-backend --check
+dfx build open-org-backend --check
 ```
 
 If it's tests written in Motoko you modified, run the mops test instead:

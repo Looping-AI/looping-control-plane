@@ -11,8 +11,8 @@
         }
       }
     },
-    "bot-agent-backend": {
-      "main": "src/bot-agent-backend/main.mo",
+    "open-org-backend": {
+      "main": "src/open-org-backend/main.mo",
       "type": "motoko"
     }
   },

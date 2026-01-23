@@ -34,7 +34,7 @@ Read through “Core Flows” for a high-level view of what exists today and whe
 - LLM provider integration via HTTP outcalls (currently Groq).
 - API keys are encrypted at rest using a per-caller derived key.
 
-Primary code entrypoint: [src/bot-agent-backend/main.mo](src/bot-agent-backend/main.mo)
+Primary code entrypoint: [src/open-org-backend/main.mo](src/open-org-backend/main.mo)
 
 ### Target direction (what this architecture file plans for)
 
@@ -60,7 +60,7 @@ Primary code entrypoint: [src/bot-agent-backend/main.mo](src/bot-agent-backend/m
 
 ### What exists now
 
-- Admins: principals that can manage agents. See [src/bot-agent-backend/main.mo](src/bot-agent-backend/main.mo).
+- Admins: principals that can manage agents. See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 - Agents: named config objects that select provider + model.
 - Conversations: per-caller, per-agent message history.
 - API keys: encrypted per (caller, agent, provider).
@@ -114,7 +114,7 @@ Primary code entrypoint: [src/bot-agent-backend/main.mo](src/bot-agent-backend/m
 
 ### Current
 
-See the persistent state variables in [src/bot-agent-backend/main.mo](src/bot-agent-backend/main.mo).
+See the persistent state variables in [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 
 - Agents map + next agent id
 - Admin list
@@ -183,7 +183,7 @@ Design rules (planned and recommended for any new code):
 - A timer clears the transient key-derivation cache and is re-established after upgrade.
 - Keep timer state minimal and upgrade-safe (store “next run time” and reschedule in `postupgrade`).
 
-Relevant code: [src/bot-agent-backend/main.mo](src/bot-agent-backend/main.mo)
+Relevant code: [src/open-org-backend/main.mo](src/open-org-backend/main.mo)
 
 ### Planned
 
@@ -211,10 +211,10 @@ Relevant code: [src/bot-agent-backend/main.mo](src/bot-agent-backend/main.mo)
 
 ## LLM Providers and Wrappers
 
-- Providers are represented by a tagged enum. See [src/bot-agent-backend/types.mo](src/bot-agent-backend/types.mo).
+- Providers are represented by a tagged enum. See [src/open-org-backend/types.mo](src/open-org-backend/types.mo).
 - Wrappers isolate HTTP request/response formatting, headers, retries, and error mapping.
 
-Wrappers live in: [src/bot-agent-backend/wrappers](src/bot-agent-backend/wrappers)
+Wrappers live in: [src/open-org-backend/wrappers](src/open-org-backend/wrappers)
 
 ## Secrets, API Keys, and Encryption
 
@@ -225,8 +225,8 @@ Wrappers live in: [src/bot-agent-backend/wrappers](src/bot-agent-backend/wrapper
 
 Deep dive entrypoints:
 
-- [src/bot-agent-backend/services/api-keys-service.mo](src/bot-agent-backend/services/api-keys-service.mo)
-- [src/bot-agent-backend/services/key-derivation-service.mo](src/bot-agent-backend/services/key-derivation-service.mo)
+- [src/open-org-backend/services/api-keys-service.mo](src/open-org-backend/services/api-keys-service.mo)
+- [src/open-org-backend/services/key-derivation-service.mo](src/open-org-backend/services/key-derivation-service.mo)
 
 ### Planned
 
@@ -288,9 +288,9 @@ See:
 
 ## Deep Dives
 
-- Controller layer: [src/bot-agent-backend/main.mo](src/bot-agent-backend/main.mo)
-- Services: [src/bot-agent-backend/services](src/bot-agent-backend/services)
-- Wrappers and outcalls: [src/bot-agent-backend/wrappers](src/bot-agent-backend/wrappers)
+- Controller layer: [src/open-org-backend/main.mo](src/open-org-backend/main.mo)
+- Services: [src/open-org-backend/services](src/open-org-backend/services)
+- Wrappers and outcalls: [src/open-org-backend/wrappers](src/open-org-backend/wrappers)
 - Cassette system: [tests/lib](tests/lib) and [tests/cassettes](tests/cassettes)
 
 ## Glossary

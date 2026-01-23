@@ -15,7 +15,7 @@ import Constants "./constants";
 import GroqWrapper "./wrappers/groq-wrapper";
 // import LLMWrapper "./wrappers/llm-wrapper";
 
-persistent actor class AgentsOrgBackend(owner : Principal) {
+persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
   // State
   // ============================================

@@ -59,7 +59,7 @@ jobs:
 
       - name: Create test-env.mo
         run: |
-          cd tests/unit-tests/bot-agent-backend
+          cd tests/unit-tests/open-org-backend
           cat > test-env.mo << 'EOF'
           module {
             public let GROQ_TEST_KEY : Text = "${{ secrets.GROQ_TEST_KEY }}";

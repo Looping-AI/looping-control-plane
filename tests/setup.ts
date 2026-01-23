@@ -8,8 +8,8 @@ import {
 } from "@dfinity/pic";
 import { Principal } from "@dfinity/principal";
 import { IDL } from "@dfinity/candid";
-import type { _SERVICE } from "./builds/bot-agent-backend.did.d.ts";
-import { idlFactory } from "./builds/bot-agent-backend.did.js";
+import type { _SERVICE } from "./builds/open-org-backend.did.d.ts";
+import { idlFactory } from "./builds/open-org-backend.did.js";
 import type { _SERVICE as TestCanisterService } from "./builds/test-canister.did.d.ts";
 import { idlFactory as testCanisterIdlFactory } from "./builds/test-canister.did.js";
 
@@ -52,7 +52,7 @@ export function generateTestPrincipal(seed: number): Principal {
 export const WASM_PATH = resolve(
   import.meta.dir,
   "builds",
-  "bot-agent-backend.wasm",
+  "open-org-backend.wasm",
 );
 
 // Define the path to the test canister's WASM file

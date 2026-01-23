@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
-import type { _SERVICE } from "../../../.dfx/local/canisters/bot-agent-backend/service.did.js";
+import type { _SERVICE } from "../../../.dfx/local/canisters/open-org-backend/service.did.js";
 import {
   createTestEnvironment,
   setupAdminUser,
