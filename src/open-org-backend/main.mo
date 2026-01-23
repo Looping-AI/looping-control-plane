@@ -61,11 +61,11 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // Admin Management
+  // OrgAdmin Management
   // ============================================
 
-  // Add a new admin
-  public shared ({ caller }) func addAdmin(newAdmin : Principal) : async {
+  // Add a new organization admin
+  public shared ({ caller }) func addOrgAdmin(newAdmin : Principal) : async {
     #ok : ();
     #err : Text;
   } {
@@ -81,13 +81,13 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
   };
 
-  // Get list of admins
-  public query func getAdmins() : async [Principal] {
+  // Get list of organization admins
+  public query func getOrgAdmins() : async [Principal] {
     orgAdmins;
   };
 
-  // Check if caller is admin
-  public shared ({ caller }) func isCallerAdmin() : async Bool {
+  // Check if caller is an organization admin
+  public shared ({ caller }) func isCallerOrgAdmin() : async Bool {
     AdminService.isAdmin(caller, orgAdmins);
   };
 

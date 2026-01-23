@@ -142,7 +142,7 @@ export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
   const adminIdentity = generateRandomIdentity();
   const adminPrincipal = adminIdentity.getPrincipal();
   // Owner adds the new admin
-  await actor.addAdmin(adminPrincipal);
+  await actor.addOrgAdmin(adminPrincipal);
   return { adminIdentity, adminPrincipal };
 }
 

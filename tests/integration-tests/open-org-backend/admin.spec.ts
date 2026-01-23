@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Principal } from "@dfinity/principal";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import type { _SERVICE } from "../../../.dfx/local/canisters/open-org-backend/service.did.js";
-import { createTestEnvironment, generateTestPrincipal } from "../../setup.ts";
+import { createTestEnvironment, generateTestPrincipal, type _SERVICE } from "../../setup.ts";
 import { expectErr } from "../../helpers.ts";
 
 describe("Admin Management", () => {
@@ -28,7 +27,7 @@ describe("Admin Management", () => {
       actor.setIdentity(generateRandomIdentity());
 
       const newAdminPrincipal = generateTestPrincipal(1);
-      const result = await actor.addAdmin(newAdminPrincipal);
+      const result = await actor.addOrgAdmin(newAdminPrincipal);
       expect(expectErr(result)).toEqual("Only the owner can add admins");
     });
 
@@ -36,10 +35,10 @@ describe("Admin Management", () => {
       const samePrincipal = generateTestPrincipal(2);
 
       // Owner should be able to add
-      await actor.addAdmin(samePrincipal);
+      await actor.addOrgAdmin(samePrincipal);
 
       // Second call should fail due to being duplicate
-      const result = await actor.addAdmin(samePrincipal);
+      const result = await actor.addOrgAdmin(samePrincipal);
       expect(expectErr(result)).toEqual("Principal is already an admin");
     });
   });
@@ -49,9 +48,9 @@ describe("Admin Management", () => {
       const somePrincipal = generateTestPrincipal(1);
 
       // Owner adds a new admin
-      await actor.addAdmin(somePrincipal);
+      await actor.addOrgAdmin(somePrincipal);
 
-      const adminsList = await actor.getAdmins();
+      const adminsList = await actor.getOrgAdmins();
       // Owner should be at index 0, newly added admin at index 1
       expect(adminsList[0]).toEqual(ownerPrincipal);
       expect(adminsList[1]).toEqual(somePrincipal);
@@ -63,13 +62,13 @@ describe("Admin Management", () => {
       // Set caller to non-admin
       actor.setIdentity(generateRandomIdentity());
 
-      const isAdmin = await actor.isCallerAdmin();
+      const isAdmin = await actor.isCallerOrgAdmin();
       expect(isAdmin).toBe(false);
     });
 
     it("should return true for owner caller", async () => {
       // Owner should be admin
-      const isAdmin = await actor.isCallerAdmin();
+      const isAdmin = await actor.isCallerOrgAdmin();
       expect(isAdmin).toBe(true);
     });
 
@@ -78,13 +77,13 @@ describe("Admin Management", () => {
       const principalOfIdentity = identity.getPrincipal();
 
       // Owner adds the caller as admin
-      await actor.addAdmin(principalOfIdentity);
+      await actor.addOrgAdmin(principalOfIdentity);
 
       // Set the caller identity
       actor.setIdentity(identity);
 
       // Now check if caller is admin
-      const isAdmin = await actor.isCallerAdmin();
+      const isAdmin = await actor.isCallerOrgAdmin();
       expect(isAdmin).toBe(true);
     });
   });
