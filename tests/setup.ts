@@ -65,13 +65,13 @@ export const TEST_CANISTER_WASM_PATH = resolve(
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
- * @returns Object with PocketIC instance, actor, canisterId, and owner principal
+ * @returns Object with PocketIC instance, actor, canisterId, and owner identity
  */
 export async function createTestEnvironment(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
   canisterId: import("@dfinity/principal").Principal;
-  ownerPrincipal: Principal;
+  ownerIdentity: ReturnType<typeof generateRandomIdentity>;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "", {
     fiduciary: {
@@ -99,7 +99,7 @@ export async function createTestEnvironment(): Promise<{
     pic,
     actor: fixture.actor,
     canisterId: fixture.canisterId,
-    ownerPrincipal,
+    ownerIdentity,
   };
 }
 
@@ -141,8 +141,8 @@ export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
 }> {
   const adminIdentity = generateRandomIdentity();
   const adminPrincipal = adminIdentity.getPrincipal();
-  // Owner adds the new admin
-  await actor.addOrgAdmin(adminPrincipal);
+  // Owner adds the new admin to workspace 0
+  await actor.addWorkspaceAdmin(0n, adminPrincipal);
   return { adminIdentity, adminPrincipal };
 }
 
@@ -177,7 +177,7 @@ export async function createTestAgent(
   provider: { openai: null } | { groq: null } | { llmcanister: null },
   model: string,
 ): Promise<bigint> {
-  const result = await actor.createAgent(name, provider, model);
+  const result = await actor.createAgent(0n, name, provider, model);
   if ("err" in result) {
     throw new Error(`Failed to create agent: ${result.err}`);
   }
@@ -222,7 +222,7 @@ export async function createGroqAgent(
 
   // Switch to user identity to store the API key
   actor.setIdentity(userIdentity);
-  await actor.storeApiKey(agentId, { groq: null }, apiKey);
+  await actor.storeApiKey(0n, agentId, { groq: null }, apiKey);
 
   return agentId;
 }

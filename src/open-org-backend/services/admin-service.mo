@@ -1,4 +1,6 @@
 import Array "mo:core/Array";
+import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 
@@ -11,6 +13,16 @@ module {
       };
     };
     false;
+  };
+
+  // Check if a principal is admin in a specific workspace
+  public func isWorkspaceAdmin(caller : Principal, workspaceId : Nat, workspaceAdmins : Map.Map<Nat, [Principal]>) : Bool {
+    switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
+      case (null) { false };
+      case (?admins) {
+        isAdmin(caller, admins);
+      };
+    };
   };
 
   // Validate new admin before adding (requires owner)
@@ -27,6 +39,31 @@ module {
       #err("Principal is already an admin");
     } else {
       #ok(());
+    };
+  };
+
+  // Validate new workspace admin before adding
+  public func validateNewWorkspaceAdmin(newAdmin : Principal, caller : Principal, orgOwner : Principal, workspaceId : Nat, workspaceAdmins : Map.Map<Nat, [Principal]>) : Result.Result<(), Text> {
+    // Check if caller is owner or existing workspace admin
+    if (caller != orgOwner and not isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      return #err("Only the owner or workspace admins can add workspace admins");
+    };
+
+    if (newAdmin == getAnonymousPrincipal()) {
+      return #err("Anonymous users cannot be admins");
+    };
+
+    switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
+      case (null) {
+        #err("Workspace not found");
+      };
+      case (?admins) {
+        if (isAdmin(newAdmin, admins)) {
+          #err("Principal is already a workspace admin");
+        } else {
+          #ok(());
+        };
+      };
     };
   };
 

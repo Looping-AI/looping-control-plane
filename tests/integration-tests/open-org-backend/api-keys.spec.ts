@@ -46,6 +46,7 @@ describe("API Key Management", () => {
     actor.setPrincipal(Principal.anonymous());
 
     const storeResult = await actor.storeApiKey(
+      0n,
       agentId,
       { openai: null },
       "test-key",
@@ -68,6 +69,7 @@ describe("API Key Management", () => {
   describe("store_api_key", () => {
     it("should reject storing API key for non-existent agent", async () => {
       const result = await actor.storeApiKey(
+        0n,
         999n,
         { openai: null },
         "test-key-123",
@@ -76,10 +78,15 @@ describe("API Key Management", () => {
     });
 
     it("should reject storing empty or whitespace only API key", async () => {
-      const result = await actor.storeApiKey(agentId, { openai: null }, "");
+      const result = await actor.storeApiKey(0n, agentId, { openai: null }, "");
       expect(expectErr(result)).toEqual("API key cannot be empty");
 
-      const result2 = await actor.storeApiKey(agentId, { openai: null }, "   ");
+      const result2 = await actor.storeApiKey(
+        0n,
+        agentId,
+        { openai: null },
+        "   ",
+      );
       expect(expectErr(result2)).toEqual("API key cannot be empty");
     });
 
@@ -87,6 +94,7 @@ describe("API Key Management", () => {
       // Agent was created with OpenAI provider
       // Try to store a Groq API key for it
       const result = await actor.storeApiKey(
+        0n,
         agentId,
         { groq: null },
         "test-groq-key",
@@ -100,6 +108,7 @@ describe("API Key Management", () => {
     it("should allow updating API key (replace existing)", async () => {
       // Store first API key
       const storeResult1 = await actor.storeApiKey(
+        0n,
         agentId,
         { openai: null },
         "first-api-key",
@@ -108,6 +117,7 @@ describe("API Key Management", () => {
 
       // Update with new key (same agent, same provider)
       const storeResult2 = await actor.storeApiKey(
+        0n,
         agentId,
         { openai: null },
         "updated-api-key",
@@ -147,9 +157,9 @@ describe("API Key Management", () => {
 
       // Switch to user and store keys
       actor.setIdentity(userIdentity);
-      await actor.storeApiKey(agent1, { openai: null }, "key-1");
-      await actor.storeApiKey(agent2, { groq: null }, "key-2");
-      await actor.storeApiKey(agent3, { groq: null }, "key-3");
+      await actor.storeApiKey(0n, agent1, { openai: null }, "key-1");
+      await actor.storeApiKey(0n, agent2, { groq: null }, "key-2");
+      await actor.storeApiKey(0n, agent3, { groq: null }, "key-3");
 
       // Retrieve and verify all keys are present
       const result = await actor.getMyApiKeys();
@@ -180,6 +190,7 @@ describe("API Key Management", () => {
     it("should successfully delete an API key", async () => {
       // Store an API key first
       const storeResult = await actor.storeApiKey(
+        0n,
         agentId,
         { openai: null },
         "test-key-to-delete",
@@ -216,8 +227,8 @@ describe("API Key Management", () => {
 
       // Switch to user and store keys for both agents
       actor.setIdentity(userIdentity);
-      await actor.storeApiKey(agent1, { openai: null }, "key-1");
-      await actor.storeApiKey(agent2, { groq: null }, "key-2");
+      await actor.storeApiKey(0n, agent1, { openai: null }, "key-1");
+      await actor.storeApiKey(0n, agent2, { groq: null }, "key-2");
 
       // Verify both keys exist
       const keysBefore = await actor.getMyApiKeys();
@@ -238,7 +249,7 @@ describe("API Key Management", () => {
 
     it("should return error when deleting a non-existent key", async () => {
       // Store an API key first
-      await actor.storeApiKey(agentId, { openai: null }, "test-key");
+      await actor.storeApiKey(0n, agentId, { openai: null }, "test-key");
 
       // Try to delete a key for a different provider (non-existent)
       const deleteResult = await actor.deleteApiKey(agentId, { groq: null });
@@ -257,6 +268,7 @@ describe("API Key Management", () => {
     it("should not delete other users' keys", async () => {
       // Store key as first user
       await actor.storeApiKey(
+        0n,
         agentId,
         { openai: null },
         "user-one-key-to-keep",
@@ -268,6 +280,7 @@ describe("API Key Management", () => {
 
       // Store key as second user
       await actor.storeApiKey(
+        0n,
         agentId,
         { openai: null },
         "user-two-key-to-delete",

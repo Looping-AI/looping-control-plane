@@ -18,7 +18,8 @@ describe("API Key Encryption & Cache Management", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
   let canisterId: Principal;
-  let adminIdentity: ReturnType<typeof generateRandomIdentity>;
+  let workspaceAdminIdentity: ReturnType<typeof generateRandomIdentity>;
+  let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
   let user2Identity: ReturnType<typeof generateRandomIdentity>;
   let agentId: bigint;
@@ -28,11 +29,13 @@ describe("API Key Encryption & Cache Management", () => {
     pic = testEnv.pic;
     actor = testEnv.actor;
     canisterId = testEnv.canisterId;
+    ownerIdentity = testEnv.ownerIdentity;
 
-    // Set up an admin
-    ({ adminIdentity } = await setupAdminUser(actor));
+    // Set up workspace admin for agent operations
+    ({ adminIdentity: workspaceAdminIdentity } = await setupAdminUser(actor));
 
-    // Create a test agent
+    // Create a test agent using workspace admin
+    actor.setIdentity(workspaceAdminIdentity);
     agentId = await createTestAgent(
       actor,
       "Encryption Test Agent",
@@ -51,14 +54,15 @@ describe("API Key Encryption & Cache Management", () => {
   });
 
   it("should isolate encrypted keys between users and populate cache", async () => {
-    // Check initial cache size as admin
-    actor.setIdentity(adminIdentity);
+    // Check initial cache size as owner (org admin)
+    actor.setIdentity(ownerIdentity);
     const initialResult = await actor.getKeyCacheStats();
     const initialSize = expectOk(initialResult).size;
 
     // User 1 stores a key
     actor.setIdentity(userIdentity);
     const storeResult1 = await actor.storeApiKey(
+      0n,
       agentId,
       { groq: null },
       "user1-secret-key",
@@ -68,6 +72,7 @@ describe("API Key Encryption & Cache Management", () => {
     // User 2 stores a key
     actor.setIdentity(user2Identity);
     const storeResult2 = await actor.storeApiKey(
+      0n,
       agentId,
       { groq: null },
       "user2-secret-key",
@@ -87,7 +92,7 @@ describe("API Key Encryption & Cache Management", () => {
     expect(keys2.length).toBe(1);
 
     // Check cache has entries for both users
-    actor.setIdentity(adminIdentity);
+    actor.setIdentity(ownerIdentity);
     const cacheStats = await actor.getKeyCacheStats();
     const finalSize = expectOk(cacheStats).size;
     expect(finalSize).toBe(initialSize + 2n); // Two different users = two cached keys
@@ -100,7 +105,7 @@ describe("API Key Encryption & Cache Management", () => {
   });
 
   it("should return cache stats for admin", async () => {
-    actor.setIdentity(adminIdentity);
+    actor.setIdentity(ownerIdentity);
     const result = await actor.getKeyCacheStats();
     const stats = expectOk(result);
     expect(typeof stats.size).toBe("bigint");
@@ -115,14 +120,15 @@ describe("API Key Encryption & Cache Management", () => {
   it("should successfully clear cache as admin", async () => {
     // First store an API key to populate cache
     const storeResult = await actor.storeApiKey(
+      0n,
       agentId,
       { groq: null },
       "test-key-for-clear",
     );
     expectOk(storeResult);
 
-    // Clear cache as admin
-    actor.setIdentity(adminIdentity);
+    // Clear cache as owner (org admin)
+    actor.setIdentity(ownerIdentity);
     const clearResult = await actor.clearKeyCache();
     expectOk(clearResult);
 
@@ -134,10 +140,14 @@ describe("API Key Encryption & Cache Management", () => {
 
   it("should re-derive encryption key after cache clear", async () => {
     // Create a Groq Agent with valid test API key
-    const agentId = await createGroqAgent(actor, adminIdentity, userIdentity);
+    const agentId = await createGroqAgent(
+      actor,
+      workspaceAdminIdentity,
+      userIdentity,
+    );
 
-    // Admin clears cache
-    actor.setIdentity(adminIdentity);
+    // Owner clears cache
+    actor.setIdentity(ownerIdentity);
     await actor.clearKeyCache();
 
     // Create a deferred actor for the HTTP outcall test
@@ -153,7 +163,7 @@ describe("API Key Encryption & Cache Management", () => {
     const { result } = await withCassette(
       pic,
       "integration-tests/open-org-backend/encryption/re-derive-key-after-cache-clear",
-      () => deferredActor.talkTo(agentId, "What is capital of France?"),
+      () => deferredActor.talkTo(0n, agentId, "What is capital of France?"),
       { ticks: 5 }, // More ticks needed for key derivation before HTTP outcall
     );
     const response = expectOk(await result);

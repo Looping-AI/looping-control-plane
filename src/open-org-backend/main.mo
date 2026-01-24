@@ -1,5 +1,6 @@
 import Principal "mo:core/Principal";
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import List "mo:core/List";
 import Text "mo:core/Text";
@@ -19,14 +20,18 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
   // State
   // ============================================
-  var agents = Map.empty<Nat, AgentService.Agent>();
-  var nextAgentId : Nat = 0;
+
   var orgOwner : Principal = owner;
   var orgAdmins : [Principal] = [owner];
   var conversations = Map.empty<ConversationService.ConversationKey, List.List<ConversationService.Message>>();
   var apiKeys = Map.empty<Principal, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
+  var nextWorkspaceId : Nat = 1;
+  var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
+  var workspaceGoals = Map.empty<Nat, [Types.Goal]>();
+  var nextAgentId : Nat = 0;
+  var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentService.Agent>>([(0, Map.empty<Nat, AgentService.Agent>())], Nat.compare);
 
   // ============================================
   // Timer Management
@@ -91,53 +96,113 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     AdminService.isAdmin(caller, orgAdmins);
   };
 
+  // Add a new workspace admin
+  public shared ({ caller }) func addWorkspaceAdmin(workspaceId : Nat, newAdmin : Principal) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    let validation = AdminService.validateNewWorkspaceAdmin(newAdmin, caller, orgOwner, workspaceId, workspaceAdmins);
+    switch (validation) {
+      case (#err(msg)) {
+        #err(msg);
+      };
+      case (#ok(())) {
+        switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
+          case (?admins) {
+            let newAdmins = AdminService.addAdminToList(newAdmin, admins);
+            Map.add(workspaceAdmins, Nat.compare, workspaceId, newAdmins);
+            #ok(());
+          };
+          case (null) {
+            // This should never happen since validation already checked
+            #err("Workspace not found");
+          };
+        };
+      };
+    };
+  };
+
   // ============================================
   // Agent Management
   // ============================================
 
   // Create a new agent
-  public shared ({ caller }) func createAgent(name : Text, provider : Types.LlmProvider, model : Text) : async {
+  public shared ({ caller }) func createAgent(workspaceId : Nat, name : Text, provider : Types.LlmProvider, model : Text) : async {
     #ok : Nat;
     #err : Text;
   } {
-    if (not AdminService.isAdmin(caller, orgAdmins)) {
-      return #err("Only admins can create agents");
+    // Check if caller is admin in this workspace
+    if (not AdminService.isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      return #err("Only workspace admins can create agents");
     };
-    let (result, newId) = AgentService.createAgent(name, provider, model, agents, nextAgentId);
-    nextAgentId := newId;
-    result;
+    switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+      case (null) {
+        #err("Workspace not found");
+      };
+      case (?agents) {
+        let (result, newId) = AgentService.createAgent(name, provider, model, agents, nextAgentId);
+        nextAgentId := newId;
+        result;
+      };
+    };
   };
 
   // Read/Get an agent
-  public query func getAgent(id : Nat) : async ?AgentService.Agent {
-    AgentService.getAgent(id, agents);
+  public query func getAgent(workspaceId : Nat, id : Nat) : async ?AgentService.Agent {
+    switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+      case (null) { null };
+      case (?agents) {
+        AgentService.getAgent(id, agents);
+      };
+    };
   };
 
   // Update an agent
-  public shared ({ caller }) func updateAgent(id : Nat, newName : ?Text, newProvider : ?Types.LlmProvider, newModel : ?Text) : async {
+  public shared ({ caller }) func updateAgent(workspaceId : Nat, id : Nat, newName : ?Text, newProvider : ?Types.LlmProvider, newModel : ?Text) : async {
     #ok : Bool;
     #err : Text;
   } {
-    if (not AdminService.isAdmin(caller, orgAdmins)) {
-      return #err("Only admins can update agents");
+    // Check if caller is admin in this workspace
+    if (not AdminService.isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      return #err("Only workspace admins can update agents");
     };
-    AgentService.updateAgent(id, newName, newProvider, newModel, agents);
+    switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+      case (null) {
+        #err("Workspace not found");
+      };
+      case (?agents) {
+        AgentService.updateAgent(id, newName, newProvider, newModel, agents);
+      };
+    };
   };
 
   // Delete an agent
-  public shared ({ caller }) func deleteAgent(id : Nat) : async {
+  public shared ({ caller }) func deleteAgent(workspaceId : Nat, id : Nat) : async {
     #ok : Bool;
     #err : Text;
   } {
-    if (not AdminService.isAdmin(caller, orgAdmins)) {
-      return #err("Only admins can delete agents");
+    // Check if caller is admin in this workspace
+    if (not AdminService.isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      return #err("Only workspace admins can delete agents");
     };
-    AgentService.deleteAgent(id, agents);
+    switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+      case (null) {
+        #err("Workspace not found");
+      };
+      case (?agents) {
+        AgentService.deleteAgent(id, agents);
+      };
+    };
   };
 
   // List all agents
-  public query func listAgents() : async [AgentService.Agent] {
-    AgentService.listAgents(agents);
+  public query func listAgents(workspaceId : Nat) : async [AgentService.Agent] {
+    switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+      case (null) { [] };
+      case (?agents) {
+        AgentService.listAgents(agents);
+      };
+    };
   };
 
   // ============================================
@@ -152,7 +217,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     ConversationService.getConversation(conversations, caller, agentId);
   };
 
-  public shared ({ caller }) func talkTo(agentId : Nat, message : Text) : async {
+  public shared ({ caller }) func talkTo(workspaceId : Nat, agentId : Nat, message : Text) : async {
     #ok : Text;
     #err : Text;
   } {
@@ -161,8 +226,12 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     } else if (Text.trim(message, #char ' ') == "") {
       #err("Message cannot be empty");
     } else {
-      // Get the agent to determine which provider to use
-      let agent = AgentService.getAgent(agentId, agents);
+      let agent = switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+        case (null) { null };
+        case (?agents) {
+          AgentService.getAgent(agentId, agents);
+        };
+      };
       switch (agent) {
         case (null) { return #err("Agent not found") };
         case (?foundAgent) {
@@ -231,7 +300,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
 
   // Store an API key for an agent (encrypted at rest)
-  public shared ({ caller }) func storeApiKey(agentId : Nat, provider : Types.LlmProvider, apiKey : Text) : async {
+  public shared ({ caller }) func storeApiKey(workspaceId : Nat, agentId : Nat, provider : Types.LlmProvider, apiKey : Text) : async {
     #ok : ();
     #err : Text;
   } {
@@ -240,7 +309,12 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     } else if (Text.trim(apiKey, #char ' ') == "") {
       return #err("API key cannot be empty");
     } else {
-      let agent = AgentService.getAgent(agentId, agents);
+      let agent = switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+        case (null) { null };
+        case (?agents) {
+          AgentService.getAgent(agentId, agents);
+        };
+      };
       switch (agent) {
         case (null) { return #err("Agent not found") };
         case (?foundAgent) {
