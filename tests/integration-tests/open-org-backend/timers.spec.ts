@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
+import { generateRandomIdentity } from "@dfinity/pic";
 import type { _SERVICE } from "../../setup.ts";
 import {
   createTestEnvironment,
   setupAdminUser,
-  setupRegularUser,
   createTestAgent,
 } from "../../setup.ts";
 import { expectOk } from "../../helpers.ts";
@@ -12,11 +12,13 @@ import { expectOk } from "../../helpers.ts";
 describe("Timer Management", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
+  let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
 
   beforeEach(async () => {
     const testEnv = await createTestEnvironment();
     pic = testEnv.pic;
     actor = testEnv.actor;
+    ownerIdentity = testEnv.ownerIdentity;
   });
 
   afterEach(async () => {
@@ -25,10 +27,12 @@ describe("Timer Management", () => {
 
   describe("Cache clearing timer", () => {
     it("should clear the key cache after 30 days", async () => {
-      // Set up admin (first caller becomes admin automatically)
-      const { adminIdentity } = await setupAdminUser(actor);
+      // Set up workspace admin for agent operations
+      const { adminIdentity: workspaceAdminIdentity } =
+        await setupAdminUser(actor);
 
-      // Create an agent as admin
+      // Create an agent as workspace admin
+      actor.setIdentity(workspaceAdminIdentity);
       const agentId = await createTestAgent(
         actor,
         "Timer Test Agent",
@@ -36,18 +40,18 @@ describe("Timer Management", () => {
         "llama-3.3-70b-versatile",
       );
 
-      // Store an API key as user (this will derive and cache an encryption key)
-      const { userIdentity } = setupRegularUser(actor);
-      actor.setIdentity(userIdentity);
+      // Store an API key as workspace admin (this will derive and cache an encryption key)
+      // Only workspace admins can store API keys now
       const storeResult = await actor.storeApiKey(
+        0n,
         agentId,
         { groq: null },
         "test-api-key-for-timer",
       );
       expectOk(storeResult);
 
-      // Verify cache now has 1 entry
-      actor.setIdentity(adminIdentity);
+      // Verify cache now has 1 entry (using owner identity for cache operations)
+      actor.setIdentity(ownerIdentity);
       const afterStoreStats = await actor.getKeyCacheStats();
       const afterStoreSize = expectOk(afterStoreStats).size;
       expect(afterStoreSize).toBe(1n);

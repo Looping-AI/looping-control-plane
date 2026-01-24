@@ -31,45 +31,18 @@ describe("Conversation Management", () => {
     ({ adminIdentity } = await setupAdminUser(actor));
 
     // Create a Groq agent with real API key for HTTP outcall tests
-    ({ userIdentity } = setupRegularUser(actor));
-    agentId = await createGroqAgent(actor, adminIdentity, userIdentity);
+    ({ userIdentity } = await setupRegularUser(actor));
+    agentId = await createGroqAgent(actor, adminIdentity);
   });
 
   afterEach(async () => {
     await pic.tearDown();
   });
 
-  describe("talk_to", () => {
-    it("should reject anonymous users from sending messages", async () => {
-      actor.setPrincipal(Principal.anonymous());
-
-      const result = await actor.talkTo(agentId, "Hello Agent");
-      expect(expectErr(result)).toEqual(
-        "Please login before calling this function",
-      );
-    });
-
-    it("should accept message from authenticated user", async () => {
-      // Create a deferred actor for the HTTP outcall test
-      const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
-        idlFactory,
-        canisterId,
-      );
-      deferredActor.setIdentity(userIdentity);
-
-      const { result } = await withCassette(
-        pic,
-        "integration-tests/open-org-backend/conversations/accept-message-authenticated-user",
-        () => deferredActor.talkTo(agentId, "Hello Agent"),
-        { ticks: 5 },
-      );
-      expectOk(await result);
-    });
-  });
-
   describe("get_conversation", () => {
     it("should return err message when no conversation exists with agent", async () => {
-      const result = await actor.getConversation(agentId);
+      actor.setIdentity(userIdentity);
+      const result = await actor.getConversation(0n, agentId);
       expect(expectErr(result)).toEqual(
         "No conversation found with agent " + agentId,
       );
@@ -88,11 +61,12 @@ describe("Conversation Management", () => {
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/correct-message-content",
-        () => deferredActor.talkTo(agentId, testMessage),
+        () => deferredActor.workspaceTalk(0n, agentId, testMessage),
         { ticks: 5 },
       );
 
-      const result = await actor.getConversation(agentId);
+      actor.setIdentity(userIdentity);
+      const result = await actor.getConversation(0n, agentId);
       const messages = expectOk(result);
 
       const userMessage = messages.find(
@@ -118,37 +92,34 @@ describe("Conversation Management", () => {
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/history-message-1",
-        () => deferredActor.talkTo(agentId, message1),
+        () => deferredActor.workspaceTalk(0n, agentId, message1),
         { ticks: 5 },
       );
 
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/history-message-2",
-        () => deferredActor.talkTo(agentId, message2),
+        () => deferredActor.workspaceTalk(0n, agentId, message2),
         { ticks: 5 },
       );
 
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/history-message-3",
-        () => deferredActor.talkTo(agentId, message3),
+        () => deferredActor.workspaceTalk(0n, agentId, message3),
         { ticks: 5 },
       );
 
-      const result = await actor.getConversation(agentId);
+      actor.setIdentity(userIdentity);
+      const result = await actor.getConversation(0n, agentId);
       const messages = expectOk(result);
       expect(messages.length).toBeGreaterThanOrEqual(3);
     });
 
     it("should isolate conversations between different agents", async () => {
       // Create another Groq agent
-      const user2 = setupRegularUser(actor);
-      const agentId2 = await createGroqAgent(
-        actor,
-        adminIdentity,
-        user2.userIdentity,
-      );
+      const user2 = await setupRegularUser(actor);
+      const agentId2 = await createGroqAgent(actor, adminIdentity);
 
       const message1 = "What is the capital of France?";
       const message2 = "What is the capital of Spain?";
@@ -170,7 +141,7 @@ describe("Conversation Management", () => {
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/isolate-agent-1",
-        () => deferredActor1.talkTo(agentId, message1),
+        () => deferredActor1.workspaceTalk(0n, agentId, message1),
         { ticks: 5 },
       );
 
@@ -178,13 +149,13 @@ describe("Conversation Management", () => {
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/isolate-agent-2",
-        () => deferredActor2.talkTo(agentId2, message2),
+        () => deferredActor2.workspaceTalk(0n, agentId2, message2),
         { ticks: 5 },
       );
 
       // Check conversation history for first agent
       actor.setIdentity(userIdentity);
-      const result1 = await actor.getConversation(agentId);
+      const result1 = await actor.getConversation(0n, agentId);
       const messages1 = expectOk(result1);
       const foundMsg1 = messages1.some(
         (msg: { content?: string }) => msg.content === message1,
@@ -193,7 +164,7 @@ describe("Conversation Management", () => {
 
       // Check conversation history for second agent
       actor.setIdentity(user2.userIdentity);
-      const result2 = await actor.getConversation(agentId2);
+      const result2 = await actor.getConversation(0n, agentId2);
       const messages2 = expectOk(result2);
       const foundMsg2 = messages2.some(
         (msg: { content?: string }) => msg.content === message2,

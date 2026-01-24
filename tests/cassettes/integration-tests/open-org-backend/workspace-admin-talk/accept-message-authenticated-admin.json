@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "accept-message-authenticated-admin",
+  "recordedAt": "2026-01-24T18:39:09.139Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello Agent\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c31a6e36b8ae6de-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 24 Jan 2026 18:39:09 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "fra"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "999"],
+          ["x-ratelimit-remaining-tokens", "7926"],
+          ["x-ratelimit-reset-requests", "1m26.4s"],
+          ["x-ratelimit-reset-tokens", "554ms"],
+          ["x-request-id", "req_01kfrmv2j0f7tatv83ry7gkdvk"],
+          [
+            "set-cookie",
+            "__cf_bm=6P87.05ujkshlThXUgND2PeO8PEkDMwoNaBDo_7ykgA-1769279949-1.0.1.1-L1Ks8wEwj25P7MM870a6unjYcvOhyfTMyIjDJWvNrt9nEc13DfV92kLmXU_EqLUjk8iuVb6QtsuiXEK..BZw.JijyZC1YJRhpKakiSaZGWs; path=/; expires=Sat, 24-Jan-26 19:09:09 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"chatcmpl-70424261-1b8c-438a-83af-6c1edec467aa\",\"object\":\"chat.completion\",\"created\":1769279949,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello! How can I assist you today?\",\"reasoning\":\"We need to respond as ChatGPT. The system message defines \\\"You are ChatGPT, a large language model\\\". There's also a developer message but no content. The user says \\\"Hello Agent\\\". Probably respond politely.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018624695,\"prompt_tokens\":73,\"prompt_time\":0.002742407,\"completion_tokens\":62,\"completion_time\":0.127091245,\"total_tokens\":135,\"total_time\":0.129833652,\"completion_tokens_details\":{\"reasoning_tokens\":44}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_dddd02f37b\",\"x_groq\":{\"id\":\"req_01kfrmv2j0f7tatv83ry7gkdvk\",\"seed\":224198606},\"service_tier\":\"on_demand\"}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

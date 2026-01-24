@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "accept-message-authenticated-user",
+  "recordedAt": "2026-01-24T17:04:43.530Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello Agent\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c311c9148264899-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 24 Jan 2026 17:04:43 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "fra"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "988"],
+          ["x-ratelimit-remaining-tokens", "7926"],
+          ["x-ratelimit-reset-requests", "17m16.8s"],
+          ["x-ratelimit-reset-tokens", "554ms"],
+          ["x-request-id", "req_01kfrfe5qtew8b5mjp2v70ms0e"],
+          [
+            "set-cookie",
+            "__cf_bm=vEZeatIsQIprwa3cUvSTIKoz0B.I.RxRwdarlx9eMbg-1769274283-1.0.1.1-W.u2BYXWt46I_D5jJVaQqIDJDOgwv0KlT9WsVYSTQ.1DBz_2.zwirmGhMhAJAnv2oQ6ocHOw3YOXy3LzWp3NQ4SI2j1Kzz_LOgRepkClF4U; path=/; expires=Sat, 24-Jan-26 17:34:43 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"chatcmpl-46491035-1b28-484d-aa8d-b1b7807611d8\",\"object\":\"chat.completion\",\"created\":1769274283,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello! How can I assist you today?\",\"reasoning\":\"The user says \\\"Hello Agent\\\". Probably they want a response. As ChatGPT, respond appropriately. Should greet back, perhaps ask how can help.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018505495,\"prompt_tokens\":73,\"prompt_time\":0.00276457,\"completion_tokens\":49,\"completion_time\":0.101210385,\"total_tokens\":122,\"total_time\":0.103974955,\"completion_tokens_details\":{\"reasoning_tokens\":31}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_8634b911ff\",\"x_groq\":{\"id\":\"req_01kfrfe5qtew8b5mjp2v70ms0e\",\"seed\":1031095264},\"service_tier\":\"on_demand\"}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

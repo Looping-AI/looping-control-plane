@@ -31,20 +31,24 @@ describe("Agent Management", () => {
       actor.setIdentity(nonAdminIdentity);
 
       const result = await actor.createAgent(
+        0n,
         "Test Agent",
         { openai: null },
         "gpt-4",
       );
-      expect(expectErr(result)).toEqual("Only admins can create agents");
+      expect(expectErr(result)).toEqual(
+        "Only workspace admins can create agents",
+      );
     });
 
     it("should reject agent creation with empty name", async () => {
-      const result = await actor.createAgent("", { openai: null }, "gpt-4");
+      const result = await actor.createAgent(0n, "", { openai: null }, "gpt-4");
       expect(expectErr(result)).toEqual("Agent name cannot be empty");
     });
 
     it("should successfully create an agent with admin user and all params", async () => {
       const result = await actor.createAgent(
+        0n,
         "OpenAI Agent",
         { openai: null },
         "gpt-4",
@@ -54,6 +58,7 @@ describe("Agent Management", () => {
 
     it("should create multiple agents with incrementing IDs", async () => {
       const result1 = await actor.createAgent(
+        0n,
         "Agent 1",
         { openai: null },
         "gpt-4",
@@ -61,6 +66,7 @@ describe("Agent Management", () => {
       const id1 = expectOk(result1);
 
       const result2 = await actor.createAgent(
+        0n,
         "Agent 2",
         { llmcanister: null },
         "llama",
@@ -74,7 +80,7 @@ describe("Agent Management", () => {
 
   describe("get_agent", () => {
     it("should return null for non-existent agent", async () => {
-      const agent = await actor.getAgent(999n);
+      const agent = await actor.getAgent(0n, 999n);
       // Candid handles an optional custom type as an array with 0 or 1 elements
       // an empty array means null in Motoko
       expectNone(agent);
@@ -82,10 +88,11 @@ describe("Agent Management", () => {
 
     it("should return an agent that exists", async () => {
       const agentId = expectOk(
-        await actor.createAgent("Test Agent", { openai: null }, "gpt-4"),
+        await actor.createAgent(0n, "Test Agent", { openai: null }, "gpt-4"),
       );
 
-      const agent = await actor.getAgent(agentId);
+      const agentResult = await actor.getAgent(0n, agentId);
+      const agent = expectOk(agentResult);
       const agentData = expectSome(agent);
       expect(agentData.id).toEqual(agentId);
       expect(agentData.name).toEqual("Test Agent");
@@ -102,24 +109,28 @@ describe("Agent Management", () => {
 
       const updateResult = await actor.updateAgent(
         0n,
+        0n, // agentId
         ["Updated Name"],
         [],
         [],
       );
-      expect(expectErr(updateResult)).toEqual("Only admins can update agents");
+      expect(expectErr(updateResult)).toEqual(
+        "Only workspace admins can update agents",
+      );
     });
 
     it("should reject update of non-existent agent", async () => {
-      const result = await actor.updateAgent(999n, [], [], []);
+      const result = await actor.updateAgent(0n, 999n, [], [], []);
       expect(expectErr(result)).toEqual("Agent not found");
     });
 
     it("should update agent name only", async () => {
       const agentId = expectOk(
-        await actor.createAgent("Original", { openai: null }, "gpt-4"),
+        await actor.createAgent(0n, "Original", { openai: null }, "gpt-4"),
       );
 
       const updateResult = await actor.updateAgent(
+        0n,
         agentId,
         ["Updated Name"],
         [],
@@ -127,7 +138,8 @@ describe("Agent Management", () => {
       );
       expectOk(updateResult);
 
-      const agent = await actor.getAgent(agentId);
+      const agentResult = await actor.getAgent(0n, agentId);
+      const agent = expectOk(agentResult);
       const agentData = expectSome(agent);
       expect(agentData.name).toEqual("Updated Name");
       expect(agentData.model).toEqual("gpt-4");
@@ -135,10 +147,11 @@ describe("Agent Management", () => {
 
     it("should update all agent fields", async () => {
       const agentId = expectOk(
-        await actor.createAgent("Original", { openai: null }, "gpt-3.5"),
+        await actor.createAgent(0n, "Original", { openai: null }, "gpt-3.5"),
       );
 
       const updateResult = await actor.updateAgent(
+        0n,
         agentId,
         ["New Agent Name"],
         [{ llmcanister: null }],
@@ -146,7 +159,8 @@ describe("Agent Management", () => {
       );
       expectOk(updateResult);
 
-      const agent = await actor.getAgent(agentId);
+      const agentResult = await actor.getAgent(0n, agentId);
+      const agent = expectOk(agentResult);
       const agentData = expectSome(agent);
       expect(agentData.name).toEqual("New Agent Name");
       expect(agentData.provider).toEqual({ llmcanister: null });
@@ -160,35 +174,43 @@ describe("Agent Management", () => {
       const nonAdminIdentity = generateRandomIdentity();
       actor.setIdentity(nonAdminIdentity);
 
-      const deleteResult = await actor.deleteAgent(0n);
-      expect(expectErr(deleteResult)).toEqual("Only admins can delete agents");
+      const deleteResult = await actor.deleteAgent(0n, 0n);
+      expect(expectErr(deleteResult)).toEqual(
+        "Only workspace admins can delete agents",
+      );
     });
 
     it("should reject deletion of non-existent agent", async () => {
-      const result = await actor.deleteAgent(999n);
+      const result = await actor.deleteAgent(0n, 999n);
       expect(expectErr(result)).toEqual("Agent not found");
     });
 
     it("should successfully delete an agent", async () => {
       const agentId = expectOk(
-        await actor.createAgent("Agent to Delete", { openai: null }, "gpt-4"),
+        await actor.createAgent(
+          0n,
+          "Agent to Delete",
+          { openai: null },
+          "gpt-4",
+        ),
       );
 
-      const deleteResult = await actor.deleteAgent(agentId);
+      const deleteResult = await actor.deleteAgent(0n, agentId);
       expectOk(deleteResult);
 
-      const agent = await actor.getAgent(agentId);
+      const agent = await actor.getAgent(0n, agentId);
       expectNone(agent);
     });
   });
 
   describe("list_agents", () => {
     it("should return all created agents", async () => {
-      await actor.createAgent("Agent 1", { openai: null }, "gpt-4");
-      await actor.createAgent("Agent 2", { groq: null }, "mixtral");
-      await actor.createAgent("Agent 3", { llmcanister: null }, "llama2");
+      await actor.createAgent(0n, "Agent 1", { openai: null }, "gpt-4");
+      await actor.createAgent(0n, "Agent 2", { groq: null }, "mixtral");
+      await actor.createAgent(0n, "Agent 3", { llmcanister: null }, "llama2");
 
-      const agents = await actor.listAgents();
+      const result = await actor.listAgents(0n);
+      const agents = expectOk(result);
       expect(agents.length).toEqual(3);
       expect(agents[1].id).toEqual(1n);
       expect(agents[1].name).toEqual("Agent 2");

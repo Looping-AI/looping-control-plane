@@ -1,11 +1,11 @@
 import { test; suite; expect } "mo:test";
-import Principal "mo:core/Principal";
+import Nat "mo:core/Nat";
 import Map "mo:core/Map";
 import KeyDerivationService "../../../../src/open-org-backend/services/key-derivation-service";
 
-// Test principals
-let principal1 = Principal.fromActor(actor "aaaaa-aa");
-let principal2 = Principal.fromText("2vxsx-fae");
+// Test workspace IDs
+let workspaceId1 : Nat = 1;
+let workspaceId2 : Nat = 2;
 
 suite(
   "KeyDerivationService",
@@ -54,17 +54,17 @@ suite(
     test(
       "getCacheSize returns correct count after adding entries",
       func() {
-        let cache = Map.empty<Principal, [Nat8]>();
+        let cache = Map.empty<Nat, [Nat8]>();
         let size = KeyDerivationService.getCacheSize(cache);
         expect.nat(size).equal(0);
 
         let testKey1 : [Nat8] = [0x00, 0x01, 0x02, 0x03];
         let testKey2 : [Nat8] = [0x04, 0x05, 0x06, 0x07];
 
-        Map.add(cache, Principal.compare, principal1, testKey1);
+        Map.add(cache, Nat.compare, workspaceId1, testKey1);
         expect.nat(KeyDerivationService.getCacheSize(cache)).equal(1);
 
-        Map.add(cache, Principal.compare, principal2, testKey2);
+        Map.add(cache, Nat.compare, workspaceId2, testKey2);
         expect.nat(KeyDerivationService.getCacheSize(cache)).equal(2);
       },
     );

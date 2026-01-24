@@ -65,13 +65,13 @@ export const TEST_CANISTER_WASM_PATH = resolve(
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
- * @returns Object with PocketIC instance, actor, canisterId, and owner principal
+ * @returns Object with PocketIC instance, actor, canisterId, and owner identity
  */
 export async function createTestEnvironment(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
   canisterId: import("@dfinity/principal").Principal;
-  ownerPrincipal: Principal;
+  ownerIdentity: ReturnType<typeof generateRandomIdentity>;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "", {
     fiduciary: {
@@ -99,7 +99,7 @@ export async function createTestEnvironment(): Promise<{
     pic,
     actor: fixture.actor,
     canisterId: fixture.canisterId,
-    ownerPrincipal,
+    ownerIdentity,
   };
 }
 
@@ -141,23 +141,24 @@ export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
 }> {
   const adminIdentity = generateRandomIdentity();
   const adminPrincipal = adminIdentity.getPrincipal();
-  // Owner adds the new admin
-  await actor.addOrgAdmin(adminPrincipal);
+  // Owner adds the new admin to workspace 0
+  await actor.addWorkspaceAdmin(0n, adminPrincipal);
   return { adminIdentity, adminPrincipal };
 }
 
 /**
  * Sets up a regular (non-admin) user for testing
- * @param actor - The canister actor
+ * @param actor - The canister actor (should be called by owner)
  * @returns Object with user identity and principal
  */
-export function setupRegularUser(actor: Actor<_SERVICE>): {
+export async function setupRegularUser(actor: Actor<_SERVICE>): Promise<{
   userIdentity: ReturnType<typeof generateRandomIdentity>;
   userPrincipal: Principal;
-} {
+}> {
   const userIdentity = generateRandomIdentity();
   const userPrincipal = userIdentity.getPrincipal();
-  actor.setIdentity(userIdentity);
+  // Owner adds the new user as a member of workspace 0
+  await actor.addWorkspaceMember(0n, userPrincipal);
   return { userIdentity, userPrincipal };
 }
 
@@ -177,7 +178,7 @@ export async function createTestAgent(
   provider: { openai: null } | { groq: null } | { llmcanister: null },
   model: string,
 ): Promise<bigint> {
-  const result = await actor.createAgent(name, provider, model);
+  const result = await actor.createAgent(0n, name, provider, model);
   if ("err" in result) {
     throw new Error(`Failed to create agent: ${result.err}`);
   }
@@ -186,10 +187,10 @@ export async function createTestAgent(
 
 /**
  * Creates a Groq agent with the API key fetched from .env.test
- * Internally switches to admin identity to create the agent, then to user identity to store the API key
+ * Internally switches to admin identity to create the agent and store the API key
+ * The API key is stored at workspace level (not per-user)
  * @param actor - The canister actor
- * @param adminIdentity - Admin identity for creating the agent
- * @param userIdentity - User identity for storing the API key
+ * @param adminIdentity - Admin identity for creating the agent and storing API key
  * @param model - Groq model name (default: "llama-3.1-8b-instant")
  * @returns Agent ID if successful
  * @throws Error if creation fails or GROQ_TEST_KEY is not set
@@ -197,7 +198,6 @@ export async function createTestAgent(
 export async function createGroqAgent(
   actor: Actor<_SERVICE>,
   adminIdentity: ReturnType<typeof generateRandomIdentity>,
-  userIdentity: ReturnType<typeof generateRandomIdentity>,
   model: string = TEST_MODEL,
 ): Promise<bigint> {
   const apiKey = TEST_API_KEY;
@@ -220,9 +220,8 @@ export async function createGroqAgent(
     model,
   );
 
-  // Switch to user identity to store the API key
-  actor.setIdentity(userIdentity);
-  await actor.storeApiKey(agentId, { groq: null }, apiKey);
+  // Store API key at workspace level
+  await actor.storeApiKey(0n, agentId, { groq: null }, apiKey);
 
   return agentId;
 }

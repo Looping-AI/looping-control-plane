@@ -1,4 +1,3 @@
-import Principal "mo:core/Principal";
 import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Order "mo:core/Order";
@@ -15,8 +14,8 @@ module {
   public type EncryptedApiKey = Blob;
 
   /// Type alias for the API keys map
-  /// Principal -> (agentId, provider_name) -> encrypted_api_key
-  public type ApiKeysMap = Map.Map<Principal, Map.Map<(Nat, Text), EncryptedApiKey>>;
+  /// workspaceId -> (agentId, provider_name) -> encrypted_api_key
+  public type ApiKeysMap = Map.Map<Nat, Map.Map<(Nat, Text), EncryptedApiKey>>;
 
   // Comparator for (Nat, Text) tuples
   public func compareNatTextTuple(a : (Nat, Text), b : (Nat, Text)) : Order.Order {
@@ -35,30 +34,30 @@ module {
     };
   };
 
-  /// Get and decrypt API key for a specific caller, agent, and provider
+  /// Get and decrypt API key for a specific workspace, agent, and provider
   ///
   /// @param apiKeys - The encrypted API keys map
-  /// @param encryptionKey - 32-byte encryption key for this Principal
-  /// @param principal - The Principal whose key to retrieve
+  /// @param encryptionKey - 32-byte encryption key for this workspace
+  /// @param workspaceId - The workspace ID
   /// @param agentId - The agent ID
   /// @param provider - The LLM provider
   /// @returns Decrypted API key text, or null if not found or decryption fails
-  public func getApiKeyForCallerAndAgent(
+  public func getApiKeyForWorkspaceAndAgent(
     apiKeys : ApiKeysMap,
     encryptionKey : [Nat8],
-    principal : Principal,
+    workspaceId : Nat,
     agentId : Nat,
     provider : Types.LlmProvider,
   ) : ?Text {
     let providerName = providerToString(provider);
     let key = (agentId, providerName);
 
-    switch (Map.get(apiKeys, Principal.compare, principal)) {
+    switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
         null;
       };
-      case (?callerKeyMap) {
-        switch (Map.get(callerKeyMap, compareNatTextTuple, key)) {
+      case (?workspaceKeyMap) {
+        switch (Map.get(workspaceKeyMap, compareNatTextTuple, key)) {
           case (null) { null };
           case (?encryptedBlob) {
             // Decrypt the API key
@@ -71,11 +70,11 @@ module {
     };
   };
 
-  /// Encrypt and store an API key for an agent
+  /// Encrypt and store an API key for an agent in a workspace
   ///
   /// @param apiKeys - The encrypted API keys map
-  /// @param encryptionKey - 32-byte encryption key for this Principal
-  /// @param principal - The Principal storing the key
+  /// @param encryptionKey - 32-byte encryption key for this workspace
+  /// @param workspaceId - The workspace ID
   /// @param agentId - The agent ID
   /// @param provider - The LLM provider
   /// @param apiKey - The plaintext API key to encrypt and store
@@ -83,7 +82,7 @@ module {
   public func storeApiKey(
     apiKeys : ApiKeysMap,
     encryptionKey : [Nat8],
-    principal : Principal,
+    workspaceId : Nat,
     agentId : Nat,
     provider : Types.LlmProvider,
     apiKey : Text,
@@ -93,11 +92,11 @@ module {
 
     // Convert API key to bytes and encrypt (nonce generated internally)
     let plaintextBytes = EncryptionService.textToBytes(apiKey);
-    let encryptedBytes = EncryptionService.encrypt(encryptionKey, plaintextBytes, principal);
+    let encryptedBytes = EncryptionService.encrypt(encryptionKey, plaintextBytes, workspaceId);
     let encryptedBlob = Blob.fromArray(encryptedBytes);
 
-    // Get or create the caller's API key map
-    let callerKeyMap = switch (Map.get(apiKeys, Principal.compare, principal)) {
+    // Get or create the workspace's API key map
+    let workspaceKeyMap = switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
         Map.empty<(Nat, Text), EncryptedApiKey>();
       };
@@ -106,64 +105,64 @@ module {
       };
     };
 
-    // Add the encrypted API key to the caller's map
-    Map.add(callerKeyMap, compareNatTextTuple, key, encryptedBlob);
+    // Add the encrypted API key to the workspace's map
+    Map.add(workspaceKeyMap, compareNatTextTuple, key, encryptedBlob);
 
     // Store the updated map back
-    Map.add(apiKeys, Principal.compare, principal, callerKeyMap);
+    Map.add(apiKeys, Nat.compare, workspaceId, workspaceKeyMap);
 
     #ok(());
   };
 
-  /// Get caller's own API key identifiers (without decrypting the keys)
+  /// Get workspace's API key identifiers (without decrypting the keys)
   /// Returns list of (agentId, providerName) pairs
   ///
   /// @param apiKeys - The encrypted API keys map
-  /// @param principal - The Principal whose keys to list
+  /// @param workspaceId - The workspace ID
   /// @returns List of (agentId, providerName) tuples
-  public func getMyApiKeys(
+  public func getWorkspaceApiKeys(
     apiKeys : ApiKeysMap,
-    principal : Principal,
+    workspaceId : Nat,
   ) : Result.Result<[(Nat, Text)], Text> {
-    switch (Map.get(apiKeys, Principal.compare, principal)) {
+    switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
         #ok([]);
       };
-      case (?callerKeyMap) {
-        #ok(Iter.toArray(Map.keys(callerKeyMap)));
+      case (?workspaceKeyMap) {
+        #ok(Iter.toArray(Map.keys(workspaceKeyMap)));
       };
     };
   };
 
-  /// Delete an API key for a specific agent and provider
+  /// Delete an API key for a specific agent and provider in a workspace
   ///
   /// @param apiKeys - The encrypted API keys map
-  /// @param principal - The Principal whose key to delete
+  /// @param workspaceId - The workspace ID
   /// @param agentId - The agent ID
   /// @param provider - The LLM provider
   /// @returns Result
   public func deleteApiKey(
     apiKeys : ApiKeysMap,
-    principal : Principal,
+    workspaceId : Nat,
     agentId : Nat,
     provider : Types.LlmProvider,
   ) : Result.Result<(), Text> {
     let providerName = providerToString(provider);
     let key = (agentId, providerName);
 
-    switch (Map.get(apiKeys, Principal.compare, principal)) {
+    switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
-        #err("No API keys found for this principal");
+        #err("No API keys found for this workspace");
       };
-      case (?callerKeyMap) {
+      case (?workspaceKeyMap) {
         // Check if the key exists before deleting
-        switch (Map.get(callerKeyMap, compareNatTextTuple, key)) {
+        switch (Map.get(workspaceKeyMap, compareNatTextTuple, key)) {
           case (null) {
             #err("No API key found for agent " # debug_show (agentId) # " with provider " # providerName);
           };
           case (?_) {
-            ignore Map.delete(callerKeyMap, compareNatTextTuple, key);
-            Map.add(apiKeys, Principal.compare, principal, callerKeyMap);
+            ignore Map.delete(workspaceKeyMap, compareNatTextTuple, key);
+            Map.add(apiKeys, Nat.compare, workspaceId, workspaceKeyMap);
             #ok(());
           };
         };
