@@ -129,6 +129,23 @@ module {
     Array.concat(members, [newMember]);
   };
 
+  // Validate if caller can access a workspace (must be admin or member)
+  public func validateWorkspaceAccess(
+    caller : Principal,
+    workspaceId : Nat,
+    workspaceAdmins : Map.Map<Nat, [Principal]>,
+    workspaceMembers : Map.Map<Nat, [Principal]>,
+  ) : Result.Result<(), Text> {
+    let isAdmin = isWorkspaceAdmin(caller, workspaceId, workspaceAdmins);
+    let isMemberOf = isWorkspaceMember(caller, workspaceId, workspaceMembers);
+
+    if (isAdmin or isMemberOf) {
+      #ok(());
+    } else {
+      #err("You are not an admin or member of this workspace");
+    };
+  };
+
   private func getAnonymousPrincipal() : Principal {
     Principal.fromText("2vxsx-fae");
   };

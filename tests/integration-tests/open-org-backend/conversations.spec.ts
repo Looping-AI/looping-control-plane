@@ -31,7 +31,7 @@ describe("Conversation Management", () => {
     ({ adminIdentity } = await setupAdminUser(actor));
 
     // Create a Groq agent with real API key for HTTP outcall tests
-    ({ userIdentity } = setupRegularUser(actor));
+    ({ userIdentity } = await setupRegularUser(actor));
     agentId = await createGroqAgent(actor, adminIdentity, userIdentity);
   });
 
@@ -69,7 +69,8 @@ describe("Conversation Management", () => {
 
   describe("get_conversation", () => {
     it("should return err message when no conversation exists with agent", async () => {
-      const result = await actor.getConversation(agentId);
+      actor.setIdentity(userIdentity);
+      const result = await actor.getConversation(0n, agentId);
       expect(expectErr(result)).toEqual(
         "No conversation found with agent " + agentId,
       );
@@ -92,7 +93,8 @@ describe("Conversation Management", () => {
         { ticks: 5 },
       );
 
-      const result = await actor.getConversation(agentId);
+      actor.setIdentity(userIdentity);
+      const result = await actor.getConversation(0n, agentId);
       const messages = expectOk(result);
 
       const userMessage = messages.find(
@@ -136,14 +138,15 @@ describe("Conversation Management", () => {
         { ticks: 5 },
       );
 
-      const result = await actor.getConversation(agentId);
+      actor.setIdentity(userIdentity);
+      const result = await actor.getConversation(0n, agentId);
       const messages = expectOk(result);
       expect(messages.length).toBeGreaterThanOrEqual(3);
     });
 
     it("should isolate conversations between different agents", async () => {
       // Create another Groq agent
-      const user2 = setupRegularUser(actor);
+      const user2 = await setupRegularUser(actor);
       const agentId2 = await createGroqAgent(
         actor,
         adminIdentity,
@@ -184,7 +187,7 @@ describe("Conversation Management", () => {
 
       // Check conversation history for first agent
       actor.setIdentity(userIdentity);
-      const result1 = await actor.getConversation(agentId);
+      const result1 = await actor.getConversation(0n, agentId);
       const messages1 = expectOk(result1);
       const foundMsg1 = messages1.some(
         (msg: { content?: string }) => msg.content === message1,
@@ -193,7 +196,7 @@ describe("Conversation Management", () => {
 
       // Check conversation history for second agent
       actor.setIdentity(user2.userIdentity);
-      const result2 = await actor.getConversation(agentId2);
+      const result2 = await actor.getConversation(0n, agentId2);
       const messages2 = expectOk(result2);
       const foundMsg2 = messages2.some(
         (msg: { content?: string }) => msg.content === message2,

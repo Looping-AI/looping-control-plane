@@ -237,11 +237,20 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
 
   // Get conversation history
-  public shared ({ caller }) func getConversation(agentId : Nat) : async {
+  public shared ({ caller }) func getConversation(workspaceId : Nat, agentId : Nat) : async {
     #ok : [ConversationService.Message];
     #err : Text;
   } {
-    ConversationService.getConversation(conversations, caller, agentId);
+    // Validate if caller has access to this workspace
+    let accessValidation = AdminService.validateWorkspaceAccess(caller, workspaceId, workspaceAdmins, workspaceMembers);
+    switch (accessValidation) {
+      case (#err(msg)) {
+        #err(msg);
+      };
+      case (#ok(())) {
+        ConversationService.getConversation(conversations, workspaceId, agentId);
+      };
+    };
   };
 
   public shared ({ caller }) func talkTo(workspaceId : Nat, agentId : Nat, message : Text) : async {
@@ -253,6 +262,17 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     } else if (Text.trim(message, #char ' ') == "") {
       #err("Message cannot be empty");
     } else {
+      // Validate if caller has access to this workspace
+      let accessValidation = AdminService.validateWorkspaceAccess(caller, workspaceId, workspaceAdmins, workspaceMembers);
+      switch (accessValidation) {
+        case (#err(msg)) {
+          return #err(msg);
+        };
+        case (#ok(())) {
+          // Continue with the rest of the logic
+        };
+      };
+
       let agent = switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
         case (null) { null };
         case (?agents) {
@@ -296,7 +316,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           // Once successful, store the user message and agent response in the conversation history
           ConversationService.addMessageToConversation(
             conversations,
-            caller,
+            workspaceId,
             agentId,
             {
               author = #user;
@@ -307,7 +327,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
           ConversationService.addMessageToConversation(
             conversations,
-            caller,
+            workspaceId,
             agentId,
             {
               author = #agent;

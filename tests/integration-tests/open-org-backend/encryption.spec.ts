@@ -44,8 +44,8 @@ describe("API Key Encryption & Cache Management", () => {
     );
 
     // Set up two regular users
-    ({ userIdentity } = setupRegularUser(actor));
-    const user2 = setupRegularUser(actor);
+    ({ userIdentity } = await setupRegularUser(actor));
+    const user2 = await setupRegularUser(actor);
     user2Identity = user2.userIdentity;
   });
 

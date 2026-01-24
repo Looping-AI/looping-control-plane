@@ -1,7 +1,6 @@
 import Map "mo:core/Map";
 import List "mo:core/List";
 import Text "mo:core/Text";
-import Principal "mo:core/Principal";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 
@@ -15,7 +14,7 @@ module {
     timestamp : Int;
   };
 
-  public type ConversationKey = (Principal, Nat);
+  public type ConversationKey = (Nat, Nat); // (workspaceId, agentId)
 
   // Comparison function for ConversationKey
   public func conversationKeyCompare(a : ConversationKey, b : ConversationKey) : {
@@ -23,7 +22,7 @@ module {
     #equal;
     #greater;
   } {
-    switch (Principal.compare(a.0, b.0)) {
+    switch (Nat.compare(a.0, b.0)) {
       case (#equal) {
         Nat.compare(a.1, b.1);
       };
@@ -36,11 +35,11 @@ module {
   // Add a message to a conversation
   public func addMessageToConversation(
     conversations : Map.Map<ConversationKey, List.List<Message>>,
-    principal : Principal,
+    workspaceId : Nat,
     agentId : Nat,
     message : Message,
   ) {
-    let key = (principal, agentId);
+    let key = (workspaceId, agentId);
     switch (Map.get(conversations, conversationKeyCompare, key)) {
       case (null) {
         let newList = List.empty<Message>();
@@ -56,10 +55,10 @@ module {
   // Get conversation history
   public func getConversation(
     conversations : Map.Map<ConversationKey, List.List<Message>>,
-    principal : Principal,
+    workspaceId : Nat,
     agentId : Nat,
   ) : Result.Result<[Message], Text> {
-    let key = (principal, agentId);
+    let key = (workspaceId, agentId);
     switch (Map.get(conversations, conversationKeyCompare, key)) {
       case (null) {
         #err("No conversation found with agent " # debug_show (agentId));

@@ -148,16 +148,17 @@ export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
 
 /**
  * Sets up a regular (non-admin) user for testing
- * @param actor - The canister actor
+ * @param actor - The canister actor (should be called by owner)
  * @returns Object with user identity and principal
  */
-export function setupRegularUser(actor: Actor<_SERVICE>): {
+export async function setupRegularUser(actor: Actor<_SERVICE>): Promise<{
   userIdentity: ReturnType<typeof generateRandomIdentity>;
   userPrincipal: Principal;
-} {
+}> {
   const userIdentity = generateRandomIdentity();
   const userPrincipal = userIdentity.getPrincipal();
-  actor.setIdentity(userIdentity);
+  // Owner adds the new user as a member of workspace 0
+  await actor.addWorkspaceMember(0n, userPrincipal);
   return { userIdentity, userPrincipal };
 }
 

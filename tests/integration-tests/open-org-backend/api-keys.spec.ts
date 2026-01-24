@@ -35,7 +35,7 @@ describe("API Key Management", () => {
     );
 
     // Set up a regular user
-    ({ userIdentity } = setupRegularUser(actor));
+    ({ userIdentity } = await setupRegularUser(actor));
   });
 
   afterEach(async () => {

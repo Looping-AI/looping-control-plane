@@ -42,7 +42,7 @@ describe("Timer Management", () => {
       );
 
       // Store an API key as user (this will derive and cache an encryption key)
-      const { userIdentity } = setupRegularUser(actor);
+      const { userIdentity } = await setupRegularUser(actor);
       actor.setIdentity(userIdentity);
       const storeResult = await actor.storeApiKey(
         0n,
