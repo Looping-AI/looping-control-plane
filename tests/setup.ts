@@ -221,7 +221,10 @@ export async function createGroqAgent(
     model,
   );
 
-  // Switch to user identity to store the API key
+  // Store API key for admin
+  await actor.storeApiKey(0n, agentId, { groq: null }, apiKey);
+
+  // Switch to user identity to store the API key as well
   actor.setIdentity(userIdentity);
   await actor.storeApiKey(0n, agentId, { groq: null }, apiKey);
 

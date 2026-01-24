@@ -12,9 +12,9 @@ import AgentService "./services/agent-service";
 import ConversationService "./services/conversation-service";
 import ApiKeysService "./services/api-keys-service";
 import KeyDerivationService "./services/key-derivation-service";
+import WorkspaceTalkService "./services/workspace-talk-service";
+import WorkspaceAdminTalkService "./services/workspace-admin-talk-service";
 import Constants "./constants";
-import GroqWrapper "./wrappers/groq-wrapper";
-// import LLMWrapper "./wrappers/llm-wrapper";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -29,7 +29,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
-  var workspaceGoals = Map.fromArray<Nat, [Types.Goal]>([(0, [])], Nat.compare);
+  var _workspaceGoals = Map.fromArray<Nat, [Types.Goal]>([(0, [])], Nat.compare); // Planned feature: goals for workspaces
   var nextAgentId : Nat = 0;
   var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentService.Agent>>([(0, Map.empty<Nat, AgentService.Agent>())], Nat.compare);
 
@@ -253,8 +253,33 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // Workspace Admin
+  // Workspace Admin Talk
   // ============================================
+
+  public shared ({ caller }) func workspaceAdminTalk(workspaceId : Nat, agentId : Nat, message : Text) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    if (Principal.isAnonymous(caller)) {
+      #err("Please login before calling this function");
+    } else if (Text.trim(message, #char ' ') == "") {
+      #err("Message cannot be empty");
+    } else if (not AdminService.isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      #err("Only workspace admins can use this function");
+    } else {
+      // Delegate to service for business logic
+      return await WorkspaceAdminTalkService.processAdminTalk(
+        workspaceAgents,
+        apiKeys,
+        conversations,
+        workspaceId,
+        agentId,
+        caller,
+        message,
+        keyCache,
+      );
+    };
+  };
 
   // ============================================
   // Workspace Talk
@@ -276,74 +301,17 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           return #err(msg);
         };
         case (#ok(())) {
-          // Continue with the rest of the logic
-        };
-      };
-
-      let agent = switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-        case (null) { null };
-        case (?agents) {
-          AgentService.getAgent(agentId, agents);
-        };
-      };
-      switch (agent) {
-        case (null) { return #err("Agent not found") };
-        case (?foundAgent) {
-          // Get api key (requires deriving encryption key first)
-          let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, caller);
-          let apiKey = ApiKeysService.getApiKeyForCallerAndAgent(apiKeys, encryptionKey, caller, agentId, foundAgent.provider);
-
-          // Generate response based on provider and API key availability
-          var response : Text = "";
-          switch (foundAgent.provider) {
-            case (#groq) {
-              switch (apiKey) {
-                case (null) {
-                  return #err("No Groq API key found for this agent. Please store your API key first.");
-                };
-                case (?key) {
-                  let groqResult = await GroqWrapper.chat(key, message, foundAgent.model);
-                  switch (groqResult) {
-                    case (#ok(groqResponse)) { response := groqResponse };
-                    case (#err(error)) {
-                      return #err("Groq API Error: " # error);
-                    };
-                  };
-                };
-              };
-            };
-            case (#openai) {
-              return #err("OpenAI integration not yet implemented.");
-            };
-            case (#llmcanister) {
-              return #err("LLM Canister integration not yet implemented.");
-            };
-          };
-
-          // Once successful, store the user message and agent response in the conversation history
-          ConversationService.addMessageToConversation(
+          // Delegate to service for business logic
+          return await WorkspaceTalkService.processWorkspaceTalk(
+            workspaceAgents,
+            apiKeys,
             conversations,
             workspaceId,
             agentId,
-            {
-              author = #user;
-              content = message;
-              timestamp = Time.now();
-            },
+            caller,
+            message,
+            keyCache,
           );
-
-          ConversationService.addMessageToConversation(
-            conversations,
-            workspaceId,
-            agentId,
-            {
-              author = #agent;
-              content = response;
-              timestamp = Time.now();
-            },
-          );
-
-          #ok(response);
         };
       };
     };
