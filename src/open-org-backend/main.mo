@@ -147,6 +147,34 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
   };
 
+  // Get workspace members (only workspace admins can view)
+  public shared ({ caller }) func getWorkspaceMembers(workspaceId : Nat) : async {
+    #ok : [Principal];
+    #err : Text;
+  } {
+    let validation = AdminService.validateCanViewWorkspaceMembers(caller, workspaceId, workspaceAdmins);
+    switch (validation) {
+      case (#err(msg)) {
+        #err(msg);
+      };
+      case (#ok(())) {
+        switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
+          case (null) {
+            #err("Workspace not found");
+          };
+          case (?members) {
+            #ok(members);
+          };
+        };
+      };
+    };
+  };
+
+  // Check if caller is a workspace member
+  public shared ({ caller }) func isCallerWorkspaceMember(workspaceId : Nat) : async Bool {
+    AdminService.isWorkspaceMember(caller, workspaceId, workspaceMembers);
+  };
+
   // ============================================
   // Agent Management
   // ============================================
@@ -332,7 +360,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       return #err("API key cannot be empty");
     } else {
       let agent = switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-        case (null) { null };
+        case (null) {
+          return #err("Workspace not found");
+        };
         case (?agents) {
           AgentService.getAgent(agentId, agents);
         };
@@ -363,7 +393,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       return #err("Please login before calling this function");
     };
     if (not AdminService.isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
-      return #err("Only workspace admins can view API keys");
+      return #err("Only workspace admins can view which API keys exist");
     };
     ApiKeysService.getWorkspaceApiKeys(apiKeys, workspaceId);
   };
@@ -381,23 +411,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       return #err("Only workspace admins can delete API keys");
     };
     ApiKeysService.deleteApiKey(apiKeys, workspaceId, agentId, provider);
-  };
-
-  // ============================================
-  // Workspace Member Management
-  // ============================================
-
-  // Get workspace members
-  public query func getWorkspaceMembers(workspaceId : Nat) : async [Principal] {
-    switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-      case (null) { [] };
-      case (?members) { members };
-    };
-  };
-
-  // Check if caller is a workspace member
-  public shared ({ caller }) func isCallerWorkspaceMember(workspaceId : Nat) : async Bool {
-    AdminService.isWorkspaceMember(caller, workspaceId, workspaceMembers);
   };
 
   // ============================================

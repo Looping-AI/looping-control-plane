@@ -156,7 +156,7 @@ describe("API Key Management", () => {
       actor.setIdentity(userIdentity);
       const result = await actor.getWorkspaceApiKeys(0n);
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can view API keys",
+        "Only workspace admins can view which API keys exist",
       );
     });
 

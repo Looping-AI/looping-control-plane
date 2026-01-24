@@ -129,6 +129,29 @@ module {
     Array.concat(members, [newMember]);
   };
 
+  // Validate if caller can read workspace members (must be admin of that workspace)
+  public func validateCanViewWorkspaceMembers(
+    caller : Principal,
+    workspaceId : Nat,
+    workspaceAdmins : Map.Map<Nat, [Principal]>,
+  ) : Result.Result<(), Text> {
+    if (caller == getAnonymousPrincipal()) {
+      return #err("Please login before calling this function");
+    };
+
+    // Check if workspace exists
+    let workspaceExists = Map.get(workspaceAdmins, Nat.compare, workspaceId);
+    if (workspaceExists == null) {
+      return #err("Workspace not found");
+    };
+
+    if (isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      #ok(());
+    } else {
+      #err("Only workspace admins can view workspace members");
+    };
+  };
+
   // Validate if caller can access a workspace (must be admin or member)
   public func validateWorkspaceAccess(
     caller : Principal,
@@ -136,6 +159,12 @@ module {
     workspaceAdmins : Map.Map<Nat, [Principal]>,
     workspaceMembers : Map.Map<Nat, [Principal]>,
   ) : Result.Result<(), Text> {
+    // Check if workspace exists
+    let workspaceExists = Map.get(workspaceAdmins, Nat.compare, workspaceId);
+    if (workspaceExists == null) {
+      return #err("Workspace not found");
+    };
+
     let isAdmin = isWorkspaceAdmin(caller, workspaceId, workspaceAdmins);
     let isMemberOf = isWorkspaceMember(caller, workspaceId, workspaceMembers);
 

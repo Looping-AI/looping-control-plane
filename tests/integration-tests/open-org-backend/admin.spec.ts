@@ -7,7 +7,7 @@ import {
   generateTestPrincipal,
   type _SERVICE,
 } from "../../setup.ts";
-import { expectErr } from "../../helpers.ts";
+import { expectErr, expectOk } from "../../helpers.ts";
 
 describe("Admin Management", () => {
   let pic: PocketIc;
@@ -270,13 +270,14 @@ describe("Admin Management", () => {
   });
 
   describe("getWorkspaceMembers", () => {
-    it("should return an empty list for workspace with no members", async () => {
+    it("should return empty list for workspace with no members when called by admin", async () => {
       const workspaceId = 0n;
-      const members = await actor.getWorkspaceMembers(workspaceId);
+      const result = await actor.getWorkspaceMembers(workspaceId);
+      const members = expectOk(result);
       expect(members).toEqual([]);
     });
 
-    it("should return an array of member principals after adding members", async () => {
+    it("should return an array of member principals after adding members when called by admin", async () => {
       const memberPrincipal1 = generateTestPrincipal(1);
       const memberPrincipal2 = generateTestPrincipal(2);
       const workspaceId = 0n;
@@ -287,16 +288,40 @@ describe("Admin Management", () => {
       // Add second member
       await actor.addWorkspaceMember(workspaceId, memberPrincipal2);
 
-      const members = await actor.getWorkspaceMembers(workspaceId);
+      const result = await actor.getWorkspaceMembers(workspaceId);
+      const members = expectOk(result);
       expect(members).toHaveLength(2);
       expect(members[0]).toEqual(memberPrincipal1);
       expect(members[1]).toEqual(memberPrincipal2);
     });
 
-    it("should return empty list for non-existent workspace", async () => {
+    it("should return error for non-existent workspace", async () => {
       const nonExistentWorkspaceId = 999n;
-      const members = await actor.getWorkspaceMembers(nonExistentWorkspaceId);
-      expect(members).toEqual([]);
+      const result = await actor.getWorkspaceMembers(nonExistentWorkspaceId);
+      expect(expectErr(result)).toEqual("Workspace not found");
+    });
+
+    it("should reject non-admin caller", async () => {
+      const nonAdminIdentity = generateRandomIdentity();
+      actor.setIdentity(nonAdminIdentity);
+
+      const workspaceId = 0n;
+      const result = await actor.getWorkspaceMembers(workspaceId);
+      expect(expectErr(result)).toEqual(
+        "Only workspace admins can view workspace members",
+      );
+    });
+
+    it("should reject anonymous caller", async () => {
+      const anonymousIdentity = generateRandomIdentity();
+      anonymousIdentity.getPrincipal = () => Principal.anonymous();
+      actor.setIdentity(anonymousIdentity);
+
+      const workspaceId = 0n;
+      const result = await actor.getWorkspaceMembers(workspaceId);
+      expect(expectErr(result)).toEqual(
+        "Please login before calling this function",
+      );
     });
   });
 
