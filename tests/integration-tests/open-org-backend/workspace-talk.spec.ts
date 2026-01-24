@@ -32,7 +32,7 @@ describe("workspaceTalk", () => {
 
     // Create a Groq agent with real API key for HTTP outcall tests
     ({ userIdentity } = await setupRegularUser(actor));
-    agentId = await createGroqAgent(actor, adminIdentity, userIdentity);
+    agentId = await createGroqAgent(actor, adminIdentity);
   });
 
   afterEach(async () => {

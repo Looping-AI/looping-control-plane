@@ -191,7 +191,6 @@ export async function createTestAgent(
  * The API key is stored at workspace level (not per-user)
  * @param actor - The canister actor
  * @param adminIdentity - Admin identity for creating the agent and storing API key
- * @param _userIdentity - User identity (no longer used for API key storage, kept for backward compatibility)
  * @param model - Groq model name (default: "llama-3.1-8b-instant")
  * @returns Agent ID if successful
  * @throws Error if creation fails or GROQ_TEST_KEY is not set
@@ -199,7 +198,6 @@ export async function createTestAgent(
 export async function createGroqAgent(
   actor: Actor<_SERVICE>,
   adminIdentity: ReturnType<typeof generateRandomIdentity>,
-  _userIdentity: ReturnType<typeof generateRandomIdentity>,
   model: string = TEST_MODEL,
 ): Promise<bigint> {
   const apiKey = TEST_API_KEY;

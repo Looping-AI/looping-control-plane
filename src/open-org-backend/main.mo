@@ -201,11 +201,23 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // Read/Get an agent
-  public query func getAgent(workspaceId : Nat, id : Nat) : async ?AgentService.Agent {
-    switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-      case (null) { null };
-      case (?agents) {
-        AgentService.getAgent(id, agents);
+  public shared ({ caller }) func getAgent(workspaceId : Nat, id : Nat) : async {
+    #ok : ?AgentService.Agent;
+    #err : Text;
+  } {
+    // Validate if caller has access to this workspace
+    let accessValidation = AdminService.validateWorkspaceAccess(caller, workspaceId, workspaceAdmins, workspaceMembers);
+    switch (accessValidation) {
+      case (#err(msg)) {
+        #err(msg);
+      };
+      case (#ok(())) {
+        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+          case (null) { #err("Workspace not found") };
+          case (?agents) {
+            #ok(AgentService.getAgent(id, agents));
+          };
+        };
       };
     };
   };
@@ -249,11 +261,23 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // List all agents
-  public query func listAgents(workspaceId : Nat) : async [AgentService.Agent] {
-    switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-      case (null) { [] };
-      case (?agents) {
-        AgentService.listAgents(agents);
+  public shared ({ caller }) func listAgents(workspaceId : Nat) : async {
+    #ok : [AgentService.Agent];
+    #err : Text;
+  } {
+    // Validate if caller has access to this workspace
+    let accessValidation = AdminService.validateWorkspaceAccess(caller, workspaceId, workspaceAdmins, workspaceMembers);
+    switch (accessValidation) {
+      case (#err(msg)) {
+        #err(msg);
+      };
+      case (#ok(())) {
+        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+          case (null) { #err("Workspace not found") };
+          case (?agents) {
+            #ok(AgentService.listAgents(agents));
+          };
+        };
       };
     };
   };

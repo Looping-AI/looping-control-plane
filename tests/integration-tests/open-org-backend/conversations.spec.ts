@@ -32,7 +32,7 @@ describe("Conversation Management", () => {
 
     // Create a Groq agent with real API key for HTTP outcall tests
     ({ userIdentity } = await setupRegularUser(actor));
-    agentId = await createGroqAgent(actor, adminIdentity, userIdentity);
+    agentId = await createGroqAgent(actor, adminIdentity);
   });
 
   afterEach(async () => {
@@ -119,11 +119,7 @@ describe("Conversation Management", () => {
     it("should isolate conversations between different agents", async () => {
       // Create another Groq agent
       const user2 = await setupRegularUser(actor);
-      const agentId2 = await createGroqAgent(
-        actor,
-        adminIdentity,
-        user2.userIdentity,
-      );
+      const agentId2 = await createGroqAgent(actor, adminIdentity);
 
       const message1 = "What is the capital of France?";
       const message2 = "What is the capital of Spain?";

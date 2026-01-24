@@ -132,11 +132,7 @@ describe("API Key Encryption & Cache Management", () => {
 
   it("should re-derive encryption key after cache clear", async () => {
     // Create a Groq Agent with valid test API key stored at workspace level
-    const groqAgentId = await createGroqAgent(
-      actor,
-      workspaceAdminIdentity,
-      userIdentity,
-    );
+    const groqAgentId = await createGroqAgent(actor, workspaceAdminIdentity);
 
     // Owner clears cache
     actor.setIdentity(ownerIdentity);
