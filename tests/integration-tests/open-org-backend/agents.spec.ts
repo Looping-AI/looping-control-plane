@@ -91,7 +91,8 @@ describe("Agent Management", () => {
         await actor.createAgent(0n, "Test Agent", { openai: null }, "gpt-4"),
       );
 
-      const agent = await actor.getAgent(0n, agentId);
+      const agentResult = await actor.getAgent(0n, agentId);
+      const agent = expectOk(agentResult);
       const agentData = expectSome(agent);
       expect(agentData.id).toEqual(agentId);
       expect(agentData.name).toEqual("Test Agent");
@@ -137,7 +138,8 @@ describe("Agent Management", () => {
       );
       expectOk(updateResult);
 
-      const agent = await actor.getAgent(0n, agentId);
+      const agentResult = await actor.getAgent(0n, agentId);
+      const agent = expectOk(agentResult);
       const agentData = expectSome(agent);
       expect(agentData.name).toEqual("Updated Name");
       expect(agentData.model).toEqual("gpt-4");
@@ -157,7 +159,8 @@ describe("Agent Management", () => {
       );
       expectOk(updateResult);
 
-      const agent = await actor.getAgent(0n, agentId);
+      const agentResult = await actor.getAgent(0n, agentId);
+      const agent = expectOk(agentResult);
       const agentData = expectSome(agent);
       expect(agentData.name).toEqual("New Agent Name");
       expect(agentData.provider).toEqual({ llmcanister: null });
@@ -206,7 +209,8 @@ describe("Agent Management", () => {
       await actor.createAgent(0n, "Agent 2", { groq: null }, "mixtral");
       await actor.createAgent(0n, "Agent 3", { llmcanister: null }, "llama2");
 
-      const agents = await actor.listAgents(0n);
+      const result = await actor.listAgents(0n);
+      const agents = expectOk(result);
       expect(agents.length).toEqual(3);
       expect(agents[1].id).toEqual(1n);
       expect(agents[1].name).toEqual("Agent 2");
