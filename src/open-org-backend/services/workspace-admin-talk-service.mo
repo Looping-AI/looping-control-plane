@@ -7,7 +7,6 @@ import ApiKeysService "./api-keys-service";
 import KeyDerivationService "./key-derivation-service";
 import ConversationService "./conversation-service";
 import GroqWrapper "../wrappers/groq-wrapper";
-import Principal "mo:core/Principal";
 
 module {
 
@@ -28,11 +27,10 @@ module {
   // Process the admin talk request after validation
   public func processAdminTalk(
     workspaceAgents : Map.Map<Nat, Map.Map<Nat, AgentService.Agent>>,
-    apiKeys : Map.Map<Principal, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>,
+    apiKeys : Map.Map<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>,
     conversations : Map.Map<ConversationService.ConversationKey, List.List<ConversationService.Message>>,
     workspaceId : Nat,
     agentId : Nat,
-    caller : Principal,
     message : Text,
     keyCache : KeyDerivationService.KeyCache,
   ) : async {
@@ -45,9 +43,9 @@ module {
         #err("Agent not found");
       };
       case (?foundAgent) {
-        // Get api key (requires deriving encryption key first)
-        let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, caller);
-        let apiKey = ApiKeysService.getApiKeyForCallerAndAgent(apiKeys, encryptionKey, caller, agentId, foundAgent.provider);
+        // Get api key (requires deriving encryption key for the workspace)
+        let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
+        let apiKey = ApiKeysService.getApiKeyForWorkspaceAndAgent(apiKeys, encryptionKey, workspaceId, agentId, foundAgent.provider);
 
         // Generate response based on provider and API key availability
         var response : Text = "";
@@ -55,7 +53,7 @@ module {
           case (#groq) {
             switch (apiKey) {
               case (null) {
-                return #err("No Groq API key found for this agent. Please store your API key first.");
+                return #err("No Groq API key found for this agent. Please store the API key first.");
               };
               case (?key) {
                 let groqResult = await GroqWrapper.chat(key, message, foundAgent.model);

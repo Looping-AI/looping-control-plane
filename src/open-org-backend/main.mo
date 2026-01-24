@@ -24,12 +24,11 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var orgOwner : Principal = owner;
   var orgAdmins : [Principal] = [owner];
   var conversations = Map.empty<ConversationService.ConversationKey, List.List<ConversationService.Message>>();
-  var apiKeys = Map.empty<Principal, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys
-  transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys
+  var apiKeys = Map.empty<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys per workspace
+  transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
-  var _workspaceGoals = Map.fromArray<Nat, [Types.Goal]>([(0, [])], Nat.compare); // Planned feature: goals for workspaces
   var nextAgentId : Nat = 0;
   var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentService.Agent>>([(0, Map.empty<Nat, AgentService.Agent>())], Nat.compare);
 
@@ -274,7 +273,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         conversations,
         workspaceId,
         agentId,
-        caller,
         message,
         keyCache,
       );
@@ -308,7 +306,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
             conversations,
             workspaceId,
             agentId,
-            caller,
             message,
             keyCache,
           );
@@ -322,12 +319,15 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
 
   // Store an API key for an agent (encrypted at rest)
+  // Only workspace admins can store API keys
   public shared ({ caller }) func storeApiKey(workspaceId : Nat, agentId : Nat, provider : Types.LlmProvider, apiKey : Text) : async {
     #ok : ();
     #err : Text;
   } {
     if (Principal.isAnonymous(caller)) {
       return #err("Please login before calling this function");
+    } else if (not AdminService.isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      return #err("Only workspace admins can store API keys");
     } else if (Text.trim(apiKey, #char ' ') == "") {
       return #err("API key cannot be empty");
     } else {
@@ -347,32 +347,40 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       };
     };
 
-    // Derive encryption key for this caller
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, caller);
+    // Derive encryption key for this workspace
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
 
-    ApiKeysService.storeApiKey(apiKeys, encryptionKey, caller, agentId, provider, apiKey);
+    ApiKeysService.storeApiKey(apiKeys, encryptionKey, workspaceId, agentId, provider, apiKey);
   };
 
-  // Get caller's own API keys
-  public shared ({ caller }) func getMyApiKeys() : async {
+  // Get API keys for a workspace
+  // Only workspace admins can view API keys
+  public shared ({ caller }) func getWorkspaceApiKeys(workspaceId : Nat) : async {
     #ok : [(Nat, Text)];
     #err : Text;
   } {
     if (Principal.isAnonymous(caller)) {
       return #err("Please login before calling this function");
     };
-    ApiKeysService.getMyApiKeys(apiKeys, caller);
+    if (not AdminService.isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      return #err("Only workspace admins can view API keys");
+    };
+    ApiKeysService.getWorkspaceApiKeys(apiKeys, workspaceId);
   };
 
-  // Delete an API key for a specific agent and provider
-  public shared ({ caller }) func deleteApiKey(agentId : Nat, provider : Types.LlmProvider) : async {
+  // Delete an API key for a specific agent and provider in a workspace
+  // Only workspace admins can delete API keys
+  public shared ({ caller }) func deleteApiKey(workspaceId : Nat, agentId : Nat, provider : Types.LlmProvider) : async {
     #ok : ();
     #err : Text;
   } {
     if (Principal.isAnonymous(caller)) {
       return #err("Please login before calling this function");
     };
-    ApiKeysService.deleteApiKey(apiKeys, caller, agentId, provider);
+    if (not AdminService.isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      return #err("Only workspace admins can delete API keys");
+    };
+    ApiKeysService.deleteApiKey(apiKeys, workspaceId, agentId, provider);
   };
 
   // ============================================

@@ -21,7 +21,6 @@ describe("API Key Encryption & Cache Management", () => {
   let workspaceAdminIdentity: ReturnType<typeof generateRandomIdentity>;
   let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
-  let user2Identity: ReturnType<typeof generateRandomIdentity>;
   let agentId: bigint;
 
   beforeEach(async () => {
@@ -43,63 +42,55 @@ describe("API Key Encryption & Cache Management", () => {
       "mixtral",
     );
 
-    // Set up two regular users
+    // Set up a regular user
     ({ userIdentity } = await setupRegularUser(actor));
-    const user2 = await setupRegularUser(actor);
-    user2Identity = user2.userIdentity;
   });
 
   afterEach(async () => {
     await pic.tearDown();
   });
 
-  it("should isolate encrypted keys between users and populate cache", async () => {
+  it("should store workspace API keys and populate cache", async () => {
     // Check initial cache size as owner (org admin)
     actor.setIdentity(ownerIdentity);
     const initialResult = await actor.getKeyCacheStats();
     const initialSize = expectOk(initialResult).size;
 
-    // User 1 stores a key
-    actor.setIdentity(userIdentity);
-    const storeResult1 = await actor.storeApiKey(
+    // Admin stores an API key for the workspace
+    actor.setIdentity(workspaceAdminIdentity);
+    const storeResult = await actor.storeApiKey(
       0n,
       agentId,
       { groq: null },
-      "user1-secret-key",
+      "workspace-api-key",
     );
-    expectOk(storeResult1);
+    expectOk(storeResult);
 
-    // User 2 stores a key
-    actor.setIdentity(user2Identity);
-    const storeResult2 = await actor.storeApiKey(
-      0n,
-      agentId,
-      { groq: null },
-      "user2-secret-key",
-    );
-    expectOk(storeResult2);
-
-    // User 1 should only see their key
-    actor.setIdentity(userIdentity);
-    const user1Keys = await actor.getMyApiKeys();
-    const keys1 = expectOk(user1Keys);
-    expect(keys1.length).toBe(1);
-
-    // User 2 should only see their key
-    actor.setIdentity(user2Identity);
-    const user2Keys = await actor.getMyApiKeys();
-    const keys2 = expectOk(user2Keys);
-    expect(keys2.length).toBe(1);
-
-    // Check cache has entries for both users
+    // Check cache has an entry for the workspace
     actor.setIdentity(ownerIdentity);
     const cacheStats = await actor.getKeyCacheStats();
     const finalSize = expectOk(cacheStats).size;
-    expect(finalSize).toBe(initialSize + 2n); // Two different users = two cached keys
+    expect(finalSize).toBe(initialSize + 1n); // One workspace key derived
+  });
+
+  it("should share workspace API keys between admins", async () => {
+    // First admin stores an API key
+    actor.setIdentity(workspaceAdminIdentity);
+    await actor.storeApiKey(0n, agentId, { groq: null }, "shared-key");
+
+    // Create a second admin
+    const admin2Identity = generateRandomIdentity();
+    await actor.addWorkspaceAdmin(0n, admin2Identity.getPrincipal());
+
+    // Second admin should see the same key
+    actor.setIdentity(admin2Identity);
+    const keysResult = await actor.getWorkspaceApiKeys(0n);
+    const keys = expectOk(keysResult);
+    expect(keys.length).toBe(1);
   });
 
   it("should reject non-admin users from viewing cache stats", async () => {
-    // User is not admin
+    actor.setIdentity(userIdentity);
     const result = await actor.getKeyCacheStats();
     expect(expectErr(result)).toEqual("Only admins can view cache stats");
   });
@@ -112,13 +103,14 @@ describe("API Key Encryption & Cache Management", () => {
   });
 
   it("should reject non-admin users from clearing cache", async () => {
-    // User is not admin
+    actor.setIdentity(userIdentity);
     const result = await actor.clearKeyCache();
     expect(expectErr(result)).toEqual("Only admins can clear the key cache");
   });
 
   it("should successfully clear cache as admin", async () => {
     // First store an API key to populate cache
+    actor.setIdentity(workspaceAdminIdentity);
     const storeResult = await actor.storeApiKey(
       0n,
       agentId,
@@ -139,8 +131,8 @@ describe("API Key Encryption & Cache Management", () => {
   });
 
   it("should re-derive encryption key after cache clear", async () => {
-    // Create a Groq Agent with valid test API key
-    const agentId = await createGroqAgent(
+    // Create a Groq Agent with valid test API key stored at workspace level
+    const groqAgentId = await createGroqAgent(
       actor,
       workspaceAdminIdentity,
       userIdentity,
@@ -157,13 +149,18 @@ describe("API Key Encryption & Cache Management", () => {
     );
     deferredActor.setIdentity(userIdentity);
 
-    // User is able to use talkTo again,
-    // which requires re-deriving the same key successfully,
-    // so that API key can be decrypted
+    // User is able to use workspaceTalk,
+    // which requires re-deriving the workspace key successfully,
+    // so that the API key can be decrypted
     const { result } = await withCassette(
       pic,
       "integration-tests/open-org-backend/encryption/re-derive-key-after-cache-clear",
-      () => deferredActor.talkTo(0n, agentId, "What is capital of France?"),
+      () =>
+        deferredActor.workspaceTalk(
+          0n,
+          groqAgentId,
+          "What is capital of France?",
+        ),
       { ticks: 5 }, // More ticks needed for key derivation before HTTP outcall
     );
     const response = expectOk(await result);

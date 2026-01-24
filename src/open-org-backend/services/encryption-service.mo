@@ -7,7 +7,6 @@ import Int "mo:core/Int";
 import List "mo:core/List";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
-import Principal "mo:core/Principal";
 import Sha256 "mo:sha2/Sha256";
 
 /// SHA256-based Stream Cipher
@@ -21,21 +20,28 @@ module {
   // Constants
   let NONCE_SIZE : Nat = 8;
 
-  /// Generate unique 8-byte nonce by hashing caller principal + timestamp
+  /// Generate unique 8-byte nonce by hashing workspace ID + timestamp
   /// Uses SHA256 for proper entropy distribution across all bytes
-  func generateNonce(caller : Principal) : [Nat8] {
+  func generateNonce(workspaceId : Nat) : [Nat8] {
     let timeBytes = nat64ToBytes(Nat64.fromNat(Int.abs(Time.now())));
-    let principalBytes = Blob.toArray(Principal.toBlob(caller));
+    let workspaceBytes = natToBytes(workspaceId);
 
-    // Concatenate principal + timestamp and hash
+    // Concatenate workspace ID + timestamp and hash
     let input = List.empty<Nat8>();
-    for (byte in principalBytes.vals()) { List.add(input, byte) };
+    for (byte in workspaceBytes.vals()) { List.add(input, byte) };
     for (byte in timeBytes.vals()) { List.add(input, byte) };
 
     // Hash and take first 8 bytes
     let hashBlob = Sha256.fromArray(#sha256, List.toArray(input));
     let hashBytes = Blob.toArray(hashBlob);
     Array.tabulate<Nat8>(NONCE_SIZE, func(i : Nat) : Nat8 { hashBytes[i] });
+  };
+
+  /// Convert Nat to big-endian byte array (8 bytes)
+  func natToBytes(n : Nat) : [Nat8] {
+    Array.tabulate<Nat8>(8, func(i : Nat) : Nat8 {
+      Nat8.fromNat((n / (256 ** (7 - i))) % 256);
+    });
   };
 
   /// Convert Nat64 to big-endian byte array (8 bytes)
@@ -106,14 +112,14 @@ module {
   /// Parameters:
   /// - key: 32-byte encryption key (from Schnorr signature hash)
   /// - plaintext: data to encrypt
-  /// - caller: Principal used to generate unique nonce
+  /// - workspaceId: Workspace ID used to generate unique nonce
   ///
   /// Returns: [nonce (8 bytes)] [ciphertext]
-  public func encrypt(key : [Nat8], plaintext : [Nat8], caller : Principal) : [Nat8] {
+  public func encrypt(key : [Nat8], plaintext : [Nat8], workspaceId : Nat) : [Nat8] {
     assert key.size() == 32;
 
-    // Generate unique nonce from caller + timestamp
-    let nonce = generateNonce(caller);
+    // Generate unique nonce from workspace ID + timestamp
+    let nonce = generateNonce(workspaceId);
 
     // Generate keystream and encrypt
     let keystream = generateKeystream(key, nonce, plaintext.size());

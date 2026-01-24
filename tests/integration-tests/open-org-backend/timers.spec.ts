@@ -5,7 +5,6 @@ import type { _SERVICE } from "../../setup.ts";
 import {
   createTestEnvironment,
   setupAdminUser,
-  setupRegularUser,
   createTestAgent,
 } from "../../setup.ts";
 import { expectOk } from "../../helpers.ts";
@@ -41,9 +40,8 @@ describe("Timer Management", () => {
         "llama-3.3-70b-versatile",
       );
 
-      // Store an API key as user (this will derive and cache an encryption key)
-      const { userIdentity } = await setupRegularUser(actor);
-      actor.setIdentity(userIdentity);
+      // Store an API key as workspace admin (this will derive and cache an encryption key)
+      // Only workspace admins can store API keys now
       const storeResult = await actor.storeApiKey(
         0n,
         agentId,

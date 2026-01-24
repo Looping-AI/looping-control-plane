@@ -3,8 +3,6 @@ import EncryptionService "../../../../src/open-org-backend/services/encryption-s
 import Array "mo:core/Array";
 import Nat8 "mo:core/Nat8";
 import Nat "mo:core/Nat";
-import Principal "mo:core/Principal";
-import Blob "mo:core/Blob";
 
 /// Compare two byte arrays for equality (constant-time for security)
 func arrayEqual(a : [Nat8], b : [Nat8]) : Bool {
@@ -56,12 +54,11 @@ let testKey : [Nat8] = [
   0x1F,
 ];
 
-// Test caller principal
-let testCaller = Principal.fromActor(actor "aaaaa-aa");
+// Test workspace IDs for encryption
+let testWorkspaceId : Nat = 1;
 
-// Different caller for comparison tests - create a different principal from bytes
-let differentCallerBytes : [Nat8] = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
-let differentCaller = Principal.fromBlob(Blob.fromArray(differentCallerBytes));
+// Different workspace for comparison tests
+let differentWorkspaceId : Nat = 2;
 
 suite(
   "EncryptionService",
@@ -75,7 +72,7 @@ suite(
           func() {
             let plaintext : [Nat8] = [0x48, 0x65, 0x6C, 0x6C, 0x6F]; // "Hello"
 
-            let encrypted = EncryptionService.encrypt(testKey, plaintext, testCaller);
+            let encrypted = EncryptionService.encrypt(testKey, plaintext, testWorkspaceId);
             let decrypted = EncryptionService.decrypt(testKey, encrypted);
 
             expect.bool(arrayEqual(plaintext, decrypted)).isTrue();
@@ -87,7 +84,7 @@ suite(
           func() {
             let plaintext : [Nat8] = [0x01, 0x02, 0x03, 0x04, 0x05];
 
-            let encrypted = EncryptionService.encrypt(testKey, plaintext, testCaller);
+            let encrypted = EncryptionService.encrypt(testKey, plaintext, testWorkspaceId);
 
             // Expected size: 8 (nonce) + 5 (ciphertext) = 13
             expect.nat(encrypted.size()).equal(13);
@@ -95,12 +92,12 @@ suite(
         );
 
         test(
-          "different principals (nonces) produce different ciphertext",
+          "different workspaces (nonces) produce different ciphertext",
           func() {
             let plaintext : [Nat8] = [0x48, 0x65, 0x6C, 0x6C, 0x6F];
 
-            let encrypted1 = EncryptionService.encrypt(testKey, plaintext, testCaller);
-            let encrypted2 = EncryptionService.encrypt(testKey, plaintext, differentCaller);
+            let encrypted1 = EncryptionService.encrypt(testKey, plaintext, testWorkspaceId);
+            let encrypted2 = EncryptionService.encrypt(testKey, plaintext, differentWorkspaceId);
 
             expect.bool(arrayEqual(encrypted1, encrypted2)).isFalse();
           },
@@ -111,7 +108,7 @@ suite(
           func() {
             let plaintext : [Nat8] = [];
 
-            let encrypted = EncryptionService.encrypt(testKey, plaintext, testCaller);
+            let encrypted = EncryptionService.encrypt(testKey, plaintext, testWorkspaceId);
             let decrypted = EncryptionService.decrypt(testKey, encrypted);
 
             expect.nat(decrypted.size()).equal(0);
@@ -124,7 +121,7 @@ suite(
             // Create 100-byte plaintext
             let plaintext = Array.tabulate<Nat8>(100, func(i : Nat) : Nat8 { Nat8.fromNat(i % 256) });
 
-            let encrypted = EncryptionService.encrypt(testKey, plaintext, testCaller);
+            let encrypted = EncryptionService.encrypt(testKey, plaintext, testWorkspaceId);
             let decrypted = EncryptionService.decrypt(testKey, encrypted);
 
             expect.bool(arrayEqual(plaintext, decrypted)).isTrue();
@@ -137,7 +134,7 @@ suite(
             let plaintext : [Nat8] = [0x48, 0x65, 0x6C, 0x6C, 0x6F];
             let wrongKey : [Nat8] = Array.tabulate<Nat8>(32, func(i : Nat) : Nat8 { 0xFF });
 
-            let encrypted = EncryptionService.encrypt(testKey, plaintext, testCaller);
+            let encrypted = EncryptionService.encrypt(testKey, plaintext, testWorkspaceId);
             let decrypted = EncryptionService.decrypt(wrongKey, encrypted);
 
             // Decryption succeeds but produces different (garbage) output
