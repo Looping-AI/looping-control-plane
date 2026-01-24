@@ -29,7 +29,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var nextWorkspaceId : Nat = 1;
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
-  var workspaceGoals = Map.empty<Nat, [Types.Goal]>();
+  var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
+  var workspaceGoals = Map.fromArray<Nat, [Types.Goal]>([(0, [])], Nat.compare);
   var nextAgentId : Nat = 0;
   var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentService.Agent>>([(0, Map.empty<Nat, AgentService.Agent>())], Nat.compare);
 
@@ -111,6 +112,32 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           case (?admins) {
             let newAdmins = AdminService.addAdminToList(newAdmin, admins);
             Map.add(workspaceAdmins, Nat.compare, workspaceId, newAdmins);
+            #ok(());
+          };
+          case (null) {
+            // This should never happen since validation already checked
+            #err("Workspace not found");
+          };
+        };
+      };
+    };
+  };
+
+  // Add a new workspace member
+  public shared ({ caller }) func addWorkspaceMember(workspaceId : Nat, newMember : Principal) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    let validation = AdminService.validateNewWorkspaceMember(newMember, caller, orgOwner, workspaceId, workspaceAdmins, workspaceMembers);
+    switch (validation) {
+      case (#err(msg)) {
+        #err(msg);
+      };
+      case (#ok(())) {
+        switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
+          case (?members) {
+            let newMembers = AdminService.addMemberToList(newMember, members);
+            Map.add(workspaceMembers, Nat.compare, workspaceId, newMembers);
             #ok(());
           };
           case (null) {
@@ -351,6 +378,23 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       return #err("Please login before calling this function");
     };
     ApiKeysService.deleteApiKey(apiKeys, caller, agentId, provider);
+  };
+
+  // ============================================
+  // Workspace Member Management
+  // ============================================
+
+  // Get workspace members
+  public query func getWorkspaceMembers(workspaceId : Nat) : async [Principal] {
+    switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
+      case (null) { [] };
+      case (?members) { members };
+    };
+  };
+
+  // Check if caller is a workspace member
+  public shared ({ caller }) func isCallerWorkspaceMember(workspaceId : Nat) : async Bool {
+    AdminService.isWorkspaceMember(caller, workspaceId, workspaceMembers);
   };
 
   // ============================================

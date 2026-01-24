@@ -67,9 +67,66 @@ module {
     };
   };
 
+  // Check if a principal is a member in a specific workspace
+  public func isWorkspaceMember(caller : Principal, workspaceId : Nat, workspaceMembers : Map.Map<Nat, [Principal]>) : Bool {
+    switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
+      case (null) { false };
+      case (?members) {
+        isMember(caller, members);
+      };
+    };
+  };
+
+  // Check if a principal is a member
+  private func isMember(principal : Principal, members : [Principal]) : Bool {
+    for (member in members.vals()) {
+      if (member == principal) {
+        return true;
+      };
+    };
+    false;
+  };
+
+  // Validate new workspace member before adding
+  public func validateNewWorkspaceMember(
+    newMember : Principal,
+    caller : Principal,
+    orgOwner : Principal,
+    workspaceId : Nat,
+    workspaceAdmins : Map.Map<Nat, [Principal]>,
+    workspaceMembers : Map.Map<Nat, [Principal]>,
+  ) : Result.Result<(), Text> {
+    // Check if caller is owner or existing workspace admin
+    if (caller != orgOwner and not isWorkspaceAdmin(caller, workspaceId, workspaceAdmins)) {
+      return #err("Only the owner or workspace admins can add workspace members");
+    };
+
+    if (newMember == getAnonymousPrincipal()) {
+      return #err("Anonymous users cannot be members");
+    };
+
+    switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
+      case (null) {
+        #err("Workspace not found");
+      };
+      case (?members) {
+        if (isMember(newMember, members)) {
+          #err("Principal is already a workspace member");
+        } else {
+          #ok(());
+        };
+      };
+    };
+  };
+
   // Add a new admin to the list
   public func addAdminToList(newAdmin : Principal, admins : [Principal]) : [Principal] {
     Array.concat(admins, [newAdmin]);
+  };
+
+  // Add a new member to the list
+  public func addMemberToList(newMember : Principal, members : [Principal]) : [Principal] {
+    Array.concat(members, [newMember]);
   };
 
   private func getAnonymousPrincipal() : Principal {

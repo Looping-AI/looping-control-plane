@@ -179,4 +179,161 @@ describe("Admin Management", () => {
       expect(expectErr(result)).toEqual("Workspace not found");
     });
   });
+
+  describe("addWorkspaceMember", () => {
+    it("should allow owner to add workspace member", async () => {
+      const newMemberPrincipal = generateTestPrincipal(1);
+      const workspaceId = 0n; // Default workspace
+
+      const result = await actor.addWorkspaceMember(
+        workspaceId,
+        newMemberPrincipal,
+      );
+      expect(result).toEqual({ ok: null });
+    });
+
+    it("should allow existing workspace admin to add workspace member", async () => {
+      const adminIdentity = generateRandomIdentity();
+      const adminPrincipal = adminIdentity.getPrincipal();
+      const newMemberPrincipal = generateTestPrincipal(1);
+      const workspaceId = 0n; // Default workspace
+
+      // Owner adds admin
+      await actor.addWorkspaceAdmin(workspaceId, adminPrincipal);
+
+      // Switch to admin identity
+      actor.setIdentity(adminIdentity);
+
+      // Admin adds member
+      const result = await actor.addWorkspaceMember(
+        workspaceId,
+        newMemberPrincipal,
+      );
+      expect(result).toEqual({ ok: null });
+    });
+
+    it("should reject non-admin from adding workspace members", async () => {
+      const nonAdminIdentity = generateRandomIdentity();
+      const newMemberPrincipal = generateTestPrincipal(1);
+      const workspaceId = 0n; // Default workspace
+
+      // Switch to non-admin identity
+      actor.setIdentity(nonAdminIdentity);
+
+      const result = await actor.addWorkspaceMember(
+        workspaceId,
+        newMemberPrincipal,
+      );
+      expect(expectErr(result)).toEqual(
+        "Only the owner or workspace admins can add workspace members",
+      );
+    });
+
+    it("should reject anonymous principal as workspace member", async () => {
+      const workspaceId = 0n; // Default workspace
+      const anonymousPrincipal = Principal.fromText("2vxsx-fae");
+
+      const result = await actor.addWorkspaceMember(
+        workspaceId,
+        anonymousPrincipal,
+      );
+      expect(expectErr(result)).toEqual("Anonymous users cannot be members");
+    });
+
+    it("should reject duplicate workspace member addition", async () => {
+      const memberPrincipal = generateTestPrincipal(1);
+      const workspaceId = 0n; // Default workspace
+
+      // Add member first time
+      await actor.addWorkspaceMember(workspaceId, memberPrincipal);
+
+      // Try to add same member again
+      const result = await actor.addWorkspaceMember(
+        workspaceId,
+        memberPrincipal,
+      );
+      expect(expectErr(result)).toEqual(
+        "Principal is already a workspace member",
+      );
+    });
+
+    it("should reject adding member to non-existent workspace", async () => {
+      const newMemberPrincipal = generateTestPrincipal(1);
+      const nonExistentWorkspaceId = 999n;
+
+      const result = await actor.addWorkspaceMember(
+        nonExistentWorkspaceId,
+        newMemberPrincipal,
+      );
+      expect(expectErr(result)).toEqual("Workspace not found");
+    });
+  });
+
+  describe("getWorkspaceMembers", () => {
+    it("should return an empty list for workspace with no members", async () => {
+      const workspaceId = 0n;
+      const members = await actor.getWorkspaceMembers(workspaceId);
+      expect(members).toEqual([]);
+    });
+
+    it("should return an array of member principals after adding members", async () => {
+      const memberPrincipal1 = generateTestPrincipal(1);
+      const memberPrincipal2 = generateTestPrincipal(2);
+      const workspaceId = 0n;
+
+      // Add first member
+      await actor.addWorkspaceMember(workspaceId, memberPrincipal1);
+
+      // Add second member
+      await actor.addWorkspaceMember(workspaceId, memberPrincipal2);
+
+      const members = await actor.getWorkspaceMembers(workspaceId);
+      expect(members).toHaveLength(2);
+      expect(members[0]).toEqual(memberPrincipal1);
+      expect(members[1]).toEqual(memberPrincipal2);
+    });
+
+    it("should return empty list for non-existent workspace", async () => {
+      const nonExistentWorkspaceId = 999n;
+      const members = await actor.getWorkspaceMembers(nonExistentWorkspaceId);
+      expect(members).toEqual([]);
+    });
+  });
+
+  describe("isCallerWorkspaceMember", () => {
+    it("should return false for non-member caller", async () => {
+      const nonMemberIdentity = generateRandomIdentity();
+      const workspaceId = 0n;
+
+      actor.setIdentity(nonMemberIdentity);
+      const isMember = await actor.isCallerWorkspaceMember(workspaceId);
+      expect(isMember).toBe(false);
+    });
+
+    it("should return true for member caller", async () => {
+      const memberIdentity = generateRandomIdentity();
+      const memberPrincipal = memberIdentity.getPrincipal();
+      const workspaceId = 0n;
+
+      // Owner adds the caller as member
+      await actor.addWorkspaceMember(workspaceId, memberPrincipal);
+
+      // Set caller identity
+      actor.setIdentity(memberIdentity);
+
+      const isMember = await actor.isCallerWorkspaceMember(workspaceId);
+      expect(isMember).toBe(true);
+    });
+
+    it("should return false for member in non-existent workspace", async () => {
+      const memberIdentity = generateRandomIdentity();
+      const nonExistentWorkspaceId = 999n;
+
+      actor.setIdentity(memberIdentity);
+      const isMember = await actor.isCallerWorkspaceMember(
+        nonExistentWorkspaceId,
+      );
+      expect(isMember).toBe(false);
+    });
+  });
 });
