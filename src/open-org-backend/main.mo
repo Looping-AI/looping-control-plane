@@ -27,7 +27,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var apiKeys = Map.empty<Principal, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
-  var nextWorkspaceId : Nat = 1;
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   var workspaceGoals = Map.fromArray<Nat, [Types.Goal]>([(0, [])], Nat.compare);
@@ -253,7 +252,15 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
   };
 
-  public shared ({ caller }) func talkTo(workspaceId : Nat, agentId : Nat, message : Text) : async {
+  // ============================================
+  // Workspace Admin
+  // ============================================
+
+  // ============================================
+  // Workspace Talk
+  // ============================================
+
+  public shared ({ caller }) func workspaceTalk(workspaceId : Nat, agentId : Nat, message : Text) : async {
     #ok : Text;
     #err : Text;
   } {

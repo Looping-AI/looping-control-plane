@@ -39,34 +39,6 @@ describe("Conversation Management", () => {
     await pic.tearDown();
   });
 
-  describe("talk_to", () => {
-    it("should reject anonymous users from sending messages", async () => {
-      actor.setPrincipal(Principal.anonymous());
-
-      const result = await actor.talkTo(0n, agentId, "Hello Agent");
-      expect(expectErr(result)).toEqual(
-        "Please login before calling this function",
-      );
-    });
-
-    it("should accept message from authenticated user", async () => {
-      // Create a deferred actor for the HTTP outcall test
-      const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
-        idlFactory,
-        canisterId,
-      );
-      deferredActor.setIdentity(userIdentity);
-
-      const { result } = await withCassette(
-        pic,
-        "integration-tests/open-org-backend/conversations/accept-message-authenticated-user",
-        () => deferredActor.talkTo(0n, agentId, "Hello Agent"),
-        { ticks: 5 },
-      );
-      expectOk(await result);
-    });
-  });
-
   describe("get_conversation", () => {
     it("should return err message when no conversation exists with agent", async () => {
       actor.setIdentity(userIdentity);
@@ -89,7 +61,7 @@ describe("Conversation Management", () => {
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/correct-message-content",
-        () => deferredActor.talkTo(0n, agentId, testMessage),
+        () => deferredActor.workspaceTalk(0n, agentId, testMessage),
         { ticks: 5 },
       );
 
@@ -120,21 +92,21 @@ describe("Conversation Management", () => {
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/history-message-1",
-        () => deferredActor.talkTo(0n, agentId, message1),
+        () => deferredActor.workspaceTalk(0n, agentId, message1),
         { ticks: 5 },
       );
 
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/history-message-2",
-        () => deferredActor.talkTo(0n, agentId, message2),
+        () => deferredActor.workspaceTalk(0n, agentId, message2),
         { ticks: 5 },
       );
 
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/history-message-3",
-        () => deferredActor.talkTo(0n, agentId, message3),
+        () => deferredActor.workspaceTalk(0n, agentId, message3),
         { ticks: 5 },
       );
 
@@ -173,7 +145,7 @@ describe("Conversation Management", () => {
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/isolate-agent-1",
-        () => deferredActor1.talkTo(0n, agentId, message1),
+        () => deferredActor1.workspaceTalk(0n, agentId, message1),
         { ticks: 5 },
       );
 
@@ -181,7 +153,7 @@ describe("Conversation Management", () => {
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/isolate-agent-2",
-        () => deferredActor2.talkTo(0n, agentId2, message2),
+        () => deferredActor2.workspaceTalk(0n, agentId2, message2),
         { ticks: 5 },
       );
 

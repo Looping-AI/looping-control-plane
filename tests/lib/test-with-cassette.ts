@@ -72,7 +72,7 @@ export interface CassetteResult<T> {
  * const { result } = await withCassette(
  *   pic,
  *   "conversations/chat-simple",
- *   () => deferredActor.talkTo(0n, agentId, "Hello!"),
+ *   () => deferredActor.workspaceTalk(0n, agentId, "Hello!"),
  * );
  * expect(result.ok).toBeDefined();
  * ```
@@ -138,9 +138,9 @@ export async function withCassette<T>(
  *   pic,
  *   "conversations/multi-turn",
  *   [
- *     () => deferredActor.talkTo(0n, agentId, "Hello!"),
- *     () => deferredActor.talkTo(0n, agentId, "How are you?"),
- *     () => deferredActor.talkTo(0n, agentId, "Goodbye!"),
+ *     () => deferredActor.workspaceTalk(0n, agentId, "Hello!"),
+ *     () => deferredActor.workspaceTalk(0n, agentId, "How are you?"),
+ *     () => deferredActor.workspaceTalk(0n, agentId, "Goodbye!"),
  *   ],
  * );
  * ```
@@ -196,7 +196,7 @@ export async function withCassetteMulti<T>(
  * @example
  * ```typescript
  * // Execute deferred call manually
- * const executeCall = await deferredActor.talkTo(0n, agentId, "Hello!");
+ * const executeCall = await deferredActor.workspaceTalk(0n, agentId, "Hello!");
  * await pic.tick(2);
  *
  * // Handle outcalls
