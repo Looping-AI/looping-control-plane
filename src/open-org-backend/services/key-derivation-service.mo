@@ -101,10 +101,13 @@ module {
 
   /// Convert a Nat to a big-endian byte array (8 bytes)
   private func natToBytes(n : Nat) : [Nat8] {
-    Array.tabulate<Nat8>(8, func(i : Nat) : Nat8 {
-      // Shift right by (7-i)*8 bits and mask with 0xFF
-      Nat8.fromNat((n / (256 ** (7 - i))) % 256);
-    });
+    Array.tabulate<Nat8>(
+      8,
+      func(i : Nat) : Nat8 {
+        // Shift right by (7-i)*8 bits and mask with 0xFF
+        Nat8.fromNat((n / (256 ** (7 - i))) % 256);
+      },
+    );
   };
 
   // ============================================

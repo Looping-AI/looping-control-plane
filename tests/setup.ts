@@ -222,7 +222,7 @@ export async function createGroqAgent(
     model,
   );
 
-  // Store API key at workspace level (only admin can do this now)
+  // Store API key at workspace level
   await actor.storeApiKey(0n, agentId, { groq: null }, apiKey);
 
   return agentId;

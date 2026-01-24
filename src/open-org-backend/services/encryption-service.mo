@@ -39,9 +39,12 @@ module {
 
   /// Convert Nat to big-endian byte array (8 bytes)
   func natToBytes(n : Nat) : [Nat8] {
-    Array.tabulate<Nat8>(8, func(i : Nat) : Nat8 {
-      Nat8.fromNat((n / (256 ** (7 - i))) % 256);
-    });
+    Array.tabulate<Nat8>(
+      8,
+      func(i : Nat) : Nat8 {
+        Nat8.fromNat((n / (256 ** (7 - i))) % 256);
+      },
+    );
   };
 
   /// Convert Nat64 to big-endian byte array (8 bytes)
