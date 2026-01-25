@@ -93,7 +93,7 @@ describe("API Key Encryption & Cache Management", () => {
     actor.setIdentity(userIdentity);
     const result = await actor.getKeyCacheStats();
     expect(expectErr(result)).toEqual(
-      "Only org admins can perform this action."
+      "Only org admins can perform this action.",
     );
   });
 

@@ -52,7 +52,7 @@ describe("API Key Management", () => {
       "test-key",
     );
     expect(expectErr(storeResult)).toEqual(
-      "Please login before calling this function."
+      "Please login before calling this function.",
     );
 
     const getResult = await actor.getWorkspaceApiKeys(0n);
@@ -78,7 +78,7 @@ describe("API Key Management", () => {
         "test-key",
       );
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action."
+        "Only workspace admins can perform this action.",
       );
     });
 

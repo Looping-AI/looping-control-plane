@@ -37,7 +37,7 @@ describe("Agent Management", () => {
         "gpt-4",
       );
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action."
+        "Only workspace admins can perform this action.",
       );
     });
 
@@ -115,7 +115,7 @@ describe("Agent Management", () => {
         [],
       );
       expect(expectErr(updateResult)).toEqual(
-        "Only workspace admins can perform this action."
+        "Only workspace admins can perform this action.",
       );
     });
 
@@ -176,7 +176,7 @@ describe("Agent Management", () => {
 
       const deleteResult = await actor.deleteAgent(0n, 0n);
       expect(expectErr(deleteResult)).toEqual(
-        "Only workspace admins can perform this action."
+        "Only workspace admins can perform this action.",
       );
     });
 
