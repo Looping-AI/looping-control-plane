@@ -3,6 +3,7 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
+import Array "mo:core/Array";
 
 module {
   // ============================================
@@ -45,7 +46,7 @@ module {
     };
 
     // Collect all error messages
-    var errors = "";
+    var errorMessages : [Text] = [];
     for (step in steps.vals()) {
       switch (checkStep(ctx, step)) {
         case (#ok(())) {
@@ -53,18 +54,16 @@ module {
           return #ok(());
         };
         case (#err(msg)) {
-          if (not Text.contains(errors, #text msg)) {
-            if (errors != "") {
-              errors #= " ";
-            };
-            errors #= msg;
+          // Add to array if not already present
+          if (not arrayContains(errorMessages, msg)) {
+            errorMessages := Array.concat(errorMessages, [msg]);
           };
         };
       };
     };
 
-    // All steps failed
-    #err(errors);
+    // All steps failed - format the error
+    #err(formatErrors(errorMessages));
   };
 
   // ============================================
@@ -82,7 +81,7 @@ module {
 
   private func checkIsOrgOwner(ctx : AuthContext) : Result.Result<(), Text> {
     if (ctx.caller == ctx.orgOwner) { #ok(()) } else {
-      #err("Only the owner can perform this action.");
+      #err("Only org owner can perform this action.");
     };
   };
 
@@ -128,10 +127,72 @@ module {
   // Helpers
   // ============================================
 
-  private func isInList(principal : Principal, list : [Principal]) : Bool {
+  func isInList(principal : Principal, list : [Principal]) : Bool {
     for (p in list.vals()) {
       if (p == principal) { return true };
     };
     false;
+  };
+
+  func arrayContains(arr : [Text], text : Text) : Bool {
+    for (item in arr.vals()) {
+      if (item == text) { return true };
+    };
+    false;
+  };
+
+  /// Formats a list of error messages, consolidating role-based errors into a single message
+  func formatErrors(errors : [Text]) : Text {
+    // Try to extract roles from known patterns and collect non-matching errors
+    var roles : [Text] = [];
+    var otherErrors : [Text] = [];
+
+    for (error in errors.vals()) {
+      let role = switch (error) {
+        case ("Only org owner can perform this action.") { ?"org owner" };
+        case ("Only org admins can perform this action.") { ?"org admins" };
+        case ("Only workspace admins can perform this action.") {
+          ?"workspace admins";
+        };
+        case ("Only workspace members can perform this action.") {
+          ?"workspace members";
+        };
+        case (_) { null };
+      };
+
+      switch (role) {
+        case (?r) {
+          roles := Array.concat(roles, [r]);
+        };
+        case (null) {
+          otherErrors := Array.concat(otherErrors, [error]);
+        };
+      };
+    };
+
+    // Build final error message
+    var result = "";
+
+    // Add consolidated role message if any roles were found
+    if (roles.size() > 0) {
+      result := "Only ";
+      for (i in roles.keys()) {
+        if (i > 0) {
+          result #= ", ";
+        };
+        result #= roles[i];
+      };
+      result #= " can perform this action.";
+    };
+
+    // Add other errors with space separation
+    for (error in otherErrors.vals()) {
+      if (result != "") {
+        result #= " ";
+      };
+      result #= error;
+    };
+
+    result;
   };
 };

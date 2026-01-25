@@ -33,7 +33,7 @@ describe("Admin Management", () => {
       const newAdminPrincipal = generateTestPrincipal(1);
       const result = await actor.addOrgAdmin(newAdminPrincipal);
       expect(expectErr(result)).toEqual(
-        "Only the owner can perform this action.",
+        "Only org owner can perform this action.",
       );
     });
 
@@ -139,7 +139,7 @@ describe("Admin Management", () => {
         newAdminPrincipal,
       );
       expect(expectErr(result)).toEqual(
-        "Only the owner can perform this action. Only org admins can perform this action. Only workspace admins can perform this action.",
+        "Only org owner, org admins, workspace admins can perform this action.",
       );
     });
 
@@ -225,7 +225,7 @@ describe("Admin Management", () => {
         newMemberPrincipal,
       );
       expect(expectErr(result)).toEqual(
-        "Only the owner can perform this action. Only org admins can perform this action. Only workspace admins can perform this action.",
+        "Only org owner, org admins, workspace admins can perform this action.",
       );
     });
 
@@ -306,7 +306,7 @@ describe("Admin Management", () => {
       const workspaceId = 0n;
       const result = await actor.getWorkspaceMembers(workspaceId);
       expect(expectErr(result)).toEqual(
-        "Only the owner can perform this action. Only org admins can perform this action. Only workspace admins can perform this action. Only workspace members can perform this action.",
+        "Only org owner, org admins, workspace admins, workspace members can perform this action.",
       );
     });
 
