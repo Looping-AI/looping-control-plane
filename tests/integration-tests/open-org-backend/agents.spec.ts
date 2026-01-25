@@ -37,13 +37,13 @@ describe("Agent Management", () => {
         "gpt-4",
       );
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can create agents",
+        "Only workspace admins can perform this action.",
       );
     });
 
     it("should reject agent creation with empty name", async () => {
       const result = await actor.createAgent(0n, "", { openai: null }, "gpt-4");
-      expect(expectErr(result)).toEqual("Agent name cannot be empty");
+      expect(expectErr(result)).toEqual("Agent name cannot be empty.");
     });
 
     it("should successfully create an agent with admin user and all params", async () => {
@@ -115,13 +115,13 @@ describe("Agent Management", () => {
         [],
       );
       expect(expectErr(updateResult)).toEqual(
-        "Only workspace admins can update agents",
+        "Only workspace admins can perform this action.",
       );
     });
 
     it("should reject update of non-existent agent", async () => {
       const result = await actor.updateAgent(0n, 999n, [], [], []);
-      expect(expectErr(result)).toEqual("Agent not found");
+      expect(expectErr(result)).toEqual("Agent not found.");
     });
 
     it("should update agent name only", async () => {
@@ -176,13 +176,13 @@ describe("Agent Management", () => {
 
       const deleteResult = await actor.deleteAgent(0n, 0n);
       expect(expectErr(deleteResult)).toEqual(
-        "Only workspace admins can delete agents",
+        "Only workspace admins can perform this action.",
       );
     });
 
     it("should reject deletion of non-existent agent", async () => {
       const result = await actor.deleteAgent(0n, 999n);
-      expect(expectErr(result)).toEqual("Agent not found");
+      expect(expectErr(result)).toEqual("Agent not found.");
     });
 
     it("should successfully delete an agent", async () => {

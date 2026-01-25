@@ -92,7 +92,9 @@ describe("API Key Encryption & Cache Management", () => {
   it("should reject non-admin users from viewing cache stats", async () => {
     actor.setIdentity(userIdentity);
     const result = await actor.getKeyCacheStats();
-    expect(expectErr(result)).toEqual("Only admins can view cache stats");
+    expect(expectErr(result)).toEqual(
+      "Only org admins can perform this action.",
+    );
   });
 
   it("should return cache stats for admin", async () => {
@@ -105,7 +107,9 @@ describe("API Key Encryption & Cache Management", () => {
   it("should reject non-admin users from clearing cache", async () => {
     actor.setIdentity(userIdentity);
     const result = await actor.clearKeyCache();
-    expect(expectErr(result)).toEqual("Only admins can clear the key cache");
+    expect(expectErr(result)).toEqual(
+      "Only org admins can perform this action.",
+    );
   });
 
   it("should successfully clear cache as admin", async () => {

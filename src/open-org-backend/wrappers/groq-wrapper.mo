@@ -439,13 +439,13 @@ module {
   } {
     switch (Json.parse(responseBody)) {
       case (#err(error)) {
-        #err("Failed to parse JSON response: " # debug_show error);
+        #err("Failed to parse JSON response: " # debug_show error # ".");
       };
       case (#ok(json)) {
         // Look for the message output in the outputs array
         switch (Json.get(json, "output")) {
           case (null) {
-            #err("Could not find output array in response");
+            #err("Could not find output array in response.");
           };
           case (?outputArrayJson) {
             switch (outputArrayJson) {
@@ -483,10 +483,10 @@ module {
                     };
                   };
                 };
-                #err("Could not find message output with text content in response");
+                #err("Could not find message output with text content in response.");
               };
               case (_) {
-                #err("Output field is not an array");
+                #err("Output field is not an array.");
               };
             };
           };
@@ -507,13 +507,13 @@ module {
   } {
     switch (Json.parse(responseBody)) {
       case (#err(error)) {
-        #err("Failed to parse JSON response: " # debug_show error);
+        #err("Failed to parse JSON response: " # debug_show error # ".");
       };
       case (#ok(json)) {
         // Try to get the content from choices[0].message.content
         switch (Json.get(json, "choices[0].message.content")) {
           case (null) {
-            #err("Could not find choices[0].message.content in response");
+            #err("Could not find choices[0].message.content in response.");
           };
           case (?contentJson) {
             switch (contentJson) {
@@ -521,7 +521,7 @@ module {
                 #ok(content);
               };
               case (_) {
-                #err("Content field is not a string");
+                #err("Content field is not a string.");
               };
             };
           };
@@ -595,7 +595,7 @@ module {
 
     switch (httpResult) {
       case (#err(error)) {
-        #err("HTTP request failed: " # error);
+        #err("HTTP request failed: " # error # ".");
       };
       case (#ok((status, responseBody))) {
         if (status == 200) {
@@ -603,7 +603,7 @@ module {
           parseResponsesApiResponse(responseBody);
         } else {
           // Return error with status and response details
-          #err("Groq Responses API returned status " # Nat.toText(status) # ": " # responseBody);
+          #err("Groq Responses API returned status " # Nat.toText(status) # ": " # responseBody # ".");
         };
       };
     };
@@ -649,7 +649,7 @@ module {
 
     switch (httpResult) {
       case (#err(error)) {
-        #err("HTTP request failed: " # error);
+        #err("HTTP request failed: " # error # ".");
       };
       case (#ok((status, responseBody))) {
         if (status == 200) {
@@ -657,7 +657,7 @@ module {
           parseGroqResponse(responseBody);
         } else {
           // Return error with status and response details
-          #err("Groq API returned status " # Nat.toText(status) # ": " # responseBody);
+          #err("Groq API returned status " # Nat.toText(status) # ": " # responseBody # ".");
         };
       };
     };

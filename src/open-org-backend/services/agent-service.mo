@@ -15,7 +15,7 @@ module {
   // Create a new agent
   public func createAgent(name : Text, provider : Types.LlmProvider, model : Text, agents : Map.Map<Nat, Agent>, nextAgentId : Nat) : (Result.Result<Nat, Text>, Nat) {
     if (name == "") {
-      (#err("Agent name cannot be empty"), nextAgentId);
+      (#err("Agent name cannot be empty."), nextAgentId);
     } else {
       let id = nextAgentId;
       let agent : Agent = {
@@ -38,7 +38,7 @@ module {
   public func updateAgent(id : Nat, newName : ?Text, newProvider : ?Types.LlmProvider, newModel : ?Text, agents : Map.Map<Nat, Agent>) : Result.Result<Bool, Text> {
     switch (Map.get(agents, Nat.compare, id)) {
       case (null) {
-        #err("Agent not found");
+        #err("Agent not found.");
       };
       case (?existingAgent) {
         let updatedAgent : Agent = {
@@ -66,7 +66,7 @@ module {
   public func deleteAgent(id : Nat, agents : Map.Map<Nat, Agent>) : Result.Result<Bool, Text> {
     switch (Map.get(agents, Nat.compare, id)) {
       case (null) {
-        #err("Agent not found");
+        #err("Agent not found.");
       };
       case (?_) {
         Map.remove(agents, Nat.compare, id);

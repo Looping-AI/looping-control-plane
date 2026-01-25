@@ -40,7 +40,7 @@ module {
     let agent = getAgentForWorkspace(workspaceAgents, workspaceId, agentId);
     switch (agent) {
       case (null) {
-        #err("Agent not found");
+        #err("Agent not found.");
       };
       case (?foundAgent) {
         // Get api key (requires deriving encryption key for the workspace)
