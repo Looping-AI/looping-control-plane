@@ -221,7 +221,7 @@ module {
 
       #ok((httpResponse.status, decodedText));
     } catch (error : Error) {
-      #err("HTTP request trapped. Error Code: " # debug_show Error.code(error) # ". Message: " # Error.message(error));
+      #err("HTTP request trapped. Error Code: " # debug_show Error.code(error) # ". Message: " # Error.message(error) # ".");
     };
   };
 
@@ -280,7 +280,7 @@ module {
 
       #ok((httpResponse.status, decodedText));
     } catch (error : Error) {
-      #err("HTTP request trapped. Error Code: " # debug_show Error.code(error) # ". Message: " # Error.message(error));
+      #err("HTTP request trapped. Error Code: " # debug_show Error.code(error) # ". Message: " # Error.message(error) # ".");
     };
   };
 };

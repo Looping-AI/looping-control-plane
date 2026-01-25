@@ -44,7 +44,7 @@ describe("Conversation Management", () => {
       actor.setIdentity(userIdentity);
       const result = await actor.getConversation(0n, agentId);
       expect(expectErr(result)).toEqual(
-        "No conversation found with agent " + agentId,
+        "No conversation found with agent " + agentId + ".",
       );
     });
 

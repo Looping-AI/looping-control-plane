@@ -61,7 +61,7 @@ module {
     let key = (workspaceId, agentId);
     switch (Map.get(conversations, conversationKeyCompare, key)) {
       case (null) {
-        #err("No conversation found with agent " # debug_show (agentId));
+        #err("No conversation found with agent " # debug_show (agentId) # ".");
       };
       case (?messages) {
         #ok(List.toArray(messages));

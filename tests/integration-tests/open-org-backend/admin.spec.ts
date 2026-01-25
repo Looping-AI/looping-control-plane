@@ -45,7 +45,7 @@ describe("Admin Management", () => {
 
       // Second call should fail due to being duplicate
       const result = await actor.addOrgAdmin(samePrincipal);
-      expect(expectErr(result)).toEqual("Principal is already an admin");
+      expect(expectErr(result)).toEqual("Principal is already an admin.");
     });
   });
 
@@ -153,7 +153,7 @@ describe("Admin Management", () => {
         workspaceId,
         anonymousPrincipal,
       );
-      expect(expectErr(result)).toEqual("Anonymous users cannot be admins");
+      expect(expectErr(result)).toEqual("Anonymous users cannot be admins.");
     });
 
     it("should reject duplicate workspace admin addition", async () => {
@@ -165,7 +165,7 @@ describe("Admin Management", () => {
 
       // Try to add same admin again
       const result = await actor.addWorkspaceAdmin(workspaceId, adminPrincipal);
-      expect(expectErr(result)).toEqual("Principal is already an admin");
+      expect(expectErr(result)).toEqual("Principal is already an admin.");
     });
 
     it("should reject adding admin to non-existent workspace", async () => {
@@ -176,7 +176,7 @@ describe("Admin Management", () => {
         nonExistentWorkspaceId,
         newAdminPrincipal,
       );
-      expect(expectErr(result)).toEqual("Workspace not found");
+      expect(expectErr(result)).toEqual("Workspace not found.");
     });
   });
 
@@ -237,7 +237,7 @@ describe("Admin Management", () => {
         workspaceId,
         anonymousPrincipal,
       );
-      expect(expectErr(result)).toEqual("Anonymous users cannot be members");
+      expect(expectErr(result)).toEqual("Anonymous users cannot be members.");
     });
 
     it("should reject duplicate workspace member addition", async () => {
@@ -252,7 +252,7 @@ describe("Admin Management", () => {
         workspaceId,
         memberPrincipal,
       );
-      expect(expectErr(result)).toEqual("Principal is already a member");
+      expect(expectErr(result)).toEqual("Principal is already a member.");
     });
 
     it("should reject adding member to non-existent workspace", async () => {
@@ -263,7 +263,7 @@ describe("Admin Management", () => {
         nonExistentWorkspaceId,
         newMemberPrincipal,
       );
-      expect(expectErr(result)).toEqual("Workspace not found");
+      expect(expectErr(result)).toEqual("Workspace not found.");
     });
   });
 

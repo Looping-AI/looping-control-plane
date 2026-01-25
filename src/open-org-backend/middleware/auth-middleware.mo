@@ -36,6 +36,9 @@ module {
     ctx : AuthContext,
     steps : [AuthStep],
   ) : Result.Result<(), Text> {
+    // Required steps missing. Alert developer with a trap.
+    assert steps.size() > 0;
+
     // Universal: always check anonymous first
     if (Principal.isAnonymous(ctx.caller)) {
       return #err("Please login before calling this function.");

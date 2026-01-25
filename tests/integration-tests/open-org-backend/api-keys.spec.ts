@@ -90,13 +90,13 @@ describe("API Key Management", () => {
         { openai: null },
         "test-key-123",
       );
-      expect(expectErr(result)).toEqual("Agent not found");
+      expect(expectErr(result)).toEqual("Agent not found.");
     });
 
     it("should reject storing empty or whitespace only API key", async () => {
       actor.setIdentity(adminIdentity);
       const result = await actor.storeApiKey(0n, agentId, { openai: null }, "");
-      expect(expectErr(result)).toEqual("API key cannot be empty");
+      expect(expectErr(result)).toEqual("API key cannot be empty.");
 
       const result2 = await actor.storeApiKey(
         0n,
@@ -104,7 +104,7 @@ describe("API Key Management", () => {
         { openai: null },
         "   ",
       );
-      expect(expectErr(result2)).toEqual("API key cannot be empty");
+      expect(expectErr(result2)).toEqual("API key cannot be empty.");
     });
 
     it("should reject storing API key when provider does not match agent's provider", async () => {
@@ -222,7 +222,9 @@ describe("API Key Management", () => {
     it("should return error when trying to delete API key for workspace with no keys", async () => {
       actor.setIdentity(adminIdentity);
       const result = await actor.deleteApiKey(0n, agentId, { openai: null });
-      expect(expectErr(result)).toEqual("No API keys found for this workspace");
+      expect(expectErr(result)).toEqual(
+        "No API keys found for this workspace.",
+      );
     });
 
     it("should successfully delete an API key", async () => {

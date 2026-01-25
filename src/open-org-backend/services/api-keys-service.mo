@@ -152,13 +152,13 @@ module {
 
     switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
-        #err("No API keys found for this workspace");
+        #err("No API keys found for this workspace.");
       };
       case (?workspaceKeyMap) {
         // Check if the key exists before deleting
         switch (Map.get(workspaceKeyMap, compareNatTextTuple, key)) {
           case (null) {
-            #err("No API key found for agent " # debug_show (agentId) # " with provider " # providerName);
+            #err("No API key found for agent " # debug_show (agentId) # " with provider " # providerName # ".");
           };
           case (?_) {
             ignore Map.delete(workspaceKeyMap, compareNatTextTuple, key);

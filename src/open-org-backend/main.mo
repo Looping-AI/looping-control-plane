@@ -124,7 +124,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found") };
+          case (null) { #err("Workspace not found.") };
           case (?admins) {
             // Business validation
             let validation = AdminService.validateNewAdmin(newAdmin, admins);
@@ -151,7 +151,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found") };
+          case (null) { #err("Workspace not found.") };
           case (?members) {
             // Business validation
             let validation = AdminService.validateNewMember(newMember, members);
@@ -178,7 +178,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found") };
+          case (null) { #err("Workspace not found.") };
           case (?members) { #ok(members) };
         };
       };
@@ -206,7 +206,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found") };
+          case (null) { #err("Workspace not found.") };
           case (?agents) {
             let (result, newId) = AgentService.createAgent(name, provider, model, agents, nextAgentId);
             nextAgentId := newId;
@@ -226,7 +226,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found") };
+          case (null) { #err("Workspace not found.") };
           case (?agents) { #ok(AgentService.getAgent(id, agents)) };
         };
       };
@@ -242,7 +242,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found") };
+          case (null) { #err("Workspace not found.") };
           case (?agents) {
             AgentService.updateAgent(id, newName, newProvider, newModel, agents);
           };
@@ -260,7 +260,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found") };
+          case (null) { #err("Workspace not found.") };
           case (?agents) { AgentService.deleteAgent(id, agents) };
         };
       };
@@ -276,7 +276,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found") };
+          case (null) { #err("Workspace not found.") };
           case (?agents) { #ok(AgentService.listAgents(agents)) };
         };
       };
@@ -312,7 +312,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         if (Text.trim(message, #char ' ') == "") {
-          return #err("Message cannot be empty");
+          return #err("Message cannot be empty.");
         };
         // Delegate to service for business logic
         await WorkspaceAdminTalkService.processAdminTalk(
@@ -340,7 +340,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         if (Text.trim(message, #char ' ') == "") {
-          return #err("Message cannot be empty");
+          return #err("Message cannot be empty.");
         };
         // Delegate to service for business logic
         await WorkspaceTalkService.processWorkspaceTalk(
@@ -370,14 +370,14 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         if (Text.trim(apiKey, #char ' ') == "") {
-          return #err("API key cannot be empty");
+          return #err("API key cannot be empty.");
         };
         let agent = switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { return #err("Workspace not found") };
+          case (null) { return #err("Workspace not found.") };
           case (?agents) { AgentService.getAgent(agentId, agents) };
         };
         switch (agent) {
-          case (null) { return #err("Agent not found") };
+          case (null) { return #err("Agent not found.") };
           case (?foundAgent) {
             if (foundAgent.provider != provider) {
               return #err("Provider mismatch: Agent uses " # debug_show (foundAgent.provider) # " but you specified " # debug_show (provider) # ".");

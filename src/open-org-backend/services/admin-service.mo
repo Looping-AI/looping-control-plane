@@ -11,11 +11,11 @@ module {
   /// Checks: not anonymous, not already in list.
   public func validateNewAdmin(newAdmin : Principal, admins : [Principal]) : Result.Result<(), Text> {
     if (Principal.isAnonymous(newAdmin)) {
-      return #err("Anonymous users cannot be admins");
+      return #err("Anonymous users cannot be admins.");
     };
 
     if (isInList(newAdmin, admins)) {
-      #err("Principal is already an admin");
+      #err("Principal is already an admin.");
     } else {
       #ok(());
     };
@@ -25,11 +25,11 @@ module {
   /// Checks: not anonymous, not already in list.
   public func validateNewMember(newMember : Principal, members : [Principal]) : Result.Result<(), Text> {
     if (Principal.isAnonymous(newMember)) {
-      return #err("Anonymous users cannot be members");
+      return #err("Anonymous users cannot be members.");
     };
 
     if (isInList(newMember, members)) {
-      #err("Principal is already a member");
+      #err("Principal is already a member.");
     } else {
       #ok(());
     };
