@@ -33,7 +33,7 @@ describe("Admin Management", () => {
       const newAdminPrincipal = generateTestPrincipal(1);
       const result = await actor.addOrgAdmin(newAdminPrincipal);
       expect(expectErr(result)).toEqual(
-        "Only the owner can perform this action",
+        "Only the owner can perform this action."
       );
     });
 
@@ -139,7 +139,7 @@ describe("Admin Management", () => {
         newAdminPrincipal,
       );
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action",
+        "Only the owner can perform this action. Only org admins can perform this action. Only workspace admins can perform this action."
       );
     });
 
@@ -225,7 +225,7 @@ describe("Admin Management", () => {
         newMemberPrincipal,
       );
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action",
+        "Only the owner can perform this action. Only org admins can perform this action. Only workspace admins can perform this action."
       );
     });
 
@@ -296,7 +296,7 @@ describe("Admin Management", () => {
     it("should return error for non-existent workspace", async () => {
       const nonExistentWorkspaceId = 999n;
       const result = await actor.getWorkspaceMembers(nonExistentWorkspaceId);
-      expect(expectErr(result)).toEqual("Workspace not found");
+      expect(expectErr(result)).toEqual("Workspace not found.");
     });
 
     it("should reject non-admin caller", async () => {
@@ -306,7 +306,7 @@ describe("Admin Management", () => {
       const workspaceId = 0n;
       const result = await actor.getWorkspaceMembers(workspaceId);
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action",
+        "Only workspace admins can perform this action."
       );
     });
 
@@ -318,7 +318,7 @@ describe("Admin Management", () => {
       const workspaceId = 0n;
       const result = await actor.getWorkspaceMembers(workspaceId);
       expect(expectErr(result)).toEqual(
-        "Please login before calling this function",
+        "Please login before calling this function."
       );
     });
   });

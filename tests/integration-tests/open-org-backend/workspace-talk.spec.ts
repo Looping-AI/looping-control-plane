@@ -44,7 +44,7 @@ describe("workspaceTalk", () => {
 
     const result = await actor.workspaceTalk(0n, agentId, "Hello Agent");
     expect(expectErr(result)).toEqual(
-      "Please login before calling this function",
+      "Please login before calling this function."
     );
   });
 

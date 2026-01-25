@@ -52,19 +52,19 @@ describe("API Key Management", () => {
       "test-key",
     );
     expect(expectErr(storeResult)).toEqual(
-      "Please login before calling this function",
+      "Please login before calling this function."
     );
 
     const getResult = await actor.getWorkspaceApiKeys(0n);
     expect(expectErr(getResult)).toEqual(
-      "Please login before calling this function",
+      "Please login before calling this function.",
     );
 
     const deleteResult = await actor.deleteApiKey(0n, agentId, {
       openai: null,
     });
     expect(expectErr(deleteResult)).toEqual(
-      "Please login before calling this function",
+      "Please login before calling this function.",
     );
   });
 
@@ -78,7 +78,7 @@ describe("API Key Management", () => {
         "test-key",
       );
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action",
+        "Only workspace admins can perform this action."
       );
     });
 
@@ -156,7 +156,7 @@ describe("API Key Management", () => {
       actor.setIdentity(userIdentity);
       const result = await actor.getWorkspaceApiKeys(0n);
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action",
+        "Only workspace admins can perform this action.",
       );
     });
 
@@ -215,7 +215,7 @@ describe("API Key Management", () => {
       actor.setIdentity(userIdentity);
       const result = await actor.deleteApiKey(0n, agentId, { openai: null });
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action",
+        "Only workspace admins can perform this action.",
       );
     });
 
