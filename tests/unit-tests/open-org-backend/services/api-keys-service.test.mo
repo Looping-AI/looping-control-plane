@@ -59,7 +59,7 @@ suite(
       "storeApiKey stores an API key for a workspace and provider",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #llmcanister; #groq }, ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysService.EncryptedApiKey>>();
         let provider = #groq;
         let apiKey = "test-key-123";
 
@@ -88,7 +88,7 @@ suite(
       "getApiKey returns latest key after update",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #llmcanister; #groq }, ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysService.EncryptedApiKey>>();
         let provider = #groq;
 
         // Store first API key
@@ -137,7 +137,7 @@ suite(
       "getWorkspaceApiKeys returns list of stored providers",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #llmcanister; #groq }, ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysService.EncryptedApiKey>>();
 
         // Store multiple keys
         ignore ApiKeysService.storeApiKey(apiKeys, testKey, workspaceId, #groq, "key-1");
@@ -159,7 +159,7 @@ suite(
       "deleteApiKey removes the specified key",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #llmcanister; #groq }, ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysService.EncryptedApiKey>>();
         let provider = #groq;
 
         // Store a key

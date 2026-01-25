@@ -316,11 +316,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         };
         // Delegate to service for business logic
         await WorkspaceAdminTalkService.processAdminTalk(
-          workspaceAgents,
           apiKeys,
           conversations,
           workspaceId,
-          agentId,
           message,
           keyCache,
         );

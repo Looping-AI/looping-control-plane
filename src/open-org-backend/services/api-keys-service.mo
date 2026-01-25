@@ -28,8 +28,7 @@ module {
   private func providerToNat(provider : Types.LlmProvider) : Nat {
     switch (provider) {
       case (#openai) { 0 };
-      case (#llmcanister) { 1 };
-      case (#groq) { 2 };
+      case (#groq) { 1 };
     };
   };
 
@@ -37,7 +36,6 @@ module {
   private func providerToString(provider : Types.LlmProvider) : Text {
     switch (provider) {
       case (#openai) { "openai" };
-      case (#llmcanister) { "llmcanister" };
       case (#groq) { "groq" };
     };
   };

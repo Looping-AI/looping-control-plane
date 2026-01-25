@@ -175,7 +175,7 @@ export async function setupRegularUser(actor: Actor<_SERVICE>): Promise<{
 export async function createTestAgent(
   actor: Actor<_SERVICE>,
   name: string,
-  provider: { openai: null } | { groq: null } | { llmcanister: null },
+  provider: { openai: null } | { groq: null },
   model: string,
 ): Promise<bigint> {
   const result = await actor.createAgent(0n, name, provider, model);

@@ -137,17 +137,15 @@ describe("API Key Management", () => {
       // Store keys for multiple providers
       await actor.storeApiKey(0n, { openai: null }, "key-1");
       await actor.storeApiKey(0n, { groq: null }, "key-2");
-      await actor.storeApiKey(0n, { llmcanister: null }, "key-3");
 
       // Retrieve and verify all keys are present
       const result = await actor.getWorkspaceApiKeys(0n);
       const keys = expectOk(result);
-      expect(keys.length).toEqual(3);
+      expect(keys.length).toEqual(2);
 
       // Verify all providers are present
       expect(keys.some((k) => "openai" in k)).toBe(true);
       expect(keys.some((k) => "groq" in k)).toBe(true);
-      expect(keys.some((k) => "llmcanister" in k)).toBe(true);
     });
   });
 

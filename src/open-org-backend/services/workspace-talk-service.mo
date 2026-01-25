@@ -70,9 +70,6 @@ module {
           case (#openai) {
             return #err("OpenAI integration not yet implemented.");
           };
-          case (#llmcanister) {
-            return #err("LLM Canister integration not yet implemented.");
-          };
         };
 
         // Once successful, store the user message and agent response in the conversation history
