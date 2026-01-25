@@ -53,7 +53,7 @@ describe("workspaceAdminTalk", () => {
 
     const result = await actor.workspaceAdminTalk(0n, agentId, "Hello Agent");
     expect(expectErr(result)).toEqual(
-      "Only workspace admins can use this function",
+      "Only workspace admins can perform this action",
     );
   });
 

@@ -32,7 +32,9 @@ describe("Admin Management", () => {
 
       const newAdminPrincipal = generateTestPrincipal(1);
       const result = await actor.addOrgAdmin(newAdminPrincipal);
-      expect(expectErr(result)).toEqual("Only the owner can add admins");
+      expect(expectErr(result)).toEqual(
+        "Only the owner can perform this action",
+      );
     });
 
     it("should reject duplicate admin addition attempts", async () => {
@@ -137,7 +139,7 @@ describe("Admin Management", () => {
         newAdminPrincipal,
       );
       expect(expectErr(result)).toEqual(
-        "Only the owner or workspace admins can add workspace admins",
+        "Only workspace admins can perform this action",
       );
     });
 
@@ -163,9 +165,7 @@ describe("Admin Management", () => {
 
       // Try to add same admin again
       const result = await actor.addWorkspaceAdmin(workspaceId, adminPrincipal);
-      expect(expectErr(result)).toEqual(
-        "Principal is already a workspace admin",
-      );
+      expect(expectErr(result)).toEqual("Principal is already an admin");
     });
 
     it("should reject adding admin to non-existent workspace", async () => {
@@ -225,7 +225,7 @@ describe("Admin Management", () => {
         newMemberPrincipal,
       );
       expect(expectErr(result)).toEqual(
-        "Only the owner or workspace admins can add workspace members",
+        "Only workspace admins can perform this action",
       );
     });
 
@@ -252,9 +252,7 @@ describe("Admin Management", () => {
         workspaceId,
         memberPrincipal,
       );
-      expect(expectErr(result)).toEqual(
-        "Principal is already a workspace member",
-      );
+      expect(expectErr(result)).toEqual("Principal is already a member");
     });
 
     it("should reject adding member to non-existent workspace", async () => {
@@ -308,7 +306,7 @@ describe("Admin Management", () => {
       const workspaceId = 0n;
       const result = await actor.getWorkspaceMembers(workspaceId);
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can view workspace members",
+        "Only workspace admins can perform this action",
       );
     });
 

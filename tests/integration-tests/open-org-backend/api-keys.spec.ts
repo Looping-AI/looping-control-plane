@@ -78,7 +78,7 @@ describe("API Key Management", () => {
         "test-key",
       );
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can store API keys",
+        "Only workspace admins can perform this action",
       );
     });
 
@@ -156,7 +156,7 @@ describe("API Key Management", () => {
       actor.setIdentity(userIdentity);
       const result = await actor.getWorkspaceApiKeys(0n);
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can view which API keys exist",
+        "Only workspace admins can perform this action",
       );
     });
 
@@ -215,7 +215,7 @@ describe("API Key Management", () => {
       actor.setIdentity(userIdentity);
       const result = await actor.deleteApiKey(0n, agentId, { openai: null });
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can delete API keys",
+        "Only workspace admins can perform this action",
       );
     });
 
