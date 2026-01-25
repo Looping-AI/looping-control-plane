@@ -174,7 +174,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : [Principal];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
@@ -222,7 +222,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : ?AgentService.Agent;
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin, #IsWorkspaceMember])) {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
@@ -272,7 +272,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : [AgentService.Agent];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin, #IsWorkspaceMember])) {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
@@ -292,7 +292,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : [ConversationService.Message];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin, #IsWorkspaceMember])) {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         ConversationService.getConversation(conversations, workspaceId, agentId);
@@ -336,7 +336,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : Text;
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin, #IsWorkspaceMember])) {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         if (Text.trim(message, #char ' ') == "") {
