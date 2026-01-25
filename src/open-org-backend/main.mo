@@ -25,7 +25,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var orgOwner : Principal = owner;
   var orgAdmins : [Principal] = [owner];
   var conversations = Map.empty<ConversationService.ConversationKey, List.List<ConversationService.Message>>();
-  var apiKeys = Map.empty<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys per workspace
+  var apiKeys = Map.empty<Nat, Map.Map<Types.LlmProvider, ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
@@ -360,9 +360,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // API Key Management
   // ============================================
 
-  // Store an API key for an agent (encrypted at rest)
+  // Store an API key for a provider in a workspace (encrypted at rest)
   // Only workspace admins can store API keys
-  public shared ({ caller }) func storeApiKey(workspaceId : Nat, agentId : Nat, provider : Types.LlmProvider, apiKey : Text) : async {
+  public shared ({ caller }) func storeApiKey(workspaceId : Nat, provider : Types.LlmProvider, apiKey : Text) : async {
     #ok : ();
     #err : Text;
   } {
@@ -372,23 +372,16 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         if (Text.trim(apiKey, #char ' ') == "") {
           return #err("API key cannot be empty.");
         };
-        let agent = switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+        // Verify workspace exists
+        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { return #err("Workspace not found.") };
-          case (?agents) { AgentService.getAgent(agentId, agents) };
-        };
-        switch (agent) {
-          case (null) { return #err("Agent not found.") };
-          case (?foundAgent) {
-            if (foundAgent.provider != provider) {
-              return #err("Provider mismatch: Agent uses " # debug_show (foundAgent.provider) # " but you specified " # debug_show (provider) # ".");
-            };
-          };
+          case (?_) {};
         };
 
         // Derive encryption key for this workspace
         let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
 
-        ApiKeysService.storeApiKey(apiKeys, encryptionKey, workspaceId, agentId, provider, apiKey);
+        ApiKeysService.storeApiKey(apiKeys, encryptionKey, workspaceId, provider, apiKey);
       };
     };
   };
@@ -396,7 +389,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Get API keys for a workspace
   // Only workspace admins can view API keys
   public shared ({ caller }) func getWorkspaceApiKeys(workspaceId : Nat) : async {
-    #ok : [(Nat, Text)];
+    #ok : [Types.LlmProvider];
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
@@ -407,16 +400,16 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
   };
 
-  // Delete an API key for a specific agent and provider in a workspace
+  // Delete an API key for a specific provider in a workspace
   // Only workspace admins can delete API keys
-  public shared ({ caller }) func deleteApiKey(workspaceId : Nat, agentId : Nat, provider : Types.LlmProvider) : async {
+  public shared ({ caller }) func deleteApiKey(workspaceId : Nat, provider : Types.LlmProvider) : async {
     #ok : ();
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ApiKeysService.deleteApiKey(apiKeys, workspaceId, agentId, provider);
+        ApiKeysService.deleteApiKey(apiKeys, workspaceId, provider);
       };
     };
   };

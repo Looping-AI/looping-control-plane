@@ -2,11 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
 import type { _SERVICE } from "../../setup.ts";
-import {
-  createTestEnvironment,
-  setupAdminUser,
-  createTestAgent,
-} from "../../setup.ts";
+import { createTestEnvironment } from "../../setup.ts";
 import { expectOk } from "../../helpers.ts";
 
 describe("Timer Management", () => {
@@ -27,24 +23,9 @@ describe("Timer Management", () => {
 
   describe("Cache clearing timer", () => {
     it("should clear the key cache after 30 days", async () => {
-      // Set up workspace admin for agent operations
-      const { adminIdentity: workspaceAdminIdentity } =
-        await setupAdminUser(actor);
-
-      // Create an agent as workspace admin
-      actor.setIdentity(workspaceAdminIdentity);
-      const agentId = await createTestAgent(
-        actor,
-        "Timer Test Agent",
-        { groq: null },
-        "llama-3.3-70b-versatile",
-      );
-
-      // Store an API key as workspace admin (this will derive and cache an encryption key)
-      // Only workspace admins can store API keys now
+      // Store an API key at the workspace
       const storeResult = await actor.storeApiKey(
         0n,
-        agentId,
         { groq: null },
         "test-api-key-for-timer",
       );

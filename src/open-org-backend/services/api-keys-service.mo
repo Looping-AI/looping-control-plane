@@ -14,14 +14,22 @@ module {
   public type EncryptedApiKey = Blob;
 
   /// Type alias for the API keys map
-  /// workspaceId -> (agentId, provider_name) -> encrypted_api_key
-  public type ApiKeysMap = Map.Map<Nat, Map.Map<(Nat, Text), EncryptedApiKey>>;
+  /// workspaceId -> provider -> encrypted_api_key
+  public type ApiKeysMap = Map.Map<Nat, Map.Map<Types.LlmProvider, EncryptedApiKey>>;
 
-  // Comparator for (Nat, Text) tuples
-  public func compareNatTextTuple(a : (Nat, Text), b : (Nat, Text)) : Order.Order {
-    switch (Nat.compare(a.0, b.0)) {
-      case (#equal) { Text.compare(a.1, b.1) };
-      case (other) { other };
+  /// Comparator for LlmProvider enum
+  public func compareProvider(a : Types.LlmProvider, b : Types.LlmProvider) : Order.Order {
+    let aVal = providerToNat(a);
+    let bVal = providerToNat(b);
+    Nat.compare(aVal, bVal);
+  };
+
+  /// Convert LlmProvider variant to Nat for comparison
+  private func providerToNat(provider : Types.LlmProvider) : Nat {
+    switch (provider) {
+      case (#openai) { 0 };
+      case (#llmcanister) { 1 };
+      case (#groq) { 2 };
     };
   };
 
@@ -34,30 +42,25 @@ module {
     };
   };
 
-  /// Get and decrypt API key for a specific workspace, agent, and provider
+  /// Get and decrypt API key for a specific workspace and provider
   ///
   /// @param apiKeys - The encrypted API keys map
   /// @param encryptionKey - 32-byte encryption key for this workspace
   /// @param workspaceId - The workspace ID
-  /// @param agentId - The agent ID
   /// @param provider - The LLM provider
   /// @returns Decrypted API key text, or null if not found or decryption fails
-  public func getApiKeyForWorkspaceAndAgent(
+  public func getApiKey(
     apiKeys : ApiKeysMap,
     encryptionKey : [Nat8],
     workspaceId : Nat,
-    agentId : Nat,
     provider : Types.LlmProvider,
   ) : ?Text {
-    let providerName = providerToString(provider);
-    let key = (agentId, providerName);
-
     switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
         null;
       };
       case (?workspaceKeyMap) {
-        switch (Map.get(workspaceKeyMap, compareNatTextTuple, key)) {
+        switch (Map.get(workspaceKeyMap, compareProvider, provider)) {
           case (null) { null };
           case (?encryptedBlob) {
             // Decrypt the API key
@@ -70,12 +73,11 @@ module {
     };
   };
 
-  /// Encrypt and store an API key for an agent in a workspace
+  /// Encrypt and store an API key for a provider in a workspace
   ///
   /// @param apiKeys - The encrypted API keys map
   /// @param encryptionKey - 32-byte encryption key for this workspace
   /// @param workspaceId - The workspace ID
-  /// @param agentId - The agent ID
   /// @param provider - The LLM provider
   /// @param apiKey - The plaintext API key to encrypt and store
   /// @returns Result
@@ -83,13 +85,9 @@ module {
     apiKeys : ApiKeysMap,
     encryptionKey : [Nat8],
     workspaceId : Nat,
-    agentId : Nat,
     provider : Types.LlmProvider,
     apiKey : Text,
   ) : Result.Result<(), Text> {
-    let providerName = providerToString(provider);
-    let key = (agentId, providerName);
-
     // Convert API key to bytes and encrypt (nonce generated internally)
     let plaintextBytes = EncryptionService.textToBytes(apiKey);
     let encryptedBytes = EncryptionService.encrypt(encryptionKey, plaintextBytes, workspaceId);
@@ -98,7 +96,7 @@ module {
     // Get or create the workspace's API key map
     let workspaceKeyMap = switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
-        Map.empty<(Nat, Text), EncryptedApiKey>();
+        Map.empty<Types.LlmProvider, EncryptedApiKey>();
       };
       case (?existingMap) {
         existingMap;
@@ -106,7 +104,7 @@ module {
     };
 
     // Add the encrypted API key to the workspace's map
-    Map.add(workspaceKeyMap, compareNatTextTuple, key, encryptedBlob);
+    Map.add(workspaceKeyMap, compareProvider, provider, encryptedBlob);
 
     // Store the updated map back
     Map.add(apiKeys, Nat.compare, workspaceId, workspaceKeyMap);
@@ -115,15 +113,15 @@ module {
   };
 
   /// Get workspace's API key identifiers (without decrypting the keys)
-  /// Returns list of (agentId, providerName) pairs
+  /// Returns list of providers that have stored keys
   ///
   /// @param apiKeys - The encrypted API keys map
   /// @param workspaceId - The workspace ID
-  /// @returns List of (agentId, providerName) tuples
+  /// @returns List of LlmProvider values
   public func getWorkspaceApiKeys(
     apiKeys : ApiKeysMap,
     workspaceId : Nat,
-  ) : Result.Result<[(Nat, Text)], Text> {
+  ) : Result.Result<[Types.LlmProvider], Text> {
     switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
         #ok([]);
@@ -134,34 +132,29 @@ module {
     };
   };
 
-  /// Delete an API key for a specific agent and provider in a workspace
+  /// Delete an API key for a specific provider in a workspace
   ///
   /// @param apiKeys - The encrypted API keys map
   /// @param workspaceId - The workspace ID
-  /// @param agentId - The agent ID
   /// @param provider - The LLM provider
   /// @returns Result
   public func deleteApiKey(
     apiKeys : ApiKeysMap,
     workspaceId : Nat,
-    agentId : Nat,
     provider : Types.LlmProvider,
   ) : Result.Result<(), Text> {
-    let providerName = providerToString(provider);
-    let key = (agentId, providerName);
-
     switch (Map.get(apiKeys, Nat.compare, workspaceId)) {
       case (null) {
         #err("No API keys found for this workspace.");
       };
       case (?workspaceKeyMap) {
         // Check if the key exists before deleting
-        switch (Map.get(workspaceKeyMap, compareNatTextTuple, key)) {
+        switch (Map.get(workspaceKeyMap, compareProvider, provider)) {
           case (null) {
-            #err("No API key found for agent " # debug_show (agentId) # " with provider " # providerName # ".");
+            #err("No API key found for provider " # providerToString(provider) # ".");
           };
           case (?_) {
-            ignore Map.delete(workspaceKeyMap, compareNatTextTuple, key);
+            ignore Map.delete(workspaceKeyMap, compareProvider, provider);
             Map.add(apiKeys, Nat.compare, workspaceId, workspaceKeyMap);
             #ok(());
           };

@@ -2,6 +2,7 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
+import Types "../types";
 import AgentService "./agent-service";
 import ApiKeysService "./api-keys-service";
 import KeyDerivationService "./key-derivation-service";
@@ -27,7 +28,7 @@ module {
   // Process the admin talk request after validation
   public func processAdminTalk(
     workspaceAgents : Map.Map<Nat, Map.Map<Nat, AgentService.Agent>>,
-    apiKeys : Map.Map<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>,
+    apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysService.EncryptedApiKey>>,
     conversations : Map.Map<ConversationService.ConversationKey, List.List<ConversationService.Message>>,
     workspaceId : Nat,
     agentId : Nat,
@@ -45,7 +46,7 @@ module {
       case (?foundAgent) {
         // Get api key (requires deriving encryption key for the workspace)
         let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-        let apiKey = ApiKeysService.getApiKeyForWorkspaceAndAgent(apiKeys, encryptionKey, workspaceId, agentId, foundAgent.provider);
+        let apiKey = ApiKeysService.getApiKey(apiKeys, encryptionKey, workspaceId, foundAgent.provider);
 
         // Generate response based on provider and API key availability
         var response : Text = "";
