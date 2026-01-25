@@ -4,7 +4,7 @@ import Result "mo:core/Result";
 
 module {
   // ============================================
-  // Business Validation (no auth checks)
+  // Business Validation
   // ============================================
 
   /// Validate a new admin before adding to a list.
@@ -50,7 +50,7 @@ module {
   };
 
   // ============================================
-  // Query Helpers (kept for backward compatibility)
+  // Query Helpers
   // ============================================
 
   /// Check if a principal is in a list of admins
