@@ -174,7 +174,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : [Principal];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin, #IsWorkspaceMember])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {

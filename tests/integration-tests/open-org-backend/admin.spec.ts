@@ -306,7 +306,7 @@ describe("Admin Management", () => {
       const workspaceId = 0n;
       const result = await actor.getWorkspaceMembers(workspaceId);
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action.",
+        "Only the owner can perform this action. Only org admins can perform this action. Only workspace admins can perform this action. Only workspace members can perform this action.",
       );
     });
 
