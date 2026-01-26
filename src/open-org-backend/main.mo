@@ -25,6 +25,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var orgOwner : Principal = owner;
   var orgAdmins : [Principal] = [owner];
   var conversations = Map.empty<ConversationService.ConversationKey, List.List<ConversationService.Message>>();
+  var adminConversations = Map.fromArray<Nat, List.List<ConversationService.Message>>([(0, List.empty<ConversationService.Message>())], Nat.compare);
   var apiKeys = Map.empty<Nat, Map.Map<Types.LlmProvider, ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
@@ -287,7 +288,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Conversation Management
   // ============================================
 
-  // Get conversation history
+  // Get workspace -> agent conversation history
   public shared ({ caller }) func getConversation(workspaceId : Nat, agentId : Nat) : async {
     #ok : [ConversationService.Message];
     #err : Text;
@@ -300,11 +301,24 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
   };
 
+  // Get workspace admin conversation history
+  public shared ({ caller }) func getAdminConversation(workspaceId : Nat) : async {
+    #ok : [ConversationService.Message];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ConversationService.getAdminConversation(adminConversations, workspaceId);
+      };
+    };
+  };
+
   // ============================================
   // Workspace Admin Talk
   // ============================================
 
-  public shared ({ caller }) func workspaceAdminTalk(workspaceId : Nat, agentId : Nat, message : Text) : async {
+  public shared ({ caller }) func workspaceAdminTalk(workspaceId : Nat, message : Text) : async {
     #ok : Text;
     #err : Text;
   } {
@@ -317,7 +331,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Delegate to service for business logic
         await WorkspaceAdminTalkService.processAdminTalk(
           apiKeys,
-          conversations,
+          adminConversations,
           workspaceId,
           message,
           keyCache,

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-2",
-  "recordedAt": "2026-01-21T13:58:34.889Z",
+  "recordedAt": "2026-01-26T11:41:12.972Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c1753c4cb7db59b-LIS"],
+          ["cf-ray", "9c3fbd6cfb98a10f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 21 Jan 2026 13:58:35 GMT"],
+          ["date", "Mon, 26 Jan 2026 11:41:13 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "989"],
-          ["x-ratelimit-remaining-tokens", "7852"],
-          ["x-ratelimit-reset-requests", "15m50.4s"],
-          ["x-ratelimit-reset-tokens", "1.109s"],
-          ["x-request-id", "req_01kfgdk5s4ejqvr01vczrtn9r1"],
+          ["x-ratelimit-remaining-requests", "992"],
+          ["x-ratelimit-remaining-tokens", "7855"],
+          ["x-ratelimit-reset-requests", "11m31.2s"],
+          ["x-ratelimit-reset-tokens", "1.087s"],
+          ["x-request-id", "req_01kfx1q81wf4ja74jz80d0heeh"],
           [
             "set-cookie",
-            "__cf_bm=1.K4K1gN2KkSg64MeV6TGBSi4rn.4X2JckfUtEGgFEU-1769003915-1.0.1.1-j03fAaITcgZ.sefcz6STtr72UVnyrPGK_PmWfYOlWIxwdMS30808_PlllFDptdvLpuxJgO1TALSMADQjHAlvh16phRXfCYo3FJTiMJPAtYQ; path=/; expires=Wed, 21-Jan-26 14:28:35 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=WVcfOFem6EwiYtEwohNF0NadFqyUbL2atybxN_Ey7EM-1769427673-1.0.1.1-YYJ21d6NU0aM4UWEHBnZhned8c3p.2DNUR0UsEFX.LGLSZtXmJwJcQORUhtXObZJhRVdnXsTKfa5y0SXutZ3bL8ZXky_w_a1Pz0YQA8OhgA; path=/; expires=Mon, 26-Jan-26 12:11:13 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-147d0f0d-8321-441f-94f5-d29333a21ce4\",\"object\":\"chat.completion\",\"created\":1769003915,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"3 + 3 = 6.\",\"reasoning\":\"User asks a simple arithmetic question. No policy violation. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017485183,\"prompt_tokens\":79,\"prompt_time\":0.003430214,\"completion_tokens\":32,\"completion_time\":0.065951937,\"total_tokens\":111,\"total_time\":0.069382151,\"completion_tokens_details\":{\"reasoning_tokens\":15}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_dddd02f37b\",\"x_groq\":{\"id\":\"req_01kfgdk5s4ejqvr01vczrtn9r1\",\"seed\":402980395},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-a6994025-5395-4ae9-99ec-5159cadc68d9\",\"object\":\"chat.completion\",\"created\":1769427673,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"3 + 3 = 6.\",\"reasoning\":\"The user asks a simple math question: 3 + 3 = 6. No policy issues. Just answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018550907,\"prompt_tokens\":79,\"prompt_time\":0.002981962,\"completion_tokens\":44,\"completion_time\":0.090480517,\"total_tokens\":123,\"total_time\":0.093462479,\"completion_tokens_details\":{\"reasoning_tokens\":25}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfx1q81wf4ja74jz80d0heeh\",\"seed\":823786832},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

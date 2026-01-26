@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-1",
-  "recordedAt": "2026-01-21T13:58:34.523Z",
+  "recordedAt": "2026-01-26T11:41:12.522Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c1753c29d6eb59b-LIS"],
+          ["cf-ray", "9c3fbd6a9a10a10f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 21 Jan 2026 13:58:34 GMT"],
+          ["date", "Mon, 26 Jan 2026 11:41:12 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "990"],
+          ["x-ratelimit-remaining-requests", "993"],
           ["x-ratelimit-remaining-tokens", "7920"],
-          ["x-ratelimit-reset-requests", "14m24s"],
+          ["x-ratelimit-reset-requests", "10m4.8s"],
           ["x-ratelimit-reset-tokens", "600ms"],
-          ["x-request-id", "req_01kfgdk5ebfw7athys19t0ptbt"],
+          ["x-request-id", "req_01kfx1q7pge799fz1t63xws4nq"],
           [
             "set-cookie",
-            "__cf_bm=ddzfBVWt.nzAaLtDUBiPkcXVpyJrzsg1ew0jEQKV1_c-1769003914-1.0.1.1-G9gorSVYCVYHnd0OAHgY7O_LZzdd6fNZS59xKNRblrslg5NYKKWfJt.xZbJXQvv78xkTQtz0G5c3aOE.HYcvqzOZcnl4MW44rBa9ehMyGFE; path=/; expires=Wed, 21-Jan-26 14:28:34 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=ewF5tbx3D7vJqHpBVgLql4ZI5DgrtiuhfgIb0AYx.lA-1769427672-1.0.1.1-6aJ6g1zq6kdKp.82PpGQoF4uv_s6I0H.Fx5Hy3vNV8wcv96Ox20.g0YsEu62vaNNzhHXjIgX_VwFvxxbu70Pt8Ibws4QFG_en7UXTR0TpLs; path=/; expires=Mon, 26-Jan-26 12:11:12 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-c0afabf1-837d-4cc2-ab38-79f4d6b0e2b5\",\"object\":\"chat.completion\",\"created\":1769003914,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"The user asks a simple math question. Provide answer: 4.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018525214,\"prompt_tokens\":79,\"prompt_time\":0.003319717,\"completion_tokens\":34,\"completion_time\":0.070002529,\"total_tokens\":113,\"total_time\":0.073322246,\"completion_tokens_details\":{\"reasoning_tokens\":15}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_178e424650\",\"x_groq\":{\"id\":\"req_01kfgdk5ebfw7athys19t0ptbt\",\"seed\":319251714},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-a5dc9dc4-f051-4e74-bffe-f0660e7de0f8\",\"object\":\"chat.completion\",\"created\":1769427672,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"The user asks a simple math question. Provide answer 4.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018059746,\"prompt_tokens\":79,\"prompt_time\":0.003008122,\"completion_tokens\":33,\"completion_time\":0.067946823,\"total_tokens\":112,\"total_time\":0.070954945,\"completion_tokens_details\":{\"reasoning_tokens\":14}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kfx1q7pge799fz1t63xws4nq\",\"seed\":1027519136},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

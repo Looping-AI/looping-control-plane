@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "isolate-agent-2",
-  "recordedAt": "2026-01-21T13:58:37.215Z",
+  "recordedAt": "2026-01-26T11:41:15.682Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c1753d35f49b59b-LIS"],
+          ["cf-ray", "9c3fbd7dd92fa10f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 21 Jan 2026 13:58:37 GMT"],
+          ["date", "Mon, 26 Jan 2026 11:41:15 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "986"],
-          ["x-ratelimit-remaining-tokens", "7830"],
-          ["x-ratelimit-reset-requests", "20m9.6s"],
-          ["x-ratelimit-reset-tokens", "1.275s"],
-          ["x-request-id", "req_01kfgdk81kfweaxnkc7qcbszk9"],
+          ["x-ratelimit-remaining-requests", "989"],
+          ["x-ratelimit-remaining-tokens", "7861"],
+          ["x-ratelimit-reset-requests", "15m50.4s"],
+          ["x-ratelimit-reset-tokens", "1.042s"],
+          ["x-request-id", "req_01kfx1qapbfe9tsmp2rdnx8098"],
           [
             "set-cookie",
-            "__cf_bm=Dz92kCXS99p.r3VDtrQ_IQJllCD0l2_ogwew5SjChZw-1769003917-1.0.1.1-ItqiJPV1z70FptOw_FEGwXvvUZmwSUkB9xaMj5JwSrM0LtGiqsGeaYms.i47zk_polUA3oDP2QhLGZuxF591C1nPNuPcI1plBnwvit0K5E0; path=/; expires=Wed, 21-Jan-26 14:28:37 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=rz4LNbxJJeu6sYTnPDLD2uESpSJ2E11TUZWKkpeIQQQ-1769427675-1.0.1.1-drZQu2.QDac77gwIjtxuhUmMsv4ZI3cVJitp99OdPjhrNkzAYTxCV_RwyZ_OVl5JJMK7Nk67dyqVrq.NC_wDGBu19pSVU2kq4tPPbR2rw.4; path=/; expires=Mon, 26-Jan-26 12:11:15 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-46a5666c-17c3-4c29-8bb2-29f31e56fc44\",\"object\":\"chat.completion\",\"created\":1769003917,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Spain is **Madrid**.\",\"reasoning\":\"User asks a factual question. No disallowed content. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018060221,\"prompt_tokens\":78,\"prompt_time\":0.002858714,\"completion_tokens\":33,\"completion_time\":0.068079612,\"total_tokens\":111,\"total_time\":0.070938326,\"completion_tokens_details\":{\"reasoning_tokens\":15}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_dddd02f37b\",\"x_groq\":{\"id\":\"req_01kfgdk81kfweaxnkc7qcbszk9\",\"seed\":1688760682},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-4c4d7fc8-e729-4af0-ab3c-eded46a3c510\",\"object\":\"chat.completion\",\"created\":1769427675,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Spain is **Madrid**.\",\"reasoning\":\"The user asks a simple factual question: \\\"What is the capital of Spain?\\\" The answer: Madrid. There's no policy violation. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018592729,\"prompt_tokens\":78,\"prompt_time\":0.002854065,\"completion_tokens\":48,\"completion_time\":0.09876965,\"total_tokens\":126,\"total_time\":0.101623715,\"completion_tokens_details\":{\"reasoning_tokens\":30}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kfx1qapbfe9tsmp2rdnx8098\",\"seed\":2144648040},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

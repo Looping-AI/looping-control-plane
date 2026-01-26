@@ -16,6 +16,7 @@ import { withCassette } from "../../lib/cassette";
 describe("Conversation Management", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
+  let deferredActor: DeferredActor<_SERVICE>;
   let canisterId: Principal;
   let adminIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
@@ -26,6 +27,7 @@ describe("Conversation Management", () => {
     pic = testEnv.pic;
     actor = testEnv.actor;
     canisterId = testEnv.canisterId;
+    deferredActor = pic.createDeferredActor(idlFactory, canisterId);
 
     // Set up an admin
     ({ adminIdentity } = await setupAdminUser(actor));
@@ -51,11 +53,6 @@ describe("Conversation Management", () => {
     it("should contain correct message content in conversation history", async () => {
       const testMessage = "What is the capital of Germany?";
 
-      // Create a deferred actor for the HTTP outcall
-      const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
-        idlFactory,
-        canisterId,
-      );
       deferredActor.setIdentity(userIdentity);
 
       await withCassette(
@@ -82,11 +79,6 @@ describe("Conversation Management", () => {
       const message2 = "What is 3 + 3?";
       const message3 = "What is 4 + 4?";
 
-      // Create a deferred actor for the HTTP outcalls
-      const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
-        idlFactory,
-        canisterId,
-      );
       deferredActor.setIdentity(userIdentity);
 
       await withCassette(
@@ -124,37 +116,25 @@ describe("Conversation Management", () => {
       const message1 = "What is the capital of France?";
       const message2 = "What is the capital of Spain?";
 
-      // Create deferred actors for both users
-      const deferredActor1: DeferredActor<_SERVICE> = pic.createDeferredActor(
-        idlFactory,
-        canisterId,
-      );
-      deferredActor1.setIdentity(userIdentity);
-
-      const deferredActor2: DeferredActor<_SERVICE> = pic.createDeferredActor(
-        idlFactory,
-        canisterId,
-      );
-      deferredActor2.setIdentity(user2.userIdentity);
-
       // Send message to first agent
+      deferredActor.setIdentity(userIdentity);
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/isolate-agent-1",
-        () => deferredActor1.workspaceTalk(0n, agentId, message1),
+        () => deferredActor.workspaceTalk(0n, agentId, message1),
         { ticks: 5 },
       );
 
       // Send message to second agent
+      deferredActor.setIdentity(user2.userIdentity);
       await withCassette(
         pic,
         "integration-tests/open-org-backend/conversations/isolate-agent-2",
-        () => deferredActor2.workspaceTalk(0n, agentId2, message2),
+        () => deferredActor.workspaceTalk(0n, agentId2, message2),
         { ticks: 5 },
       );
 
       // Check conversation history for first agent
-      actor.setIdentity(userIdentity);
       const result1 = await actor.getConversation(0n, agentId);
       const messages1 = expectOk(result1);
       const foundMsg1 = messages1.some(
@@ -162,14 +142,90 @@ describe("Conversation Management", () => {
       );
       expect(foundMsg1).toBe(true);
 
-      // Check conversation history for second agent
-      actor.setIdentity(user2.userIdentity);
       const result2 = await actor.getConversation(0n, agentId2);
       const messages2 = expectOk(result2);
       const foundMsg2 = messages2.some(
         (msg: { content?: string }) => msg.content === message2,
       );
       expect(foundMsg2).toBe(true);
+    });
+  });
+
+  describe("get_admin_conversation", () => {
+    it("should return err message for non-existent workspace", async () => {
+      actor.setIdentity(adminIdentity);
+      const result = await actor.getAdminConversation(999n);
+      expect(expectErr(result)).toEqual("Workspace not found.");
+    });
+
+    it("should contain correct message content in admin conversation history", async () => {
+      const testMessage = "What is the capital of Germany?";
+
+      deferredActor.setIdentity(adminIdentity);
+
+      const { result } = await withCassette(
+        pic,
+        "integration-tests/open-org-backend/conversations/admin-correct-message",
+        () => deferredActor.workspaceAdminTalk(0n, testMessage),
+        { ticks: 5 },
+      );
+      await result;
+
+      actor.setIdentity(adminIdentity);
+      const getResult = await actor.getAdminConversation(0n);
+      const messages = expectOk(getResult);
+
+      const userMessage = messages.find(
+        (msg: { author?: Record<string, unknown>; content?: string }) =>
+          msg.author && "user" in msg.author,
+      );
+      expect(userMessage).toBeDefined();
+      expect(userMessage?.content).toEqual(testMessage);
+    });
+
+    it("should maintain admin conversation history across multiple messages", async () => {
+      const message1 = "What is 2 + 2?";
+      const message2 = "What is 3 + 3?";
+
+      deferredActor.setIdentity(adminIdentity);
+
+      await withCassette(
+        pic,
+        "integration-tests/open-org-backend/conversations/admin-history-message-1",
+        () => deferredActor.workspaceAdminTalk(0n, message1),
+        { ticks: 5 },
+      );
+
+      await withCassette(
+        pic,
+        "integration-tests/open-org-backend/conversations/admin-history-message-2",
+        () => deferredActor.workspaceAdminTalk(0n, message2),
+        { ticks: 5 },
+      );
+
+      actor.setIdentity(adminIdentity);
+      const result = await actor.getAdminConversation(0n);
+      const messages = expectOk(result);
+      expect(messages.length).toBeGreaterThanOrEqual(4); // 2 messages (user + agent responses) x 2
+    });
+
+    it("should reject non-workspace admins from viewing admin conversation", async () => {
+      // Create a new user who is not a workspace admin
+      const outsiderIdentity = generateRandomIdentity();
+
+      actor.setIdentity(outsiderIdentity);
+      const result = await actor.getAdminConversation(0n);
+      expect(expectErr(result)).toEqual(
+        "Only workspace admins can perform this action.",
+      );
+    });
+
+    it("should reject anonymous users from viewing admin conversation", async () => {
+      actor.setPrincipal(Principal.anonymous());
+      const result = await actor.getAdminConversation(0n);
+      expect(expectErr(result)).toEqual(
+        "Please login before calling this function.",
+      );
     });
   });
 });

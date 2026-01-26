@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "admin-history-message-2",
+  "recordedAt": "2026-01-26T11:41:21.174Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"What is 3 + 3?\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c3fbda02f3ea10f-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Mon, 26 Jan 2026 11:41:21 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "fra"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "986"],
+          ["x-ratelimit-remaining-tokens", "7855"],
+          ["x-ratelimit-reset-requests", "20m9.6s"],
+          ["x-ratelimit-reset-tokens", "1.087s"],
+          ["x-request-id", "req_01kfx1qg20f4ztsvhda2ar6va9"],
+          [
+            "set-cookie",
+            "__cf_bm=vfByZxZ2Khdd44jUi4pbRPvoOoICSTg.Zg6gcjEyWt0-1769427681-1.0.1.1-sLhctbzr2EXWwLqRjSaxXSWd4gCLOJI52WXwVlHPZe456fnkqcjnMvciLE.EuscUgb.g38_opqRe6mCvqv71z1EulwCecQF3udbhns1tiB8; path=/; expires=Mon, 26-Jan-26 12:11:21 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+          ]
+        ],
+        "body": "{\"id\":\"chatcmpl-80a599e1-3772-449f-9058-66783eea39ea\",\"object\":\"chat.completion\",\"created\":1769427681,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"3 + 3 = 6.\",\"reasoning\":\"The user asks a simple arithmetic question. The answer is 6. No policy issues.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018667834,\"prompt_tokens\":79,\"prompt_time\":0.002970531,\"completion_tokens\":38,\"completion_time\":0.078177435,\"total_tokens\":117,\"total_time\":0.081147966,\"completion_tokens_details\":{\"reasoning_tokens\":19}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kfx1qg20f4ztsvhda2ar6va9\",\"seed\":385313062},\"service_tier\":\"on_demand\"}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

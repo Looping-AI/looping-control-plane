@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-3",
-  "recordedAt": "2026-01-21T13:58:35.206Z",
+  "recordedAt": "2026-01-26T11:41:13.345Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c1753c6c999b59b-LIS"],
+          ["cf-ray", "9c3fbd6f4c5da10f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 21 Jan 2026 13:58:35 GMT"],
+          ["date", "Mon, 26 Jan 2026 11:41:13 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "988"],
-          ["x-ratelimit-remaining-tokens", "7782"],
-          ["x-ratelimit-reset-requests", "17m16.8s"],
-          ["x-ratelimit-reset-tokens", "1.635s"],
-          ["x-request-id", "req_01kfgdk62vejr9zefnxwbe27f2"],
+          ["x-ratelimit-remaining-requests", "991"],
+          ["x-ratelimit-remaining-tokens", "7779"],
+          ["x-ratelimit-reset-requests", "12m57.599s"],
+          ["x-ratelimit-reset-tokens", "1.657s"],
+          ["x-request-id", "req_01kfx1q8dbfe5r55y17785dbyk"],
           [
             "set-cookie",
-            "__cf_bm=fQrquIyBxif92yMMVYVPC.nS3D8IthaR.x61Pgu5xs0-1769003915-1.0.1.1-mJiMrNbzyw7TMXor2xAvl5KM2ZFNW8X7Lpa0o2PNCJpoLnFBPgyaHfTwoOoREuLoIBZJ5ZkyivIa0LeG2x4ymmzDvhkGAMS7mGYjbsuE.pc; path=/; expires=Wed, 21-Jan-26 14:28:35 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=OjbgvbOrzH9JWjg9xyObNt0TVocgm5NhO_1O9QZcgbY-1769427673-1.0.1.1-v6wXSR0I4rSyLIoYh7NjDs01s.nuLkSBn2KrdxEFPOXfqw19kse8uzXTx2lvbCgi3kziKvsLg.5qSXDAuasBeN8JHR1jD44R341vD8kbY2I; path=/; expires=Mon, 26-Jan-26 12:11:13 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-1515acb8-2c5c-4d6d-a059-bcece63a1e6b\",\"object\":\"chat.completion\",\"created\":1769003915,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"4 + 4 = 8.\",\"reasoning\":\"User asks simple arithmetic. No policy issues. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017251469,\"prompt_tokens\":79,\"prompt_time\":0.003120157,\"completion_tokens\":32,\"completion_time\":0.066056682,\"total_tokens\":111,\"total_time\":0.069176839,\"completion_tokens_details\":{\"reasoning_tokens\":13}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_8634b911ff\",\"x_groq\":{\"id\":\"req_01kfgdk62vejr9zefnxwbe27f2\",\"seed\":1686564703},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-748eddcf-b619-4b43-a2ff-4bb6b377a6bd\",\"object\":\"chat.completion\",\"created\":1769427673,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"4 + 4 = 8.\",\"reasoning\":\"The user asks a simple arithmetic question. It's allowed. Answer: 8.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018937894,\"prompt_tokens\":79,\"prompt_time\":0.003124061,\"completion_tokens\":36,\"completion_time\":0.075623191,\"total_tokens\":115,\"total_time\":0.078747252,\"completion_tokens_details\":{\"reasoning_tokens\":17}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_dddd02f37b\",\"x_groq\":{\"id\":\"req_01kfx1q8dbfe5r55y17785dbyk\",\"seed\":716985670},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

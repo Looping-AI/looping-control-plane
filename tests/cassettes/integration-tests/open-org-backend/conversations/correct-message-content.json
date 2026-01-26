@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "correct-message-content",
-  "recordedAt": "2026-01-21T13:58:32.797Z",
+  "recordedAt": "2026-01-26T11:41:10.600Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c1753b7db8cb59b-LIS"],
+          ["cf-ray", "9c3fbd5e8d73a10f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 21 Jan 2026 13:58:33 GMT"],
+          ["date", "Mon, 26 Jan 2026 11:41:11 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "991"],
+          ["x-ratelimit-remaining-requests", "994"],
           ["x-ratelimit-remaining-tokens", "7921"],
-          ["x-ratelimit-reset-requests", "12m57.599s"],
+          ["x-ratelimit-reset-requests", "8m38.4s"],
           ["x-ratelimit-reset-tokens", "592ms"],
-          ["x-request-id", "req_01kfgdk3rbf9qbhdv9hp1r4wcc"],
+          ["x-request-id", "req_01kfx1q5tmf4b8zq88070fvf9w"],
           [
             "set-cookie",
-            "__cf_bm=8H4sq15Bb6bSIJQyGM96LrWNbANeX_d2J7_lGGdZbvw-1769003913-1.0.1.1-H7nSNzHaYTFM2Qbzh1IGf7ec46DY4j84PldJZdX4cAOvomZlenHHXyN1_2vqtJ.F.IcYOXjT_UVpy8_2wCnHkE5pteja39OVUbySl24Ge40; path=/; expires=Wed, 21-Jan-26 14:28:33 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=iREgLb7LxjolalvBVHpv6gc0V1Xl4TmJujJT6fogn4M-1769427671-1.0.1.1-9NLDxcptxP0ZxoBCoomWaXOlqR06gGk6GXLewBHdg_A7BYGEKleCr5V9Apheg9krX1VAB.uTDMELW1cCsMX0xR2wTYXWaR7knqJQ4Pe.Ji4; path=/; expires=Mon, 26-Jan-26 12:11:11 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-e439ddf0-ef50-4e75-97c9-b4aa9295be6e\",\"object\":\"chat.completion\",\"created\":1769003913,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Germany is **Berlin**.\",\"reasoning\":\"User asks a simple factual question: \\\"What is the capital of Germany?\\\" Answer: Berlin. No policy issue. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.01801921,\"prompt_tokens\":78,\"prompt_time\":0.002864082,\"completion_tokens\":45,\"completion_time\":0.092646946,\"total_tokens\":123,\"total_time\":0.095511028,\"completion_tokens_details\":{\"reasoning_tokens\":27}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfgdk3rbf9qbhdv9hp1r4wcc\",\"seed\":774319432},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-478c4816-524d-43f5-8172-b6a89181da20\",\"object\":\"chat.completion\",\"created\":1769427670,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Germany is **Berlin**.\",\"reasoning\":\"The user asks: \\\"What is the capital of Germany?\\\" Straightforward answer: Berlin. No policy issues. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.020195592,\"prompt_tokens\":78,\"prompt_time\":0.003133577,\"completion_tokens\":44,\"completion_time\":0.090595531,\"total_tokens\":122,\"total_time\":0.093729108,\"completion_tokens_details\":{\"reasoning_tokens\":26}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_c9b3d7b164\",\"x_groq\":{\"id\":\"req_01kfx1q5tmf4b8zq88070fvf9w\",\"seed\":1355879001},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

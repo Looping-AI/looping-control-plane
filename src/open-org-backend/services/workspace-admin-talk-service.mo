@@ -3,7 +3,6 @@ import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Types "../types";
-import AgentService "./agent-service";
 import ApiKeysService "./api-keys-service";
 import KeyDerivationService "./key-derivation-service";
 import ConversationService "./conversation-service";
@@ -15,7 +14,7 @@ module {
   // Process the admin talk request after validation
   public func processAdminTalk(
     apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysService.EncryptedApiKey>>,
-    conversations : Map.Map<ConversationService.ConversationKey, List.List<ConversationService.Message>>,
+    adminConversations : Map.Map<Nat, List.List<ConversationService.Message>>,
     workspaceId : Nat,
     message : Text,
     keyCache : KeyDerivationService.KeyCache,
@@ -51,12 +50,10 @@ module {
       };
     };
 
-    // Once successful, store the user message and agent response in the conversation history
-    // Note: Using Nat 0 as a fixed admin talk agent id
-    ConversationService.addMessageToConversation(
-      conversations,
+    // Once successful, store the user message and agent response in the admin conversation history
+    ConversationService.addMessageToAdminConversation(
+      adminConversations,
       workspaceId,
-      0,
       {
         author = #user;
         content = message;
@@ -64,10 +61,9 @@ module {
       },
     );
 
-    ConversationService.addMessageToConversation(
-      conversations,
+    ConversationService.addMessageToAdminConversation(
+      adminConversations,
       workspaceId,
-      0,
       {
         author = #agent;
         content = response;
