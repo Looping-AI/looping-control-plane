@@ -35,7 +35,15 @@ module {
             return #err("No Groq API key found for admin talk. Please store the API key first.");
           };
           case (?key) {
-            let groqResult = await GroqWrapper.chat(key, message, Constants.ADMIN_TALK_MODEL);
+            let groqResult = await GroqWrapper.reason(
+              key,
+              message,
+              Constants.ADMIN_TALK_MODEL,
+              #workspace(workspaceId),
+              null,
+              null,
+              null,
+            );
             switch (groqResult) {
               case (#ok(groqResponse)) { response := groqResponse };
               case (#err(error)) {

@@ -23,6 +23,25 @@ Examples:
 - `bun run format` - Run code formatter
 - `bun run lint` - Run linter
 
+### Running Specific Tests
+
+**IMPORTANT:** To run specific test files or individual tests, use `bun test` directly (NOT `bun run test`).
+
+The `bun run test` script runs a complete build and test suite and does NOT accept additional parameters.
+
+Examples:
+
+```bash
+# Run a specific test file
+bun test tests/integration-tests/open-org-backend/workspace-admin-talk.spec.ts
+
+# Run a specific test case by name (using -t flag)
+bun test tests/integration-tests/open-org-backend/workspace-admin-talk.spec.ts -t "should accept message from workspace admin"
+
+# Record cassettes for a specific test file
+RECORD_CASSETTES=true bun test tests/integration-tests/open-org-backend/workspace-admin-talk.spec.ts
+```
+
 ## Library Dependencies
 
 ### mo:base is Deprecated - Use mo:core

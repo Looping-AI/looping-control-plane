@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "unicode",
-  "recordedAt": "2026-01-26T12:18:22.988Z",
+  "recordedAt": "2026-01-26T16:20:17.227Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c3ff3de5d6ee3c8-LIS"],
+          ["cf-ray", "9c4156384b91547f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Mon, 26 Jan 2026 12:18:23 GMT"],
+          ["date", "Mon, 26 Jan 2026 16:20:17 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "997"],
-          ["x-ratelimit-remaining-tokens", "7923"],
-          ["x-ratelimit-reset-requests", "4m19.2s"],
-          ["x-ratelimit-reset-tokens", "577ms"],
-          ["x-request-id", "req_01kfx3v9rxfdnb9hh5t77sj8sy"],
+          ["x-ratelimit-remaining-requests", "996"],
+          ["x-ratelimit-remaining-tokens", "7899"],
+          ["x-ratelimit-reset-requests", "5m45.6s"],
+          ["x-ratelimit-reset-tokens", "757ms"],
+          ["x-request-id", "req_01kfxhp7tjf8csz7j1tjb5y41a"],
           [
             "set-cookie",
-            "__cf_bm=v8BTgcquwZjOxRDvd3E6UBjS1UgnKU5vDs9_wcp8Fhk-1769429903-1.0.1.1-tRoi2G0eLQZY6.G6owEbCcd5sUAJEMQtTe6w0VPnru1GoOmrK0hMjdsclwb2fK_0cgVYZERNAuf4bFb9c9v_0V2cK21d0UhL6Y3okbbIgF4; path=/; expires=Mon, 26-Jan-26 12:48:23 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=DLkM8sUMp94J8ygWhBwYTnyFS0XKqO9zTGMmUtfeOwc-1769444417-1.0.1.1-3LsOm.oSxQdkMpJpnAuuSuAvUyNHpudrpWJ6M2x06aVbgtbtUclyuZ7jhrMNJjD7qPGwS4ukpkMArRUz1Za_9DGtnJ.bRogYj4eu_dV9Du0; path=/; expires=Mon, 26-Jan-26 16:50:17 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-ffd17fc5-5008-43b2-9f03-ce4f26470dbf\",\"object\":\"chat.completion\",\"created\":1769429903,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"\\\"世界\\\" translates to **“world.”**\",\"reasoning\":\"User asks \\\"Translate to English: 世界\\\". That's Chinese meaning \\\"world\\\". So answer: \\\"world\\\". Possibly also \\\"the world\\\". Provide translation.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.019151587,\"prompt_tokens\":76,\"prompt_time\":0.002854944,\"completion_tokens\":50,\"completion_time\":0.102439736,\"total_tokens\":126,\"total_time\":0.10529468,\"completion_tokens_details\":{\"reasoning_tokens\":31}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kfx3v9rxfdnb9hh5t77sj8sy\",\"seed\":473751727},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-6e4bfbf8-657a-4f36-ae5c-7aa5bf79f9c3\",\"object\":\"chat.completion\",\"created\":1769444417,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"**世界** → “world” (or “the world”).\",\"reasoning\":\"The user says: \\\"Translate to English: 世界\\\". Means \\\"世界\\\" in Chinese means \\\"world\\\". So answer: \\\"world\\\". Possibly also \\\"the world\\\". Provide translation.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017318282,\"prompt_tokens\":76,\"prompt_time\":0.003107849,\"completion_tokens\":59,\"completion_time\":0.121140766,\"total_tokens\":135,\"total_time\":0.124248615,\"completion_tokens_details\":{\"reasoning_tokens\":37}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kfxhp7tjf8csz7j1tjb5y41a\",\"seed\":1289452745},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

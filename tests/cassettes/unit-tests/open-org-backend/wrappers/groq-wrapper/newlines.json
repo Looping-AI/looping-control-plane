@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "newlines",
-  "recordedAt": "2026-01-26T12:18:25.112Z",
+  "recordedAt": "2026-01-26T16:20:19.076Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c3ff3eba928e3c8-LIS"],
+          ["cf-ray", "9c415643dbe3547f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Mon, 26 Jan 2026 12:18:25 GMT"],
+          ["date", "Mon, 26 Jan 2026 16:20:19 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "995"],
-          ["x-ratelimit-remaining-tokens", "7886"],
-          ["x-ratelimit-reset-requests", "7m12s"],
-          ["x-ratelimit-reset-tokens", "855ms"],
-          ["x-request-id", "req_01kfx3vbv3fdrratrrvb1jq019"],
+          ["x-ratelimit-remaining-requests", "994"],
+          ["x-ratelimit-remaining-tokens", "7823"],
+          ["x-ratelimit-reset-requests", "8m38.4s"],
+          ["x-ratelimit-reset-tokens", "1.327s"],
+          ["x-request-id", "req_01kfxhp9mmfdsa1vf5x202t8mm"],
           [
             "set-cookie",
-            "__cf_bm=bLcgW7oZTq8rQ_EWpZwkyoNnA2ZgLiT0HUOx4yw438I-1769429905-1.0.1.1-Tji8CQtie4uKJ0_rkJ5YeoH3r2Zo8ZZ01bOTei8wbgwW0quxT5w18ThK0hiWt6LLDOBY62wqegwbVLpS.WXlMIXmn9BkvhIXLnC1442VS.Q; path=/; expires=Mon, 26-Jan-26 12:48:25 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=WNMEjVFj1Iinh1WzCDSFBIcsN7BckAlIOAzhA7c1p0U-1769444419-1.0.1.1-xwO3fcax8lsfPxMAnxdeI5Q9bnU5.T4p9yuEbpUtU1zBNYRUcxeHp.RKOHb9wHIgFaSbSxE0egpIinNnYbARDrEgA5158.b_vDKNeBfyP04; path=/; expires=Mon, 26-Jan-26 16:50:19 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-b5ea425b-ee46-4d22-b488-193fa3df6777\",\"object\":\"chat.completion\",\"created\":1769429905,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The text you provided has **3 newline characters** (the line breaks that separate the four lines).\",\"reasoning\":\"The user says: \\\"Count new lines: Line Another line here\\\". They probably want to count the number of newlines in the provided text. The text is:\\n\\nLine\\nAnother\\nline\\nhere\\n\\nWe need to count the new lines. Typically newlines are line breaks. There are 3 newline characters separating the 4 lines. So the count of new lines is 3. Or they might want to count the lines? But they specifically ask \\\"Count new lines\\\". So answer: 3 new lines.\\n\\nWe can also display the count. Provide explanation.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.0191323,\"prompt_tokens\":82,\"prompt_time\":0.00308818,\"completion_tokens\":144,\"completion_time\":0.299397482,\"total_tokens\":226,\"total_time\":0.302485662,\"completion_tokens_details\":{\"reasoning_tokens\":115}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kfx3vbv3fdrratrrvb1jq019\",\"seed\":1505917111},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-a80b9578-1642-4ea1-b2ee-71584e92ba41\",\"object\":\"chat.completion\",\"created\":1769444419,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The block you gave is:\\n\\n```\\nLine\\nAnother\\nline\\nhere\\n```\\n\\n- **Number of newline characters (`\\\\n`)**: 3  \\n- **Resulting number of lines**: 4  \\n\\nSo there are three “new‑line” characters, which produce four separate lines.\",\"reasoning\":\"The user: \\\"Count new lines:\\nLine\\nAnother\\nline\\nhere\\\"\\n\\nThey want to count new lines. The text includes lines: \\\"Line\\\", \\\"Another\\\", \\\"line\\\", \\\"here\\\". That's 4 lines. Newline count: Typically number of newline characters. In a 4-line block, there are 3 newline characters separating them, but sometimes count lines = 4. The user says \\\"Count new lines\\\". Probably they want number of newline characters. The block:\\n\\nLine\\\\nAnother\\\\nline\\\\nhere\\n\\nThat has 3 newline characters. But if they count lines, it's 4 lines. Let's interpret: \\\"Count new lines\\\" could be ambiguous. I'd respond with both: there are 3 newline characters, resulting in 4 lines. Provide explanation.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017170053,\"prompt_tokens\":82,\"prompt_time\":0.003429365,\"completion_tokens\":229,\"completion_time\":0.479599564,\"total_tokens\":311,\"total_time\":0.483028929,\"completion_tokens_details\":{\"reasoning_tokens\":158}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfxhp9mmfdsa1vf5x202t8mm\",\"seed\":1075495794},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

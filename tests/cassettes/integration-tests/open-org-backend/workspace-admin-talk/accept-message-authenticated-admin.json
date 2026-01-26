@@ -1,17 +1,17 @@
 {
   "version": 1,
   "name": "accept-message-authenticated-admin",
-  "recordedAt": "2026-01-24T18:39:09.139Z",
+  "recordedAt": "2026-01-26T15:59:56.672Z",
   "interactions": [
     {
       "request": {
-        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "url": "https://api.groq.com/openai/v1/responses",
         "method": "POST",
         "headers": [
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello Agent\"}],\"stream\":false}",
+        "body": "{\"input\":\"Hello Agent\",\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"user\":\"0\"}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,27 +23,27 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c31a6e36b8ae6de-LIS"],
+          ["cf-ray", "9c41386c5820e3d1-LIS"],
           ["content-type", "application/json"],
-          ["date", "Sat, 24 Jan 2026 18:39:09 GMT"],
+          ["date", "Mon, 26 Jan 2026 15:59:57 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
-          ["x-groq-region", "fra"],
+          ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
           ["x-ratelimit-remaining-requests", "999"],
           ["x-ratelimit-remaining-tokens", "7926"],
           ["x-ratelimit-reset-requests", "1m26.4s"],
           ["x-ratelimit-reset-tokens", "554ms"],
-          ["x-request-id", "req_01kfrmv2j0f7tatv83ry7gkdvk"],
+          ["x-request-id", "req_01kfxgh0dmfgha24q1tqqqez9e"],
           [
             "set-cookie",
-            "__cf_bm=6P87.05ujkshlThXUgND2PeO8PEkDMwoNaBDo_7ykgA-1769279949-1.0.1.1-L1Ks8wEwj25P7MM870a6unjYcvOhyfTMyIjDJWvNrt9nEc13DfV92kLmXU_EqLUjk8iuVb6QtsuiXEK..BZw.JijyZC1YJRhpKakiSaZGWs; path=/; expires=Sat, 24-Jan-26 19:09:09 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=F_V3JYjcdPo0mH0Vt9WhtR.OLnUNuPyy_1e8fi0KmwU-1769443197-1.0.1.1-lps.DNItPEomNbs1TByKzlE9TBr1bgubJUv5LSDitVG6VVbltCANGuTwdoeIX6TosKlT8JEDpmyRJKbAIK1OKNc8hbth1e7RE6jb4ZXv.ow; path=/; expires=Mon, 26-Jan-26 16:29:57 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-70424261-1b8c-438a-83af-6c1edec467aa\",\"object\":\"chat.completion\",\"created\":1769279949,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello! How can I assist you today?\",\"reasoning\":\"We need to respond as ChatGPT. The system message defines \\\"You are ChatGPT, a large language model\\\". There's also a developer message but no content. The user says \\\"Hello Agent\\\". Probably respond politely.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018624695,\"prompt_tokens\":73,\"prompt_time\":0.002742407,\"completion_tokens\":62,\"completion_time\":0.127091245,\"total_tokens\":135,\"total_time\":0.129833652,\"completion_tokens_details\":{\"reasoning_tokens\":44}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_dddd02f37b\",\"x_groq\":{\"id\":\"req_01kfrmv2j0f7tatv83ry7gkdvk\",\"seed\":224198606},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"resp_01kfxgh0n8fgkb46tdc1pdkjse\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769443197,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfxgh0n8fgkth9jqa9s7vepj\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We have system messages: we are ChatGPT. The developer message: empty? The developer message says \\\"You are ChatGPT...\\\". There's no special instruction besides default. The user says \\\"Hello Agent\\\". We need respond appropriately. Likely a friendly greeting.\\n\\nWe must obey policies. Nothing restricted. So respond with greeting and ask how can help.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfxgh0n8fgmaqgt5jv3bvpsd\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello! How can I assist you today?\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":73,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":89,\"output_tokens_details\":{\"reasoning_tokens\":71},\"total_tokens\":162},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "basic-chat",
-  "recordedAt": "2026-01-26T12:18:20.735Z",
+  "recordedAt": "2026-01-26T16:20:15.455Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c3ff3d0cccfe3c8-LIS"],
+          ["cf-ray", "9c41562d7bf6547f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Mon, 26 Jan 2026 12:18:21 GMT"],
+          ["date", "Mon, 26 Jan 2026 16:20:15 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "999"],
+          ["x-ratelimit-remaining-requests", "998"],
           ["x-ratelimit-remaining-tokens", "7926"],
-          ["x-ratelimit-reset-requests", "1m26.4s"],
+          ["x-ratelimit-reset-requests", "2m52.8s"],
           ["x-ratelimit-reset-tokens", "554ms"],
-          ["x-request-id", "req_01kfx3v7nxfdebzhh9pr6xkbas"],
+          ["x-request-id", "req_01kfxhp64pemfsa0h7j7m0a6pz"],
           [
             "set-cookie",
-            "__cf_bm=fp.xV7vjzpC7u9km7KdS0ajMIuOZnsTSo7JfUNiuWq8-1769429901-1.0.1.1-xdfeIs_nClUsjiYnYP6_6TtZJGdFTnDwPfC79o2qJF8zH2foZclJ2piEoo1MApDlpJn7zGkLC76MX5STNODansRBKHquOAz_DsLNuHqKQ8k; path=/; expires=Mon, 26-Jan-26 12:48:21 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=SNwGtwz6Pxc6r7.rBNDuH2bQpqetQ5vyW6L3QHXSHIQ-1769444415-1.0.1.1-5CZg8A7NaPUz7TGAbyfGYkwBZCVQyTtlRmyWi3_2z9.xFNcgc_rKHsV8m8pAfLWFIqg8tqcjfaU68HSrcxaxAgp02cHbk4pu6fUC8cZUOKo; path=/; expires=Mon, 26-Jan-26 16:50:15 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-26becaa9-9893-41df-a6ff-614ff4bdc28b\",\"object\":\"chat.completion\",\"created\":1769429901,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello! 👋 How can I assist you today?\",\"reasoning\":\"The user asks: \\\"Say hello\\\". Just a simple greeting. Probably respond with \\\"Hello!\\\" Possibly ask how can help. Simple.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018880779,\"prompt_tokens\":73,\"prompt_time\":0.002870298,\"completion_tokens\":48,\"completion_time\":0.102212942,\"total_tokens\":121,\"total_time\":0.10508324,\"completion_tokens_details\":{\"reasoning_tokens\":28}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_309cec8e88\",\"x_groq\":{\"id\":\"req_01kfx3v7nxfdebzhh9pr6xkbas\",\"seed\":1821055552},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-e5a63d78-3614-467e-843f-c50d512977c1\",\"object\":\"chat.completion\",\"created\":1769444415,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Hello! How can I assist you today?\",\"reasoning\":\"The user says \\\"Say hello\\\". We need to respond with a greeting. Should be simple.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018140291,\"prompt_tokens\":73,\"prompt_time\":0.003652839,\"completion_tokens\":38,\"completion_time\":0.080252267,\"total_tokens\":111,\"total_time\":0.083905106,\"completion_tokens_details\":{\"reasoning_tokens\":20}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kfxhp64pemfsa0h7j7m0a6pz\",\"seed\":574179869},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

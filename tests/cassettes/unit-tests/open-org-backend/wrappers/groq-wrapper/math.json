@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "math",
-  "recordedAt": "2026-01-26T12:18:26.352Z",
+  "recordedAt": "2026-01-26T16:20:20.490Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c3ff3f36f54e3c8-LIS"],
+          ["cf-ray", "9c41564cbfe4547f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Mon, 26 Jan 2026 12:18:26 GMT"],
+          ["date", "Mon, 26 Jan 2026 16:20:20 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "994"],
-          ["x-ratelimit-remaining-tokens", "7828"],
-          ["x-ratelimit-reset-requests", "8m38.4s"],
-          ["x-ratelimit-reset-tokens", "1.289s"],
-          ["x-request-id", "req_01kfx3vd20ed1bhqrcaaa5a6q9"],
+          ["x-ratelimit-remaining-requests", "993"],
+          ["x-ratelimit-remaining-tokens", "7701"],
+          ["x-ratelimit-reset-requests", "10m4.8s"],
+          ["x-ratelimit-reset-tokens", "2.242s"],
+          ["x-request-id", "req_01kfxhpb0hf8p92extx59zc9vy"],
           [
             "set-cookie",
-            "__cf_bm=DsLQoO7AFPS7Y_oz4bD5hXLBUHhmBIMOg_nT4U0mQ_8-1769429906-1.0.1.1-QTZjphWyIi5fXYz02uVrCFDV2qKecwMWtxq.zZMYXpt3LMJ5RBsOOsK9jhe9dfBnOqy5QrJGE6n.Rul0I7ON2ey5lLQRnrvB3r0l4dGdicg; path=/; expires=Mon, 26-Jan-26 12:48:26 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=2OnNWoDxUrlyDJkGye4XdzTxYZpnHZNlpbBru7ouLKA-1769444420-1.0.1.1-UStDDAyVuZH4yX7NXow9Ofb3GC4ylnjYKr6dIq4XEJrccZmuJk5CU8PxO79tuRZyjgCST8TwoKJWRggw8kH.QzLISJCA_3P4gE90JGfiIrI; path=/; expires=Mon, 26-Jan-26 16:50:20 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-953e0727-d676-42d7-8656-05a94bfdd881\",\"object\":\"chat.completion\",\"created\":1769429906,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"7 × 8 = 56.\",\"reasoning\":\"The user asks a simple multiplication: 7 times 8 = 56. So answer: 56.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018947946,\"prompt_tokens\":79,\"prompt_time\":0.0032071,\"completion_tokens\":42,\"completion_time\":0.086427638,\"total_tokens\":121,\"total_time\":0.089634738,\"completion_tokens_details\":{\"reasoning_tokens\":23}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfx3vd20ed1bhqrcaaa5a6q9\",\"seed\":877338232},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-061136c2-0324-4b62-a1c0-693b453d665d\",\"object\":\"chat.completion\",\"created\":1769444420,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"7 × 8 = 56.\",\"reasoning\":\"The user asks a simple arithmetic question: \\\"What is 7 times 8?\\\" Answer: 56.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017060158,\"prompt_tokens\":79,\"prompt_time\":0.004850131,\"completion_tokens\":42,\"completion_time\":0.086614462,\"total_tokens\":121,\"total_time\":0.091464593,\"completion_tokens_details\":{\"reasoning_tokens\":23}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfxhpb0hf8p92extx59zc9vy\",\"seed\":2142059390},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

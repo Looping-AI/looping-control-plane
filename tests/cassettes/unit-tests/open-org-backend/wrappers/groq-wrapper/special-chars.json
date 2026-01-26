@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "special-chars",
-  "recordedAt": "2026-01-26T12:18:21.957Z",
+  "recordedAt": "2026-01-26T16:20:16.351Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c3ff3d7eaa9e3c8-LIS"],
+          ["cf-ray", "9c415632db39547f-LIS"],
           ["content-type", "application/json"],
-          ["date", "Mon, 26 Jan 2026 12:18:22 GMT"],
+          ["date", "Mon, 26 Jan 2026 16:20:16 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "998"],
+          ["x-ratelimit-remaining-requests", "997"],
           ["x-ratelimit-remaining-tokens", "7918"],
-          ["x-ratelimit-reset-requests", "2m52.8s"],
+          ["x-ratelimit-reset-requests", "4m19.2s"],
           ["x-ratelimit-reset-tokens", "615ms"],
-          ["x-request-id", "req_01kfx3v8reepwt7d359mt7ke0p"],
+          ["x-request-id", "req_01kfxhp6z8f88vkx6sf4m17sbt"],
           [
             "set-cookie",
-            "__cf_bm=LxOD6DdNN6a_LozapYGdmRr6Mo7sU_sLxr9xinMf4LE-1769429902-1.0.1.1-qB6Sy6YPzKyF6yJ3I8jOnGdHddWaQP4BIPc_ED6KrWYo9.7UcasmHMnaybnSmx17C9LPINdfxnk2CzJ68WuSWQAqgsYjRRsuMs95EFgVcE0; path=/; expires=Mon, 26-Jan-26 12:48:22 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=VMtpHVcKV5TjVuyMCCJf.us6Zh1.o9HZfNyl_wuBb3w-1769444416-1.0.1.1-oldDC6EP_MRk0LLa00jpYe5gV8vkXG4OqpxLOWINEWU9rx4xZdDWP9yfekQjkQ.mrC7alsvz8w5PHBfqP7dOsjOwvbg7M4q_7_pSIf9INGc; path=/; expires=Mon, 26-Jan-26 16:50:16 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-42114aef-3f12-4d1e-b8fc-cbbad1c7e8ac\",\"object\":\"chat.completion\",\"created\":1769429902,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"!@#$%^\\u0026*()\",\"reasoning\":\"The user says: \\\"Echo this: !@#$%^\\u0026*()\\\". We need to output exactly that string. It's not disallowed. So just repeat the characters.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018970664,\"prompt_tokens\":81,\"prompt_time\":0.00338438,\"completion_tokens\":52,\"completion_time\":0.107585913,\"total_tokens\":133,\"total_time\":0.110970293,\"completion_tokens_details\":{\"reasoning_tokens\":36}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_309cec8e88\",\"x_groq\":{\"id\":\"req_01kfx3v8reepwt7d359mt7ke0p\",\"seed\":620914411},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-22d250b7-7110-4af2-92f0-c389930087d6\",\"object\":\"chat.completion\",\"created\":1769444416,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"!@#$%^\\u0026*()\",\"reasoning\":\"The user requests: \\\"Echo this: !@#$%^\\u0026*()\\\". We need to output exactly that string. It's a harmless request, no policy violation. So answer with the same string.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018871999,\"prompt_tokens\":81,\"prompt_time\":0.003109329,\"completion_tokens\":57,\"completion_time\":0.119425363,\"total_tokens\":138,\"total_time\":0.122534692,\"completion_tokens_details\":{\"reasoning_tokens\":41}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfxhp6z8f88vkx6sf4m17sbt\",\"seed\":279764200},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

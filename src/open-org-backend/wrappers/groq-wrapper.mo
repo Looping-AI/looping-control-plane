@@ -72,16 +72,9 @@ module {
     #array : [Text];
   };
 
-  /// Reasoning effort levels for Responses API
-  public type ReasoningEffort = {
-    #low;
-    #medium;
-    #high;
-  };
-
   /// Reasoning configuration for Responses API
   public type ReasoningConfig = {
-    effort : ?ReasoningEffort;
+    effort : ?Text;
     summary : ?Bool;
   };
 
@@ -216,15 +209,6 @@ module {
     ]);
   };
 
-  /// Convert ReasoningEffort to string for JSON serialization
-  private func reasoningEffortToString(effort : ReasoningEffort) : Text {
-    switch (effort) {
-      case (#low) { "low" };
-      case (#medium) { "medium" };
-      case (#high) { "high" };
-    };
-  };
-
   /// Convert ResponseInput to JSON
   private func inputToJson(input : ResponseInput) : Json.Json {
     switch (input) {
@@ -320,7 +304,7 @@ module {
         let reasoningFields = List.empty<(Text, Json.Json)>();
         switch (reasoning.effort) {
           case (?effort) {
-            List.add(reasoningFields, ("effort", str(reasoningEffortToString(effort))));
+            List.add(reasoningFields, ("effort", str(effort)));
           };
           case (null) {};
         };
@@ -680,7 +664,8 @@ module {
   /// @param model - Model name (should support reasoning)
   /// @param trackId - Tracking identifier for attribution and usage monitoring
   /// @param instructions - Optional system instructions
-  /// @param reasoningEffort - Optional reasoning effort level (#low, #medium, #high)
+  /// @param temperature - Optional temperature setting (0.0-2.0)
+  /// @param tools - Optional tools for function calling
   /// @returns Result with reasoning response or error message
   public func reason(
     apiKey : Text,
@@ -688,7 +673,8 @@ module {
     model : Text,
     trackId : TrackId,
     instructions : ?Text,
-    reasoningEffort : ?ReasoningEffort,
+    temperature : ?Float,
+    tools : ?[Tool],
   ) : async {
     #ok : Text;
     #err : Text;
@@ -698,10 +684,6 @@ module {
     assert Text.trim(model, #char ' ') != "";
 
     let inputData : ResponseInput = #string(input);
-    let reasoningConfig = switch (reasoningEffort) {
-      case (?effort) { ?{ effort = ?effort; summary = null } };
-      case (null) { null };
-    };
 
     // Create user key from trackId
     let userKey = switch (trackId) {
@@ -716,10 +698,10 @@ module {
       inputData,
       model,
       instructions,
-      null, // temperature
+      temperature,
       null, // maxOutputTokens
-      reasoningConfig,
-      null, // no tools for basic reasoning
+      null, // reasoning always null
+      tools,
       null, // no tool choice
       ?userKey // user key for identification
     );

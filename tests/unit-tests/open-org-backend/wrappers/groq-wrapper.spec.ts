@@ -195,7 +195,8 @@ describe("Groq Wrapper Unit Tests", () => {
             TEST_MODEL,
             trackId,
             [instructions],
-            [{ low: null }],
+            [], // temperature
+            [], // tools
           ),
         { ticks: 5 },
       );
@@ -229,7 +230,8 @@ describe("Groq Wrapper Unit Tests", () => {
               TEST_MODEL,
               trackId,
               [],
-              [{ medium: null }],
+              [], // temperature
+              [], // tools
             ),
           { ticks: 5 },
         );
@@ -267,7 +269,8 @@ describe("Groq Wrapper Unit Tests", () => {
               TEST_MODEL,
               trackId,
               [instructions],
-              [{ high: null }],
+              [], // temperature
+              [], // tools
             ),
           { ticks: 5 },
         );
@@ -306,7 +309,8 @@ describe("Groq Wrapper Unit Tests", () => {
             TEST_MODEL,
             trackId,
             [],
-            [],
+            [], // temperature
+            [], // tools
           ),
         { ticks: 5 },
       );
@@ -341,7 +345,8 @@ describe("Groq Wrapper Unit Tests", () => {
               TEST_MODEL,
               trackId,
               [instructions],
-              [{ medium: null }],
+              [], // temperature
+              [], // tools
             ),
           { ticks: 5 },
         );
@@ -371,7 +376,15 @@ describe("Groq Wrapper Unit Tests", () => {
       const input = "Test input";
 
       try {
-        await testCanister.groqReason("", input, TEST_MODEL, trackId, [], []);
+        await testCanister.groqReason(
+          "",
+          input,
+          TEST_MODEL,
+          trackId,
+          [],
+          [],
+          [],
+        );
         expect(false).toBe(true); // Should not reach here
       } catch (error) {
         // Expected to trap due to empty API key validation
@@ -389,6 +402,7 @@ describe("Groq Wrapper Unit Tests", () => {
           input,
           TEST_MODEL,
           trackId,
+          [],
           [],
           [],
         );
@@ -410,6 +424,7 @@ describe("Groq Wrapper Unit Tests", () => {
           trackId,
           [],
           [],
+          [],
         );
         expect(false).toBe(true); // Should not reach here
       } catch (error) {
@@ -423,7 +438,15 @@ describe("Groq Wrapper Unit Tests", () => {
       const input = "Test input";
 
       try {
-        await testCanister.groqReason(TEST_API_KEY, input, "", trackId, [], []);
+        await testCanister.groqReason(
+          TEST_API_KEY,
+          input,
+          "",
+          trackId,
+          [],
+          [],
+          [],
+        );
         expect(false).toBe(true); // Should not reach here
       } catch (error) {
         // Expected to trap due to empty model validation
