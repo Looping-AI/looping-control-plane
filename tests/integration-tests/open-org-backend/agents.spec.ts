@@ -80,9 +80,10 @@ describe("Agent Management", () => {
 
   describe("get_agent", () => {
     it("should return null for non-existent agent", async () => {
-      const agent = await actor.getAgent(0n, 999n);
+      const agentResult = await actor.getAgent(0n, 999n);
       // Candid handles an optional custom type as an array with 0 or 1 elements
       // an empty array means null in Motoko
+      const agent = expectOk(agentResult);
       expectNone(agent);
     });
 
@@ -198,7 +199,8 @@ describe("Agent Management", () => {
       const deleteResult = await actor.deleteAgent(0n, agentId);
       expectOk(deleteResult);
 
-      const agent = await actor.getAgent(0n, agentId);
+      const agentResult = await actor.getAgent(0n, agentId);
+      const agent = expectOk(agentResult);
       expectNone(agent);
     });
   });

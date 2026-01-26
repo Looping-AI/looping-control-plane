@@ -4,7 +4,6 @@ import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import Bool "mo:core/Bool";
 import List "mo:core/List";
-import Principal "mo:core/Principal";
 import HttpWrapper "./http-wrapper";
 import Json "mo:json";
 import { str; int; float; bool; obj; arr } "mo:json";
@@ -13,6 +12,13 @@ module {
   // ============================================
   // Types for Groq API
   // ============================================
+
+  /// Tracking identifier for attribution and usage monitoring
+  /// Used to identify the workspace or workspace+agent context for LLM API calls
+  public type TrackId = {
+    #workspace : Nat;
+    #workspaceAgent : (Nat, Nat);
+  };
 
   /// Message role in a conversation
   public type MessageRole = {
@@ -669,20 +675,18 @@ module {
 
   /// Generate reasoning response using Groq Responses API
   ///
-  /// @param caller - Principal of the caller for user identification
-  /// @param agentId - Agent ID for user identification
   /// @param apiKey - The Groq API key
   /// @param input - Input text for reasoning
   /// @param model - Model name (should support reasoning)
+  /// @param trackId - Tracking identifier for attribution and usage monitoring
   /// @param instructions - Optional system instructions
   /// @param reasoningEffort - Optional reasoning effort level (#low, #medium, #high)
   /// @returns Result with reasoning response or error message
   public func reason(
-    caller : Principal,
-    agentId : Nat,
     apiKey : Text,
     input : Text,
     model : Text,
+    trackId : TrackId,
     instructions : ?Text,
     reasoningEffort : ?ReasoningEffort,
   ) : async {
@@ -699,8 +703,13 @@ module {
       case (null) { null };
     };
 
-    // Create user key from caller and agentId
-    let userKey = Principal.toText(caller) # "_" # Nat.toText(agentId);
+    // Create user key from trackId
+    let userKey = switch (trackId) {
+      case (#workspace(id)) { Nat.toText(id) };
+      case (#workspaceAgent(wsId, agId)) {
+        Nat.toText(wsId) # "_" # Nat.toText(agId);
+      };
+    };
 
     await createResponse(
       apiKey,
