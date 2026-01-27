@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "isolate-agent-1",
-  "recordedAt": "2026-01-26T11:41:15.314Z",
+  "recordedAt": "2026-01-27T14:16:40.536Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c3fbd7ba8cba10f-LIS"],
+          ["cf-ray", "9c48de861fcce3c0-LIS"],
           ["content-type", "application/json"],
-          ["date", "Mon, 26 Jan 2026 11:41:15 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:16:40 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,17 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "990"],
-          ["x-ratelimit-remaining-tokens", "7921"],
-          ["x-ratelimit-reset-requests", "14m24s"],
-          ["x-ratelimit-reset-tokens", "592ms"],
-          ["x-request-id", "req_01kfx1qabfe7ctzm6ymejma2c2"],
+          ["x-ratelimit-remaining-requests", "995"],
+          ["x-ratelimit-remaining-tokens", "7854"],
+          ["x-ratelimit-reset-requests", "7m12s"],
+          ["x-ratelimit-reset-tokens", "1.095s"],
+          ["x-request-id", "req_01kfzx0kzefa4rgsm3gk3s8spa"],
           [
             "set-cookie",
-            "__cf_bm=1gA3poSmt07FrWLPMJdjULl9jvdVVXMVIM8Eis811SU-1769427675-1.0.1.1-SVTtp60OafK41yRei51fvCyDWX076ZUSnzUAakhSCikFhcsdXMKl3EZKjrYs0rCwhGWgUKabN29ZZgJIuxl8HX7go9hArobIL4kZwGb2sFQ; path=/; expires=Mon, 26-Jan-26 12:11:15 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
+            "__cf_bm=.G2TFhVhjJQSEX_xnZbbbz0EVKJakslTpmFTeg56dDI-1769523400-1.0.1.1-zhTFrITO5yt5krcvW8z1UtAGUeUiM7V4uxa.ajUADLudmUTuhX8Xpe4f7EJnApnVRwqHoI3hAEFPQVagRVs_MutPJ.AjP2YCLpymq9vcf3Q; path=/; expires=Tue, 27-Jan-26 14:46:40 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
           ]
         ],
-        "body": "{\"id\":\"chatcmpl-d4fec798-2a39-49ce-bba5-9b10974dec8a\",\"object\":\"chat.completion\",\"created\":1769427675,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of France is **Paris**.\",\"reasoning\":\"The user asks simple question. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.019012973,\"prompt_tokens\":78,\"prompt_time\":0.002978543,\"completion_tokens\":28,\"completion_time\":0.057832518,\"total_tokens\":106,\"total_time\":0.060811061,\"completion_tokens_details\":{\"reasoning_tokens\":10}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kfx1qabfe7ctzm6ymejma2c2\",\"seed\":1873129055},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-b84f3e5d-08bf-4ad2-a4be-837637a3d3f9\",\"object\":\"chat.completion\",\"created\":1769523400,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of France is **Paris**.\",\"reasoning\":\"User asks straightforward factual question: capital of France. Answer: Paris. Provide concise answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017276966,\"prompt_tokens\":78,\"prompt_time\":0.002885169,\"completion_tokens\":37,\"completion_time\":0.084076296,\"total_tokens\":115,\"total_time\":0.086961465,\"completion_tokens_details\":{\"reasoning_tokens\":19}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_8634b911ff\",\"x_groq\":{\"id\":\"req_01kfzx0kzefa4rgsm3gk3s8spa\",\"seed\":534033040},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }
