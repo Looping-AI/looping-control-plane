@@ -9,6 +9,8 @@ import {
 import { withCassette } from "../../../lib/cassette";
 
 describe("Groq Wrapper Unit Tests", () => {
+  type TrackId = { workspace: bigint } | { workspaceAgent: [bigint, bigint] };
+
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
 
@@ -178,7 +180,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
   describe("Reason Method Tests", () => {
     it("should handle basic reasoning with string input", async () => {
-      const agentId = 1n;
+      const trackId: TrackId = { workspaceAgent: [1n, 1n] };
       const input = "What are the key benefits of using renewable energy?";
       const instructions =
         "Provide a clear, structured response with main points.";
@@ -188,12 +190,13 @@ describe("Groq Wrapper Unit Tests", () => {
         "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-basic",
         () =>
           testCanister.groqReason(
-            agentId,
             TEST_API_KEY,
             input,
             TEST_MODEL,
+            trackId,
             [instructions],
-            [{ low: null }],
+            [], // temperature
+            [], // tools
           ),
         { ticks: 5 },
       );
@@ -213,7 +216,7 @@ describe("Groq Wrapper Unit Tests", () => {
     it(
       "should handle reasoning with medium effort",
       async () => {
-        const agentId = 2n;
+        const trackId: TrackId = { workspaceAgent: [2n, 2n] };
         const input =
           "Explain the concept of quantum computing in simple terms";
 
@@ -222,12 +225,13 @@ describe("Groq Wrapper Unit Tests", () => {
           "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-medium-effort",
           () =>
             testCanister.groqReason(
-              agentId,
               TEST_API_KEY,
               input,
               TEST_MODEL,
+              trackId,
               [],
-              [{ medium: null }],
+              [], // temperature
+              [], // tools
             ),
           { ticks: 5 },
         );
@@ -249,7 +253,7 @@ describe("Groq Wrapper Unit Tests", () => {
     it(
       "should handle reasoning with high effort",
       async () => {
-        const agentId = 3n;
+        const trackId: TrackId = { workspaceAgent: [3n, 3n] };
         const input =
           "Analyze the economic implications of artificial intelligence on the job market";
         const instructions =
@@ -260,12 +264,13 @@ describe("Groq Wrapper Unit Tests", () => {
           "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-high-effort",
           () =>
             testCanister.groqReason(
-              agentId,
               TEST_API_KEY,
               input,
               TEST_MODEL,
+              trackId,
               [instructions],
-              [{ high: null }],
+              [], // temperature
+              [], // tools
             ),
           { ticks: 5 },
         );
@@ -291,7 +296,7 @@ describe("Groq Wrapper Unit Tests", () => {
     );
 
     it("should handle reasoning without instructions or effort", async () => {
-      const agentId = 4n;
+      const trackId: TrackId = { workspace: 4n };
       const input = "What is machine learning?";
 
       const { result } = await withCassette(
@@ -299,12 +304,13 @@ describe("Groq Wrapper Unit Tests", () => {
         "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-no-instructions",
         () =>
           testCanister.groqReason(
-            agentId,
             TEST_API_KEY,
             input,
             TEST_MODEL,
+            trackId,
             [],
-            [],
+            [], // temperature
+            [], // tools
           ),
         { ticks: 5 },
       );
@@ -324,7 +330,7 @@ describe("Groq Wrapper Unit Tests", () => {
     it(
       "should handle complex mathematical reasoning",
       async () => {
-        const agentId = 6n;
+        const trackId: TrackId = { workspaceAgent: [6n, 6n] };
         const input =
           "Solve this step by step: If a train travels at 80 mph for 2.5 hours, how far does it go? Show your work.";
         const instructions = "Break down the calculation step by step.";
@@ -334,12 +340,13 @@ describe("Groq Wrapper Unit Tests", () => {
           "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-math",
           () =>
             testCanister.groqReason(
-              agentId,
               TEST_API_KEY,
               input,
               TEST_MODEL,
+              trackId,
               [instructions],
-              [{ medium: null }],
+              [], // temperature
+              [], // tools
             ),
           { ticks: 5 },
         );
@@ -365,11 +372,19 @@ describe("Groq Wrapper Unit Tests", () => {
     );
 
     it("should fail with empty API key", async () => {
-      const agentId = 7n;
+      const trackId: TrackId = { workspaceAgent: [7n, 7n] };
       const input = "Test input";
 
       try {
-        await testCanister.groqReason(agentId, "", input, TEST_MODEL, [], []);
+        await testCanister.groqReason(
+          "",
+          input,
+          TEST_MODEL,
+          trackId,
+          [],
+          [],
+          [],
+        );
         expect(false).toBe(true); // Should not reach here
       } catch (error) {
         // Expected to trap due to empty API key validation
@@ -378,15 +393,16 @@ describe("Groq Wrapper Unit Tests", () => {
     });
 
     it("should fail with whitespace-only API key", async () => {
-      const agentId = 8n;
+      const trackId: TrackId = { workspaceAgent: [8n, 8n] };
       const input = "Test input";
 
       try {
         await testCanister.groqReason(
-          agentId,
           "   ",
           input,
           TEST_MODEL,
+          trackId,
+          [],
           [],
           [],
         );
@@ -398,14 +414,15 @@ describe("Groq Wrapper Unit Tests", () => {
     });
 
     it("should fail with empty input", async () => {
-      const agentId = 9n;
+      const trackId: TrackId = { workspaceAgent: [9n, 9n] };
 
       try {
         await testCanister.groqReason(
-          agentId,
           TEST_API_KEY,
           "",
           TEST_MODEL,
+          trackId,
+          [],
           [],
           [],
         );
@@ -417,11 +434,19 @@ describe("Groq Wrapper Unit Tests", () => {
     });
 
     it("should fail with empty model name", async () => {
-      const agentId = 10n;
+      const trackId: TrackId = { workspaceAgent: [10n, 10n] };
       const input = "Test input";
 
       try {
-        await testCanister.groqReason(agentId, TEST_API_KEY, input, "", [], []);
+        await testCanister.groqReason(
+          TEST_API_KEY,
+          input,
+          "",
+          trackId,
+          [],
+          [],
+          [],
+        );
         expect(false).toBe(true); // Should not reach here
       } catch (error) {
         // Expected to trap due to empty model validation

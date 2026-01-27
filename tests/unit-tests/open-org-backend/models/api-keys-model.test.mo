@@ -3,7 +3,7 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import Result "mo:core/Result";
-import ApiKeysService "../../../../src/open-org-backend/services/api-keys-service";
+import ApiKeysModel "../../../../src/open-org-backend/models/api-keys-model";
 
 // Test key (32 bytes) - simulates a SHA256-hashed Schnorr signature
 let testKey : [Nat8] = [
@@ -56,30 +56,27 @@ suite(
   "ApiKeysService",
   func() {
     test(
-      "storeApiKey stores an API key for a workspace and agent",
+      "storeApiKey stores an API key for a workspace and provider",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>();
-        let agentId = 1;
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysModel.EncryptedApiKey>>();
         let provider = #groq;
         let apiKey = "test-key-123";
 
-        let result = ApiKeysService.storeApiKey(
+        let result = ApiKeysModel.storeApiKey(
           apiKeys,
           testKey,
           workspaceId,
-          agentId,
           provider,
           apiKey,
         );
 
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
 
-        let retrievedKey = ApiKeysService.getApiKeyForWorkspaceAndAgent(
+        let retrievedKey = ApiKeysModel.getApiKey(
           apiKeys,
           testKey,
           workspaceId,
-          agentId,
           provider,
         );
 
@@ -88,53 +85,48 @@ suite(
     );
 
     test(
-      "getApiKeyForWorkspaceAndAgent returns latest key after update",
+      "getApiKey returns latest key after update",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>();
-        let agentId = 1;
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysModel.EncryptedApiKey>>();
         let provider = #groq;
 
         // Store first API key
         let firstKey = "original-key-123";
-        let result1 = ApiKeysService.storeApiKey(
+        let result1 = ApiKeysModel.storeApiKey(
           apiKeys,
           testKey,
           workspaceId,
-          agentId,
           provider,
           firstKey,
         );
         expect.result<(), Text>(result1, resultToText, resultEqual).isOk();
 
         // Verify first key is stored
-        let retrievedFirstKey = ApiKeysService.getApiKeyForWorkspaceAndAgent(
+        let retrievedFirstKey = ApiKeysModel.getApiKey(
           apiKeys,
           testKey,
           workspaceId,
-          agentId,
           provider,
         );
         expect.option(retrievedFirstKey, Text.toText, Text.equal).equal(?firstKey);
 
         // Update with a new API key
         let secondKey = "updated-key-456";
-        let result2 = ApiKeysService.storeApiKey(
+        let result2 = ApiKeysModel.storeApiKey(
           apiKeys,
           testKey,
           workspaceId,
-          agentId,
           provider,
           secondKey,
         );
         expect.result<(), Text>(result2, resultToText, resultEqual).isOk();
 
         // Verify latest key is returned
-        let retrievedLatestKey = ApiKeysService.getApiKeyForWorkspaceAndAgent(
+        let retrievedLatestKey = ApiKeysModel.getApiKey(
           apiKeys,
           testKey,
           workspaceId,
-          agentId,
           provider,
         );
         expect.option(retrievedLatestKey, Text.toText, Text.equal).equal(?secondKey);
@@ -142,16 +134,16 @@ suite(
     );
 
     test(
-      "getWorkspaceApiKeys returns list of stored keys",
+      "getWorkspaceApiKeys returns list of stored providers",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysModel.EncryptedApiKey>>();
 
         // Store multiple keys
-        ignore ApiKeysService.storeApiKey(apiKeys, testKey, workspaceId, 1, #groq, "key-1");
-        ignore ApiKeysService.storeApiKey(apiKeys, testKey, workspaceId, 2, #openai, "key-2");
+        ignore ApiKeysModel.storeApiKey(apiKeys, testKey, workspaceId, #groq, "key-1");
+        ignore ApiKeysModel.storeApiKey(apiKeys, testKey, workspaceId, #openai, "key-2");
 
-        let result = ApiKeysService.getWorkspaceApiKeys(apiKeys, workspaceId);
+        let result = ApiKeysModel.getWorkspaceApiKeys(apiKeys, workspaceId);
         switch (result) {
           case (#ok keys) {
             expect.nat(keys.size()).equal(2);
@@ -167,23 +159,22 @@ suite(
       "deleteApiKey removes the specified key",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>();
-        let agentId = 1;
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysModel.EncryptedApiKey>>();
         let provider = #groq;
 
         // Store a key
-        ignore ApiKeysService.storeApiKey(apiKeys, testKey, workspaceId, agentId, provider, "key-to-delete");
+        ignore ApiKeysModel.storeApiKey(apiKeys, testKey, workspaceId, provider, "key-to-delete");
 
         // Verify it exists
-        let beforeDelete = ApiKeysService.getApiKeyForWorkspaceAndAgent(apiKeys, testKey, workspaceId, agentId, provider);
+        let beforeDelete = ApiKeysModel.getApiKey(apiKeys, testKey, workspaceId, provider);
         expect.option(beforeDelete, Text.toText, Text.equal).isSome();
 
         // Delete it
-        let deleteResult = ApiKeysService.deleteApiKey(apiKeys, workspaceId, agentId, provider);
+        let deleteResult = ApiKeysModel.deleteApiKey(apiKeys, workspaceId, provider);
         expect.result<(), Text>(deleteResult, resultToText, resultEqual).isOk();
 
         // Verify it's gone
-        let afterDelete = ApiKeysService.getApiKeyForWorkspaceAndAgent(apiKeys, testKey, workspaceId, agentId, provider);
+        let afterDelete = ApiKeysModel.getApiKey(apiKeys, testKey, workspaceId, provider);
         expect.option(afterDelete, Text.toText, Text.equal).isNull();
       },
     );

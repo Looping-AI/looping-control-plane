@@ -11,7 +11,11 @@ module {
   /// LLM Provider
   public type LlmProvider = {
     #openai;
-    #llmcanister;
+    #groq;
+  };
+
+  /// LLM Provider
+  public type AdminLlmProvider = {
     #groq;
   };
 };

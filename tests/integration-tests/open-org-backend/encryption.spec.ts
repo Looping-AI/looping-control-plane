@@ -6,7 +6,6 @@ import {
   createTestEnvironment,
   setupAdminUser,
   setupRegularUser,
-  createTestAgent,
   createGroqAgent,
   idlFactory,
   type _SERVICE,
@@ -21,7 +20,6 @@ describe("API Key Encryption & Cache Management", () => {
   let workspaceAdminIdentity: ReturnType<typeof generateRandomIdentity>;
   let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
-  let agentId: bigint;
 
   beforeEach(async () => {
     const testEnv = await createTestEnvironment();
@@ -32,15 +30,6 @@ describe("API Key Encryption & Cache Management", () => {
 
     // Set up workspace admin for agent operations
     ({ adminIdentity: workspaceAdminIdentity } = await setupAdminUser(actor));
-
-    // Create a test agent using workspace admin
-    actor.setIdentity(workspaceAdminIdentity);
-    agentId = await createTestAgent(
-      actor,
-      "Encryption Test Agent",
-      { groq: null },
-      "mixtral",
-    );
 
     // Set up a regular user
     ({ userIdentity } = await setupRegularUser(actor));
@@ -60,7 +49,6 @@ describe("API Key Encryption & Cache Management", () => {
     actor.setIdentity(workspaceAdminIdentity);
     const storeResult = await actor.storeApiKey(
       0n,
-      agentId,
       { groq: null },
       "workspace-api-key",
     );
@@ -76,7 +64,7 @@ describe("API Key Encryption & Cache Management", () => {
   it("should share workspace API keys between admins", async () => {
     // First admin stores an API key
     actor.setIdentity(workspaceAdminIdentity);
-    await actor.storeApiKey(0n, agentId, { groq: null }, "shared-key");
+    await actor.storeApiKey(0n, { groq: null }, "shared-key");
 
     // Create a second admin
     const admin2Identity = generateRandomIdentity();
@@ -117,7 +105,6 @@ describe("API Key Encryption & Cache Management", () => {
     actor.setIdentity(workspaceAdminIdentity);
     const storeResult = await actor.storeApiKey(
       0n,
-      agentId,
       { groq: null },
       "test-key-for-clear",
     );

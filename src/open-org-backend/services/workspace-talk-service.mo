@@ -2,33 +2,34 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
-import AgentService "./agent-service";
-import ApiKeysService "./api-keys-service";
+import Types "../types";
+import AgentModel "../models/agent-model";
+import ApiKeysModel "../models/api-keys-model";
 import KeyDerivationService "./key-derivation-service";
-import ConversationService "./conversation-service";
+import ConversationModel "../models/conversation-model";
 import GroqWrapper "../wrappers/groq-wrapper";
 
 module {
 
   // Get agent for a given workspace
   private func getAgentForWorkspace(
-    workspaceAgents : Map.Map<Nat, Map.Map<Nat, AgentService.Agent>>,
+    workspaceAgents : Map.Map<Nat, Map.Map<Nat, AgentModel.Agent>>,
     workspaceId : Nat,
     agentId : Nat,
-  ) : ?AgentService.Agent {
+  ) : ?AgentModel.Agent {
     switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
       case (null) { null };
       case (?agents) {
-        AgentService.getAgent(agentId, agents);
+        AgentModel.getAgent(agentId, agents);
       };
     };
   };
 
   // Process the workspace talk request after validation
   public func processWorkspaceTalk(
-    workspaceAgents : Map.Map<Nat, Map.Map<Nat, AgentService.Agent>>,
-    apiKeys : Map.Map<Nat, Map.Map<(Nat, Text), ApiKeysService.EncryptedApiKey>>,
-    conversations : Map.Map<ConversationService.ConversationKey, List.List<ConversationService.Message>>,
+    workspaceAgents : Map.Map<Nat, Map.Map<Nat, AgentModel.Agent>>,
+    apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>,
+    conversations : Map.Map<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>,
     workspaceId : Nat,
     agentId : Nat,
     message : Text,
@@ -45,7 +46,7 @@ module {
       case (?foundAgent) {
         // Get api key (requires deriving encryption key for the workspace)
         let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-        let apiKey = ApiKeysService.getApiKeyForWorkspaceAndAgent(apiKeys, encryptionKey, workspaceId, agentId, foundAgent.provider);
+        let apiKey = ApiKeysModel.getApiKey(apiKeys, encryptionKey, workspaceId, foundAgent.provider);
 
         // Generate response based on provider and API key availability
         var response : Text = "";
@@ -69,13 +70,10 @@ module {
           case (#openai) {
             return #err("OpenAI integration not yet implemented.");
           };
-          case (#llmcanister) {
-            return #err("LLM Canister integration not yet implemented.");
-          };
         };
 
         // Once successful, store the user message and agent response in the conversation history
-        ConversationService.addMessageToConversation(
+        ConversationModel.addMessageToConversation(
           conversations,
           workspaceId,
           agentId,
@@ -86,7 +84,7 @@ module {
           },
         );
 
-        ConversationService.addMessageToConversation(
+        ConversationModel.addMessageToConversation(
           conversations,
           workspaceId,
           agentId,

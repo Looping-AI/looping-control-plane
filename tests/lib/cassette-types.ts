@@ -362,6 +362,8 @@ export const DEFAULT_REDACT_HEADERS = [
   "x-api-key",
   "api-key",
   "bearer",
+  "cookie",
+  "set-cookie",
 ] as const;
 
 /** Default stale warning threshold in days */

@@ -68,4 +68,37 @@ module {
       };
     };
   };
+
+  // Add a message to an workspace admin conversation
+  public func addMessageToAdminConversation(
+    adminConversations : Map.Map<Nat, List.List<Message>>,
+    workspaceId : Nat,
+    message : Message,
+  ) {
+    switch (Map.get(adminConversations, Nat.compare, workspaceId)) {
+      case (null) {
+        let newList = List.empty<Message>();
+        List.add(newList, message);
+        Map.add(adminConversations, Nat.compare, workspaceId, newList);
+      };
+      case (?existingList) {
+        List.add(existingList, message);
+      };
+    };
+  };
+
+  // Get admin conversation history (workspace-level, no agent)
+  public func getAdminConversation(
+    adminConversations : Map.Map<Nat, List.List<Message>>,
+    workspaceId : Nat,
+  ) : Result.Result<[Message], Text> {
+    switch (Map.get(adminConversations, Nat.compare, workspaceId)) {
+      case (null) {
+        #err("No admin conversation found for workspace " # debug_show (workspaceId) # ".");
+      };
+      case (?messages) {
+        #ok(List.toArray(messages));
+      };
+    };
+  };
 };

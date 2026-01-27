@@ -68,8 +68,8 @@ describe("Agent Management", () => {
       const result2 = await actor.createAgent(
         0n,
         "Agent 2",
-        { llmcanister: null },
-        "llama",
+        { groq: null },
+        "mixtral",
       );
       const id2 = expectOk(result2);
 
@@ -80,9 +80,10 @@ describe("Agent Management", () => {
 
   describe("get_agent", () => {
     it("should return null for non-existent agent", async () => {
-      const agent = await actor.getAgent(0n, 999n);
+      const agentResult = await actor.getAgent(0n, 999n);
       // Candid handles an optional custom type as an array with 0 or 1 elements
       // an empty array means null in Motoko
+      const agent = expectOk(agentResult);
       expectNone(agent);
     });
 
@@ -154,8 +155,8 @@ describe("Agent Management", () => {
         0n,
         agentId,
         ["New Agent Name"],
-        [{ llmcanister: null }],
-        ["llama2"],
+        [{ groq: null }],
+        ["mixtral"],
       );
       expectOk(updateResult);
 
@@ -163,8 +164,8 @@ describe("Agent Management", () => {
       const agent = expectOk(agentResult);
       const agentData = expectSome(agent);
       expect(agentData.name).toEqual("New Agent Name");
-      expect(agentData.provider).toEqual({ llmcanister: null });
-      expect(agentData.model).toEqual("llama2");
+      expect(agentData.provider).toEqual({ groq: null });
+      expect(agentData.model).toEqual("mixtral");
     });
   });
 
@@ -198,7 +199,8 @@ describe("Agent Management", () => {
       const deleteResult = await actor.deleteAgent(0n, agentId);
       expectOk(deleteResult);
 
-      const agent = await actor.getAgent(0n, agentId);
+      const agentResult = await actor.getAgent(0n, agentId);
+      const agent = expectOk(agentResult);
       expectNone(agent);
     });
   });
@@ -207,11 +209,10 @@ describe("Agent Management", () => {
     it("should return all created agents", async () => {
       await actor.createAgent(0n, "Agent 1", { openai: null }, "gpt-4");
       await actor.createAgent(0n, "Agent 2", { groq: null }, "mixtral");
-      await actor.createAgent(0n, "Agent 3", { llmcanister: null }, "llama2");
 
       const result = await actor.listAgents(0n);
       const agents = expectOk(result);
-      expect(agents.length).toEqual(3);
+      expect(agents.length).toEqual(2);
       expect(agents[1].id).toEqual(1n);
       expect(agents[1].name).toEqual("Agent 2");
       expect(agents[1].provider).toEqual({ groq: null });

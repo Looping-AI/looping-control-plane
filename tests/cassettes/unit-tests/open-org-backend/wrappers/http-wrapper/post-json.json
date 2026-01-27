@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "post-json",
-  "recordedAt": "2026-01-20T11:11:02.343Z",
+  "recordedAt": "2026-01-27T14:32:53.021Z",
   "interactions": [
     {
       "request": {
@@ -18,10 +18,10 @@
           ["access-control-allow-origin", "*"],
           ["content-length", "502"],
           ["content-type", "application/json"],
-          ["date", "Tue, 20 Jan 2026 11:11:02 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:53 GMT"],
           ["server", "gunicorn/19.9.0"]
         ],
-        "body": "{\n  \"args\": {}, \n  \"data\": \"{\\\"message\\\":\\\"hello from ICP\\\"}\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept\": \"*/*\", \n    \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \n    \"Content-Length\": \"28\", \n    \"Content-Type\": \"application/json\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Bun/1.3.5\", \n    \"X-Amzn-Trace-Id\": \"Root=1-696f62c6-135d0d2638107b5400c74220\"\n  }, \n  \"json\": {\n    \"message\": \"hello from ICP\"\n  }, \n  \"origin\": \"149.90.42.23\", \n  \"url\": \"https://httpbin.org/post\"\n}\n",
+        "body": "{\n  \"args\": {}, \n  \"data\": \"{\\\"message\\\":\\\"hello from ICP\\\"}\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept\": \"*/*\", \n    \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \n    \"Content-Length\": \"28\", \n    \"Content-Type\": \"application/json\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Bun/1.3.5\", \n    \"X-Amzn-Trace-Id\": \"Root=1-6978cc95-2069efd62cce932321080133\"\n  }, \n  \"json\": {\n    \"message\": \"hello from ICP\"\n  }, \n  \"origin\": \"149.90.42.23\", \n  \"url\": \"https://httpbin.org/post\"\n}\n",
         "bodyEncoding": "text"
       }
     }

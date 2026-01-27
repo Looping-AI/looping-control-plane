@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "reason-basic",
-  "recordedAt": "2026-01-21T13:56:11.291Z",
+  "recordedAt": "2026-01-27T14:32:26.917Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"input\":\"What are the key benefits of using renewable energy?\",\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Provide a clear, structured response with main points.\",\"reasoning\":{\"effort\":\"low\"},\"store\":false,\"stream\":false,\"user\":\"2vxsx-fae_1\"}",
+        "body": "{\"input\":\"What are the key benefits of using renewable energy?\",\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Provide a clear, structured response with main points.\",\"store\":false,\"stream\":false,\"user\":\"1_1\"}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c1750439a3bcc1e-LIS"],
+          ["cf-ray", "9c48f5a0dcf5b17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 21 Jan 2026 13:56:12 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:28 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "999"],
-          ["x-ratelimit-remaining-tokens", "7905"],
-          ["x-ratelimit-reset-requests", "1m26.4s"],
-          ["x-ratelimit-reset-tokens", "712ms"],
-          ["x-request-id", "req_01kfgdesq0f929nqvx6e9x835k"],
-          [
-            "set-cookie",
-            "__cf_bm=pcz9y3TeAmjKYH6f6vEOhkGowtGgzbalfcA.BuZ7Or4-1769003772-1.0.1.1-r88m5T2oo5P5mgvTNCYuVD3y6DlyWdCfYzUGf9tFkPvdPinPQNZKVIdu5zTwpTnexiGTg8D8wqCMx8s2cBnN947JxCpkWesDi4SRm48kwsk; path=/; expires=Wed, 21-Jan-26 14:26:12 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-ratelimit-remaining-requests", "981"],
+          ["x-ratelimit-remaining-tokens", "7618"],
+          ["x-ratelimit-reset-requests", "27m21.6s"],
+          ["x-ratelimit-reset-tokens", "2.865s"],
+          ["x-request-id", "req_01kfzxxg7vetq9df8j8mxefjpv"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kfgdetwbf95bd34y4wg9skvv\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769003772,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfgdetwbf95tw76v20gq3834\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"Need concise bullet list.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfgdetwbf968rgks32c9snt1\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Key Benefits of Using Renewable Energy**\\n\\n| Benefit | Why It Matters | Typical Impact |\\n|---------|----------------|----------------|\\n| **1. Reduced Greenhouse‑Gas Emissions** | Replaces fossil fuels that emit CO₂, methane, and other pollutants. | Cuts national carbon footprints by 20‑30 % in many regions. |\\n| **2. Energy Security \\u0026 Independence** | Domestic resources (sun, wind, water) lessen reliance on imported fuels. | Lowers vulnerability to geopolitical price spikes and supply disruptions. |\\n| **3. Lower Operating Costs** | No fuel purchase; marginal cost after installation is near‑zero. | Levelized cost of electricity (LCOE) from solar \\u0026 wind now \\u003c$0.05/kWh in many markets—often cheaper than coal or gas. |\\n| **4. Job Creation \\u0026 Economic Growth** | Manufacturing, installation, maintenance, and R\\u0026D are labor‑intensive. | Creates 1.5 – 2 × more jobs per megawatt than conventional power plants. |\\n| **5. Health Benefits** | Eliminates air‑pollutant emissions (SO₂, NOₓ, particulates). | Reduces respiratory and cardiovascular disease cases, saving billions in healthcare costs. |\\n| **6. Grid Resilience \\u0026 Flexibility** | Distributed generation (rooftop solar, micro‑hydro) reduces single‑point failures. | Improves outage recovery times and supports remote or off‑grid communities. |\\n| **7. Sustainable Resource Use** | Sunlight, wind, tides, and biomass are virtually inexhaustible on human timescales. | Ensures long‑term availability of power without depletion. |\\n| **8. Innovation \\u0026 Technological Advancement** | Drives advances in storage, smart grids, and electric mobility. | Accelerates adoption of complementary clean‑tech (e.g., EVs, heat pumps). |\\n| **9. Climate‑Adaptation Benefits** | Reduces water usage (no cooling‑tower water) and mitigates heat‑island effects. | Helps water‑scarce regions and urban areas manage climate stress. |\\n| **10. Positive Public Perception** | Growing consumer demand for clean energy and corporate ESG commitments. | Boosts brand value and can attract green financing (e.g., ESG bonds). |\\n\\n### Bottom‑Line Takeaway\\nRenewable energy delivers **environmental, economic, and social advantages** that collectively support a more sustainable, resilient, and prosperous future. The combination of lower emissions, cost competitiveness, job creation, and health improvements makes it a cornerstone of modern energy policy.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"low\"},\"max_output_tokens\":null,\"instructions\":\"Provide a clear, structured response with main points.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"2vxsx-fae_1\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":94,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":547,\"output_tokens_details\":{\"reasoning_tokens\":6},\"total_tokens\":641},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kfzxxhk1etyv0qc2hnqbavzs\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769524348,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzxxhk1etzbx6hftae83ej8\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks: \\\"What are the key benefits of using renewable energy?\\\" They want a clear, structured response with main points. Provide bullet points or numbered list, maybe categories: environmental, economic, social, energy security, health, technology advancement, etc. Provide concise explanations. Should be straightforward. Use clear headings. No disallowed content. Provide final answer.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzxxhk1etzrrd4j5n2nnnkh\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Key Benefits of Using Renewable Energy**\\n\\n| Category | Benefit | Why It Matters |\\n|----------|---------|----------------|\\n| **Environmental** | **Reduced greenhouse‑gas emissions** | Solar, wind, hydro, and other renewables emit little to no CO₂, helping combat climate change. |\\n| | **Lower air and water pollution** | No combustion → fewer particulates, SO₂, NOₓ, and heavy‑metal runoff, improving ecosystem health. |\\n| | **Conservation of natural resources** | Renewable sources rely on sunlight, wind, and water—resources that are abundant and not depleted by use. |\\n| **Economic** | **Job creation** | Installation, manufacturing, operation, and maintenance of renewable projects generate millions of jobs worldwide. |\\n| | **Stable energy costs** | Sunlight and wind are free; once infrastructure is built, operating costs are low and less vulnerable to fuel price spikes. |\\n| | **Attracts investment \\u0026 innovation** | Growing markets encourage private capital, research, and new business models (e.g., community solar, microgrids). |\\n| **Energy Security** | **Diversified supply** | A mix of local renewable sources reduces dependence on imported fossil fuels and geopolitical risks. |\\n| | **Resilience \\u0026 decentralization** | Distributed generation (rooftop solar, small wind) can keep power flowing during grid outages or natural disasters. |\\n| **Health \\u0026 Social** | **Improved public health** | Cleaner air reduces respiratory and cardiovascular diseases, lowering healthcare costs. |\\n| | **Energy access for underserved communities** | Off‑grid renewables (solar home systems, mini‑hydro) provide electricity to remote or low‑income areas, fostering education and economic opportunity. |\\n| **Technological Advancement** | **Accelerated innovation** | High demand drives advances in storage (batteries), smart grids, and efficiency, spilling over into other sectors. |\\n| | **Scalable solutions** | Technologies range from tiny residential panels to massive utility‑scale farms, adaptable to any region’s needs. |\\n| **Long‑Term Sustainability** | **Future‑proof energy system** | Investing now builds a low‑carbon infrastructure that can meet growing global demand without exhausting resources. |\\n\\n### Quick Take‑Away\\n\\n- **Cleaner environment** → lower emissions, less pollution.  \\n- **Economic growth** → jobs, stable/low energy costs, new markets.  \\n- **Energy independence** → diversified, resilient power supply.  \\n- **Health \\u0026 equity** → better public health, broader electricity access.  \\n- **Innovation driver** → faster tech progress and scalable solutions.\\n\\nThese benefits together make renewable energy a cornerstone of a sustainable, prosperous, and secure future.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"Provide a clear, structured response with main points.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"1_1\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":94,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":635,\"output_tokens_details\":{\"reasoning_tokens\":74},\"total_tokens\":729},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

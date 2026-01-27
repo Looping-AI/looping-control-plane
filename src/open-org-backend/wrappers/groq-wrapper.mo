@@ -4,7 +4,6 @@ import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import Bool "mo:core/Bool";
 import List "mo:core/List";
-import Principal "mo:core/Principal";
 import HttpWrapper "./http-wrapper";
 import Json "mo:json";
 import { str; int; float; bool; obj; arr } "mo:json";
@@ -13,6 +12,13 @@ module {
   // ============================================
   // Types for Groq API
   // ============================================
+
+  /// Tracking identifier for attribution and usage monitoring
+  /// Used to identify the workspace or workspace+agent context for LLM API calls
+  public type TrackId = {
+    #workspace : Nat;
+    #workspaceAgent : (Nat, Nat);
+  };
 
   /// Message role in a conversation
   public type MessageRole = {
@@ -66,16 +72,9 @@ module {
     #array : [Text];
   };
 
-  /// Reasoning effort levels for Responses API
-  public type ReasoningEffort = {
-    #low;
-    #medium;
-    #high;
-  };
-
   /// Reasoning configuration for Responses API
   public type ReasoningConfig = {
-    effort : ?ReasoningEffort;
+    effort : ?Text;
     summary : ?Bool;
   };
 
@@ -210,15 +209,6 @@ module {
     ]);
   };
 
-  /// Convert ReasoningEffort to string for JSON serialization
-  private func reasoningEffortToString(effort : ReasoningEffort) : Text {
-    switch (effort) {
-      case (#low) { "low" };
-      case (#medium) { "medium" };
-      case (#high) { "high" };
-    };
-  };
-
   /// Convert ResponseInput to JSON
   private func inputToJson(input : ResponseInput) : Json.Json {
     switch (input) {
@@ -314,7 +304,7 @@ module {
         let reasoningFields = List.empty<(Text, Json.Json)>();
         switch (reasoning.effort) {
           case (?effort) {
-            List.add(reasoningFields, ("effort", str(reasoningEffortToString(effort))));
+            List.add(reasoningFields, ("effort", str(effort)));
           };
           case (null) {};
         };
@@ -669,22 +659,22 @@ module {
 
   /// Generate reasoning response using Groq Responses API
   ///
-  /// @param caller - Principal of the caller for user identification
-  /// @param agentId - Agent ID for user identification
   /// @param apiKey - The Groq API key
   /// @param input - Input text for reasoning
   /// @param model - Model name (should support reasoning)
+  /// @param trackId - Tracking identifier for attribution and usage monitoring
   /// @param instructions - Optional system instructions
-  /// @param reasoningEffort - Optional reasoning effort level (#low, #medium, #high)
+  /// @param temperature - Optional temperature setting (0.0-2.0)
+  /// @param tools - Optional tools for function calling
   /// @returns Result with reasoning response or error message
   public func reason(
-    caller : Principal,
-    agentId : Nat,
     apiKey : Text,
     input : Text,
     model : Text,
+    trackId : TrackId,
     instructions : ?Text,
-    reasoningEffort : ?ReasoningEffort,
+    temperature : ?Float,
+    tools : ?[Tool],
   ) : async {
     #ok : Text;
     #err : Text;
@@ -694,23 +684,24 @@ module {
     assert Text.trim(model, #char ' ') != "";
 
     let inputData : ResponseInput = #string(input);
-    let reasoningConfig = switch (reasoningEffort) {
-      case (?effort) { ?{ effort = ?effort; summary = null } };
-      case (null) { null };
-    };
 
-    // Create user key from caller and agentId
-    let userKey = Principal.toText(caller) # "_" # Nat.toText(agentId);
+    // Create user key from trackId
+    let userKey = switch (trackId) {
+      case (#workspace(id)) { Nat.toText(id) };
+      case (#workspaceAgent(wsId, agId)) {
+        Nat.toText(wsId) # "_" # Nat.toText(agId);
+      };
+    };
 
     await createResponse(
       apiKey,
       inputData,
       model,
       instructions,
-      null, // temperature
+      temperature,
       null, // maxOutputTokens
-      reasoningConfig,
-      null, // no tools for basic reasoning
+      null, // reasoning always null
+      tools,
       null, // no tool choice
       ?userKey // user key for identification
     );

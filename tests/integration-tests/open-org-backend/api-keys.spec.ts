@@ -7,7 +7,6 @@ import {
   createTestEnvironment,
   setupAdminUser,
   setupRegularUser,
-  createTestAgent,
 } from "../../setup.ts";
 import { expectOk, expectErr } from "../../helpers.ts";
 
@@ -16,7 +15,6 @@ describe("API Key Management", () => {
   let actor: Actor<_SERVICE>;
   let adminIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
-  let agentId: bigint;
 
   beforeEach(async () => {
     const testEnv = await createTestEnvironment();
@@ -25,14 +23,6 @@ describe("API Key Management", () => {
 
     // Set up an admin
     ({ adminIdentity } = await setupAdminUser(actor));
-
-    // Create a test agent
-    agentId = await createTestAgent(
-      actor,
-      "Test API Key Agent",
-      { openai: null },
-      "gpt-4",
-    );
 
     // Set up a regular user
     ({ userIdentity } = await setupRegularUser(actor));
@@ -47,7 +37,6 @@ describe("API Key Management", () => {
 
     const storeResult = await actor.storeApiKey(
       0n,
-      agentId,
       { openai: null },
       "test-key",
     );
@@ -60,7 +49,7 @@ describe("API Key Management", () => {
       "Please login before calling this function.",
     );
 
-    const deleteResult = await actor.deleteApiKey(0n, agentId, {
+    const deleteResult = await actor.deleteApiKey(0n, {
       openai: null,
     });
     expect(expectErr(deleteResult)).toEqual(
@@ -71,56 +60,33 @@ describe("API Key Management", () => {
   describe("store_api_key", () => {
     it("should reject non-admins from storing API keys", async () => {
       actor.setIdentity(userIdentity);
-      const result = await actor.storeApiKey(
-        0n,
-        agentId,
-        { openai: null },
-        "test-key",
-      );
+      const result = await actor.storeApiKey(0n, { openai: null }, "test-key");
       expect(expectErr(result)).toEqual(
         "Only workspace admins can perform this action.",
       );
     });
 
-    it("should reject storing API key for non-existent agent", async () => {
-      actor.setIdentity(adminIdentity);
-      const result = await actor.storeApiKey(
-        0n,
-        999n,
-        { openai: null },
-        "test-key-123",
-      );
-      expect(expectErr(result)).toEqual("Agent not found.");
-    });
-
     it("should reject storing empty or whitespace only API key", async () => {
       actor.setIdentity(adminIdentity);
-      const result = await actor.storeApiKey(0n, agentId, { openai: null }, "");
+      const result = await actor.storeApiKey(0n, { openai: null }, "");
       expect(expectErr(result)).toEqual("API key cannot be empty.");
 
-      const result2 = await actor.storeApiKey(
-        0n,
-        agentId,
-        { openai: null },
-        "   ",
-      );
+      const result2 = await actor.storeApiKey(0n, { openai: null }, "   ");
       expect(expectErr(result2)).toEqual("API key cannot be empty.");
     });
 
-    it("should reject storing API key when provider does not match agent's provider", async () => {
+    it("should allow storing API keys for any provider", async () => {
       actor.setIdentity(adminIdentity);
-      // Agent was created with OpenAI provider
-      // Try to store a Groq API key for it
-      const result = await actor.storeApiKey(
+      // Store keys for different providers - all should succeed
+      const result1 = await actor.storeApiKey(
         0n,
-        agentId,
-        { groq: null },
-        "test-groq-key",
+        { openai: null },
+        "openai-key",
       );
-      const errorMsg = expectErr(result);
-      expect(errorMsg).toContain("Provider mismatch");
-      expect(errorMsg).toContain("openai");
-      expect(errorMsg).toContain("groq");
+      expectOk(result1);
+
+      const result2 = await actor.storeApiKey(0n, { groq: null }, "groq-key");
+      expectOk(result2);
     });
 
     it("should allow updating API key (replace existing)", async () => {
@@ -129,16 +95,14 @@ describe("API Key Management", () => {
       // Store first API key
       const storeResult1 = await actor.storeApiKey(
         0n,
-        agentId,
         { openai: null },
         "first-api-key",
       );
       expectOk(storeResult1);
 
-      // Update with new key (same agent, same provider)
+      // Update with new key (same provider)
       const storeResult2 = await actor.storeApiKey(
         0n,
-        agentId,
         { openai: null },
         "updated-api-key",
       );
@@ -170,50 +134,25 @@ describe("API Key Management", () => {
     it("should maintain API key list after storing multiple keys", async () => {
       actor.setIdentity(adminIdentity);
 
-      // Create multiple agents
-      const agent1 = agentId;
-      const agent2 = await createTestAgent(
-        actor,
-        "Agent 2",
-        { groq: null },
-        "mixtral",
-      );
-      const agent3 = await createTestAgent(
-        actor,
-        "Agent 3",
-        { groq: null },
-        "llama",
-      );
-
-      // Store keys as admin
-      await actor.storeApiKey(0n, agent1, { openai: null }, "key-1");
-      await actor.storeApiKey(0n, agent2, { groq: null }, "key-2");
-      await actor.storeApiKey(0n, agent3, { groq: null }, "key-3");
+      // Store keys for multiple providers
+      await actor.storeApiKey(0n, { openai: null }, "key-1");
+      await actor.storeApiKey(0n, { groq: null }, "key-2");
 
       // Retrieve and verify all keys are present
       const result = await actor.getWorkspaceApiKeys(0n);
       const keys = expectOk(result);
-      expect(keys.length).toEqual(3);
+      expect(keys.length).toEqual(2);
 
-      // Verify specific keys
-      expect(
-        keys.some(
-          (k: [bigint, string]) => k[0] === agent1 && k[1] === "openai",
-        ),
-      ).toBe(true);
-      expect(
-        keys.some((k: [bigint, string]) => k[0] === agent2 && k[1] === "groq"),
-      ).toBe(true);
-      expect(
-        keys.some((k: [bigint, string]) => k[0] === agent3 && k[1] === "groq"),
-      ).toBe(true);
+      // Verify all providers are present
+      expect(keys.some((k) => "openai" in k)).toBe(true);
+      expect(keys.some((k) => "groq" in k)).toBe(true);
     });
   });
 
   describe("delete_api_key", () => {
     it("should reject non-admins from deleting API keys", async () => {
       actor.setIdentity(userIdentity);
-      const result = await actor.deleteApiKey(0n, agentId, { openai: null });
+      const result = await actor.deleteApiKey(0n, { openai: null });
       expect(expectErr(result)).toEqual(
         "Only workspace admins can perform this action.",
       );
@@ -221,7 +160,7 @@ describe("API Key Management", () => {
 
     it("should return error when trying to delete API key for workspace with no keys", async () => {
       actor.setIdentity(adminIdentity);
-      const result = await actor.deleteApiKey(0n, agentId, { openai: null });
+      const result = await actor.deleteApiKey(0n, { openai: null });
       expect(expectErr(result)).toEqual(
         "No API keys found for this workspace.",
       );
@@ -233,7 +172,6 @@ describe("API Key Management", () => {
       // Store an API key first
       const storeResult = await actor.storeApiKey(
         0n,
-        agentId,
         { openai: null },
         "test-key-to-delete",
       );
@@ -245,7 +183,7 @@ describe("API Key Management", () => {
       expect(keysBefore.length).toEqual(1);
 
       // Delete the key
-      const deleteResult = await actor.deleteApiKey(0n, agentId, {
+      const deleteResult = await actor.deleteApiKey(0n, {
         openai: null,
       });
       expectOk(deleteResult);
@@ -259,18 +197,9 @@ describe("API Key Management", () => {
     it("should only delete the specified key, not all keys", async () => {
       actor.setIdentity(adminIdentity);
 
-      // Create multiple agents
-      const agent1 = agentId;
-      const agent2 = await createTestAgent(
-        actor,
-        "Agent 2",
-        { groq: null },
-        "mixtral",
-      );
-
-      // Store keys for both agents
-      await actor.storeApiKey(0n, agent1, { openai: null }, "key-1");
-      await actor.storeApiKey(0n, agent2, { groq: null }, "key-2");
+      // Store keys for multiple providers
+      await actor.storeApiKey(0n, { openai: null }, "key-1");
+      await actor.storeApiKey(0n, { groq: null }, "key-2");
 
       // Verify both keys exist
       const keysBefore = await actor.getWorkspaceApiKeys(0n);
@@ -278,39 +207,33 @@ describe("API Key Management", () => {
       expect(keysBeforeArray.length).toEqual(2);
 
       // Delete only one key
-      const deleteResult = await actor.deleteApiKey(0n, agent1, {
-        openai: null,
-      });
+      const deleteResult = await actor.deleteApiKey(0n, { openai: null });
       expectOk(deleteResult);
 
       // Verify only one key remains
       const keysAfter = await actor.getWorkspaceApiKeys(0n);
       const keysAfterArray = expectOk(keysAfter);
       expect(keysAfterArray.length).toEqual(1);
-      expect(keysAfterArray[0][0]).toEqual(agent2);
-      expect(keysAfterArray[0][1]).toEqual("groq");
+      expect(keysAfterArray[0]).toHaveProperty("groq");
     });
 
     it("should return error when deleting a non-existent key", async () => {
       actor.setIdentity(adminIdentity);
 
       // Store an API key first
-      await actor.storeApiKey(0n, agentId, { openai: null }, "test-key");
+      await actor.storeApiKey(0n, { openai: null }, "test-key");
 
       // Try to delete a key for a different provider (non-existent)
-      const deleteResult = await actor.deleteApiKey(0n, agentId, {
-        groq: null,
-      });
+      const deleteResult = await actor.deleteApiKey(0n, { groq: null });
       const errorMsg = expectErr(deleteResult);
-      expect(errorMsg).toContain("No API key found for agent");
+      expect(errorMsg).toContain("No API key found for provider");
       expect(errorMsg).toContain("groq");
 
       // Original key should still exist
       const keysResult = await actor.getWorkspaceApiKeys(0n);
       const keys = expectOk(keysResult);
       expect(keys.length).toEqual(1);
-      expect(keys[0][0]).toEqual(agentId);
-      expect(keys[0][1]).toEqual("openai");
+      expect(keys[0]).toHaveProperty("openai");
     });
   });
 
@@ -319,7 +242,7 @@ describe("API Key Management", () => {
       actor.setIdentity(adminIdentity);
 
       // Store an API key
-      await actor.storeApiKey(0n, agentId, { openai: null }, "shared-key");
+      await actor.storeApiKey(0n, { openai: null }, "shared-key");
 
       // Create another admin
       const admin2Identity = generateRandomIdentity();
@@ -330,8 +253,7 @@ describe("API Key Management", () => {
       const keysResult = await actor.getWorkspaceApiKeys(0n);
       const keys = expectOk(keysResult);
       expect(keys.length).toEqual(1);
-      expect(keys[0][0]).toEqual(agentId);
-      expect(keys[0][1]).toEqual("openai");
+      expect(keys[0]).toHaveProperty("openai");
     });
   });
 });

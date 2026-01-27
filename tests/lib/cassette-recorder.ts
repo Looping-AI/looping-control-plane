@@ -228,7 +228,7 @@ function buildResponseRecord(
     bodyString = options.transformResponse(bodyString, contentType);
   }
 
-  // Extract headers
+  // Extract and redact headers
   const headers: HttpHeader[] = [];
   response.headers.forEach((value, name) => {
     // Skip headers that might cause issues in playback
@@ -238,13 +238,16 @@ function buildResponseRecord(
     }
   });
 
+  // Redact sensitive response headers (like set-cookie)
+  const redactedHeaders = redactHeaders(headers, options?.redactHeaders);
+
   // Determine encoding - use text for readable content, base64 for binary
   const contentType = response.headers.get("content-type") ?? "";
   const { body, encoding } = encodeBodyForStorage(bodyString, contentType);
 
   return {
     statusCode: response.status,
-    headers,
+    headers: redactedHeaders,
     body,
     bodyEncoding: encoding,
   };
