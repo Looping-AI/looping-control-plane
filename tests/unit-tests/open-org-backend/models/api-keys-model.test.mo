@@ -3,7 +3,7 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import Result "mo:core/Result";
-import ApiKeysService "../../../../src/open-org-backend/services/api-keys-service";
+import ApiKeysModel "../../../../src/open-org-backend/models/api-keys-model";
 
 // Test key (32 bytes) - simulates a SHA256-hashed Schnorr signature
 let testKey : [Nat8] = [
@@ -59,11 +59,11 @@ suite(
       "storeApiKey stores an API key for a workspace and provider",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysModel.EncryptedApiKey>>();
         let provider = #groq;
         let apiKey = "test-key-123";
 
-        let result = ApiKeysService.storeApiKey(
+        let result = ApiKeysModel.storeApiKey(
           apiKeys,
           testKey,
           workspaceId,
@@ -73,7 +73,7 @@ suite(
 
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
 
-        let retrievedKey = ApiKeysService.getApiKey(
+        let retrievedKey = ApiKeysModel.getApiKey(
           apiKeys,
           testKey,
           workspaceId,
@@ -88,12 +88,12 @@ suite(
       "getApiKey returns latest key after update",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysModel.EncryptedApiKey>>();
         let provider = #groq;
 
         // Store first API key
         let firstKey = "original-key-123";
-        let result1 = ApiKeysService.storeApiKey(
+        let result1 = ApiKeysModel.storeApiKey(
           apiKeys,
           testKey,
           workspaceId,
@@ -103,7 +103,7 @@ suite(
         expect.result<(), Text>(result1, resultToText, resultEqual).isOk();
 
         // Verify first key is stored
-        let retrievedFirstKey = ApiKeysService.getApiKey(
+        let retrievedFirstKey = ApiKeysModel.getApiKey(
           apiKeys,
           testKey,
           workspaceId,
@@ -113,7 +113,7 @@ suite(
 
         // Update with a new API key
         let secondKey = "updated-key-456";
-        let result2 = ApiKeysService.storeApiKey(
+        let result2 = ApiKeysModel.storeApiKey(
           apiKeys,
           testKey,
           workspaceId,
@@ -123,7 +123,7 @@ suite(
         expect.result<(), Text>(result2, resultToText, resultEqual).isOk();
 
         // Verify latest key is returned
-        let retrievedLatestKey = ApiKeysService.getApiKey(
+        let retrievedLatestKey = ApiKeysModel.getApiKey(
           apiKeys,
           testKey,
           workspaceId,
@@ -137,13 +137,13 @@ suite(
       "getWorkspaceApiKeys returns list of stored providers",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysModel.EncryptedApiKey>>();
 
         // Store multiple keys
-        ignore ApiKeysService.storeApiKey(apiKeys, testKey, workspaceId, #groq, "key-1");
-        ignore ApiKeysService.storeApiKey(apiKeys, testKey, workspaceId, #openai, "key-2");
+        ignore ApiKeysModel.storeApiKey(apiKeys, testKey, workspaceId, #groq, "key-1");
+        ignore ApiKeysModel.storeApiKey(apiKeys, testKey, workspaceId, #openai, "key-2");
 
-        let result = ApiKeysService.getWorkspaceApiKeys(apiKeys, workspaceId);
+        let result = ApiKeysModel.getWorkspaceApiKeys(apiKeys, workspaceId);
         switch (result) {
           case (#ok keys) {
             expect.nat(keys.size()).equal(2);
@@ -159,22 +159,22 @@ suite(
       "deleteApiKey removes the specified key",
       func() {
         let workspaceId = 0;
-        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysService.EncryptedApiKey>>();
+        var apiKeys = Map.empty<Nat, Map.Map<{ #openai; #groq }, ApiKeysModel.EncryptedApiKey>>();
         let provider = #groq;
 
         // Store a key
-        ignore ApiKeysService.storeApiKey(apiKeys, testKey, workspaceId, provider, "key-to-delete");
+        ignore ApiKeysModel.storeApiKey(apiKeys, testKey, workspaceId, provider, "key-to-delete");
 
         // Verify it exists
-        let beforeDelete = ApiKeysService.getApiKey(apiKeys, testKey, workspaceId, provider);
+        let beforeDelete = ApiKeysModel.getApiKey(apiKeys, testKey, workspaceId, provider);
         expect.option(beforeDelete, Text.toText, Text.equal).isSome();
 
         // Delete it
-        let deleteResult = ApiKeysService.deleteApiKey(apiKeys, workspaceId, provider);
+        let deleteResult = ApiKeysModel.deleteApiKey(apiKeys, workspaceId, provider);
         expect.result<(), Text>(deleteResult, resultToText, resultEqual).isOk();
 
         // Verify it's gone
-        let afterDelete = ApiKeysService.getApiKey(apiKeys, testKey, workspaceId, provider);
+        let afterDelete = ApiKeysModel.getApiKey(apiKeys, testKey, workspaceId, provider);
         expect.option(afterDelete, Text.toText, Text.equal).isNull();
       },
     );

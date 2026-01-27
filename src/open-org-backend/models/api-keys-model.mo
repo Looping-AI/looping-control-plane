@@ -6,7 +6,7 @@ import Result "mo:core/Result";
 import Iter "mo:core/Iter";
 import Blob "mo:core/Blob";
 import Types "../types";
-import EncryptionService "./encryption-service";
+import Encryption "../utilities/encryption";
 
 module {
   /// Type alias for encrypted API key storage
@@ -63,8 +63,8 @@ module {
           case (?encryptedBlob) {
             // Decrypt the API key
             let encryptedBytes = Blob.toArray(encryptedBlob);
-            let decryptedBytes = EncryptionService.decrypt(encryptionKey, encryptedBytes);
-            EncryptionService.bytesToText(decryptedBytes);
+            let decryptedBytes = Encryption.decrypt(encryptionKey, encryptedBytes);
+            Encryption.bytesToText(decryptedBytes);
           };
         };
       };
@@ -87,8 +87,8 @@ module {
     apiKey : Text,
   ) : Result.Result<(), Text> {
     // Convert API key to bytes and encrypt (nonce generated internally)
-    let plaintextBytes = EncryptionService.textToBytes(apiKey);
-    let encryptedBytes = EncryptionService.encrypt(encryptionKey, plaintextBytes, workspaceId);
+    let plaintextBytes = Encryption.textToBytes(apiKey);
+    let encryptedBytes = Encryption.encrypt(encryptionKey, plaintextBytes, workspaceId);
     let encryptedBlob = Blob.fromArray(encryptedBytes);
 
     // Get or create the workspace's API key map

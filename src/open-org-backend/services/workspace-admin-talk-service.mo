@@ -3,9 +3,9 @@ import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Types "../types";
-import ApiKeysService "./api-keys-service";
+import ApiKeysModel "../models/api-keys-model";
 import KeyDerivationService "./key-derivation-service";
-import ConversationService "./conversation-service";
+import ConversationModel "../models/conversation-model";
 import GroqWrapper "../wrappers/groq-wrapper";
 import Constants "../constants";
 
@@ -13,8 +13,8 @@ module {
 
   // Process the admin talk request after validation
   public func processAdminTalk(
-    apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysService.EncryptedApiKey>>,
-    adminConversations : Map.Map<Nat, List.List<ConversationService.Message>>,
+    apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>,
+    adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
     workspaceId : Nat,
     message : Text,
     keyCache : KeyDerivationService.KeyCache,
@@ -24,7 +24,7 @@ module {
   } {
     // Get api key (requires deriving encryption key for the workspace)
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-    let apiKey = ApiKeysService.getApiKey(apiKeys, encryptionKey, workspaceId, Constants.ADMIN_TALK_PROVIDER);
+    let apiKey = ApiKeysModel.getApiKey(apiKeys, encryptionKey, workspaceId, Constants.ADMIN_TALK_PROVIDER);
 
     // Generate response based on provider and API key availability
     var response : Text = "";
@@ -59,7 +59,7 @@ module {
     };
 
     // Once successful, store the user message and agent response in the admin conversation history
-    ConversationService.addMessageToAdminConversation(
+    ConversationModel.addMessageToAdminConversation(
       adminConversations,
       workspaceId,
       {
@@ -69,7 +69,7 @@ module {
       },
     );
 
-    ConversationService.addMessageToAdminConversation(
+    ConversationModel.addMessageToAdminConversation(
       adminConversations,
       workspaceId,
       {

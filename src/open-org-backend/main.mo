@@ -8,10 +8,10 @@ import Timer "mo:core/Timer";
 import Int "mo:core/Int";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
-import AdminService "./services/admin-service";
-import AgentService "./services/agent-service";
-import ConversationService "./services/conversation-service";
-import ApiKeysService "./services/api-keys-service";
+import AdminModel "./models/admin-model";
+import AgentModel "./models/agent-model";
+import ConversationModel "./models/conversation-model";
+import ApiKeysModel "./models/api-keys-model";
 import KeyDerivationService "./services/key-derivation-service";
 import WorkspaceTalkService "./services/workspace-talk-service";
 import WorkspaceAdminTalkService "./services/workspace-admin-talk-service";
@@ -24,15 +24,15 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   var orgOwner : Principal = owner;
   var orgAdmins : [Principal] = [owner];
-  var conversations = Map.empty<ConversationService.ConversationKey, List.List<ConversationService.Message>>();
-  var adminConversations = Map.fromArray<Nat, List.List<ConversationService.Message>>([(0, List.empty<ConversationService.Message>())], Nat.compare);
-  var apiKeys = Map.empty<Nat, Map.Map<Types.LlmProvider, ApiKeysService.EncryptedApiKey>>(); // Encrypted API keys per workspace
+  var conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
+  var adminConversations = Map.fromArray<Nat, List.List<ConversationModel.Message>>([(0, List.empty<ConversationModel.Message>())], Nat.compare);
+  var apiKeys = Map.empty<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>(); // Encrypted API keys per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   var nextAgentId : Nat = 0;
-  var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentService.Agent>>([(0, Map.empty<Nat, AgentService.Agent>())], Nat.compare);
+  var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentModel.Agent>>([(0, Map.empty<Nat, AgentModel.Agent>())], Nat.compare);
 
   // ============================================
   // Auth Helper
@@ -94,11 +94,11 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         // Business validation
-        let validation = AdminService.validateNewAdmin(newAdmin, orgAdmins);
+        let validation = AdminModel.validateNewAdmin(newAdmin, orgAdmins);
         switch (validation) {
           case (#err(msg)) { #err(msg) };
           case (#ok(())) {
-            orgAdmins := AdminService.addAdminToList(newAdmin, orgAdmins);
+            orgAdmins := AdminModel.addAdminToList(newAdmin, orgAdmins);
             #ok(());
           };
         };
@@ -113,7 +113,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Check if caller is an organization admin
   public shared ({ caller }) func isCallerOrgAdmin() : async Bool {
-    AdminService.isAdmin(caller, orgAdmins);
+    AdminModel.isAdmin(caller, orgAdmins);
   };
 
   // Add a new workspace admin
@@ -128,11 +128,11 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           case (null) { #err("Workspace not found.") };
           case (?admins) {
             // Business validation
-            let validation = AdminService.validateNewAdmin(newAdmin, admins);
+            let validation = AdminModel.validateNewAdmin(newAdmin, admins);
             switch (validation) {
               case (#err(msg)) { #err(msg) };
               case (#ok(())) {
-                let newAdmins = AdminService.addAdminToList(newAdmin, admins);
+                let newAdmins = AdminModel.addAdminToList(newAdmin, admins);
                 Map.add(workspaceAdmins, Nat.compare, workspaceId, newAdmins);
                 #ok(());
               };
@@ -155,11 +155,11 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           case (null) { #err("Workspace not found.") };
           case (?members) {
             // Business validation
-            let validation = AdminService.validateNewMember(newMember, members);
+            let validation = AdminModel.validateNewMember(newMember, members);
             switch (validation) {
               case (#err(msg)) { #err(msg) };
               case (#ok(())) {
-                let newMembers = AdminService.addMemberToList(newMember, members);
+                let newMembers = AdminModel.addMemberToList(newMember, members);
                 Map.add(workspaceMembers, Nat.compare, workspaceId, newMembers);
                 #ok(());
               };
@@ -190,7 +190,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   public shared ({ caller }) func isCallerWorkspaceMember(workspaceId : Nat) : async Bool {
     switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
       case (null) { false };
-      case (?members) { AdminService.isMember(caller, members) };
+      case (?members) { AdminModel.isMember(caller, members) };
     };
   };
 
@@ -209,7 +209,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
           case (?agents) {
-            let (result, newId) = AgentService.createAgent(name, provider, model, agents, nextAgentId);
+            let (result, newId) = AgentModel.createAgent(name, provider, model, agents, nextAgentId);
             nextAgentId := newId;
             result;
           };
@@ -220,7 +220,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Read/Get an agent
   public shared ({ caller }) func getAgent(workspaceId : Nat, id : Nat) : async {
-    #ok : ?AgentService.Agent;
+    #ok : ?AgentModel.Agent;
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
@@ -228,7 +228,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
-          case (?agents) { #ok(AgentService.getAgent(id, agents)) };
+          case (?agents) { #ok(AgentModel.getAgent(id, agents)) };
         };
       };
     };
@@ -245,7 +245,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
           case (?agents) {
-            AgentService.updateAgent(id, newName, newProvider, newModel, agents);
+            AgentModel.updateAgent(id, newName, newProvider, newModel, agents);
           };
         };
       };
@@ -262,7 +262,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
-          case (?agents) { AgentService.deleteAgent(id, agents) };
+          case (?agents) { AgentModel.deleteAgent(id, agents) };
         };
       };
     };
@@ -270,7 +270,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // List all agents
   public shared ({ caller }) func listAgents(workspaceId : Nat) : async {
-    #ok : [AgentService.Agent];
+    #ok : [AgentModel.Agent];
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
@@ -278,7 +278,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
-          case (?agents) { #ok(AgentService.listAgents(agents)) };
+          case (?agents) { #ok(AgentModel.listAgents(agents)) };
         };
       };
     };
@@ -290,26 +290,26 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Get workspace -> agent conversation history
   public shared ({ caller }) func getConversation(workspaceId : Nat, agentId : Nat) : async {
-    #ok : [ConversationService.Message];
+    #ok : [ConversationModel.Message];
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ConversationService.getConversation(conversations, workspaceId, agentId);
+        ConversationModel.getConversation(conversations, workspaceId, agentId);
       };
     };
   };
 
   // Get workspace admin conversation history
   public shared ({ caller }) func getAdminConversation(workspaceId : Nat) : async {
-    #ok : [ConversationService.Message];
+    #ok : [ConversationModel.Message];
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ConversationService.getAdminConversation(adminConversations, workspaceId);
+        ConversationModel.getAdminConversation(adminConversations, workspaceId);
       };
     };
   };
@@ -393,7 +393,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Derive encryption key for this workspace
         let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
 
-        ApiKeysService.storeApiKey(apiKeys, encryptionKey, workspaceId, provider, apiKey);
+        ApiKeysModel.storeApiKey(apiKeys, encryptionKey, workspaceId, provider, apiKey);
       };
     };
   };
@@ -407,7 +407,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ApiKeysService.getWorkspaceApiKeys(apiKeys, workspaceId);
+        ApiKeysModel.getWorkspaceApiKeys(apiKeys, workspaceId);
       };
     };
   };
@@ -421,7 +421,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ApiKeysService.deleteApiKey(apiKeys, workspaceId, provider);
+        ApiKeysModel.deleteApiKey(apiKeys, workspaceId, provider);
       };
     };
   };
