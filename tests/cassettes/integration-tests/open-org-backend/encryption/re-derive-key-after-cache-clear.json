@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "re-derive-key-after-cache-clear",
-  "recordedAt": "2026-01-21T13:58:04.818Z",
+  "recordedAt": "2026-01-27T14:31:13.598Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c175309481bb59b-LIS"],
+          ["cf-ray", "9c48f3d75c39b17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 21 Jan 2026 13:58:05 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:31:14 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "993"],
+          ["x-ratelimit-remaining-requests", "999"],
           ["x-ratelimit-remaining-tokens", "7922"],
-          ["x-ratelimit-reset-requests", "10m4.8s"],
+          ["x-ratelimit-reset-requests", "1m26.4s"],
           ["x-ratelimit-reset-tokens", "585ms"],
-          ["x-request-id", "req_01kfgdj8fgegesfmmrv2be5n11"],
-          [
-            "set-cookie",
-            "__cf_bm=Kaf8KZWWkQScLdU1o1Qqsg.mx5KUNcskeoeoh2mwKd8-1769003885-1.0.1.1-QkNuAl8axeOejuiYQi9aA12tpiX9mzwMUx3peGYXdPGQDIHjQ0HHyY.FMhdle5MX2ZDe9hFumTtT.AMhurHLWiU_HtjmvyfPulc.jWxS3rs; path=/; expires=Wed, 21-Jan-26 14:28:05 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-request-id", "req_01kfzxv8qcen8se0f8sd6smz92"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-8d5abe65-0577-4ea5-887b-4d505f04536a\",\"object\":\"chat.completion\",\"created\":1769003885,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of France is **Paris**.\",\"reasoning\":\"The user asks a simple factual question: \\\"What is capital of France?\\\" Answer: Paris. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017940303,\"prompt_tokens\":77,\"prompt_time\":0.003620914,\"completion_tokens\":41,\"completion_time\":0.086449751,\"total_tokens\":118,\"total_time\":0.090070665,\"completion_tokens_details\":{\"reasoning_tokens\":23}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_8634b911ff\",\"x_groq\":{\"id\":\"req_01kfgdj8fgegesfmmrv2be5n11\",\"seed\":517517728},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-be6ef1a3-bd56-4a22-8f78-cf95da93ea54\",\"object\":\"chat.completion\",\"created\":1769524274,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of France is **Paris**.\",\"reasoning\":\"The user asks a simple question: \\\"What is capital of France?\\\" The answer is Paris. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.019241763,\"prompt_tokens\":77,\"prompt_time\":0.002864562,\"completion_tokens\":41,\"completion_time\":0.084196504,\"total_tokens\":118,\"total_time\":0.087061066,\"completion_tokens_details\":{\"reasoning_tokens\":23}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfzxv8qcen8se0f8sd6smz92\",\"seed\":1731330655},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

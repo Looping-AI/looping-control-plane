@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-3",
-  "recordedAt": "2026-01-27T14:16:39.065Z",
+  "recordedAt": "2026-01-27T14:32:04.398Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48de7cd8ebe3c0-LIS"],
+          ["cf-ray", "9c48f5143bccb17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:16:39 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:04 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "996"],
-          ["x-ratelimit-remaining-tokens", "7773"],
-          ["x-ratelimit-reset-requests", "5m45.6s"],
-          ["x-ratelimit-reset-tokens", "1.702s"],
-          ["x-request-id", "req_01kfzx0jh4fjjajfahsa80952g"],
-          [
-            "set-cookie",
-            "__cf_bm=P9NxXRwKf.pZJq_Awp6gPkaNHMMxWGSjXsmpnmix_04-1769523399-1.0.1.1-_YF0FrPk7hrBgOdw5r_lqUWMIUnk.PtKZEh0b4Br4Qyan_Y2AyRAOdDVpxZJfMByvbzC5YbdRKuqA6O3ybRy1QIafm4gTwEi7nk6U5Vvr4w; path=/; expires=Tue, 27-Jan-26 14:46:39 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-ratelimit-remaining-requests", "994"],
+          ["x-ratelimit-remaining-tokens", "7780"],
+          ["x-ratelimit-reset-requests", "8m38.4s"],
+          ["x-ratelimit-reset-tokens", "1.65s"],
+          ["x-request-id", "req_01kfzxwt61ey4begrjkamx1vez"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-43a22bc7-c5d5-4193-a3bc-31b49dfa8ef1\",\"object\":\"chat.completion\",\"created\":1769523399,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"4 + 4 = 8.\",\"reasoning\":\"The user asks a simple arithmetic question. We can answer: 8. No policy issues.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017347781,\"prompt_tokens\":79,\"prompt_time\":0.00300511,\"completion_tokens\":37,\"completion_time\":0.078340264,\"total_tokens\":116,\"total_time\":0.081345374,\"completion_tokens_details\":{\"reasoning_tokens\":20}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_c9b3d7b164\",\"x_groq\":{\"id\":\"req_01kfzx0jh4fjjajfahsa80952g\",\"seed\":1033464190},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-94b4d7ca-02d5-4f3a-8915-de8d784405a6\",\"object\":\"chat.completion\",\"created\":1769524324,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"8.\",\"reasoning\":\"User asks simple math: 4+4 = 8. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.031342142,\"prompt_tokens\":79,\"prompt_time\":0.003359835,\"completion_tokens\":28,\"completion_time\":0.058231455,\"total_tokens\":107,\"total_time\":0.06159129,\"completion_tokens_details\":{\"reasoning_tokens\":17}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kfzxwt61ey4begrjkamx1vez\",\"seed\":52055142},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-2",
-  "recordedAt": "2026-01-27T14:16:38.724Z",
+  "recordedAt": "2026-01-27T14:32:04.064Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48de7ab882e3c0-LIS"],
+          ["cf-ray", "9c48f5122d8db17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:16:39 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:04 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "997"],
-          ["x-ratelimit-remaining-tokens", "7849"],
-          ["x-ratelimit-reset-requests", "4m19.2s"],
-          ["x-ratelimit-reset-tokens", "1.132s"],
-          ["x-request-id", "req_01kfzx0j6xerv9ec6wbr4c6kw3"],
-          [
-            "set-cookie",
-            "__cf_bm=g8QPlV5TLjDq2cGgI5b.KoZ4lc4j09uDmP8TMGbFzi0-1769523399-1.0.1.1-C.Ar2ORMWOHu4lDixZXVoldStB6k7DRpwhktPSlloTKPLRtJd.M69xiA41R2zVOf5oC9KMuoURd8Bw6mgL716NVVAv24BrbPX6CkAjqguoQ; path=/; expires=Tue, 27-Jan-26 14:46:39 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-ratelimit-remaining-requests", "995"],
+          ["x-ratelimit-remaining-tokens", "7855"],
+          ["x-ratelimit-reset-requests", "7m12s"],
+          ["x-ratelimit-reset-tokens", "1.087s"],
+          ["x-request-id", "req_01kfzxwsvqey3ak5k986h13q56"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-935c4f62-3dbd-42fa-9bcd-6e442c1c09b2\",\"object\":\"chat.completion\",\"created\":1769523398,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"3 + 3 = 6.\",\"reasoning\":\"The user asks a simple math question: 3+3 = 6. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.019990063,\"prompt_tokens\":79,\"prompt_time\":0.014822504,\"completion_tokens\":39,\"completion_time\":0.081577921,\"total_tokens\":118,\"total_time\":0.096400425,\"completion_tokens_details\":{\"reasoning_tokens\":20}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_309cec8e88\",\"x_groq\":{\"id\":\"req_01kfzx0j6xerv9ec6wbr4c6kw3\",\"seed\":429467342},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-c0afb62e-e2b6-4b96-ab80-898e8f440d1d\",\"object\":\"chat.completion\",\"created\":1769524324,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"3 + 3 = 6.\",\"reasoning\":\"The user asks a simple math question: 3+3 = 6. Just answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017710301,\"prompt_tokens\":79,\"prompt_time\":0.002989371,\"completion_tokens\":39,\"completion_time\":0.090889552,\"total_tokens\":118,\"total_time\":0.093878923,\"completion_tokens_details\":{\"reasoning_tokens\":20}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_c9b3d7b164\",\"x_groq\":{\"id\":\"req_01kfzxwsvqey3ak5k986h13q56\",\"seed\":1474672900},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

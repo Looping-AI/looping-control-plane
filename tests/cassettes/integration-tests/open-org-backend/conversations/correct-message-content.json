@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "correct-message-content",
-  "recordedAt": "2026-01-27T14:16:36.869Z",
+  "recordedAt": "2026-01-27T14:32:02.269Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48de6f99e9e3c0-LIS"],
+          ["cf-ray", "9c48f506ebcbb17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:16:37 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:02 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "999"],
+          ["x-ratelimit-remaining-requests", "997"],
           ["x-ratelimit-remaining-tokens", "7921"],
-          ["x-ratelimit-reset-requests", "1m26.4s"],
+          ["x-ratelimit-reset-requests", "4m19.2s"],
           ["x-ratelimit-reset-tokens", "592ms"],
-          ["x-request-id", "req_01kfzx0gfhf9q8x8j863xr51kd"],
-          [
-            "set-cookie",
-            "__cf_bm=ywOLo9.DX0L0owQRBm3X.MMWOP..W55uChF.EPpWaqw-1769523397-1.0.1.1-LdRaVNJKdia1VWT81B0VpaNv0Aikwv7qYgE_O.u9r0sdTUKmM35eSZ.n9XUVk5znAaiZAS41DVRgJsdjRTIKAnQ._D8F5enT2KA5.qg2ot0; path=/; expires=Tue, 27-Jan-26 14:46:37 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-request-id", "req_01kfzxwr3pfxbs1j5m61zbsfm8"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-ca97baed-bab8-4713-b642-f40b1e6d64d9\",\"object\":\"chat.completion\",\"created\":1769523397,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Germany is **Berlin**.\",\"reasoning\":\"The user asks a factual question: \\\"What is the capital of Germany?\\\" Answer: Berlin. Should respond concisely.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018014268,\"prompt_tokens\":78,\"prompt_time\":0.003020053,\"completion_tokens\":44,\"completion_time\":0.090967075,\"total_tokens\":122,\"total_time\":0.093987128,\"completion_tokens_details\":{\"reasoning_tokens\":26}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_dddd02f37b\",\"x_groq\":{\"id\":\"req_01kfzx0gfhf9q8x8j863xr51kd\",\"seed\":46207740},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-b935a5dc-2992-4550-afbe-729be19f6905\",\"object\":\"chat.completion\",\"created\":1769524322,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Germany is **Berlin**.\",\"reasoning\":\"The user asks a simple factual question. The answer: Berlin. Provide concise answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017660784,\"prompt_tokens\":78,\"prompt_time\":0.003321036,\"completion_tokens\":36,\"completion_time\":0.080330304,\"total_tokens\":114,\"total_time\":0.08365134,\"completion_tokens_details\":{\"reasoning_tokens\":18}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_178e424650\",\"x_groq\":{\"id\":\"req_01kfzxwr3pfxbs1j5m61zbsfm8\",\"seed\":1921349995},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "admin-correct-message",
-  "recordedAt": "2026-01-27T14:16:43.402Z",
+  "recordedAt": "2026-01-27T14:32:08.899Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48de980c63e3c0-LIS"],
+          ["cf-ray", "9c48f5306a2cb17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:16:44 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:09 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "993"],
+          ["x-ratelimit-remaining-requests", "991"],
           ["x-ratelimit-remaining-tokens", "7921"],
-          ["x-ratelimit-reset-requests", "10m4.8s"],
+          ["x-ratelimit-reset-requests", "12m57.599s"],
           ["x-ratelimit-reset-tokens", "592ms"],
-          ["x-request-id", "req_01kfzx0pvxf1wrvx2yg42caxbp"],
-          [
-            "set-cookie",
-            "__cf_bm=.B89K9OrmTCu5FTlehXiWKkz5fYXW7SVSbMZm6lXIFs-1769523404-1.0.1.1-1EJvaQPAGPruzRnDtohNRvJKPlfUiXXrTfOJpsToMan2KIO75xOR9TGcqmPz_w9_ixsVFMWwg6rUvliKCrAqGSAaETTs1X5r2GuOUg2xs9Y; path=/; expires=Tue, 27-Jan-26 14:46:44 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-request-id", "req_01kfzxwynvfevv555ywbeh5vfj"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kfzx0q6nf1x9780pj4h4ew2c\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769523403,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzx0q6nf1xt95hqa4fjwhnj\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks a factual question: \\\"What is the capital of Germany?\\\" This is a straightforward question. We can answer: Berlin. Provide answer.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzx0q6nf1ybwc1s1vpcn00n\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"The capital of Germany is **Berlin**.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":78,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":49,\"output_tokens_details\":{\"reasoning_tokens\":31},\"total_tokens\":127},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kfzxwzcvfezaskp57c3p5vxs\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769524329,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzxwzcvfezrw1b489dmprdw\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks a straightforward factual question: \\\"What is the capital of Germany?\\\" The answer: Berlin. No policy issues. Provide concise answer.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzxwzcvff0apa0me732zyq4\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"The capital of Germany is **Berlin**.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":78,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":48,\"output_tokens_details\":{\"reasoning_tokens\":30},\"total_tokens\":126},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

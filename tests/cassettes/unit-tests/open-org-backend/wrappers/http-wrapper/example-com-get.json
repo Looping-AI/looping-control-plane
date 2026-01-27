@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "example-com-get",
-  "recordedAt": "2026-01-20T11:10:57.359Z",
+  "recordedAt": "2026-01-27T14:32:49.618Z",
   "interactions": [
     {
       "request": {
@@ -14,13 +14,13 @@
       "response": {
         "statusCode": 200,
         "headers": [
-          ["age", "12357"],
+          ["age", "10056"],
           ["allow", "GET, HEAD"],
           ["cf-cache-status", "HIT"],
-          ["cf-ray", "9c0e20d93f73f53d-LIS"],
+          ["cf-ray", "9c48f62efb2b58fc-LIS"],
           ["content-type", "text/html"],
-          ["date", "Tue, 20 Jan 2026 11:10:57 GMT"],
-          ["last-modified", "Mon, 19 Jan 2026 19:33:01 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:49 GMT"],
+          ["last-modified", "Fri, 23 Jan 2026 20:54:05 GMT"],
           ["server", "cloudflare"],
           ["vary", "Accept-Encoding"]
         ],

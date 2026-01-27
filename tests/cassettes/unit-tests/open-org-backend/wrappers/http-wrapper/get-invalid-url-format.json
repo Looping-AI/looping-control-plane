@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "get-invalid-url-format",
-  "recordedAt": "2026-01-20T11:10:57.986Z",
+  "recordedAt": "2026-01-27T14:32:50.343Z",
   "interactions": [
     {
       "request": {
@@ -14,13 +14,13 @@
       "response": {
         "statusCode": 200,
         "headers": [
-          ["age", "8884"],
+          ["age", "9898"],
           ["allow", "GET, HEAD"],
           ["cf-cache-status", "HIT"],
-          ["cf-ray", "9c0e20dd4a4ab59b-LIS"],
+          ["cf-ray", "9c48f6338dff58fc-LIS"],
           ["content-type", "text/html"],
-          ["date", "Tue, 20 Jan 2026 11:10:58 GMT"],
-          ["last-modified", "Mon, 19 Jan 2026 19:33:01 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:50 GMT"],
+          ["last-modified", "Fri, 23 Jan 2026 20:51:32 GMT"],
           ["server", "cloudflare"],
           ["vary", "Accept-Encoding"]
         ],

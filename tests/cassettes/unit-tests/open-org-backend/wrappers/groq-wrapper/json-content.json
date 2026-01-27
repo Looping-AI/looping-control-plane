@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "json-content",
-  "recordedAt": "2026-01-26T16:20:18.086Z",
+  "recordedAt": "2026-01-27T14:32:23.311Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c41563da9fd547f-LIS"],
+          ["cf-ray", "9c48f58a4eb9b17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Mon, 26 Jan 2026 16:20:18 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:23 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "995"],
-          ["x-ratelimit-remaining-tokens", "7854"],
-          ["x-ratelimit-reset-requests", "7m12s"],
-          ["x-ratelimit-reset-tokens", "1.095s"],
-          ["x-request-id", "req_01kfxhp8nbemvvmbz62fs6zz3g"],
-          [
-            "set-cookie",
-            "__cf_bm=XskWQVvgWkCNw9z0eo1YH15xkUiFz017vtET1FmVh94-1769444418-1.0.1.1-ZUcJnO1BvmHhtybOzTZEyrJKQbwtEZ_.DjY6nGma7Hf.dCvj1IcmE.U5ZJuRrMc43T4u3q6oLQfjejuvB67NTZjeIJVWUmUjDOtEbv1rr4k; path=/; expires=Mon, 26-Jan-26 16:50:18 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-ratelimit-remaining-requests", "984"],
+          ["x-ratelimit-remaining-tokens", "7892"],
+          ["x-ratelimit-reset-requests", "23m2.4s"],
+          ["x-ratelimit-reset-tokens", "810ms"],
+          ["x-request-id", "req_01kfzxxcpbfzn8dyh0dry1akt7"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-869460ed-09e6-4edb-817d-7d6c6d478a70\",\"object\":\"chat.completion\",\"created\":1769444418,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The second child in the `\\\"children\\\"` array is `\\\"bar\\\"`.\",\"reasoning\":\"The user asks: \\\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\\\". They want the second element of the \\\"children\\\" array, which is \\\"bar\\\". So answer: \\\"bar\\\". Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.01794184,\"prompt_tokens\":99,\"prompt_time\":0.003806987,\"completion_tokens\":83,\"completion_time\":0.174978757,\"total_tokens\":182,\"total_time\":0.178785744,\"completion_tokens_details\":{\"reasoning_tokens\":60}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_dddd02f37b\",\"x_groq\":{\"id\":\"req_01kfxhp8nbemvvmbz62fs6zz3g\",\"seed\":1537791189},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-3e5ee6c1-539f-4996-b48f-cb665605a60f\",\"object\":\"chat.completion\",\"created\":1769524343,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The second element in the `children` array is `\\\"bar\\\"`.\",\"reasoning\":\"The user asks: \\\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\\\". They want the second child in the \\\"children\\\" array. The array is [\\\"foo\\\",\\\"bar\\\",\\\"xyz\\\"], second child is \\\"bar\\\". So answer \\\"bar\\\".\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017497383,\"prompt_tokens\":99,\"prompt_time\":0.00411929,\"completion_tokens\":90,\"completion_time\":0.203410156,\"total_tokens\":189,\"total_time\":0.207529446,\"completion_tokens_details\":{\"reasoning_tokens\":67}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfzxxcpbfzn8dyh0dry1akt7\",\"seed\":301419370},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

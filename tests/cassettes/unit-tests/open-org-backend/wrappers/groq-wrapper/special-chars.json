@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "special-chars",
-  "recordedAt": "2026-01-26T16:20:16.351Z",
+  "recordedAt": "2026-01-27T14:32:21.377Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c415632db39547f-LIS"],
+          ["cf-ray", "9c48f57e29b8b17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Mon, 26 Jan 2026 16:20:16 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:21 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "997"],
-          ["x-ratelimit-remaining-tokens", "7918"],
-          ["x-ratelimit-reset-requests", "4m19.2s"],
-          ["x-ratelimit-reset-tokens", "615ms"],
-          ["x-request-id", "req_01kfxhp6z8f88vkx6sf4m17sbt"],
-          [
-            "set-cookie",
-            "__cf_bm=VMtpHVcKV5TjVuyMCCJf.us6Zh1.o9HZfNyl_wuBb3w-1769444416-1.0.1.1-oldDC6EP_MRk0LLa00jpYe5gV8vkXG4OqpxLOWINEWU9rx4xZdDWP9yfekQjkQ.mrC7alsvz8w5PHBfqP7dOsjOwvbg7M4q_7_pSIf9INGc; path=/; expires=Mon, 26-Jan-26 16:50:16 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-ratelimit-remaining-requests", "986"],
+          ["x-ratelimit-remaining-tokens", "7905"],
+          ["x-ratelimit-reset-requests", "20m9.6s"],
+          ["x-ratelimit-reset-tokens", "712ms"],
+          ["x-request-id", "req_01kfzxxaqxfzbty9egjh1wgbe5"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-22d250b7-7110-4af2-92f0-c389930087d6\",\"object\":\"chat.completion\",\"created\":1769444416,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"!@#$%^\\u0026*()\",\"reasoning\":\"The user requests: \\\"Echo this: !@#$%^\\u0026*()\\\". We need to output exactly that string. It's a harmless request, no policy violation. So answer with the same string.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018871999,\"prompt_tokens\":81,\"prompt_time\":0.003109329,\"completion_tokens\":57,\"completion_time\":0.119425363,\"total_tokens\":138,\"total_time\":0.122534692,\"completion_tokens_details\":{\"reasoning_tokens\":41}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfxhp6z8f88vkx6sf4m17sbt\",\"seed\":279764200},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-2d5aff2b-1369-4b28-ab7e-4820db86d96f\",\"object\":\"chat.completion\",\"created\":1769524341,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"!@#$%^\\u0026*()\",\"reasoning\":\"The user wants to \\\"Echo this: !@#$%^\\u0026*()\\\". So just repeat that text. No disallowed content. Provide the echo.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017904733,\"prompt_tokens\":81,\"prompt_time\":0.0038603,\"completion_tokens\":48,\"completion_time\":0.098728124,\"total_tokens\":129,\"total_time\":0.102588424,\"completion_tokens_details\":{\"reasoning_tokens\":32}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_178e424650\",\"x_groq\":{\"id\":\"req_01kfzxxaqxfzbty9egjh1wgbe5\",\"seed\":1431615561},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

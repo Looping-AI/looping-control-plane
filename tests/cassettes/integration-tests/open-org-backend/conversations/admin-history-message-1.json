@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "admin-history-message-1",
-  "recordedAt": "2026-01-27T14:16:45.232Z",
+  "recordedAt": "2026-01-27T14:32:11.327Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48dea37aa7e3c0-LIS"],
+          ["cf-ray", "9c48f53f9f9ab17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:16:45 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:12 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "992"],
+          ["x-ratelimit-remaining-requests", "990"],
           ["x-ratelimit-remaining-tokens", "7920"],
-          ["x-ratelimit-reset-requests", "11m31.2s"],
+          ["x-ratelimit-reset-requests", "14m24s"],
           ["x-ratelimit-reset-tokens", "600ms"],
-          ["x-request-id", "req_01kfzx0rmyfjx8c74r0sq9snd1"],
-          [
-            "set-cookie",
-            "__cf_bm=BmcEB4X.RhRrLka_Lq7e1mMnqG8WS4XcmtkfWruEI6E-1769523405-1.0.1.1-sctrTu7E9GUM7YAQGWF3fzb6Onxa.kz1XaF6a59JYT0D2HQKPrmYRtjdMu75bGq5u_nQTZlx2Vx4SxiGfrSDx85m74v_1tzPVelBqsQi5UE; path=/; expires=Tue, 27-Jan-26 14:46:45 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-request-id", "req_01kfzxx1e4eqgrz8ehf41f8xbe"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kfzx0s13fjxr54j9zbrrr57p\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769523405,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzx0s13fjy85wjbxr90aaz6\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks a simple math question. Provide answer.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzx0s13fjyrv4sysaxzjdgw\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"2 + 2 = 4.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":79,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":28,\"output_tokens_details\":{\"reasoning_tokens\":11},\"total_tokens\":107},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kfzxx1h1eqh8pf0n9502c7xw\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769524332,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzxx1h1eqhr0kwpz57kvcje\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks a simple math question. Answer is 4.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzxx1h1eqj84y8pv2pp113s\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"2 + 2 = 4.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":79,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":31,\"output_tokens_details\":{\"reasoning_tokens\":14},\"total_tokens\":110},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

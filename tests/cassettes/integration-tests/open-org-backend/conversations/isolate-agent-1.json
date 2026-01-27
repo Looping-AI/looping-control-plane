@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "isolate-agent-1",
-  "recordedAt": "2026-01-27T14:16:40.536Z",
+  "recordedAt": "2026-01-27T14:32:05.907Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48de861fcce3c0-LIS"],
+          ["cf-ray", "9c48f51da953b17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:16:40 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:06 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "995"],
-          ["x-ratelimit-remaining-tokens", "7854"],
-          ["x-ratelimit-reset-requests", "7m12s"],
-          ["x-ratelimit-reset-tokens", "1.095s"],
-          ["x-request-id", "req_01kfzx0kzefa4rgsm3gk3s8spa"],
-          [
-            "set-cookie",
-            "__cf_bm=.G2TFhVhjJQSEX_xnZbbbz0EVKJakslTpmFTeg56dDI-1769523400-1.0.1.1-zhTFrITO5yt5krcvW8z1UtAGUeUiM7V4uxa.ajUADLudmUTuhX8Xpe4f7EJnApnVRwqHoI3hAEFPQVagRVs_MutPJ.AjP2YCLpymq9vcf3Q; path=/; expires=Tue, 27-Jan-26 14:46:40 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-ratelimit-remaining-requests", "993"],
+          ["x-ratelimit-remaining-tokens", "7876"],
+          ["x-ratelimit-reset-requests", "10m4.8s"],
+          ["x-ratelimit-reset-tokens", "929ms"],
+          ["x-request-id", "req_01kfzxwvnpfxqvh08d8w0bys88"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-b84f3e5d-08bf-4ad2-a4be-837637a3d3f9\",\"object\":\"chat.completion\",\"created\":1769523400,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of France is **Paris**.\",\"reasoning\":\"User asks straightforward factual question: capital of France. Answer: Paris. Provide concise answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017276966,\"prompt_tokens\":78,\"prompt_time\":0.002885169,\"completion_tokens\":37,\"completion_time\":0.084076296,\"total_tokens\":115,\"total_time\":0.086961465,\"completion_tokens_details\":{\"reasoning_tokens\":19}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_8634b911ff\",\"x_groq\":{\"id\":\"req_01kfzx0kzefa4rgsm3gk3s8spa\",\"seed\":534033040},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-6d506ce2-0437-4277-a9eb-55e658545531\",\"object\":\"chat.completion\",\"created\":1769524326,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of France is **Paris**.\",\"reasoning\":\"The user asks: \\\"What is the capital of France?\\\" Straightforward answer: Paris. Provide concise answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.019366491,\"prompt_tokens\":78,\"prompt_time\":0.003289688,\"completion_tokens\":41,\"completion_time\":0.086334082,\"total_tokens\":119,\"total_time\":0.08962377,\"completion_tokens_details\":{\"reasoning_tokens\":23}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfzxwvnpfxqvh08d8w0bys88\",\"seed\":1492219645},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

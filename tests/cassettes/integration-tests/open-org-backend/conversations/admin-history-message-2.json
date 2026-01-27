@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "admin-history-message-2",
-  "recordedAt": "2026-01-27T14:16:46.034Z",
+  "recordedAt": "2026-01-27T14:32:12.238Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48dea8783be3c0-LIS"],
+          ["cf-ray", "9c48f545da90b17c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:16:46 GMT"],
+          ["date", "Tue, 27 Jan 2026 14:32:12 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,17 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "991"],
-          ["x-ratelimit-remaining-tokens", "7914"],
-          ["x-ratelimit-reset-requests", "12m57.599s"],
-          ["x-ratelimit-reset-tokens", "644ms"],
-          ["x-request-id", "req_01kfzx0sctegs8e6pg0awxmdwz"],
-          [
-            "set-cookie",
-            "__cf_bm=zjeihUlogF9RcNRbA8XjvZMajHI.IkDpNtngowXAW9o-1769523406-1.0.1.1-1s55RjqWNZ58YgsLjSrDZJ7RslFoB.26O1UfwzrwNy1Cu0LiF6Td.igpC0YPxQnU8ZnHBiYXn5b.FSsNpggdmkJXb7e_VezKmx7_YBGOexM; path=/; expires=Tue, 27-Jan-26 14:46:46 GMT; domain=.groq.com; HttpOnly; Secure; SameSite=None"
-          ]
+          ["x-ratelimit-remaining-requests", "989"],
+          ["x-ratelimit-remaining-tokens", "7885"],
+          ["x-ratelimit-reset-requests", "15m50.4s"],
+          ["x-ratelimit-reset-tokens", "862ms"],
+          ["x-request-id", "req_01kfzxx1zvffmaaevhaget8cpy"],
+          ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kfzx0sh2egsad09xvdg6wykd\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769523406,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzx0sh2egss6z0mstvt80hh\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks a simple math question. Should answer: 6. No policy violation.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzx0sh2egtajg6dzw9h4h1s\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"3 + 3 = 6.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":79,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":38,\"output_tokens_details\":{\"reasoning_tokens\":19},\"total_tokens\":117},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kfzxx231ffmt4v9ypp7zdgvn\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769524332,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzxx231ffnbwzddyytc3twk\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks simple math: 3+3=6. Provide answer.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzxx231ffnt1jx55sgsd3r0\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"3 + 3 = 6.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":79,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":35,\"output_tokens_details\":{\"reasoning_tokens\":16},\"total_tokens\":114},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }
