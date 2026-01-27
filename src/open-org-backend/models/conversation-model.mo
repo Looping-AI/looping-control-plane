@@ -69,7 +69,7 @@ module {
     };
   };
 
-  // Add a message to an workspace admin conversation
+  // Add message to a workspace admin conversation
   public func addMessageToAdminConversation(
     adminConversations : Map.Map<Nat, List.List<Message>>,
     workspaceId : Nat,
