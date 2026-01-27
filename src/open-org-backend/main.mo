@@ -14,7 +14,7 @@ import ConversationModel "./models/conversation-model";
 import ApiKeysModel "./models/api-keys-model";
 import KeyDerivationService "./services/key-derivation-service";
 import WorkspaceTalkService "./services/workspace-talk-service";
-import WorkspaceAdminTalkService "./services/workspace-admin-talk-service";
+import WorkspaceAdminOrchestrator "./orchestrators/workspace-admin-orchestrator";
 import Constants "./constants";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
@@ -328,8 +328,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         if (Text.trim(message, #char ' ') == "") {
           return #err("Message cannot be empty.");
         };
-        // Delegate to service for business logic
-        await WorkspaceAdminTalkService.processAdminTalk(
+        // Delegate to orchestrator for business logic
+        await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
           apiKeys,
           adminConversations,
           workspaceId,
