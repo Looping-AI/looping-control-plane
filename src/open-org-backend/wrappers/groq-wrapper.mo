@@ -102,6 +102,24 @@ module {
     function : FunctionDef;
   };
 
+  /// A tool call request from the LLM
+  public type ToolCall = {
+    callId : Text;
+    toolName : Text;
+    arguments : Text; // JSON string of arguments
+  };
+
+  /// Result from reason - follows #ok/#err pattern
+  /// On success (#ok): contains either #textResponse or #toolCalls
+  /// On failure (#err): contains error message
+  public type ReasonWithToolsResult = {
+    #ok : {
+      #textResponse : Text;
+      #toolCalls : [ToolCall];
+    };
+    #err : Text;
+  };
+
   /// Request payload for Groq Responses API
   public type ResponseRequest = {
     input : ResponseInput;
@@ -230,13 +248,15 @@ module {
     };
   };
 
-  /// Convert Tool to JSON
+  /// Convert Tool to JSON for Responses API
+  /// Note: Responses API uses flat structure with name/description/parameters at top level
   private func toolToJson(tool : Tool) : Json.Json {
-    let functionFields = List.empty<(Text, Json.Json)>();
-    List.add(functionFields, ("name", str(tool.function.name)));
+    let toolFields = List.empty<(Text, Json.Json)>();
+    List.add(toolFields, ("type", str(tool.tool_type)));
+    List.add(toolFields, ("name", str(tool.function.name)));
 
     switch (tool.function.description) {
-      case (?desc) { List.add(functionFields, ("description", str(desc))) };
+      case (?desc) { List.add(toolFields, ("description", str(desc))) };
       case (null) {};
     };
 
@@ -245,7 +265,7 @@ module {
         // Parse the JSON schema string and add it
         switch (Json.parse(params)) {
           case (#ok(paramJson)) {
-            List.add(functionFields, ("parameters", paramJson));
+            List.add(toolFields, ("parameters", paramJson));
           };
           case (#err(_)) {}; // Skip if invalid JSON
         };
@@ -253,10 +273,7 @@ module {
       case (null) {};
     };
 
-    obj([
-      ("type", str(tool.tool_type)),
-      ("function", obj(List.toArray(functionFields))),
-    ]);
+    obj(List.toArray(toolFields));
   };
 
   /// Serialize ResponseRequest to JSON string
@@ -419,20 +436,17 @@ module {
     Json.stringify(obj(List.toArray(requestFields)), null);
   };
 
-  /// Parse Groq Responses API response and extract the text content
+  /// Parse Groq Responses API response for tool calls or text content
   ///
   /// @param responseBody - Raw JSON response from Groq Responses API
-  /// @returns Result with extracted content or error message
-  private func parseResponsesApiResponse(responseBody : Text) : {
-    #ok : Text;
-    #err : Text;
-  } {
+  /// @returns ReasonWithToolsResult indicating text response, tool calls, or error
+  private func parseResponsesApiWithToolCalls(responseBody : Text) : ReasonWithToolsResult {
     switch (Json.parse(responseBody)) {
       case (#err(error)) {
         #err("Failed to parse JSON response: " # debug_show error # ".");
       };
       case (#ok(json)) {
-        // Look for the message output in the outputs array
+        // Look for the output array
         switch (Json.get(json, "output")) {
           case (null) {
             #err("Could not find output array in response.");
@@ -440,7 +454,60 @@ module {
           case (?outputArrayJson) {
             switch (outputArrayJson) {
               case (#array(outputs)) {
-                // Find the output with type "message"
+                // First, check for function_call outputs (tool calls)
+                let toolCallsList = List.empty<ToolCall>();
+
+                for (outputJson in outputs.vals()) {
+                  switch (Json.get(outputJson, "type")) {
+                    case (?typeJson) {
+                      switch (typeJson) {
+                        case (#string("function_call")) {
+                          // Found a function call, extract details
+                          let callIdOpt = switch (Json.get(outputJson, "call_id")) {
+                            case (?#string(id)) { ?id };
+                            case (_) { null };
+                          };
+                          let nameOpt = switch (Json.get(outputJson, "name")) {
+                            case (?#string(n)) { ?n };
+                            case (_) { null };
+                          };
+                          let argsOpt = switch (Json.get(outputJson, "arguments")) {
+                            case (?#string(a)) { ?a };
+                            case (_) { null };
+                          };
+
+                          switch (callIdOpt, nameOpt, argsOpt) {
+                            case (?callId, ?name, ?args) {
+                              List.add(
+                                toolCallsList,
+                                {
+                                  callId;
+                                  toolName = name;
+                                  arguments = args;
+                                },
+                              );
+                            };
+                            case (_) {
+                              // Skip malformed function call
+                            };
+                          };
+                        };
+                        case (_) {
+                          // Not a function call, continue
+                        };
+                      };
+                    };
+                    case (null) {};
+                  };
+                };
+
+                // If we found tool calls, return them
+                let toolCallsArray = List.toArray(toolCallsList);
+                if (toolCallsArray.size() > 0) {
+                  return #ok(#toolCalls(toolCallsArray));
+                };
+
+                // Otherwise, look for text message output
                 for (outputJson in outputs.vals()) {
                   switch (Json.get(outputJson, "type")) {
                     case (?typeJson) {
@@ -451,29 +518,22 @@ module {
                             case (?textJson) {
                               switch (textJson) {
                                 case (#string(content)) {
-                                  return #ok(content);
+                                  return #ok(#textResponse(content));
                                 };
-                                case (_) {
-                                  // Continue searching if this content is not a string
-                                };
+                                case (_) {};
                               };
                             };
-                            case (null) {
-                              // Continue searching if no content found
-                            };
+                            case (null) {};
                           };
                         };
-                        case (_) {
-                          // Continue searching if not message type
-                        };
+                        case (_) {};
                       };
                     };
-                    case (null) {
-                      // Continue searching if no type found
-                    };
+                    case (null) {};
                   };
                 };
-                #err("Could not find message output with text content in response.");
+
+                #err("Could not find message output or tool calls in response.");
               };
               case (_) {
                 #err("Output field is not an array.");
@@ -536,7 +596,7 @@ module {
   /// @param tools - Optional tools for function calling
   /// @param toolChoice - Optional tool choice configuration
   /// @param user - Optional user identifier
-  /// @returns Result with response content or error message
+  /// @returns ReasonWithToolsResult indicating text response, tool calls, or error
   private func createResponse(
     apiKey : Text,
     input : ResponseInput,
@@ -548,10 +608,7 @@ module {
     tools : ?[Tool],
     toolChoice : ?ToolChoice,
     user : ?Text,
-  ) : async {
-    #ok : Text;
-    #err : Text;
-  } {
+  ) : async ReasonWithToolsResult {
     let request : ResponseRequest = {
       input;
       model;
@@ -589,8 +646,8 @@ module {
       };
       case (#ok((status, responseBody))) {
         if (status == 200) {
-          // Parse successful response
-          parseResponsesApiResponse(responseBody);
+          // Parse successful response with tool call support
+          parseResponsesApiWithToolCalls(responseBody);
         } else {
           // Return error with status and response details
           #err("Groq Responses API returned status " # Nat.toText(status) # ": " # responseBody # ".");
@@ -659,6 +716,11 @@ module {
 
   /// Generate reasoning response using Groq Responses API
   ///
+  /// Returns a variant indicating whether the LLM:
+  /// - Returned a text response (#textResponse)
+  /// - Wants to call one or more tools (#toolCalls)
+  /// - Encountered an error (#error)
+  ///
   /// @param apiKey - The Groq API key
   /// @param input - Input text for reasoning
   /// @param model - Model name (should support reasoning)
@@ -666,7 +728,7 @@ module {
   /// @param instructions - Optional system instructions
   /// @param temperature - Optional temperature setting (0.0-2.0)
   /// @param tools - Optional tools for function calling
-  /// @returns Result with reasoning response or error message
+  /// @returns ReasonWithToolsResult indicating text response, tool calls, or error
   public func reason(
     apiKey : Text,
     input : Text,
@@ -675,10 +737,7 @@ module {
     instructions : ?Text,
     temperature : ?Float,
     tools : ?[Tool],
-  ) : async {
-    #ok : Text;
-    #err : Text;
-  } {
+  ) : async ReasonWithToolsResult {
     assert Text.trim(apiKey, #char ' ') != "";
     assert Text.trim(input, #char ' ') != "";
     assert Text.trim(model, #char ' ') != "";
@@ -703,7 +762,7 @@ module {
       null, // reasoning always null
       tools,
       null, // no tool choice
-      ?userKey // user key for identification
+      ?userKey, // user key for identification
     );
   };
 

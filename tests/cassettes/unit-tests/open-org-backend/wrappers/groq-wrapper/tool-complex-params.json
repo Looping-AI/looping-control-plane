@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "name": "tool-complex-params",
+  "recordedAt": "2026-01-28T15:17:22.555Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"input\":\"Search for JavaScript tutorials published after 2023 with difficulty level beginner\",\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"search_tutorials\",\"description\":\"Search for programming tutorials with filters\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"},\"filters\":{\"type\":\"object\",\"properties\":{\"language\":{\"type\":\"string\",\"description\":\"Programming language\"},\"published_after\":{\"type\":\"integer\",\"description\":\"Year published after\"},\"difficulty\":{\"type\":\"string\",\"enum\":[\"beginner\",\"intermediate\",\"advanced\"]}}}},\"required\":[\"query\"]}}],\"user\":\"100_4\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c5174d0b9af6923-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Wed, 28 Jan 2026 15:17:23 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "dls"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "996"],
+          ["x-ratelimit-remaining-tokens", "7686"],
+          ["x-ratelimit-reset-requests", "5m45.6s"],
+          ["x-ratelimit-reset-tokens", "2.355s"],
+          ["x-request-id", "req_01kg2jwfr8ftbrvphsc1kzjzhp"],
+          ["set-cookie", "[REDACTED]"]
+        ],
+        "body": "{\"id\":\"resp_01kg2jwg0kftfsy1hwjn22q5jj\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769613443,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg2jwg0kftg8q26z06nwrdz0\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User wants to search for JavaScript tutorials published after 2023, difficulty beginner. Use function search_tutorials.\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_bdcb7cd9-0f92-410c-9c00-9b3ad94d1f51\",\"status\":\"completed\",\"call_id\":\"fc_bdcb7cd9-0f92-410c-9c00-9b3ad94d1f51\",\"name\":\"search_tutorials\",\"arguments\":\"{\\\"filters\\\":{\\\"difficulty\\\":\\\"beginner\\\",\\\"language\\\":\\\"JavaScript\\\",\\\"published_after\\\":2023},\\\"query\\\":\\\"JavaScript tutorial\\\"}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"search_tutorials\",\"description\":\"Search for programming tutorials with filters\",\"parameters\":{\"properties\":{\"filters\":{\"properties\":{\"difficulty\":{\"enum\":[\"beginner\",\"intermediate\",\"advanced\"],\"type\":\"string\"},\"language\":{\"description\":\"Programming language\",\"type\":\"string\"},\"published_after\":{\"description\":\"Year published after\",\"type\":\"integer\"}},\"type\":\"object\"},\"query\":{\"description\":\"Search query\",\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_4\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":182,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":88,\"output_tokens_details\":{\"reasoning_tokens\":25},\"total_tokens\":270},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

@@ -37,7 +37,10 @@ module {
     );
 
     let response = switch (groqResult) {
-      case (#ok(groqResponse)) { groqResponse };
+      case (#ok(#textResponse(groqResponse))) { groqResponse };
+      case (#ok(#toolCalls(_))) {
+        return #err("Unexpected tool calls in admin talk response.");
+      };
       case (#err(error)) {
         return #err("Groq API Error: " # error);
       };

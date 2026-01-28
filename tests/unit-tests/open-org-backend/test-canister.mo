@@ -41,10 +41,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     instructions : ?Text,
     temperature : ?Float,
     tools : ?[GroqWrapper.Tool],
-  ) : async {
-    #ok : Text;
-    #err : Text;
-  } {
+  ) : async GroqWrapper.ReasonWithToolsResult {
     assert caller == parent;
     await GroqWrapper.reason(apiKey, input, model, trackId, instructions, temperature, tools);
   };

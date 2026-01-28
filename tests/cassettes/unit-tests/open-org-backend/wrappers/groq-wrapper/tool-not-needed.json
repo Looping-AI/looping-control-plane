@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "name": "tool-not-needed",
+  "recordedAt": "2026-01-28T15:17:21.401Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"input\":\"Say hello to me\",\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name\"}},\"required\":[\"location\"]}}],\"user\":\"100_3\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c5174c978d86923-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Wed, 28 Jan 2026 15:17:21 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "dls"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "997"],
+          ["x-ratelimit-remaining-tokens", "7751"],
+          ["x-ratelimit-reset-requests", "4m19.2s"],
+          ["x-ratelimit-reset-tokens", "1.867s"],
+          ["x-request-id", "req_01kg2jwejhff2s8br3fvmghtvj"],
+          ["set-cookie", "[REDACTED]"]
+        ],
+        "body": "{\"id\":\"resp_01kg2jweq8ff3a71b0pmbnchrz\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769613441,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg2jweq8ff3v50ekmbgfe7j1\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user says \\\"Say hello to me\\\". So respond with a greeting.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kg2jweq8ff48jx3q6s1pv1nr\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello! 👋 Nice to meet you. How can I assist you today?\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"properties\":{\"location\":{\"description\":\"The city name\",\"type\":\"string\"}},\"required\":[\"location\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_3\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":130,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":41,\"output_tokens_details\":{\"reasoning_tokens\":16},\"total_tokens\":171},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}
