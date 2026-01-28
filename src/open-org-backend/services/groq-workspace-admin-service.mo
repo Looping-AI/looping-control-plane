@@ -5,6 +5,7 @@ import Map "mo:core/Map";
 import ConversationModel "../models/conversation-model";
 import GroqWrapper "../wrappers/groq-wrapper";
 import Constants "../constants";
+import InstructionComposer "../instructions/instruction-composer";
 
 module {
 
@@ -18,12 +19,19 @@ module {
     #ok : Text;
     #err : Text;
   } {
+    // Compose instructions for workspace admin context
+    let instructions = InstructionComposer.compose(
+      #workspaceAdmin,
+      [], // No additional context flags for now
+      [], // No custom blocks
+    );
+
     let groqResult = await GroqWrapper.reason(
       apiKey,
       message,
       Constants.ADMIN_TALK_MODEL,
       #workspace(workspaceId),
-      null,
+      ?instructions,
       null,
       null,
     );

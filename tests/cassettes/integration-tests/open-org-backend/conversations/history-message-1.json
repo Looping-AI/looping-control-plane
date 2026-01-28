@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-1",
-  "recordedAt": "2026-01-27T14:32:03.718Z",
+  "recordedAt": "2026-01-28T13:56:30.915Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48f5100f7cb17c-LIS"],
+          ["cf-ray", "9c50fe5dfc2fc708-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:32:03 GMT"],
+          ["date", "Wed, 28 Jan 2026 13:56:31 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -37,10 +37,10 @@
           ["x-ratelimit-remaining-tokens", "7920"],
           ["x-ratelimit-reset-requests", "5m45.6s"],
           ["x-ratelimit-reset-tokens", "600ms"],
-          ["x-request-id", "req_01kfzxwsh4f9rtdgdr8gz0a3bd"],
+          ["x-request-id", "req_01kg2e8dptenv9vf1w19c8sd4q"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-868c7925-809c-4f2d-b6ff-a694f8e2b347\",\"object\":\"chat.completion\",\"created\":1769524323,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"User asks simple math. Should answer 4.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017985032,\"prompt_tokens\":79,\"prompt_time\":0.003012018,\"completion_tokens\":30,\"completion_time\":0.067762265,\"total_tokens\":109,\"total_time\":0.070774283,\"completion_tokens_details\":{\"reasoning_tokens\":11}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_8634b911ff\",\"x_groq\":{\"id\":\"req_01kfzxwsh4f9rtdgdr8gz0a3bd\",\"seed\":631992626},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-98c14123-7a67-498b-98eb-bf1cc919453c\",\"object\":\"chat.completion\",\"created\":1769608591,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"User asks simple math question. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017466627,\"prompt_tokens\":79,\"prompt_time\":0.003682149,\"completion_tokens\":27,\"completion_time\":0.057860746,\"total_tokens\":106,\"total_time\":0.061542895,\"completion_tokens_details\":{\"reasoning_tokens\":10}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kg2e8dptenv9vf1w19c8sd4q\",\"seed\":1279673287},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

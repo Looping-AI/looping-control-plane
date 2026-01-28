@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-2",
-  "recordedAt": "2026-01-27T14:32:04.064Z",
+  "recordedAt": "2026-01-28T13:56:31.243Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48f5122d8db17c-LIS"],
+          ["cf-ray", "9c50fe5ffd64c708-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:32:04 GMT"],
+          ["date", "Wed, 28 Jan 2026 13:56:31 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -34,13 +34,13 @@
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
           ["x-ratelimit-remaining-requests", "995"],
-          ["x-ratelimit-remaining-tokens", "7855"],
+          ["x-ratelimit-remaining-tokens", "7856"],
           ["x-ratelimit-reset-requests", "7m12s"],
-          ["x-ratelimit-reset-tokens", "1.087s"],
-          ["x-request-id", "req_01kfzxwsvqey3ak5k986h13q56"],
+          ["x-ratelimit-reset-tokens", "1.079s"],
+          ["x-request-id", "req_01kg2e8e0yenys99yvedsrqbe1"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-c0afb62e-e2b6-4b96-ab80-898e8f440d1d\",\"object\":\"chat.completion\",\"created\":1769524324,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"3 + 3 = 6.\",\"reasoning\":\"The user asks a simple math question: 3+3 = 6. Just answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017710301,\"prompt_tokens\":79,\"prompt_time\":0.002989371,\"completion_tokens\":39,\"completion_time\":0.090889552,\"total_tokens\":118,\"total_time\":0.093878923,\"completion_tokens_details\":{\"reasoning_tokens\":20}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_c9b3d7b164\",\"x_groq\":{\"id\":\"req_01kfzxwsvqey3ak5k986h13q56\",\"seed\":1474672900},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-89bf48e5-e1e8-4ce4-b290-ef0b3e46a9bc\",\"object\":\"chat.completion\",\"created\":1769608591,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"3 + 3 = 6.\",\"reasoning\":\"User asks a simple math question. We can answer directly: 6.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.200309653,\"prompt_tokens\":79,\"prompt_time\":0.013896344,\"completion_tokens\":35,\"completion_time\":0.073745019,\"total_tokens\":114,\"total_time\":0.087641363,\"completion_tokens_details\":{\"reasoning_tokens\":16}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kg2e8e0yenys99yvedsrqbe1\",\"seed\":1720154031},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

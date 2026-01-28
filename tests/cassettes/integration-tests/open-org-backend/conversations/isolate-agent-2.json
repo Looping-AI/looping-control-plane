@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "isolate-agent-2",
-  "recordedAt": "2026-01-27T14:32:06.287Z",
+  "recordedAt": "2026-01-28T13:56:33.588Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48f51ff8fcb17c-LIS"],
+          ["cf-ray", "9c50fe6e9fe2c708-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:32:06 GMT"],
+          ["date", "Wed, 28 Jan 2026 13:56:33 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -34,13 +34,13 @@
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
           ["x-ratelimit-remaining-requests", "992"],
-          ["x-ratelimit-remaining-tokens", "7805"],
+          ["x-ratelimit-remaining-tokens", "7838"],
           ["x-ratelimit-reset-requests", "11m31.2s"],
-          ["x-ratelimit-reset-tokens", "1.462s"],
-          ["x-request-id", "req_01kfzxww15eycb92w8g629ahts"],
+          ["x-ratelimit-reset-tokens", "1.215s"],
+          ["x-request-id", "req_01kg2e8ga2fzj84t2j6mgdyv8e"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-f2643085-51ee-41e2-a263-ecac0eb3bb98\",\"object\":\"chat.completion\",\"created\":1769524326,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Spain is **Madrid**.\",\"reasoning\":\"The user asks a straightforward question: \\\"What is the capital of Spain?\\\" The answer is Madrid. There's no disallowed content. So respond succinctly.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017329679,\"prompt_tokens\":78,\"prompt_time\":0.002858822,\"completion_tokens\":50,\"completion_time\":0.105100631,\"total_tokens\":128,\"total_time\":0.107959453,\"completion_tokens_details\":{\"reasoning_tokens\":32}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfzxww15eycb92w8g629ahts\",\"seed\":740967177},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-07a23ef7-d930-4aee-9a90-872189ffde6a\",\"object\":\"chat.completion\",\"created\":1769608593,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Spain is **Madrid**.\",\"reasoning\":\"User asks a simple question: capital of Spain? It's Madrid. Must answer directly.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.043623572,\"prompt_tokens\":78,\"prompt_time\":0.003779465,\"completion_tokens\":36,\"completion_time\":0.076364305,\"total_tokens\":114,\"total_time\":0.08014377,\"completion_tokens_details\":{\"reasoning_tokens\":18}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_02b0d31eca\",\"x_groq\":{\"id\":\"req_01kg2e8ga2fzj84t2j6mgdyv8e\",\"seed\":1523164228},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }
