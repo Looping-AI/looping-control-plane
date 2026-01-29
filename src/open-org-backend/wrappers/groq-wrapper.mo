@@ -743,9 +743,9 @@ module {
   /// Generate reasoning response using Groq Responses API
   ///
   /// Returns a variant indicating whether the LLM:
-  /// - Returned a text response (#textResponse)
-  /// - Wants to call one or more tools (#toolCalls)
-  /// - Encountered an error (#error)
+  /// - Returned a text response (#ok(#textResponse))
+  /// - Wants to call one or more tools (#ok(#toolCalls))
+  /// - Encountered an error (#err)
   ///
   /// @param apiKey - The Groq API key
   /// @param input - Array of input messages with role and content
