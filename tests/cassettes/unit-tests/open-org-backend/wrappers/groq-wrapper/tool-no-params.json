@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "tool-no-params",
-  "recordedAt": "2026-01-28T15:18:22.575Z",
+  "recordedAt": "2026-01-29T12:29:09.796Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"input\":\"What time is it right now?\",\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_current_time\",\"description\":\"Get the current time\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}],\"user\":\"100_5\"}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What time is it right now?\"}],\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_current_time\",\"description\":\"Get the current time\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}],\"user\":\"100_5\"}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c5176480f51aa28-LIS"],
+          ["cf-ray", "9c58bbc8ec8e785c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 28 Jan 2026 15:18:23 GMT"],
+          ["date", "Thu, 29 Jan 2026 12:29:10 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "995"],
-          ["x-ratelimit-remaining-tokens", "7877"],
-          ["x-ratelimit-reset-requests", "7m12s"],
-          ["x-ratelimit-reset-tokens", "922ms"],
-          ["x-request-id", "req_01kg2jyabefxktdg0k8fgz5xfp"],
+          ["x-ratelimit-remaining-requests", "990"],
+          ["x-ratelimit-remaining-tokens", "5619"],
+          ["x-ratelimit-reset-requests", "14m24s"],
+          ["x-ratelimit-reset-tokens", "17.857s"],
+          ["x-request-id", "req_01kg4vn6f8emktechzc1whjegh"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kg2jyag4fxntqknva1tmnsqg\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769613502,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg2jyag4fxp9hfnyymsy83rf\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks for current time. We have a function get_current_time. Need to call it.\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_6c9b9e13-d8a0-4a41-92aa-357610d7e800\",\"status\":\"completed\",\"call_id\":\"fc_6c9b9e13-d8a0-4a41-92aa-357610d7e800\",\"name\":\"get_current_time\",\"arguments\":\"{}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"get_current_time\",\"description\":\"Get the current time\",\"parameters\":{\"properties\":{},\"required\":[],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_5\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":122,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":40,\"output_tokens_details\":{\"reasoning_tokens\":20},\"total_tokens\":162},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kg4vn6ksemma61vj40pxt7nr\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689750,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vn6ksemmvntmng6e60c20\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to answer the current time. Use provided function get_current_time.\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_08e76387-8657-454d-89ca-a2f3e8b6b635\",\"status\":\"completed\",\"call_id\":\"fc_08e76387-8657-454d-89ca-a2f3e8b6b635\",\"name\":\"get_current_time\",\"arguments\":\"{}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"get_current_time\",\"description\":\"Get the current time\",\"parameters\":{\"properties\":{},\"required\":[],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_5\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":122,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":36,\"output_tokens_details\":{\"reasoning_tokens\":16},\"total_tokens\":158},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

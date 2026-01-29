@@ -191,7 +191,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [instructions],
@@ -218,48 +218,7 @@ describe("Groq Wrapper Unit Tests", () => {
     });
 
     it(
-      "should handle reasoning with medium effort",
-      async () => {
-        const trackId: TrackId = { workspaceAgent: [2n, 2n] };
-        const input =
-          "Explain the concept of quantum computing in simple terms";
-
-        const { result } = await withCassette(
-          pic,
-          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-medium-effort",
-          () =>
-            testCanister.groqReason(
-              TEST_API_KEY,
-              input,
-              TEST_MODEL,
-              trackId,
-              [],
-              [], // temperature
-              [], // tools
-            ),
-          { ticks: 5 },
-        );
-
-        const response = await result;
-
-        if ("ok" in response) {
-          if ("textResponse" in response.ok) {
-            expect(response.ok.textResponse.length).toBeGreaterThan(0);
-            expect(response.ok.textResponse.toLowerCase()).toContain("quantum");
-          } else {
-            throw new Error("Unexpected tool calls response");
-          }
-        } else {
-          throw new Error(
-            "Expected successful response but got error: " + response.err,
-          );
-        }
-      },
-      { timeout: 15000 },
-    );
-
-    it(
-      "should handle reasoning with high effort",
+      "should handle reasoning that takes longer to complete",
       async () => {
         const trackId: TrackId = { workspaceAgent: [3n, 3n] };
         const input =
@@ -269,11 +228,11 @@ describe("Groq Wrapper Unit Tests", () => {
 
         const { result } = await withCassette(
           pic,
-          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-high-effort",
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-longer-completion",
           () =>
             testCanister.groqReason(
               TEST_API_KEY,
-              input,
+              [{ role: { user: null }, content: input }],
               TEST_MODEL,
               trackId,
               [instructions],
@@ -317,7 +276,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [],
@@ -359,7 +318,7 @@ describe("Groq Wrapper Unit Tests", () => {
           () =>
             testCanister.groqReason(
               TEST_API_KEY,
-              input,
+              [{ role: { user: null }, content: input }],
               TEST_MODEL,
               trackId,
               [instructions],
@@ -400,7 +359,7 @@ describe("Groq Wrapper Unit Tests", () => {
       try {
         await testCanister.groqReason(
           "",
-          input,
+          [{ role: { user: null }, content: input }],
           TEST_MODEL,
           trackId,
           [],
@@ -421,7 +380,7 @@ describe("Groq Wrapper Unit Tests", () => {
       try {
         await testCanister.groqReason(
           "   ",
-          input,
+          [{ role: { user: null }, content: input }],
           TEST_MODEL,
           trackId,
           [],
@@ -441,7 +400,7 @@ describe("Groq Wrapper Unit Tests", () => {
       try {
         await testCanister.groqReason(
           TEST_API_KEY,
-          "",
+          [],
           TEST_MODEL,
           trackId,
           [],
@@ -462,7 +421,7 @@ describe("Groq Wrapper Unit Tests", () => {
       try {
         await testCanister.groqReason(
           TEST_API_KEY,
-          input,
+          [{ role: { user: null }, content: input }],
           "",
           trackId,
           [],
@@ -518,7 +477,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [],
@@ -605,7 +564,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [],
@@ -668,7 +627,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [],
@@ -741,7 +700,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [],
@@ -803,7 +762,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [],

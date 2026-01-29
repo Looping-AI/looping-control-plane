@@ -66,11 +66,22 @@ module {
     usage : ?Usage;
   };
 
-  /// Input for Groq Responses API (can be string or array of strings)
-  public type ResponseInput = {
-    #string : Text;
-    #array : [Text];
+  /// Role for Responses API input messages
+  public type ResponseInputRole = {
+    #user;
+    #assistant;
+    #system_;
+    #developer;
   };
+
+  /// Input message for Groq Responses API
+  public type ResponseInputMessage = {
+    role : ResponseInputRole;
+    content : Text;
+  };
+
+  /// Input for Groq Responses API (array of messages)
+  public type ResponseInput = [ResponseInputMessage];
 
   /// Reasoning configuration for Responses API
   public type ReasoningConfig = {
@@ -219,6 +230,16 @@ module {
     };
   };
 
+  /// Convert ResponseInputRole to string for JSON serialization
+  private func responseInputRoleToString(role : ResponseInputRole) : Text {
+    switch (role) {
+      case (#user) { "user" };
+      case (#assistant) { "assistant" };
+      case (#system_) { "system" };
+      case (#developer) { "developer" };
+    };
+  };
+
   /// Convert a ChatMessage to JSON
   private func messageToJson(message : ChatMessage) : Json.Json {
     obj([
@@ -227,12 +248,17 @@ module {
     ]);
   };
 
+  /// Convert ResponseInputMessage to JSON
+  private func responseInputMessageToJson(msg : ResponseInputMessage) : Json.Json {
+    obj([
+      ("role", str(responseInputRoleToString(msg.role))),
+      ("content", str(msg.content)),
+    ]);
+  };
+
   /// Convert ResponseInput to JSON
   private func inputToJson(input : ResponseInput) : Json.Json {
-    switch (input) {
-      case (#string(text)) { str(text) };
-      case (#array(texts)) { arr(Array.map<Text, Json.Json>(texts, str)) };
-    };
+    arr(Array.map<ResponseInputMessage, Json.Json>(input, responseInputMessageToJson));
   };
 
   /// Convert ToolChoice to JSON
@@ -722,7 +748,7 @@ module {
   /// - Encountered an error (#error)
   ///
   /// @param apiKey - The Groq API key
-  /// @param input - Input text for reasoning
+  /// @param input - Array of input messages with role and content
   /// @param model - Model name (should support reasoning)
   /// @param trackId - Tracking identifier for attribution and usage monitoring
   /// @param instructions - Optional system instructions
@@ -731,7 +757,7 @@ module {
   /// @returns ReasonWithToolsResult indicating text response, tool calls, or error
   public func reason(
     apiKey : Text,
-    input : Text,
+    input : ResponseInput,
     model : Text,
     trackId : TrackId,
     instructions : ?Text,
@@ -739,10 +765,10 @@ module {
     tools : ?[Tool],
   ) : async ReasonWithToolsResult {
     assert Text.trim(apiKey, #char ' ') != "";
-    assert Text.trim(input, #char ' ') != "";
+    assert input.size() > 0;
     assert Text.trim(model, #char ' ') != "";
 
-    let inputData : ResponseInput = #string(input);
+    let inputData : ResponseInput = input;
 
     // Create user key from trackId
     let userKey = switch (trackId) {

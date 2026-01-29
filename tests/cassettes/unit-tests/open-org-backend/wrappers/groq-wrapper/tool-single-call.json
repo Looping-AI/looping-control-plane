@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "tool-single-call",
-  "recordedAt": "2026-01-28T15:17:18.973Z",
+  "recordedAt": "2026-01-29T12:29:04.927Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"input\":\"What is the weather in San Francisco?\",\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name, e.g. San Francisco\"}},\"required\":[\"location\"]}}],\"user\":\"100_1\"}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What is the weather in San Francisco?\"}],\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name, e.g. San Francisco\"}},\"required\":[\"location\"]}}],\"user\":\"100_1\"}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c5174ba8d296923-LIS"],
+          ["cf-ray", "9c58bbaadcce785c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 28 Jan 2026 15:17:19 GMT"],
+          ["date", "Thu, 29 Jan 2026 12:29:05 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "999"],
-          ["x-ratelimit-remaining-tokens", "7859"],
-          ["x-ratelimit-reset-requests", "1m26.4s"],
-          ["x-ratelimit-reset-tokens", "1.057s"],
-          ["x-request-id", "req_01kg2jwc85fhcs57v1azkvyx35"],
+          ["x-ratelimit-remaining-requests", "994"],
+          ["x-ratelimit-remaining-tokens", "5855"],
+          ["x-ratelimit-reset-requests", "8m38.4s"],
+          ["x-ratelimit-reset-tokens", "16.087s"],
+          ["x-request-id", "req_01kg4vn1sxfqxrksst43wpddqz"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kg2jwchsfhgr2ncf846y73pe\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769613439,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg2jwchsfhh8t4see257vk9z\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks for weather in San Francisco. We have a function get_weather. Need to call function with location \\\"San Francisco\\\".\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_53e0046a-958d-4667-a8f1-2c7ccd38321d\",\"status\":\"completed\",\"call_id\":\"fc_53e0046a-958d-4667-a8f1-2c7ccd38321d\",\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"San Francisco\\\"}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"properties\":{\"location\":{\"description\":\"The city name, e.g. San Francisco\",\"type\":\"string\"}},\"required\":[\"location\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_1\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":140,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":55,\"output_tokens_details\":{\"reasoning_tokens\":27},\"total_tokens\":195},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kg4vn200fqxv2xxc9c2mf6vq\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689745,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vn200fqyah2zrcqa09j22\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks for weather in San Francisco. Use function get_weather.\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_97ea268e-5fb0-4860-8057-366af4de35f3\",\"status\":\"completed\",\"call_id\":\"fc_97ea268e-5fb0-4860-8057-366af4de35f3\",\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"San Francisco\\\"}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"properties\":{\"location\":{\"description\":\"The city name, e.g. San Francisco\",\"type\":\"string\"}},\"required\":[\"location\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_1\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":140,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":42,\"output_tokens_details\":{\"reasoning_tokens\":14},\"total_tokens\":182},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

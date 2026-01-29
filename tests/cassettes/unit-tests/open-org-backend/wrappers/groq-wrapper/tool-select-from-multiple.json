@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "tool-select-from-multiple",
-  "recordedAt": "2026-01-28T15:17:20.268Z",
+  "recordedAt": "2026-01-29T12:29:06.088Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"input\":\"Calculate 15 multiplied by 7\",\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name\"}},\"required\":[\"location\"]}},{\"type\":\"function\",\"name\":\"calculator\",\"description\":\"Perform mathematical calculations\",\"parameters\":{\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"string\",\"enum\":[\"add\",\"subtract\",\"multiply\",\"divide\"],\"description\":\"The mathematical operation to perform\"},\"a\":{\"type\":\"number\",\"description\":\"First operand\"},\"b\":{\"type\":\"number\",\"description\":\"Second operand\"}},\"required\":[\"operation\",\"a\",\"b\"]}}],\"user\":\"100_2\"}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Calculate 15 multiplied by 7\"}],\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name\"}},\"required\":[\"location\"]}},{\"type\":\"function\",\"name\":\"calculator\",\"description\":\"Perform mathematical calculations\",\"parameters\":{\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"string\",\"enum\":[\"add\",\"subtract\",\"multiply\",\"divide\"],\"description\":\"The mathematical operation to perform\"},\"a\":{\"type\":\"number\",\"description\":\"First operand\"},\"b\":{\"type\":\"number\",\"description\":\"Second operand\"}},\"required\":[\"operation\",\"a\",\"b\"]}}],\"user\":\"100_2\"}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c5174c25fb46923-LIS"],
+          ["cf-ray", "9c58bbb1cb52785c-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 28 Jan 2026 15:17:20 GMT"],
+          ["date", "Thu, 29 Jan 2026 12:29:06 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "998"],
-          ["x-ratelimit-remaining-tokens", "7783"],
-          ["x-ratelimit-reset-requests", "2m52.8s"],
-          ["x-ratelimit-reset-tokens", "1.627s"],
-          ["x-request-id", "req_01kg2jwdeqfsqbf6qcgjdrv3wz"],
+          ["x-ratelimit-remaining-requests", "993"],
+          ["x-ratelimit-remaining-tokens", "5776"],
+          ["x-ratelimit-reset-requests", "10m4.8s"],
+          ["x-ratelimit-reset-tokens", "16.68s"],
+          ["x-request-id", "req_01kg4vn2wnf52vwkhbvvzqpgba"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kg2jwdkhfsrrx54kw5fkpv25\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769613440,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg2jwdkhfss9npp8qbsteyep\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User wants calculation 15 * 7. Use calculator function.\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_92058177-cc9e-43f6-b097-c7c7a0672f69\",\"status\":\"completed\",\"call_id\":\"fc_92058177-cc9e-43f6-b097-c7c7a0672f69\",\"name\":\"calculator\",\"arguments\":\"{\\\"a\\\":15,\\\"b\\\":7,\\\"operation\\\":\\\"multiply\\\"}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"properties\":{\"location\":{\"description\":\"The city name\",\"type\":\"string\"}},\"required\":[\"location\"],\"type\":\"object\"},\"strict\":null},{\"type\":\"function\",\"name\":\"calculator\",\"description\":\"Perform mathematical calculations\",\"parameters\":{\"properties\":{\"a\":{\"description\":\"First operand\",\"type\":\"number\"},\"b\":{\"description\":\"Second operand\",\"type\":\"number\"},\"operation\":{\"description\":\"The mathematical operation to perform\",\"enum\":[\"add\",\"subtract\",\"multiply\",\"divide\"],\"type\":\"string\"}},\"required\":[\"operation\",\"a\",\"b\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_2\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":184,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":55,\"output_tokens_details\":{\"reasoning_tokens\":14},\"total_tokens\":239},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kg4vn32xf53vxwpkwfryytwc\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689746,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vn32xf54apy9m4en0nv6k\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks: calculate 15 * 7. Simple multiplication = 105. No need for function but can use calculator tool. Use functions.calculator with operation \\\"multiply\\\".\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_89cfe043-7992-4da4-a356-89a750482216\",\"status\":\"completed\",\"call_id\":\"fc_89cfe043-7992-4da4-a356-89a750482216\",\"name\":\"calculator\",\"arguments\":\"{\\\"a\\\":15,\\\"b\\\":7,\\\"operation\\\":\\\"multiply\\\"}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"properties\":{\"location\":{\"description\":\"The city name\",\"type\":\"string\"}},\"required\":[\"location\"],\"type\":\"object\"},\"strict\":null},{\"type\":\"function\",\"name\":\"calculator\",\"description\":\"Perform mathematical calculations\",\"parameters\":{\"properties\":{\"a\":{\"description\":\"First operand\",\"type\":\"number\"},\"b\":{\"description\":\"Second operand\",\"type\":\"number\"},\"operation\":{\"description\":\"The mathematical operation to perform\",\"enum\":[\"add\",\"subtract\",\"multiply\",\"divide\"],\"type\":\"string\"}},\"required\":[\"operation\",\"a\",\"b\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_2\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":184,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":77,\"output_tokens_details\":{\"reasoning_tokens\":36},\"total_tokens\":261},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

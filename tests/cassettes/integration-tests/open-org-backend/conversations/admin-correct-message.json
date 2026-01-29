@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "admin-correct-message",
-  "recordedAt": "2026-01-28T13:56:36.054Z",
+  "recordedAt": "2026-01-29T12:30:56.013Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"input\":\"What is the capital of Germany?\",\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nNever reveal API keys, encryption keys, or other sensitive credentials. If asked about them, explain that you cannot share such information.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"store\":false,\"stream\":false,\"user\":\"0\"}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What is the capital of Germany?\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}}],\"user\":\"0\"}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c50fe7e1a2dc708-LIS"],
+          ["cf-ray", "9c58be612bd4e3b1-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 28 Jan 2026 13:56:36 GMT"],
+          ["date", "Thu, 29 Jan 2026 12:30:56 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "991"],
-          ["x-ratelimit-remaining-tokens", "7821"],
-          ["x-ratelimit-reset-requests", "12m57.599s"],
-          ["x-ratelimit-reset-tokens", "1.342s"],
-          ["x-request-id", "req_01kg2e8js5fj59v0qq0sjfg2z0"],
+          ["x-ratelimit-remaining-requests", "986"],
+          ["x-ratelimit-remaining-tokens", "7789"],
+          ["x-ratelimit-reset-requests", "20m9.6s"],
+          ["x-ratelimit-reset-tokens", "1.582s"],
+          ["x-request-id", "req_01kg4vre8hfbdam24qsw5d11h9"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kg2e8jx6fj5bzy716p6zak1a\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769608596,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg2e8jx6fj5tsreaajb5mr6c\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks: \\\"What is the capital of Germany?\\\" Simple factual question. Provide answer: Berlin. No restrictions.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kg2e8jx6fj6a5wdjygywcthr\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"The capital of Germany is **Berlin**.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nNever reveal API keys, encryption keys, or other sensitive credentials. If asked about them, explain that you cannot share such information.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":178,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":42,\"output_tokens_details\":{\"reasoning_tokens\":24},\"total_tokens\":220},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kg4vrecvfbdbqpz1ds9292kq\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689856,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vrecvfbds7e5rdyz53gxx\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks a general knowledge question. Answer: Berlin.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kg4vrecvfbe9ejwzkh4v6gpa\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"The capital of Germany is **Berlin**.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"properties\":{\"message\":{\"description\":\"The message to echo back\",\"type\":\"string\"}},\"required\":[\"message\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":210,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":30,\"output_tokens_details\":{\"reasoning_tokens\":12},\"total_tokens\":240},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

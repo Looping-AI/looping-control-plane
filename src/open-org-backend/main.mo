@@ -15,6 +15,8 @@ import ApiKeysModel "./models/api-keys-model";
 import KeyDerivationService "./services/key-derivation-service";
 import WorkspaceTalkService "./services/workspace-talk-service";
 import WorkspaceAdminOrchestrator "./orchestrators/workspace-admin-orchestrator";
+import McpToolRegistry "./tools/mcp-tool-registry";
+import ToolTypes "./tools/tool-types";
 import Constants "./constants";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
@@ -33,6 +35,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   var nextAgentId : Nat = 0;
   var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentModel.Agent>>([(0, Map.empty<Nat, AgentModel.Agent>())], Nat.compare);
+  var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
   // ============================================
   // Auth Helper
@@ -315,6 +318,56 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
+  // MCP Tool Management
+  // ============================================
+
+  // Register a new MCP tool
+  // Only org owner and org admins can register MCP tools
+  public shared ({ caller }) func registerMcpTool(tool : ToolTypes.McpToolRegistration) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (McpToolRegistry.register(mcpToolRegistry, tool)) {
+          case (#ok) { #ok(()) };
+          case (#err(msg)) { #err(msg) };
+        };
+      };
+    };
+  };
+
+  // Unregister an MCP tool by name
+  // Only org owner and org admins can unregister MCP tools
+  public shared ({ caller }) func unregisterMcpTool(toolName : Text) : async {
+    #ok : Bool;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let removed = McpToolRegistry.unregister(mcpToolRegistry, toolName);
+        #ok(removed);
+      };
+    };
+  };
+
+  // Get all registered MCP tools
+  // Only org owner and org admins can view MCP tools
+  public shared ({ caller }) func listMcpTools() : async {
+    #ok : [ToolTypes.McpToolRegistration];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        #ok(McpToolRegistry.getAll(mcpToolRegistry));
+      };
+    };
+  };
+
+  // ============================================
   // Workspace Admin Talk
   // ============================================
 
@@ -330,6 +383,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         };
         // Delegate to orchestrator for business logic
         await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
+          mcpToolRegistry,
           apiKeys,
           adminConversations,
           workspaceId,

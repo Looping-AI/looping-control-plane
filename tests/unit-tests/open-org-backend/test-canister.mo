@@ -35,7 +35,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   public shared ({ caller }) func groqReason(
     apiKey : Text,
-    input : Text,
+    input : [GroqWrapper.ResponseInputMessage],
     model : Text,
     trackId : GroqWrapper.TrackId,
     instructions : ?Text,
