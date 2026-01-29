@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "admin-history-message-2",
-  "recordedAt": "2026-01-27T14:32:12.238Z",
+  "recordedAt": "2026-01-29T12:30:58.399Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"input\":\"What is 3 + 3?\",\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"user\":\"0\"}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What is 3 + 3?\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}}],\"user\":\"0\"}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48f545da90b17c-LIS"],
+          ["cf-ray", "9c58be6fdb44e3b1-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:32:12 GMT"],
+          ["date", "Thu, 29 Jan 2026 12:30:58 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "989"],
-          ["x-ratelimit-remaining-tokens", "7885"],
-          ["x-ratelimit-reset-requests", "15m50.4s"],
-          ["x-ratelimit-reset-tokens", "862ms"],
-          ["x-request-id", "req_01kfzxx1zvffmaaevhaget8cpy"],
+          ["x-ratelimit-remaining-requests", "984"],
+          ["x-ratelimit-remaining-tokens", "7610"],
+          ["x-ratelimit-reset-requests", "23m2.4s"],
+          ["x-ratelimit-reset-tokens", "2.925s"],
+          ["x-request-id", "req_01kg4vrghnepvb9ntnakvcvghk"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kfzxx231ffmt4v9ypp7zdgvn\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769524332,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzxx231ffnbwzddyytc3twk\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks simple math: 3+3=6. Provide answer.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzxx231ffnt1jx55sgsd3r0\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"3 + 3 = 6.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":79,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":35,\"output_tokens_details\":{\"reasoning_tokens\":16},\"total_tokens\":114},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kg4vrgmvepv91f7bkz0bdfqc\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689858,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vrgmvepvvwm3bnrsektq6\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks a simple math question. Should answer: 6.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kg4vrgmvepw8nkn628nhvgq3\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"3 + 3 = 6.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"properties\":{\"message\":{\"description\":\"The message to echo back\",\"type\":\"string\"}},\"required\":[\"message\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":211,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":34,\"output_tokens_details\":{\"reasoning_tokens\":15},\"total_tokens\":245},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

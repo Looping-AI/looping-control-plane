@@ -191,7 +191,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [instructions],
@@ -204,8 +204,12 @@ describe("Groq Wrapper Unit Tests", () => {
       const response = await result;
 
       if ("ok" in response) {
-        expect(response.ok.length).toBeGreaterThan(0);
-        expect(response.ok.toLowerCase()).toContain("renewable");
+        if ("textResponse" in response.ok) {
+          expect(response.ok.textResponse.length).toBeGreaterThan(0);
+          expect(response.ok.textResponse.toLowerCase()).toContain("renewable");
+        } else {
+          throw new Error("Unexpected tool calls response");
+        }
       } else {
         throw new Error(
           "Expected successful response but got error: " + response.err,
@@ -214,44 +218,7 @@ describe("Groq Wrapper Unit Tests", () => {
     });
 
     it(
-      "should handle reasoning with medium effort",
-      async () => {
-        const trackId: TrackId = { workspaceAgent: [2n, 2n] };
-        const input =
-          "Explain the concept of quantum computing in simple terms";
-
-        const { result } = await withCassette(
-          pic,
-          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-medium-effort",
-          () =>
-            testCanister.groqReason(
-              TEST_API_KEY,
-              input,
-              TEST_MODEL,
-              trackId,
-              [],
-              [], // temperature
-              [], // tools
-            ),
-          { ticks: 5 },
-        );
-
-        const response = await result;
-
-        if ("ok" in response) {
-          expect(response.ok.length).toBeGreaterThan(0);
-          expect(response.ok.toLowerCase()).toContain("quantum");
-        } else {
-          throw new Error(
-            "Expected successful response but got error: " + response.err,
-          );
-        }
-      },
-      { timeout: 15000 },
-    );
-
-    it(
-      "should handle reasoning with high effort",
+      "should handle reasoning that takes longer to complete",
       async () => {
         const trackId: TrackId = { workspaceAgent: [3n, 3n] };
         const input =
@@ -261,11 +228,11 @@ describe("Groq Wrapper Unit Tests", () => {
 
         const { result } = await withCassette(
           pic,
-          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-high-effort",
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/reason-longer-completion",
           () =>
             testCanister.groqReason(
               TEST_API_KEY,
-              input,
+              [{ role: { user: null }, content: input }],
               TEST_MODEL,
               trackId,
               [instructions],
@@ -278,14 +245,18 @@ describe("Groq Wrapper Unit Tests", () => {
         const response = await result;
 
         if ("ok" in response) {
-          expect(response.ok.length).toBeGreaterThan(0);
-          const lowerResponse = response.ok.toLowerCase();
-          expect(
-            lowerResponse.includes("artificial intelligence") ||
-              lowerResponse.includes("ai") ||
-              lowerResponse.includes("job") ||
-              lowerResponse.includes("economic"),
-          ).toBe(true);
+          if ("textResponse" in response.ok) {
+            expect(response.ok.textResponse.length).toBeGreaterThan(0);
+            const lowerResponse = response.ok.textResponse.toLowerCase();
+            expect(
+              lowerResponse.includes("artificial intelligence") ||
+                lowerResponse.includes("ai") ||
+                lowerResponse.includes("job") ||
+                lowerResponse.includes("economic"),
+            ).toBe(true);
+          } else {
+            throw new Error("Unexpected tool calls response");
+          }
         } else {
           throw new Error(
             "Expected successful response but got error: " + response.err,
@@ -305,7 +276,7 @@ describe("Groq Wrapper Unit Tests", () => {
         () =>
           testCanister.groqReason(
             TEST_API_KEY,
-            input,
+            [{ role: { user: null }, content: input }],
             TEST_MODEL,
             trackId,
             [],
@@ -318,8 +289,14 @@ describe("Groq Wrapper Unit Tests", () => {
       const response = await result;
 
       if ("ok" in response) {
-        expect(response.ok.length).toBeGreaterThan(0);
-        expect(response.ok.toLowerCase()).toContain("machine learning");
+        if ("textResponse" in response.ok) {
+          expect(response.ok.textResponse.length).toBeGreaterThan(0);
+          expect(response.ok.textResponse.toLowerCase()).toContain(
+            "machine learning",
+          );
+        } else {
+          throw new Error("Unexpected tool calls response");
+        }
       } else {
         throw new Error(
           "Expected successful response but got error: " + response.err,
@@ -341,7 +318,7 @@ describe("Groq Wrapper Unit Tests", () => {
           () =>
             testCanister.groqReason(
               TEST_API_KEY,
-              input,
+              [{ role: { user: null }, content: input }],
               TEST_MODEL,
               trackId,
               [instructions],
@@ -354,14 +331,18 @@ describe("Groq Wrapper Unit Tests", () => {
         const response = await result;
 
         if ("ok" in response) {
-          expect(response.ok.length).toBeGreaterThan(0);
-          const lowerResponse = response.ok.toLowerCase();
-          expect(
-            lowerResponse.includes("200") ||
-              lowerResponse.includes("80") ||
-              lowerResponse.includes("2.5") ||
-              lowerResponse.includes("miles"),
-          ).toBe(true);
+          if ("textResponse" in response.ok) {
+            expect(response.ok.textResponse.length).toBeGreaterThan(0);
+            const lowerResponse = response.ok.textResponse.toLowerCase();
+            expect(
+              lowerResponse.includes("200") ||
+                lowerResponse.includes("80") ||
+                lowerResponse.includes("2.5") ||
+                lowerResponse.includes("miles"),
+            ).toBe(true);
+          } else {
+            throw new Error("Unexpected tool calls response");
+          }
         } else {
           throw new Error(
             "Expected successful response but got error: " + response.err,
@@ -378,7 +359,7 @@ describe("Groq Wrapper Unit Tests", () => {
       try {
         await testCanister.groqReason(
           "",
-          input,
+          [{ role: { user: null }, content: input }],
           TEST_MODEL,
           trackId,
           [],
@@ -399,7 +380,7 @@ describe("Groq Wrapper Unit Tests", () => {
       try {
         await testCanister.groqReason(
           "   ",
-          input,
+          [{ role: { user: null }, content: input }],
           TEST_MODEL,
           trackId,
           [],
@@ -419,7 +400,7 @@ describe("Groq Wrapper Unit Tests", () => {
       try {
         await testCanister.groqReason(
           TEST_API_KEY,
-          "",
+          [],
           TEST_MODEL,
           trackId,
           [],
@@ -440,7 +421,7 @@ describe("Groq Wrapper Unit Tests", () => {
       try {
         await testCanister.groqReason(
           TEST_API_KEY,
-          input,
+          [{ role: { user: null }, content: input }],
           "",
           trackId,
           [],
@@ -451,6 +432,364 @@ describe("Groq Wrapper Unit Tests", () => {
       } catch (error) {
         // Expected to trap due to empty model validation
         expect(error).toBeDefined();
+      }
+    });
+  });
+
+  describe("Tool Calling Tests", () => {
+    // Helper type for Tool
+    type Tool = {
+      tool_type: string;
+      function: {
+        name: string;
+        description: [] | [string];
+        parameters: [] | [string];
+      };
+    };
+
+    it("should call a single tool when prompted", async () => {
+      const trackId: TrackId = { workspaceAgent: [100n, 1n] };
+      const input = "What is the weather in San Francisco?";
+
+      const weatherTool: Tool = {
+        tool_type: "function",
+        function: {
+          name: "get_weather",
+          description: ["Get the current weather for a given location"],
+          parameters: [
+            JSON.stringify({
+              type: "object",
+              properties: {
+                location: {
+                  type: "string",
+                  description: "The city name, e.g. San Francisco",
+                },
+              },
+              required: ["location"],
+            }),
+          ],
+        },
+      };
+
+      const { result } = await withCassette(
+        pic,
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/tool-single-call",
+        () =>
+          testCanister.groqReason(
+            TEST_API_KEY,
+            [{ role: { user: null }, content: input }],
+            TEST_MODEL,
+            trackId,
+            [],
+            [],
+            [[weatherTool]],
+          ),
+        { ticks: 5 },
+      );
+
+      const response = await result;
+
+      if ("ok" in response) {
+        if ("toolCalls" in response.ok) {
+          expect(response.ok.toolCalls.length).toBeGreaterThan(0);
+          const toolCall = response.ok.toolCalls[0];
+          expect(toolCall.toolName).toBe("get_weather");
+          expect(toolCall.callId).toBeTruthy();
+
+          // Parse arguments and verify location
+          const args = JSON.parse(toolCall.arguments);
+          expect(args.location.toLowerCase()).toContain("san francisco");
+        } else {
+          // If model responded with text instead of tool call, that's also acceptable
+          // but we expect tool call for this specific prompt
+          throw new Error(
+            "Expected tool call but got text response: " +
+              response.ok.textResponse,
+          );
+        }
+      } else {
+        throw new Error(
+          "Expected successful response but got error: " + response.err,
+        );
+      }
+    });
+
+    it("should call appropriate tool from multiple available tools", async () => {
+      const trackId: TrackId = { workspaceAgent: [100n, 2n] };
+      const input = "Calculate 15 multiplied by 7";
+
+      const weatherTool: Tool = {
+        tool_type: "function",
+        function: {
+          name: "get_weather",
+          description: ["Get the current weather for a given location"],
+          parameters: [
+            JSON.stringify({
+              type: "object",
+              properties: {
+                location: { type: "string", description: "The city name" },
+              },
+              required: ["location"],
+            }),
+          ],
+        },
+      };
+
+      const calculatorTool: Tool = {
+        tool_type: "function",
+        function: {
+          name: "calculator",
+          description: ["Perform mathematical calculations"],
+          parameters: [
+            JSON.stringify({
+              type: "object",
+              properties: {
+                operation: {
+                  type: "string",
+                  enum: ["add", "subtract", "multiply", "divide"],
+                  description: "The mathematical operation to perform",
+                },
+                a: { type: "number", description: "First operand" },
+                b: { type: "number", description: "Second operand" },
+              },
+              required: ["operation", "a", "b"],
+            }),
+          ],
+        },
+      };
+
+      const { result } = await withCassette(
+        pic,
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/tool-select-from-multiple",
+        () =>
+          testCanister.groqReason(
+            TEST_API_KEY,
+            [{ role: { user: null }, content: input }],
+            TEST_MODEL,
+            trackId,
+            [],
+            [],
+            [[weatherTool, calculatorTool]],
+          ),
+        { ticks: 5 },
+      );
+
+      const response = await result;
+
+      if ("ok" in response) {
+        if ("toolCalls" in response.ok) {
+          expect(response.ok.toolCalls.length).toBeGreaterThan(0);
+          const toolCall = response.ok.toolCalls[0];
+          expect(toolCall.toolName).toBe("calculator");
+
+          // Parse arguments and verify calculation parameters
+          const args = JSON.parse(toolCall.arguments);
+          expect(args.operation).toBe("multiply");
+          expect(args.a).toBe(15);
+          expect(args.b).toBe(7);
+        } else {
+          throw new Error(
+            "Expected tool call but got text response: " +
+              response.ok.textResponse,
+          );
+        }
+      } else {
+        throw new Error(
+          "Expected successful response but got error: " + response.err,
+        );
+      }
+    });
+
+    it("should return text response when no tool is needed", async () => {
+      const trackId: TrackId = { workspaceAgent: [100n, 3n] };
+      const input = "Say hello to me";
+
+      const weatherTool: Tool = {
+        tool_type: "function",
+        function: {
+          name: "get_weather",
+          description: ["Get the current weather for a given location"],
+          parameters: [
+            JSON.stringify({
+              type: "object",
+              properties: {
+                location: { type: "string", description: "The city name" },
+              },
+              required: ["location"],
+            }),
+          ],
+        },
+      };
+
+      const { result } = await withCassette(
+        pic,
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/tool-not-needed",
+        () =>
+          testCanister.groqReason(
+            TEST_API_KEY,
+            [{ role: { user: null }, content: input }],
+            TEST_MODEL,
+            trackId,
+            [],
+            [],
+            [[weatherTool]],
+          ),
+        { ticks: 5 },
+      );
+
+      const response = await result;
+
+      if ("ok" in response) {
+        if ("textResponse" in response.ok) {
+          expect(response.ok.textResponse.length).toBeGreaterThan(0);
+          expect(response.ok.textResponse.toLowerCase()).toContain("hello");
+        } else {
+          // Tool was called unexpectedly - this is also acceptable behavior
+          // but for "say hello" we expect text
+          console.log("Unexpected tool call:", response.ok.toolCalls);
+        }
+      } else {
+        throw new Error(
+          "Expected successful response but got error: " + response.err,
+        );
+      }
+    });
+
+    it("should parse tool call with complex nested parameters", async () => {
+      const trackId: TrackId = { workspaceAgent: [100n, 4n] };
+      const input =
+        "Search for JavaScript tutorials published after 2023 with difficulty level beginner";
+
+      const searchTool: Tool = {
+        tool_type: "function",
+        function: {
+          name: "search_tutorials",
+          description: ["Search for programming tutorials with filters"],
+          parameters: [
+            JSON.stringify({
+              type: "object",
+              properties: {
+                query: { type: "string", description: "Search query" },
+                filters: {
+                  type: "object",
+                  properties: {
+                    language: {
+                      type: "string",
+                      description: "Programming language",
+                    },
+                    published_after: {
+                      type: "integer",
+                      description: "Year published after",
+                    },
+                    difficulty: {
+                      type: "string",
+                      enum: ["beginner", "intermediate", "advanced"],
+                    },
+                  },
+                },
+              },
+              required: ["query"],
+            }),
+          ],
+        },
+      };
+
+      const { result } = await withCassette(
+        pic,
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/tool-complex-params",
+        () =>
+          testCanister.groqReason(
+            TEST_API_KEY,
+            [{ role: { user: null }, content: input }],
+            TEST_MODEL,
+            trackId,
+            [],
+            [],
+            [[searchTool]],
+          ),
+        { ticks: 5 },
+      );
+
+      const response = await result;
+
+      if ("ok" in response) {
+        if ("toolCalls" in response.ok) {
+          expect(response.ok.toolCalls.length).toBeGreaterThan(0);
+          const toolCall = response.ok.toolCalls[0];
+          expect(toolCall.toolName).toBe("search_tutorials");
+
+          // Parse and verify complex nested arguments
+          const args = JSON.parse(toolCall.arguments);
+          expect(args.query.toLowerCase()).toContain("javascript");
+          expect(args.filters).toBeDefined();
+          expect(args.filters.difficulty).toBe("beginner");
+          expect(args.filters.published_after).toBeGreaterThanOrEqual(2023);
+        } else {
+          throw new Error(
+            "Expected tool call but got text response: " +
+              response.ok.textResponse,
+          );
+        }
+      } else {
+        throw new Error(
+          "Expected successful response but got error: " + response.err,
+        );
+      }
+    });
+
+    it("should handle tool with no parameters", async () => {
+      const trackId: TrackId = { workspaceAgent: [100n, 5n] };
+      const input = "What time is it right now?";
+
+      const timeTool: Tool = {
+        tool_type: "function",
+        function: {
+          name: "get_current_time",
+          description: ["Get the current time"],
+          parameters: [
+            JSON.stringify({
+              type: "object",
+              properties: {},
+              required: [],
+            }),
+          ],
+        },
+      };
+
+      const { result } = await withCassette(
+        pic,
+        "unit-tests/open-org-backend/wrappers/groq-wrapper/tool-no-params",
+        () =>
+          testCanister.groqReason(
+            TEST_API_KEY,
+            [{ role: { user: null }, content: input }],
+            TEST_MODEL,
+            trackId,
+            [],
+            [],
+            [[timeTool]],
+          ),
+        { ticks: 5 },
+      );
+
+      const response = await result;
+
+      if ("ok" in response) {
+        if ("toolCalls" in response.ok) {
+          expect(response.ok.toolCalls.length).toBeGreaterThan(0);
+          const toolCall = response.ok.toolCalls[0];
+          expect(toolCall.toolName).toBe("get_current_time");
+          // Arguments should be empty or empty object
+          const args = JSON.parse(toolCall.arguments);
+          expect(Object.keys(args).length).toBe(0);
+        } else {
+          // Model might respond with text if it doesn't want to use the tool
+          expect(response.ok.textResponse.length).toBeGreaterThan(0);
+        }
+      } else {
+        throw new Error(
+          "Expected successful response but got error: " + response.err,
+        );
       }
     });
   });

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "reason-math",
-  "recordedAt": "2026-01-27T14:32:45.865Z",
+  "recordedAt": "2026-01-29T12:28:45.420Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"input\":\"Solve this step by step: If a train travels at 80 mph for 2.5 hours, how far does it go? Show your work.\",\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Break down the calculation step by step.\",\"store\":false,\"stream\":false,\"user\":\"6_6\"}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Solve this step by step: If a train travels at 80 mph for 2.5 hours, how far does it go? Show your work.\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Break down the calculation step by step.\",\"store\":false,\"stream\":false,\"user\":\"6_6\"}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48f6175ca8b17c-LIS"],
+          ["cf-ray", "9c58bb309bedb2d1-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:32:46 GMT"],
+          ["date", "Thu, 29 Jan 2026 12:28:46 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "dls"],
           ["x-ratelimit-limit-requests", "1000"],
           ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "977"],
-          ["x-ratelimit-remaining-tokens", "3298"],
-          ["x-ratelimit-reset-requests", "33m7.2s"],
-          ["x-ratelimit-reset-tokens", "35.265s"],
-          ["x-request-id", "req_01kfzxy2qnfq8sm44kj3ba36y9"],
+          ["x-ratelimit-remaining-requests", "995"],
+          ["x-ratelimit-remaining-tokens", "3713"],
+          ["x-ratelimit-reset-requests", "7m12s"],
+          ["x-ratelimit-reset-tokens", "32.152s"],
+          ["x-request-id", "req_01kg4vmenff5ba1tdee4pakqr2"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"resp_01kfzxy3befqerca54rsx7f2wa\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769524366,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kfzxy3befqf8f5k4gafd71hn\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user wants step-by-step solution. Provide clear calculations. This is a straightforward distance = speed * time. Show steps. Ensure compliance.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kfzxy3befqfrdgs1s5y1rf3k\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Step‑by‑step solution**\\n\\n1. **Identify the known values**  \\n   - Speed of the train = **80 miles per hour (mph)**  \\n   - Time the train travels = **2.5 hours**\\n\\n2. **Recall the relationship between distance, speed, and time**  \\n\\n\\\\[\\n\\\\text{Distance} = \\\\text{Speed} \\\\times \\\\text{Time}\\n\\\\]\\n\\n3. **Plug the given numbers into the formula**\\n\\n\\\\[\\n\\\\text{Distance} = 80\\\\ \\\\text{mph} \\\\times 2.5\\\\ \\\\text{h}\\n\\\\]\\n\\n4. **Do the multiplication**  \\n\\n   - First multiply 80 by 2: \\\\(80 \\\\times 2 = 160\\\\)  \\n   - Then add half of 80 (because 0.5 = 1/2): \\\\(80 \\\\times 0.5 = 40\\\\)  \\n   - Add the two results: \\\\(160 + 40 = 200\\\\)\\n\\n\\\\[\\n\\\\text{Distance} = 200\\\\ \\\\text{miles}\\n\\\\]\\n\\n5. **State the answer**\\n\\nThe train travels **200 miles** in 2.5 hours.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"Break down the calculation step by step.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"6_6\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":113,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":283,\"output_tokens_details\":{\"reasoning_tokens\":29},\"total_tokens\":396},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "{\"id\":\"resp_01kg4vmfcbf5kav8h0rb2n0f1d\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689726,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vmfcbf5krqnjz9s1fezkg\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to solve: distance = speed * time. 80 mph * 2.5 h = 200 miles. Show steps. Provide explanation.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kg4vmfcbf5m88mrh1xc3h54p\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Step‑by‑step solution**\\n\\n1. **Identify the formula**  \\n   The relationship between distance, speed, and time is  \\n   \\\\[\\n   \\\\text{Distance} = \\\\text{Speed} \\\\times \\\\text{Time}\\n   \\\\]\\n\\n2. **Insert the given values**  \\n   - Speed = 80 miles per hour (mph)  \\n   - Time = 2.5 hours  \\n\\n   \\\\[\\n   \\\\text{Distance} = 80\\\\ \\\\text{mph} \\\\times 2.5\\\\ \\\\text{h}\\n   \\\\]\\n\\n3. **Multiply**  \\n   Break the multiplication into easier parts if desired:  \\n\\n   \\\\[\\n   80 \\\\times 2.5 = 80 \\\\times \\\\left(2 + 0.5\\\\right) = (80 \\\\times 2) + (80 \\\\times 0.5)\\n   \\\\]\\n\\n   - \\\\(80 \\\\times 2 = 160\\\\)  \\n   - \\\\(80 \\\\times 0.5 = 40\\\\)\\n\\n   Add the two results:  \\n\\n   \\\\[\\n   160 + 40 = 200\\n   \\\\]\\n\\n4. **State the answer**  \\n   \\\\[\\n   \\\\boxed{200\\\\ \\\\text{miles}}\\n   \\\\]\\n\\nSo, a train traveling at 80 mph for 2.5 hours covers **200 miles**.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"Break down the calculation step by step.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"6_6\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":113,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":330,\"output_tokens_details\":{\"reasoning_tokens\":32},\"total_tokens\":443},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
         "bodyEncoding": "text"
       }
     }

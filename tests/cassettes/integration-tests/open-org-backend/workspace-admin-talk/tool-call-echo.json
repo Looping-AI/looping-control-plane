@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "name": "tool-call-echo",
+  "recordedAt": "2026-01-29T12:30:10.829Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Please use the echo tool to say 'Hello from tools!'\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}}],\"user\":\"0\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c58bd469ab8e6de-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Thu, 29 Jan 2026 12:30:11 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "dls"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "988"],
+          ["x-ratelimit-remaining-tokens", "7775"],
+          ["x-ratelimit-reset-requests", "17m16.8s"],
+          ["x-ratelimit-reset-tokens", "1.687s"],
+          ["x-request-id", "req_01kg4vq23dfa79z431jfvxzcbt"],
+          ["set-cookie", "[REDACTED]"]
+        ],
+        "body": "{\"id\":\"resp_01kg4vq28gfa99hzm1f09xnh5f\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689811,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vq28gfa9vkej4garxgyzy\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need need call functions.echo with message \\\"Hello from tools!\\\".\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_55462a62-176e-4427-a05d-1080a6dfec17\",\"status\":\"completed\",\"call_id\":\"fc_55462a62-176e-4427-a05d-1080a6dfec17\",\"name\":\"echo\",\"arguments\":\"{\\\"message\\\":\\\"Hello from tools!\\\"}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"properties\":{\"message\":{\"description\":\"The message to echo back\",\"type\":\"string\"}},\"required\":[\"message\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":215,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":44,\"output_tokens_details\":{\"reasoning_tokens\":15},\"total_tokens\":259},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    },
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Please use the echo tool to say 'Hello from tools!'\"},{\"role\":\"assistant\",\"content\":\"Using tools: echo\"},{\"role\":\"assistant\",\"content\":\"Tool call fc_55462a62-176e-4427-a05d-1080a6dfec17 result:\\n{\\\"message\\\":\\\"Hello from tools!\\\"}\\n\\n\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}}],\"user\":\"0\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c58bd499db8e6de-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Thu, 29 Jan 2026 12:30:11 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "dls"],
+          ["x-ratelimit-limit-requests", "1000"],
+          ["x-ratelimit-limit-tokens", "8000"],
+          ["x-ratelimit-remaining-requests", "987"],
+          ["x-ratelimit-remaining-tokens", "7533"],
+          ["x-ratelimit-reset-requests", "18m43.2s"],
+          ["x-ratelimit-reset-tokens", "3.502s"],
+          ["x-request-id", "req_01kg4vq2keekn9q7qmf3wc4scn"],
+          ["set-cookie", "[REDACTED]"]
+        ],
+        "body": "{\"id\":\"resp_01kg4vq2r2eknb9fgvgbxavdx7\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689811,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vq2r2ekntk35df0c4sh1z\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user wants to use echo tool to say 'Hello from tools!'. The assistant has called tool and got result. Need to respond with the message. Probably just present the echoed message.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kg4vq2r2ekpbvtekcrz0qd8n\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello from tools!\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"You are an AI assistant helping manage workspaces and coordinate work within an organization.\\n\\nIf you don't know something or cannot perform an action, say so clearly. Do not make up information.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are assisting a workspace administrator. They have full permissions to manage agents, members, and workspace settings.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"properties\":{\"message\":{\"description\":\"The message to echo back\",\"type\":\"string\"}},\"required\":[\"message\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":266,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":52,\"output_tokens_details\":{\"reasoning_tokens\":39},\"total_tokens\":318},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

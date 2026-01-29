@@ -72,4 +72,29 @@ describe("workspaceAdminTalk", () => {
     );
     expectOk(await result);
   });
+
+  it("should execute tool calls and return final response", async () => {
+    // Create a deferred actor for the HTTP outcall test
+    const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+      idlFactory,
+      canisterId,
+    );
+    deferredActor.setIdentity(adminIdentity);
+
+    // Ask the agent to use the echo tool - the LLM should call echo
+    // Multi-turn: first call returns tool_use, second call returns final message
+    const { result } = await withCassette(
+      pic,
+      "integration-tests/open-org-backend/workspace-admin-talk/tool-call-echo",
+      () =>
+        deferredActor.workspaceAdminTalk(
+          0n,
+          "Please use the echo tool to say 'Hello from tools!'",
+        ),
+      { ticks: 5, maxRounds: 3 }, // Multiple rounds for multi-turn tool execution
+    );
+    const response = expectOk(await result);
+    // The response should contain something about the echo result
+    expect(response.length).toBeGreaterThan(0);
+  });
 });

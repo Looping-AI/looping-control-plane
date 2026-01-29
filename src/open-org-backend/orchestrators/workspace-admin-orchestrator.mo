@@ -6,12 +6,14 @@ import ApiKeysModel "../models/api-keys-model";
 import KeyDerivationService "../services/key-derivation-service";
 import ConversationModel "../models/conversation-model";
 import GroqWorkspaceAdminService "../services/groq-workspace-admin-service";
+import McpToolRegistry "../tools/mcp-tool-registry";
 import Constants "../constants";
 
 module {
 
   // Orchestrate the admin talk request after validation
   public func orchestrateAdminTalk(
+    mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>,
     adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
     workspaceId : Nat,
@@ -34,6 +36,7 @@ module {
           };
           case (?key) {
             await GroqWorkspaceAdminService.executeAdminTalk(
+              mcpToolRegistry,
               adminConversations,
               workspaceId,
               message,
