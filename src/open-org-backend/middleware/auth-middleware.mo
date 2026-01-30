@@ -93,7 +93,15 @@ module {
 
   private func checkIsWorkspaceAdmin(ctx : AuthContext) : Result.Result<(), Text> {
     switch (ctx.workspaceId) {
-      case (null) { #err("Workspace ID is required.") };
+      case (null) {
+        // When workspaceId is null, check if caller is admin of ANY workspace
+        for ((_, admins) in Map.entries(ctx.workspaceAdmins)) {
+          if (isInList(ctx.caller, admins)) {
+            return #ok(());
+          };
+        };
+        #err("Only workspace admins can perform this action.");
+      };
       case (?wsId) {
         switch (Map.get(ctx.workspaceAdmins, Nat.compare, wsId)) {
           case (null) { #err("Workspace not found.") };

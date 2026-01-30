@@ -327,7 +327,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (McpToolRegistry.register(mcpToolRegistry, tool)) {
@@ -344,7 +344,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : Bool;
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         let removed = McpToolRegistry.unregister(mcpToolRegistry, toolName);
@@ -359,7 +359,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : [ToolTypes.McpToolRegistration];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         #ok(McpToolRegistry.getAll(mcpToolRegistry));
