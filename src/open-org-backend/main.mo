@@ -6,6 +6,7 @@ import List "mo:core/List";
 import Text "mo:core/Text";
 import Timer "mo:core/Timer";
 import Int "mo:core/Int";
+import Array "mo:core/Array";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
@@ -18,6 +19,9 @@ import WorkspaceAdminOrchestrator "./orchestrators/workspace-admin-orchestrator"
 import McpToolRegistry "./tools/mcp-tool-registry";
 import ToolTypes "./tools/tool-types";
 import Constants "./constants";
+import MetricModel "./models/metric-model";
+import ValueStreamModel "./models/value-stream-model";
+import ObjectiveModel "./models/objective-model";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -31,11 +35,19 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var apiKeys = Map.empty<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>(); // Encrypted API keys per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
+  var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   var nextAgentId : Nat = 0;
   var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentModel.Agent>>([(0, Map.empty<Nat, AgentModel.Agent>())], Nat.compare);
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
+
+  // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
+  var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions
+  var nextMetricId : Nat = 0;
+  var metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
+  var workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
+  var workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
 
   // ============================================
   // Auth Helper
@@ -68,6 +80,19 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     );
   };
 
+  // Metric Datapoints Retention Cleanup Timer
+  // Runs monthly to purge datapoints older than their metric's retention period
+  private func metricRetentionCleanupTimer() : async () {
+    ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
+    lastRetentionCleanupTimestamp := Time.now();
+
+    // Start the regular recurring timer for future intervals
+    ignore Timer.recurringTimer<system>(
+      #nanoseconds(Constants.THIRTY_DAYS_NS),
+      metricRetentionCleanupTimer,
+    );
+  };
+
   // This logic runs only on the VERY FIRST installation (init)
   // Subsequent upgrades will wipe this timer and it won't be replaced
   let _initTimer = Timer.setTimer<system>(
@@ -75,13 +100,34 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     clearKeyCacheTimer,
   );
 
+  // This logic runs only on the VERY FIRST installation (init)
+  // Subsequent upgrades will wipe this timer and it won't be replaced
+  let _retentionTimer = Timer.setTimer<system>(
+    #nanoseconds(Constants.THIRTY_DAYS_NS),
+    metricRetentionCleanupTimer,
+  );
+
   // System hook called after every upgrade
   system func postupgrade() {
     let now = Time.now();
-    let elapsed = now - lastClearTimestamp;
 
-    let remaining = Constants.THIRTY_DAYS_NS - elapsed;
-    ignore Timer.setTimer<system>(#nanoseconds(Int.abs(remaining)), clearKeyCacheTimer);
+    // Restart cache clearing timer with remaining time
+    let cacheElapsed = now - lastClearTimestamp;
+    let cacheDelay : Nat = if (cacheElapsed >= Constants.THIRTY_DAYS_NS) {
+      0;
+    } else {
+      Nat.fromInt(Constants.THIRTY_DAYS_NS - cacheElapsed);
+    };
+    ignore Timer.setTimer<system>(#nanoseconds(cacheDelay), clearKeyCacheTimer);
+
+    // Restart retention cleanup timer with remaining time
+    let retentionElapsed = now - lastRetentionCleanupTimestamp;
+    let retentionDelay : Nat = if (retentionElapsed >= Constants.THIRTY_DAYS_NS) {
+      0;
+    } else {
+      Nat.fromInt(Constants.THIRTY_DAYS_NS - retentionElapsed);
+    };
+    ignore Timer.setTimer<system>(#nanoseconds(retentionDelay), metricRetentionCleanupTimer);
   };
 
   // ============================================
@@ -327,7 +373,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (McpToolRegistry.register(mcpToolRegistry, tool)) {
@@ -344,7 +390,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : Bool;
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         let removed = McpToolRegistry.unregister(mcpToolRegistry, toolName);
@@ -359,7 +405,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : [ToolTypes.McpToolRegistration];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         #ok(McpToolRegistry.getAll(mcpToolRegistry));
@@ -507,6 +553,436 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         #ok({ size = KeyDerivationService.getCacheSize(keyCache) });
+      };
+    };
+  };
+
+  // ============================================
+  // Metrics API (Org-Level)
+  // ============================================
+
+  /// Register a new metric
+  public shared ({ caller }) func registerMetric(input : MetricModel.MetricRegistrationInput) : async {
+    #ok : MetricModel.MetricRegistration;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let (result, newNextId) = MetricModel.registerMetric(
+          metricsRegistry,
+          nextMetricId,
+          input,
+          caller,
+          Time.now(),
+        );
+        switch (result) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(id)) {
+            nextMetricId := newNextId;
+            switch (MetricModel.getMetric(metricsRegistry, id)) {
+              case (null) { #err("Failed to retrieve registered metric.") };
+              case (?metric) { #ok(metric) };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Get a metric by ID
+  public shared ({ caller }) func getMetric(metricId : Nat) : async {
+    #ok : MetricModel.MetricRegistration;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
+          case (null) { #err("Metric not found.") };
+          case (?metric) { #ok(metric) };
+        };
+      };
+    };
+  };
+
+  /// List all registered metrics
+  public shared ({ caller }) func listMetrics() : async {
+    #ok : [MetricModel.MetricRegistration];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        #ok(MetricModel.listMetrics(metricsRegistry));
+      };
+    };
+  };
+
+  /// Record a datapoint for a metric
+  public shared ({ caller }) func recordMetricDatapoint(
+    metricId : Nat,
+    value : Float,
+    source : MetricModel.MetricSource,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        MetricModel.recordDatapoint(
+          metricDatapoints,
+          metricsRegistry,
+          metricId,
+          value,
+          source,
+          Time.now(),
+        );
+      };
+    };
+  };
+
+  /// Get datapoints for a metric
+  public shared ({ caller }) func getMetricDatapoints(metricId : Nat, since : ?Int) : async {
+    #ok : [MetricModel.MetricDatapoint];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
+          case (null) { #err("Metric not found.") };
+          case (?_) {
+            #ok(MetricModel.getDatapoints(metricDatapoints, metricId, since));
+          };
+        };
+      };
+    };
+  };
+
+  /// Get the latest datapoint for a metric
+  public shared ({ caller }) func getLatestMetricDatapoint(metricId : Nat) : async {
+    #ok : ?MetricModel.MetricDatapoint;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
+          case (null) { #err("Metric not found.") };
+          case (?_) {
+            #ok(MetricModel.getLatestDatapoint(metricDatapoints, metricId));
+          };
+        };
+      };
+    };
+  };
+
+  /// Unregister a metric and delete all its datapoints
+  public shared ({ caller }) func unregisterMetric(metricId : Nat) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        if (MetricModel.unregisterMetric(metricsRegistry, metricDatapoints, metricId)) {
+          #ok(());
+        } else {
+          #err("Metric not found.");
+        };
+      };
+    };
+  };
+
+  /// Purge old metric datapoints based on retention settings
+  /// Returns the number of datapoints purged
+  public shared ({ caller }) func purgeOldMetricDatapoints() : async {
+    #ok : { purged : Nat; sizeBefore : Nat; sizeAfter : Nat };
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let sizeBefore = MetricModel.totalDatapointsCount(metricDatapoints);
+        ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
+        let sizeAfter = MetricModel.totalDatapointsCount(metricDatapoints);
+        #ok({ purged = sizeBefore - sizeAfter; sizeBefore; sizeAfter });
+      };
+    };
+  };
+
+  // ============================================
+  // Value Streams API (Workspace-Scoped)
+  // ============================================
+
+  /// Create a new value stream in a workspace
+  public shared ({ caller }) func createValueStream(
+    workspaceId : Nat,
+    input : ValueStreamModel.ValueStreamInput,
+  ) : async {
+    #ok : ValueStreamModel.ValueStream;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (ValueStreamModel.createValueStream(workspaceValueStreams, workspaceId, input)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(id)) {
+            ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, id);
+          };
+        };
+      };
+    };
+  };
+
+  /// Get a value stream by ID
+  public shared ({ caller }) func getValueStream(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+  ) : async {
+    #ok : ValueStreamModel.ValueStream;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+      };
+    };
+  };
+
+  /// List all value streams in a workspace
+  public shared ({ caller }) func listValueStreams(workspaceId : Nat) : async {
+    #ok : [ValueStreamModel.ValueStream];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ValueStreamModel.listValueStreams(workspaceValueStreams, workspaceId);
+      };
+    };
+  };
+
+  /// Update a value stream
+  public shared ({ caller }) func updateValueStream(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    newName : ?Text,
+    newProblem : ?Text,
+    newGoal : ?Text,
+    newStatus : ?ValueStreamModel.ValueStreamStatus,
+  ) : async {
+    #ok : ValueStreamModel.ValueStream;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (ValueStreamModel.updateValueStream(workspaceValueStreams, workspaceId, valueStreamId, newName, newProblem, newGoal, newStatus)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(())) {
+            ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+          };
+        };
+      };
+    };
+  };
+
+  /// Delete a value stream
+  public shared ({ caller }) func deleteValueStream(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        // Also delete objectives for this value stream
+        ObjectiveModel.deleteValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
+        ValueStreamModel.deleteValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+      };
+    };
+  };
+
+  // ============================================
+  // Objectives API (Workspace-Scoped, within Value Streams)
+  // ============================================
+
+  /// Add an objective to a value stream
+  public shared ({ caller }) func addObjective(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    input : ObjectiveModel.ObjectiveInput,
+  ) : async {
+    #ok : ObjectiveModel.ShareableObjective;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        // Initialize objectives state for value stream if not exists
+        ObjectiveModel.initValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
+        switch (ObjectiveModel.addObjective(workspaceObjectives, workspaceId, valueStreamId, input)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(id)) {
+            switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, id)) {
+              case (#err(msg)) { #err(msg) };
+              case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Get an objective by ID
+  public shared ({ caller }) func getObjective(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : async {
+    #ok : ObjectiveModel.ShareableObjective;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
+        };
+      };
+    };
+  };
+
+  /// List all objectives for a value stream
+  public shared ({ caller }) func listObjectives(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+  ) : async {
+    #ok : [ObjectiveModel.ShareableObjective];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        // Initialize objectives state for value stream if not exists
+        ObjectiveModel.initValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
+        switch (ObjectiveModel.listObjectives(workspaceObjectives, workspaceId, valueStreamId)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(objs)) {
+            #ok(Array.map<ObjectiveModel.Objective, ObjectiveModel.ShareableObjective>(objs, ObjectiveModel.toShareable));
+          };
+        };
+      };
+    };
+  };
+
+  /// Update an objective
+  public shared ({ caller }) func updateObjective(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    newName : ?Text,
+    newDescription : ??Text,
+    newMetricIds : ?[Nat],
+    newComputation : ?Text,
+    newTarget : ?ObjectiveModel.ObjectiveTarget,
+    newTargetDate : ??Int,
+    newStatus : ?ObjectiveModel.ObjectiveStatus,
+  ) : async {
+    #ok : ObjectiveModel.ShareableObjective;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (ObjectiveModel.updateObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId, newName, newDescription, newMetricIds, newComputation, newTarget, newTargetDate, newStatus)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(())) {
+            switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId)) {
+              case (#err(msg)) { #err(msg) };
+              case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Archive an objective
+  public shared ({ caller }) func archiveObjective(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.archiveObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
+      };
+    };
+  };
+
+  /// Record a datapoint for an objective
+  public shared ({ caller }) func recordObjectiveDatapoint(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    datapoint : ObjectiveModel.ObjectiveDatapoint,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.recordObjectiveDatapoint(workspaceObjectives, workspaceId, valueStreamId, objectiveId, datapoint);
+      };
+    };
+  };
+
+  /// Get the history of an objective as an array
+  public shared ({ caller }) func getObjectiveHistory(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : async {
+    #ok : [ObjectiveModel.ObjectiveDatapoint];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.getHistoryArray(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
+      };
+    };
+  };
+
+  /// Add a comment to a datapoint in an objective's history
+  public shared ({ caller }) func addObjectiveDatapointComment(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    historyIndex : Nat,
+    comment : ObjectiveModel.ObjectiveDatapointComment,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.addCommentToHistoryDatapoint(workspaceObjectives, workspaceId, valueStreamId, objectiveId, historyIndex, comment);
       };
     };
   };

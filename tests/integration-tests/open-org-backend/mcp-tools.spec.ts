@@ -50,13 +50,22 @@ describe("MCP Tool Management", () => {
   });
 
   describe("registerMcpTool", () => {
-    it("should reject registration from non-admin user", async () => {
+    it("should reject registration from non-admin and non-workspace-admin user", async () => {
       const nonAdminIdentity = generateRandomIdentity();
       actor.setIdentity(nonAdminIdentity);
 
       const tool = createTestTool("test_tool");
       const result = await actor.registerMcpTool(tool);
       expect(expectErr(result)).toContain("Only org");
+    });
+
+    it("should allow workspace admin to register an MCP tool", async () => {
+      const { adminIdentity } = await setupAdminUser(actor);
+      actor.setIdentity(adminIdentity);
+
+      const tool = createTestTool("workspace_admin_tool");
+      const result = await actor.registerMcpTool(tool);
+      expectOk(result);
     });
 
     it("should successfully register an MCP tool", async () => {
@@ -93,7 +102,7 @@ describe("MCP Tool Management", () => {
   });
 
   describe("unregisterMcpTool", () => {
-    it("should reject unregistration from non-admin user", async () => {
+    it("should reject unregistration from non-admin and non-workspace-admin user", async () => {
       const nonAdminIdentity = generateRandomIdentity();
       actor.setIdentity(nonAdminIdentity);
 
@@ -127,7 +136,7 @@ describe("MCP Tool Management", () => {
   });
 
   describe("listMcpTools", () => {
-    it("should reject listing from non-admin user", async () => {
+    it("should reject listing from non-admin and non-workspace-admin user", async () => {
       const anonymousIdentity = generateRandomIdentity();
       actor.setIdentity(anonymousIdentity);
 
