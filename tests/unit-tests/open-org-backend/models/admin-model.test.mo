@@ -18,7 +18,6 @@ func resultEqual(r1 : Result.Result<(), Text>, r2 : Result.Result<(), Text>) : B
 // Test principals
 let testPrincipal1 = Principal.fromText("aaaaa-aa");
 let testPrincipal2 = Principal.fromText("un4fu-tqaaa-aaaab-qadjq-cai");
-let anonymousPrincipal = Principal.fromText("2vxsx-fae"); // Anonymous principal
 
 suite(
   "AdminModel - validateNewAdmin",
