@@ -515,4 +515,103 @@ describe("Metrics API", () => {
       expectOk(unregResult);
     });
   });
+
+  describe("purgeOldMetricDatapoints", () => {
+    it("should allow org owner to purge old datapoints", async () => {
+      // Register a metric
+      const input: MetricRegistrationInput = {
+        name: "TestMetric",
+        description: "A test metric",
+        unit: "count",
+        retentionDays: 30n,
+      };
+      const regResult = await actor.registerMetric(input);
+      expectOk(regResult);
+
+      // Purge - returns 0 since no datapoints exist
+      const purgeResult = await actor.purgeOldMetricDatapoints();
+      const result = expectOk(purgeResult);
+      expect(result.purged).toBe(0n);
+    });
+
+    it("should allow org admin to purge old datapoints", async () => {
+      const adminIdentity = generateRandomIdentity();
+      await actor.addOrgAdmin(adminIdentity.getPrincipal());
+
+      actor.setIdentity(adminIdentity);
+
+      const purgeResult = await actor.purgeOldMetricDatapoints();
+      expectOk(purgeResult);
+    });
+
+    it("should reject non-admin from purging datapoints", async () => {
+      actor.setIdentity(generateRandomIdentity());
+
+      const purgeResult = await actor.purgeOldMetricDatapoints();
+      expect(expectErr(purgeResult)).toContain("org owner");
+    });
+
+    it("should return zero when no metrics registered", async () => {
+      const purgeResult = await actor.purgeOldMetricDatapoints();
+      const result = expectOk(purgeResult);
+      expect(result.purged).toBe(0n);
+    });
+
+    it("should purge datapoints older than retention period", async () => {
+      const thirtyOneDaysMs = 31 * 24 * 60 * 60 * 1000;
+
+      // Register a metric with 30 day retention
+      const input: MetricRegistrationInput = {
+        name: "OldMetric",
+        description: "A metric with old data",
+        unit: "count",
+        retentionDays: 30n,
+      };
+      const regResult = await actor.registerMetric(input);
+      const metric = expectOk(regResult);
+
+      // Record a datapoint
+      const source: MetricSource = { manual: "test" };
+      await actor.recordMetricDatapoint(metric.id, 100.0, source);
+
+      // Verify datapoint exists
+      const dpBefore = await actor.getMetricDatapoints(metric.id, []);
+      expect(expectOk(dpBefore).length).toBe(1);
+
+      // Advance time past the retention period (31 days)
+      await pic.advanceTime(thirtyOneDaysMs);
+
+      // Purge should remove the old datapoint
+      const purgeResult = await actor.purgeOldMetricDatapoints();
+      const result = expectOk(purgeResult);
+      expect(result.purged).toBe(1n);
+
+      // Verify datapoint was removed
+      const dpAfter = await actor.getMetricDatapoints(metric.id, []);
+      expect(expectOk(dpAfter).length).toBe(0);
+    });
+
+    it("should return zero when all datapoints are within retention period", async () => {
+      // Register multiple metrics and add datapoints
+      for (let i = 0; i < 3; i++) {
+        const input: MetricRegistrationInput = {
+          name: `Metric${i}`,
+          description: `Test metric ${i}`,
+          unit: "count",
+          retentionDays: 30n,
+        };
+        const regResult = await actor.registerMetric(input);
+        const metric = expectOk(regResult);
+
+        // Record a fresh datapoint
+        const source: MetricSource = { manual: "test" };
+        await actor.recordMetricDatapoint(metric.id, 100.0, source);
+      }
+
+      // Purge should return 0 - all datapoints are fresh (within 30 days)
+      const purgeResult = await actor.purgeOldMetricDatapoints();
+      const result = expectOk(purgeResult);
+      expect(result.purged).toBe(0n);
+    });
+  });
 });

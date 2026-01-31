@@ -5,6 +5,7 @@ import Iter "mo:core/Iter";
 import Array "mo:core/Array";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
+import Time "mo:core/Time";
 
 module {
   // ============================================
@@ -274,17 +275,28 @@ module {
     latest;
   };
 
+  /// Count total datapoints across all metrics
+  ///
+  /// @param datapoints - The datapoints store
+  /// @returns Total count of all datapoints
+  public func totalDatapointsCount(datapoints : MetricDatapointsStore) : Nat {
+    var total : Nat = 0;
+    for ((_, dps) in Map.entries(datapoints)) {
+      total += dps.size();
+    };
+    total;
+  };
+
   /// Purge datapoints older than their metric's retention period
   ///
   /// @param datapoints - The datapoints store
   /// @param registry - The metrics registry
-  /// @param now - Current timestamp
   /// @returns Updated datapoints store (also mutates in place)
   public func purgeOldDatapoints(
     datapoints : MetricDatapointsStore,
     registry : MetricsRegistry,
-    now : Int,
   ) : MetricDatapointsStore {
+    let now = Time.now();
     label purgeLoop for ((metricId, dps) in Map.entries(datapoints)) {
       switch (Map.get(registry, Nat.compare, metricId)) {
         case (null) {
@@ -292,8 +304,8 @@ module {
           Map.remove(datapoints, Nat.compare, metricId);
         };
         case (?reg) {
-          let retention = reg.retentionDays;
-          let cutoffTimestamp = now - (retention * NANOS_PER_DAY);
+          let retentionNanos : Int = reg.retentionDays * NANOS_PER_DAY;
+          let cutoffTimestamp : Int = now - retentionNanos;
           let filtered = Array.filter<MetricDatapoint>(
             dps,
             func(dp) { dp.timestamp >= cutoffTimestamp },

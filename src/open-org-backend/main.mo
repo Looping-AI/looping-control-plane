@@ -35,6 +35,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var apiKeys = Map.empty<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>(); // Encrypted API keys per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
+  var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   var nextAgentId : Nat = 0;
@@ -79,6 +80,19 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     );
   };
 
+  // Metric Datapoints Retention Cleanup Timer
+  // Runs monthly to purge datapoints older than their metric's retention period
+  private func metricRetentionCleanupTimer() : async () {
+    ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
+    lastRetentionCleanupTimestamp := Time.now();
+
+    // Start the regular recurring timer for future intervals
+    ignore Timer.recurringTimer<system>(
+      #nanoseconds(Constants.THIRTY_DAYS_NS),
+      metricRetentionCleanupTimer,
+    );
+  };
+
   // This logic runs only on the VERY FIRST installation (init)
   // Subsequent upgrades will wipe this timer and it won't be replaced
   let _initTimer = Timer.setTimer<system>(
@@ -86,13 +100,26 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     clearKeyCacheTimer,
   );
 
+  // This logic runs only on the VERY FIRST installation (init)
+  // Subsequent upgrades will wipe this timer and it won't be replaced
+  let _retentionTimer = Timer.setTimer<system>(
+    #nanoseconds(Constants.THIRTY_DAYS_NS),
+    metricRetentionCleanupTimer,
+  );
+
   // System hook called after every upgrade
   system func postupgrade() {
     let now = Time.now();
-    let elapsed = now - lastClearTimestamp;
 
-    let remaining = Constants.THIRTY_DAYS_NS - elapsed;
-    ignore Timer.setTimer<system>(#nanoseconds(Int.abs(remaining)), clearKeyCacheTimer);
+    // Restart cache clearing timer with remaining time
+    let cacheElapsed = now - lastClearTimestamp;
+    let cacheRemaining = Constants.THIRTY_DAYS_NS - cacheElapsed;
+    ignore Timer.setTimer<system>(#nanoseconds(Int.abs(cacheRemaining)), clearKeyCacheTimer);
+
+    // Restart retention cleanup timer with remaining time
+    let retentionElapsed = now - lastRetentionCleanupTimestamp;
+    let retentionRemaining = Constants.THIRTY_DAYS_NS - retentionElapsed;
+    ignore Timer.setTimer<system>(#nanoseconds(Int.abs(retentionRemaining)), metricRetentionCleanupTimer);
   };
 
   // ============================================
@@ -657,6 +684,23 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         } else {
           #err("Metric not found.");
         };
+      };
+    };
+  };
+
+  /// Purge old metric datapoints based on retention settings
+  /// Returns the number of datapoints purged
+  public shared ({ caller }) func purgeOldMetricDatapoints() : async {
+    #ok : { purged : Nat; sizeBefore : Nat; sizeAfter : Nat };
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let sizeBefore = MetricModel.totalDatapointsCount(metricDatapoints);
+        ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
+        let sizeAfter = MetricModel.totalDatapointsCount(metricDatapoints);
+        #ok({ purged = sizeBefore - sizeAfter; sizeBefore; sizeAfter });
       };
     };
   };
