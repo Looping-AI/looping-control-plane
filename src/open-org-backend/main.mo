@@ -659,4 +659,99 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       };
     };
   };
+
+  // ============================================
+  // Value Streams API (Workspace-Scoped)
+  // ============================================
+
+  /// Create a new value stream in a workspace
+  public shared ({ caller }) func createValueStream(
+    workspaceId : Nat,
+    input : ValueStreamModel.ValueStreamInput,
+  ) : async {
+    #ok : ValueStreamModel.ValueStream;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (ValueStreamModel.createValueStream(workspaceValueStreams, workspaceId, input)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(id)) {
+            ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, id);
+          };
+        };
+      };
+    };
+  };
+
+  /// Get a value stream by ID
+  public shared ({ caller }) func getValueStream(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+  ) : async {
+    #ok : ValueStreamModel.ValueStream;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+      };
+    };
+  };
+
+  /// List all value streams in a workspace
+  public shared ({ caller }) func listValueStreams(workspaceId : Nat) : async {
+    #ok : [ValueStreamModel.ValueStream];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ValueStreamModel.listValueStreams(workspaceValueStreams, workspaceId);
+      };
+    };
+  };
+
+  /// Update a value stream
+  public shared ({ caller }) func updateValueStream(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    newName : ?Text,
+    newProblem : ?Text,
+    newGoal : ?Text,
+    newStatus : ?ValueStreamModel.ValueStreamStatus,
+  ) : async {
+    #ok : ValueStreamModel.ValueStream;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (ValueStreamModel.updateValueStream(workspaceValueStreams, workspaceId, valueStreamId, newName, newProblem, newGoal, newStatus)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(())) {
+            ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+          };
+        };
+      };
+    };
+  };
+
+  /// Delete a value stream
+  public shared ({ caller }) func deleteValueStream(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ValueStreamModel.deleteValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+      };
+    };
+  };
 };

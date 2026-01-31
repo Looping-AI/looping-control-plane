@@ -113,16 +113,19 @@ module {
   /// @param valueStreamsMap - The full value streams map
   /// @param workspaceId - The workspace ID
   /// @param valueStreamId - The value stream ID
-  /// @returns The value stream if found
+  /// @returns Result with the value stream or error
   public func getValueStream(
     valueStreamsMap : ValueStreamsMap,
     workspaceId : Nat,
     valueStreamId : Nat,
-  ) : ?ValueStream {
+  ) : Result.Result<ValueStream, Text> {
     switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
-      case (null) { null };
+      case (null) { #err("Workspace not found.") };
       case (?(_, streamsMap)) {
-        Map.get(streamsMap, Nat.compare, valueStreamId);
+        switch (Map.get(streamsMap, Nat.compare, valueStreamId)) {
+          case (null) { #err("Value stream not found.") };
+          case (?vs) { #ok(vs) };
+        };
       };
     };
   };
@@ -213,15 +216,15 @@ module {
   ///
   /// @param valueStreamsMap - The full value streams map
   /// @param workspaceId - The workspace ID
-  /// @returns Array of value streams
+  /// @returns Result with array of value streams or error
   public func listValueStreams(
     valueStreamsMap : ValueStreamsMap,
     workspaceId : Nat,
-  ) : [ValueStream] {
+  ) : Result.Result<[ValueStream], Text> {
     switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
-      case (null) { [] };
+      case (null) { #err("Workspace not found.") };
       case (?(_, streamsMap)) {
-        Iter.toArray(Map.values(streamsMap));
+        #ok(Iter.toArray(Map.values(streamsMap)));
       };
     };
   };

@@ -26,6 +26,35 @@ func resultUnitEqual(r1 : Result.Result<(), Text>, r2 : Result.Result<(), Text>)
   r1 == r2;
 };
 
+func resultValueStreamToText(r : Result.Result<ValueStreamModel.ValueStream, Text>) : Text {
+  switch (r) {
+    case (#ok vs) { "#ok(ValueStream: " # vs.name # ")" };
+    case (#err e) { "#err(" # e # ")" };
+  };
+};
+
+func resultValueStreamEqual(r1 : Result.Result<ValueStreamModel.ValueStream, Text>, r2 : Result.Result<ValueStreamModel.ValueStream, Text>) : Bool {
+  switch (r1, r2) {
+    case (#err e1, #err e2) { e1 == e2 };
+    case (#ok v1, #ok v2) { v1.id == v2.id and v1.name == v2.name };
+    case _ { false };
+  };
+};
+
+func resultArrayValueStreamToText(r : Result.Result<[ValueStreamModel.ValueStream], Text>) : Text {
+  switch (r) {
+    case (#ok arr) { "#ok([" # Nat.toText(arr.size()) # " items])" };
+    case (#err e) { "#err(" # e # ")" };
+  };
+};
+
+func resultArrayValueStreamSizeEqual(r : Result.Result<[ValueStreamModel.ValueStream], Text>, expectedSize : Nat) : Bool {
+  switch (r) {
+    case (#ok arr) { arr.size() == expectedSize };
+    case (#err _) { false };
+  };
+};
+
 // Test data
 func createValidInput() : ValueStreamModel.ValueStreamInput {
   {
@@ -51,7 +80,8 @@ suite(
       func() {
         let map = ValueStreamModel.emptyValueStreamsMap();
         let streams = ValueStreamModel.listValueStreams(map, 0);
-        expect.nat(streams.size()).equal(0);
+        // Empty map returns error for non-existent workspace
+        expect.bool(Result.isErr(streams)).equal(true);
       },
     );
   },
@@ -69,7 +99,7 @@ suite(
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(#ok(0));
 
         let streams = ValueStreamModel.listValueStreams(map, 0);
-        expect.nat(streams.size()).equal(1);
+        expect.bool(resultArrayValueStreamSizeEqual(streams, 1)).equal(true);
       },
     );
 
@@ -81,8 +111,8 @@ suite(
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
-          case (?s) { expect.bool(s.status == #draft).equal(true) };
-          case (null) { expect.bool(false).equal(true) };
+          case (#ok(s)) { expect.bool(s.status == #draft).equal(true) };
+          case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
     );
@@ -100,7 +130,7 @@ suite(
         expect.result<Nat, Text>(result2, resultNatToText, resultNatEqual).equal(#ok(1));
 
         let streams = ValueStreamModel.listValueStreams(map, 0);
-        expect.nat(streams.size()).equal(2);
+        expect.bool(resultArrayValueStreamSizeEqual(streams, 2)).equal(true);
       },
     );
 
@@ -154,8 +184,8 @@ suite(
         let ws0Streams = ValueStreamModel.listValueStreams(map, 0);
         let ws1Streams = ValueStreamModel.listValueStreams(map, 1);
 
-        expect.nat(ws0Streams.size()).equal(1);
-        expect.nat(ws1Streams.size()).equal(1);
+        expect.bool(resultArrayValueStreamSizeEqual(ws0Streams, 1)).equal(true);
+        expect.bool(resultArrayValueStreamSizeEqual(ws1Streams, 1)).equal(true);
       },
     );
 
@@ -167,12 +197,12 @@ suite(
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
-          case (?s) {
+          case (#ok(s)) {
             expect.bool(s.createdAt > 0).equal(true);
             expect.bool(s.updatedAt > 0).equal(true);
             expect.bool(s.createdAt == s.updatedAt).equal(true);
           };
-          case (null) { expect.bool(false).equal(true) };
+          case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
     );
@@ -190,32 +220,32 @@ suite(
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
-          case (?s) {
+          case (#ok(s)) {
             expect.text(s.name).equal("Test Stream");
             expect.nat(s.workspaceId).equal(0);
           };
-          case (null) { expect.bool(false).equal(true) };
+          case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
     );
 
     test(
-      "returns null for non-existent workspace",
+      "returns error for non-existent workspace",
       func() {
         let map = ValueStreamModel.emptyValueStreamsMap();
         let stream = ValueStreamModel.getValueStream(map, 999, 0);
-        expect.bool(stream == null).equal(true);
+        expect.bool(Result.isErr(stream)).equal(true);
       },
     );
 
     test(
-      "returns null for non-existent value stream",
+      "returns error for non-existent value stream",
       func() {
         let map = ValueStreamModel.emptyValueStreamsMap();
         ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
 
         let stream = ValueStreamModel.getValueStream(map, 0, 999);
-        expect.bool(stream == null).equal(true);
+        expect.bool(Result.isErr(stream)).equal(true);
       },
     );
   },
@@ -244,8 +274,8 @@ suite(
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
-          case (?s) { expect.text(s.name).equal("Updated Name") };
-          case (null) { expect.bool(false).equal(true) };
+          case (#ok(s)) { expect.text(s.name).equal("Updated Name") };
+          case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
     );
@@ -270,8 +300,10 @@ suite(
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
-          case (?s) { expect.text(s.problem).equal("New problem statement") };
-          case (null) { expect.bool(false).equal(true) };
+          case (#ok(s)) {
+            expect.text(s.problem).equal("New problem statement");
+          };
+          case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
     );
@@ -296,8 +328,8 @@ suite(
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
-          case (?s) { expect.text(s.goal).equal("New goal statement") };
-          case (null) { expect.bool(false).equal(true) };
+          case (#ok(s)) { expect.text(s.goal).equal("New goal statement") };
+          case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
     );
@@ -322,8 +354,8 @@ suite(
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
-          case (?s) { expect.bool(s.status == #active).equal(true) };
-          case (null) { expect.bool(false).equal(true) };
+          case (#ok(s)) { expect.bool(s.status == #active).equal(true) };
+          case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
     );
@@ -336,16 +368,16 @@ suite(
 
         let streamBefore = ValueStreamModel.getValueStream(map, 0, 0);
         let createdAtBefore = switch (streamBefore) {
-          case (?s) { s.createdAt };
-          case (null) { 0 };
+          case (#ok(s)) { s.createdAt };
+          case (#err(_)) { 0 };
         };
 
         ignore ValueStreamModel.updateValueStream(map, 0, 0, ?"New Name", null, null, null);
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
-          case (?s) { expect.int(s.createdAt).equal(createdAtBefore) };
-          case (null) { expect.bool(false).equal(true) };
+          case (#ok(s)) { expect.int(s.createdAt).equal(createdAtBefore) };
+          case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
     );
@@ -407,7 +439,7 @@ suite(
         expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).isOk();
 
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
-        expect.bool(stream == null).equal(true);
+        expect.bool(Result.isErr(stream)).equal(true);
       },
     );
 
@@ -443,11 +475,11 @@ suite(
   "ValueStreamModel - listValueStreams",
   func() {
     test(
-      "returns empty array for non-existent workspace",
+      "returns error for non-existent workspace",
       func() {
         let map = ValueStreamModel.emptyValueStreamsMap();
         let streams = ValueStreamModel.listValueStreams(map, 999);
-        expect.nat(streams.size()).equal(0);
+        expect.bool(Result.isErr(streams)).equal(true);
       },
     );
 
@@ -461,7 +493,7 @@ suite(
         ignore ValueStreamModel.createValueStream(map, 0, { name = "Third"; problem = "P3"; goal = "G3" });
 
         let streams = ValueStreamModel.listValueStreams(map, 0);
-        expect.nat(streams.size()).equal(3);
+        expect.bool(resultArrayValueStreamSizeEqual(streams, 3)).equal(true);
       },
     );
   },
