@@ -43,6 +43,7 @@ describe("Objectives API", () => {
   const defaultObjectiveInput = (): ObjectiveInput => ({
     name: "Test Objective",
     description: ["A test objective"],
+    objectiveType: { target: null },
     metricIds: [defaultMetricId],
     computation: "avg(metrics)",
     target: { percentage: { target: 80.0 } },
@@ -303,6 +304,7 @@ describe("Objectives API", () => {
         objId,
         ["Updated Name"], // newName
         [], // newDescription - no change
+        [], // newObjectiveType - no change
         [], // newMetricIds - no change
         [], // newComputation - no change
         [], // newTarget - no change
@@ -335,6 +337,7 @@ describe("Objectives API", () => {
         [],
         [],
         [],
+        [],
       );
       const updatedObj = expectOk(updateResult);
 
@@ -356,6 +359,7 @@ describe("Objectives API", () => {
         objId,
         [],
         [[]], // newDescription - explicitly set to none
+        [],
         [],
         [],
         [],
@@ -388,6 +392,7 @@ describe("Objectives API", () => {
         [],
         [],
         [],
+        [],
         [newTarget], // newTarget
         [],
         [],
@@ -416,6 +421,7 @@ describe("Objectives API", () => {
         [],
         [],
         [],
+        [],
         [{ paused: null }], // newStatus
       );
       const updatedObj = expectOk(updateResult);
@@ -429,6 +435,7 @@ describe("Objectives API", () => {
         defaultValueStreamId,
         999n,
         ["New Name"],
+        [],
         [],
         [],
         [],
@@ -454,6 +461,7 @@ describe("Objectives API", () => {
         defaultValueStreamId,
         objId,
         ["Updated Name"],
+        [],
         [],
         [],
         [],
