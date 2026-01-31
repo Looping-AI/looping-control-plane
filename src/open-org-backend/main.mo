@@ -18,6 +18,9 @@ import WorkspaceAdminOrchestrator "./orchestrators/workspace-admin-orchestrator"
 import McpToolRegistry "./tools/mcp-tool-registry";
 import ToolTypes "./tools/tool-types";
 import Constants "./constants";
+import MetricModel "./models/metric-model";
+import ValueStreamModel "./models/value-stream-model";
+import ObjectiveModel "./models/objective-model";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -36,6 +39,13 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var nextAgentId : Nat = 0;
   var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentModel.Agent>>([(0, Map.empty<Nat, AgentModel.Agent>())], Nat.compare);
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
+
+  // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
+  var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions
+  var nextMetricId : Nat = 0;
+  var metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
+  var workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
+  var workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
 
   // ============================================
   // Auth Helper
@@ -507,6 +517,145 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         #ok({ size = KeyDerivationService.getCacheSize(keyCache) });
+      };
+    };
+  };
+
+  // ============================================
+  // Metrics API (Org-Level)
+  // ============================================
+
+  /// Register a new metric
+  public shared ({ caller }) func registerMetric(input : MetricModel.MetricRegistrationInput) : async {
+    #ok : MetricModel.MetricRegistration;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let (result, newNextId) = MetricModel.registerMetric(
+          metricsRegistry,
+          nextMetricId,
+          input,
+          caller,
+          Time.now(),
+        );
+        switch (result) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(id)) {
+            nextMetricId := newNextId;
+            switch (MetricModel.getMetric(metricsRegistry, id)) {
+              case (null) { #err("Failed to retrieve registered metric.") };
+              case (?metric) { #ok(metric) };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Get a metric by ID
+  public shared ({ caller }) func getMetric(metricId : Nat) : async {
+    #ok : MetricModel.MetricRegistration;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
+          case (null) { #err("Metric not found.") };
+          case (?metric) { #ok(metric) };
+        };
+      };
+    };
+  };
+
+  /// List all registered metrics
+  public shared ({ caller }) func listMetrics() : async {
+    #ok : [MetricModel.MetricRegistration];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        #ok(MetricModel.listMetrics(metricsRegistry));
+      };
+    };
+  };
+
+  /// Record a datapoint for a metric
+  public shared ({ caller }) func recordMetricDatapoint(
+    metricId : Nat,
+    value : Float,
+    source : MetricModel.MetricSource,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        MetricModel.recordDatapoint(
+          metricDatapoints,
+          metricsRegistry,
+          metricId,
+          value,
+          source,
+          Time.now(),
+        );
+      };
+    };
+  };
+
+  /// Get datapoints for a metric
+  public shared ({ caller }) func getMetricDatapoints(metricId : Nat, since : ?Int) : async {
+    #ok : [MetricModel.MetricDatapoint];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
+          case (null) { #err("Metric not found.") };
+          case (?_) {
+            #ok(MetricModel.getDatapoints(metricDatapoints, metricId, since));
+          };
+        };
+      };
+    };
+  };
+
+  /// Get the latest datapoint for a metric
+  public shared ({ caller }) func getLatestMetricDatapoint(metricId : Nat) : async {
+    #ok : ?MetricModel.MetricDatapoint;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
+          case (null) { #err("Metric not found.") };
+          case (?_) {
+            #ok(MetricModel.getLatestDatapoint(metricDatapoints, metricId));
+          };
+        };
+      };
+    };
+  };
+
+  /// Unregister a metric and delete all its datapoints
+  public shared ({ caller }) func unregisterMetric(metricId : Nat) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        if (MetricModel.unregisterMetric(metricsRegistry, metricDatapoints, metricId)) {
+          #ok(());
+        } else {
+          #err("Metric not found.");
+        };
       };
     };
   };

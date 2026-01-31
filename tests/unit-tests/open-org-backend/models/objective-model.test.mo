@@ -1,6 +1,5 @@
 import { test; suite; expect } "mo:test";
 import Nat "mo:core/Nat";
-import Array "mo:core/Array";
 import List "mo:core/List";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
