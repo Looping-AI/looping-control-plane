@@ -891,6 +891,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     objectiveId : Nat,
     newName : ?Text,
     newDescription : ??Text,
+    newObjectiveType : ?ObjectiveModel.ObjectiveType,
     newMetricIds : ?[Nat],
     newComputation : ?Text,
     newTarget : ?ObjectiveModel.ObjectiveTarget,
@@ -903,7 +904,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        switch (ObjectiveModel.updateObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId, newName, newDescription, newMetricIds, newComputation, newTarget, newTargetDate, newStatus)) {
+        switch (ObjectiveModel.updateObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId, newName, newDescription, newObjectiveType, newMetricIds, newComputation, newTarget, newTargetDate, newStatus)) {
           case (#err(msg)) { #err(msg) };
           case (#ok(())) {
             switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId)) {
@@ -983,6 +984,41 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         ObjectiveModel.addCommentToHistoryDatapoint(workspaceObjectives, workspaceId, valueStreamId, objectiveId, historyIndex, comment);
+      };
+    };
+  };
+
+  /// Add an impact review to an objective
+  public shared ({ caller }) func addImpactReview(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    review : ObjectiveModel.ImpactReview,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.addImpactReview(workspaceObjectives, workspaceId, valueStreamId, objectiveId, review);
+      };
+    };
+  };
+
+  /// Get impact reviews for an objective
+  public shared query ({ caller }) func getImpactReviews(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : async {
+    #ok : [ObjectiveModel.ImpactReview];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.getImpactReviews(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
       };
     };
   };
