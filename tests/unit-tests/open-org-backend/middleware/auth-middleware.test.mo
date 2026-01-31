@@ -231,17 +231,17 @@ suite(
 );
 
 // ============================================
-// IsWorkspaceAdmin Tests - Any Workspace (null)
+// AnyWorkspaceAdmin Tests
 // ============================================
 
 suite(
-  "IsWorkspaceAdmin authorization - any workspace",
+  "AnyWorkspaceAdmin authorization",
   func() {
     test(
       "should allow workspace admin from workspace 0",
       func() {
         let ctx = createContext(workspaceAdmin1, null);
-        let result = AuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin]);
+        let result = AuthMiddleware.authorize(ctx, [#AnyWorkspaceAdmin]);
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
       },
     );
@@ -250,7 +250,7 @@ suite(
       "should allow workspace admin from workspace 1",
       func() {
         let ctx = createContext(workspaceAdmin2, null);
-        let result = AuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin]);
+        let result = AuthMiddleware.authorize(ctx, [#AnyWorkspaceAdmin]);
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
       },
     );
@@ -259,7 +259,7 @@ suite(
       "should reject user who is not admin of any workspace",
       func() {
         let ctx = createContext(regularUser, null);
-        let result = AuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin]);
+        let result = AuthMiddleware.authorize(ctx, [#AnyWorkspaceAdmin]);
         expect.result<(), Text>(result, resultToText, resultEqual).equal(#err("Only workspace admins can perform this action."));
       },
     );
@@ -268,8 +268,26 @@ suite(
       "should reject workspace member who is not admin",
       func() {
         let ctx = createContext(workspaceMember1, null);
-        let result = AuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin]);
+        let result = AuthMiddleware.authorize(ctx, [#AnyWorkspaceAdmin]);
         expect.result<(), Text>(result, resultToText, resultEqual).equal(#err("Only workspace admins can perform this action."));
+      },
+    );
+  },
+);
+
+// ============================================
+// IsWorkspaceAdmin Tests - Requires workspaceId
+// ============================================
+
+suite(
+  "IsWorkspaceAdmin requires workspaceId",
+  func() {
+    test(
+      "should reject when workspaceId is null",
+      func() {
+        let ctx = createContext(workspaceAdmin1, null);
+        let result = AuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin]);
+        expect.result<(), Text>(result, resultToText, resultEqual).equal(#err("Workspace ID is required."));
       },
     );
   },
@@ -369,7 +387,7 @@ suite(
         let ctx = createContext(workspaceAdmin1, null);
         let result = AuthMiddleware.authorize(
           ctx,
-          [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin],
+          [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin],
         );
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
       },
@@ -381,7 +399,7 @@ suite(
         let ctx = createContext(regularUser, null);
         let result = AuthMiddleware.authorize(
           ctx,
-          [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin],
+          [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin],
         );
         expect.result<(), Text>(result, resultToText, resultEqual).equal(
           #err("Only org owner, org admins, workspace admins can perform this action.")
@@ -440,7 +458,7 @@ suite(
         let ctx = createContext(regularUser, null);
         let result = AuthMiddleware.authorize(
           ctx,
-          [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin],
+          [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin],
         );
         expect.result<(), Text>(result, resultToText, resultEqual).equal(
           #err("Only org owner, org admins, workspace admins can perform this action.")
@@ -477,7 +495,7 @@ suite(
           workspaceId = null;
           workspaceAdmins = Map.empty<Nat, [Principal]>();
         };
-        let result = AuthMiddleware.authorize(emptyContext, [#IsWorkspaceAdmin]);
+        let result = AuthMiddleware.authorize(emptyContext, [#AnyWorkspaceAdmin]);
         expect.result<(), Text>(result, resultToText, resultEqual).equal(#err("Only workspace admins can perform this action."));
       },
     );

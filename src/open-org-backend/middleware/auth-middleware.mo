@@ -13,6 +13,7 @@ module {
   public type AuthStep = {
     #IsOrgOwner; // Caller must be the org owner
     #IsOrgAdmin; // Caller must be an org admin
+    #AnyWorkspaceAdmin; // Caller must be admin of any workspace
     #IsWorkspaceAdmin; // Caller must be admin of specified workspace
     #IsWorkspaceMember; // Caller must be member of specified workspace
   };
@@ -74,6 +75,7 @@ module {
     switch (step) {
       case (#IsOrgOwner) { checkIsOrgOwner(ctx) };
       case (#IsOrgAdmin) { checkIsOrgAdmin(ctx) };
+      case (#AnyWorkspaceAdmin) { checkIsAnyWorkspaceAdmin(ctx) };
       case (#IsWorkspaceAdmin) { checkIsWorkspaceAdmin(ctx) };
       case (#IsWorkspaceMember) { checkIsWorkspaceMember(ctx) };
     };
@@ -91,17 +93,19 @@ module {
     };
   };
 
+  private func checkIsAnyWorkspaceAdmin(ctx : AuthContext) : Result.Result<(), Text> {
+    // Check if caller is admin of ANY workspace
+    for ((_, admins) in Map.entries(ctx.workspaceAdmins)) {
+      if (isInList(ctx.caller, admins)) {
+        return #ok(());
+      };
+    };
+    #err("Only workspace admins can perform this action.");
+  };
+
   private func checkIsWorkspaceAdmin(ctx : AuthContext) : Result.Result<(), Text> {
     switch (ctx.workspaceId) {
-      case (null) {
-        // When workspaceId is null, check if caller is admin of ANY workspace
-        for ((_, admins) in Map.entries(ctx.workspaceAdmins)) {
-          if (isInList(ctx.caller, admins)) {
-            return #ok(());
-          };
-        };
-        #err("Only workspace admins can perform this action.");
-      };
+      case (null) { #err("Workspace ID is required.") };
       case (?wsId) {
         switch (Map.get(ctx.workspaceAdmins, Nat.compare, wsId)) {
           case (null) { #err("Workspace not found.") };
