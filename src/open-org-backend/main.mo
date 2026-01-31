@@ -113,13 +113,21 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
     // Restart cache clearing timer with remaining time
     let cacheElapsed = now - lastClearTimestamp;
-    let cacheRemaining = Constants.THIRTY_DAYS_NS - cacheElapsed;
-    ignore Timer.setTimer<system>(#nanoseconds(Int.abs(cacheRemaining)), clearKeyCacheTimer);
+    let cacheDelay : Nat = if (cacheElapsed >= Constants.THIRTY_DAYS_NS) {
+      0;
+    } else {
+      Nat.fromInt(Constants.THIRTY_DAYS_NS - cacheElapsed);
+    };
+    ignore Timer.setTimer<system>(#nanoseconds(cacheDelay), clearKeyCacheTimer);
 
     // Restart retention cleanup timer with remaining time
     let retentionElapsed = now - lastRetentionCleanupTimestamp;
-    let retentionRemaining = Constants.THIRTY_DAYS_NS - retentionElapsed;
-    ignore Timer.setTimer<system>(#nanoseconds(Int.abs(retentionRemaining)), metricRetentionCleanupTimer);
+    let retentionDelay : Nat = if (retentionElapsed >= Constants.THIRTY_DAYS_NS) {
+      0;
+    } else {
+      Nat.fromInt(Constants.THIRTY_DAYS_NS - retentionElapsed);
+    };
+    ignore Timer.setTimer<system>(#nanoseconds(retentionDelay), metricRetentionCleanupTimer);
   };
 
   // ============================================
