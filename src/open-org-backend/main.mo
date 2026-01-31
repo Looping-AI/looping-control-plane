@@ -6,6 +6,7 @@ import List "mo:core/List";
 import Text "mo:core/Text";
 import Timer "mo:core/Timer";
 import Int "mo:core/Int";
+import Array "mo:core/Array";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
@@ -750,7 +751,186 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
+        // Also delete objectives for this value stream
+        ObjectiveModel.deleteValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
         ValueStreamModel.deleteValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+      };
+    };
+  };
+
+  // ============================================
+  // Objectives API (Workspace-Scoped, within Value Streams)
+  // ============================================
+
+  /// Add an objective to a value stream
+  public shared ({ caller }) func addObjective(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    input : ObjectiveModel.ObjectiveInput,
+  ) : async {
+    #ok : ObjectiveModel.ShareableObjective;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        // Initialize objectives state for value stream if not exists
+        ObjectiveModel.initValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
+        switch (ObjectiveModel.addObjective(workspaceObjectives, workspaceId, valueStreamId, input)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(id)) {
+            switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, id)) {
+              case (#err(msg)) { #err(msg) };
+              case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Get an objective by ID
+  public shared ({ caller }) func getObjective(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : async {
+    #ok : ObjectiveModel.ShareableObjective;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
+        };
+      };
+    };
+  };
+
+  /// List all objectives for a value stream
+  public shared ({ caller }) func listObjectives(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+  ) : async {
+    #ok : [ObjectiveModel.ShareableObjective];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        // Initialize objectives state for value stream if not exists
+        ObjectiveModel.initValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
+        switch (ObjectiveModel.listObjectives(workspaceObjectives, workspaceId, valueStreamId)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(objs)) {
+            #ok(Array.map<ObjectiveModel.Objective, ObjectiveModel.ShareableObjective>(objs, ObjectiveModel.toShareable));
+          };
+        };
+      };
+    };
+  };
+
+  /// Update an objective
+  public shared ({ caller }) func updateObjective(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    newName : ?Text,
+    newDescription : ??Text,
+    newMetricIds : ?[Nat],
+    newComputation : ?Text,
+    newTarget : ?ObjectiveModel.ObjectiveTarget,
+    newTargetDate : ??Int,
+    newStatus : ?ObjectiveModel.ObjectiveStatus,
+  ) : async {
+    #ok : ObjectiveModel.ShareableObjective;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (ObjectiveModel.updateObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId, newName, newDescription, newMetricIds, newComputation, newTarget, newTargetDate, newStatus)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(())) {
+            switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId)) {
+              case (#err(msg)) { #err(msg) };
+              case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Archive an objective
+  public shared ({ caller }) func archiveObjective(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.archiveObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
+      };
+    };
+  };
+
+  /// Record a datapoint for an objective
+  public shared ({ caller }) func recordObjectiveDatapoint(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    datapoint : ObjectiveModel.ObjectiveDatapoint,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.recordObjectiveDatapoint(workspaceObjectives, workspaceId, valueStreamId, objectiveId, datapoint);
+      };
+    };
+  };
+
+  /// Get the history of an objective as an array
+  public shared ({ caller }) func getObjectiveHistory(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : async {
+    #ok : [ObjectiveModel.ObjectiveDatapoint];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.getHistoryArray(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
+      };
+    };
+  };
+
+  /// Add a comment to a datapoint in an objective's history
+  public shared ({ caller }) func addObjectiveDatapointComment(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    historyIndex : Nat,
+    comment : ObjectiveModel.ObjectiveDatapointComment,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.addCommentToHistoryDatapoint(workspaceObjectives, workspaceId, valueStreamId, objectiveId, historyIndex, comment);
       };
     };
   };

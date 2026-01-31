@@ -26,28 +26,6 @@ func resultUnitEqual(r1 : Result.Result<(), Text>, r2 : Result.Result<(), Text>)
   r1 == r2;
 };
 
-func resultValueStreamToText(r : Result.Result<ValueStreamModel.ValueStream, Text>) : Text {
-  switch (r) {
-    case (#ok vs) { "#ok(ValueStream: " # vs.name # ")" };
-    case (#err e) { "#err(" # e # ")" };
-  };
-};
-
-func resultValueStreamEqual(r1 : Result.Result<ValueStreamModel.ValueStream, Text>, r2 : Result.Result<ValueStreamModel.ValueStream, Text>) : Bool {
-  switch (r1, r2) {
-    case (#err e1, #err e2) { e1 == e2 };
-    case (#ok v1, #ok v2) { v1.id == v2.id and v1.name == v2.name };
-    case _ { false };
-  };
-};
-
-func resultArrayValueStreamToText(r : Result.Result<[ValueStreamModel.ValueStream], Text>) : Text {
-  switch (r) {
-    case (#ok arr) { "#ok([" # Nat.toText(arr.size()) # " items])" };
-    case (#err e) { "#err(" # e # ")" };
-  };
-};
-
 func resultArrayValueStreamSizeEqual(r : Result.Result<[ValueStreamModel.ValueStream], Text>, expectedSize : Nat) : Bool {
   switch (r) {
     case (#ok arr) { arr.size() == expectedSize };

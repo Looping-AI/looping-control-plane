@@ -71,6 +71,41 @@ module {
     updatedAt : Int;
   };
 
+  /// Shareable version of Objective for canister API responses
+  /// Uses [ObjectiveDatapoint] instead of List.List for shared type compatibility
+  public type ShareableObjective = {
+    id : Nat;
+    name : Text;
+    description : ?Text;
+    metricIds : [Nat];
+    computation : Text;
+    target : ObjectiveTarget;
+    targetDate : ?Int;
+    current : ?Float;
+    history : [ObjectiveDatapoint];
+    status : ObjectiveStatus;
+    createdAt : Int;
+    updatedAt : Int;
+  };
+
+  /// Convert an Objective to a ShareableObjective
+  public func toShareable(objective : Objective) : ShareableObjective {
+    {
+      id = objective.id;
+      name = objective.name;
+      description = objective.description;
+      metricIds = objective.metricIds;
+      computation = objective.computation;
+      target = objective.target;
+      targetDate = objective.targetDate;
+      current = objective.current;
+      history = List.toArray(objective.history);
+      status = objective.status;
+      createdAt = objective.createdAt;
+      updatedAt = objective.updatedAt;
+    };
+  };
+
   /// Input for creating a new objective
   public type ObjectiveInput = {
     name : Text;
