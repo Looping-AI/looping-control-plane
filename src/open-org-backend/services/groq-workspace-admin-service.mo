@@ -3,10 +3,16 @@ import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Map "mo:core/Map";
+import Iter "mo:core/Iter";
+import Float "mo:core/Float";
 import ConversationModel "../models/conversation-model";
+import ValueStreamModel "../models/value-stream-model";
+import ObjectiveModel "../models/objective-model";
+import MetricModel "../models/metric-model";
 import GroqWrapper "../wrappers/groq-wrapper";
 import Constants "../constants";
 import InstructionComposer "../instructions/instruction-composer";
+import InstructionTypes "../instructions/instruction-types";
 import FunctionToolRegistry "../tools/function-tool-registry";
 import McpToolRegistry "../tools/mcp-tool-registry";
 import ToolExecutor "../tools/tool-executor";
@@ -20,6 +26,10 @@ module {
   public func executeAdminTalk(
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
+    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
+    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
+    metricsRegistry : MetricModel.MetricsRegistry,
+    metricDatapoints : MetricModel.MetricDatapointsStore,
     workspaceId : Nat,
     message : Text,
     apiKey : Text,
@@ -27,11 +37,19 @@ module {
     #ok : Text;
     #err : Text;
   } {
+    // Build workspace context from data
+    let workspaceContext = buildWorkspaceContext(
+      workspaceValueStreamsState,
+      workspaceObjectivesMap,
+      metricsRegistry,
+      metricDatapoints,
+    );
+
     // Compose instructions for workspace admin context
     let instructions = InstructionComposer.compose(
       #workspaceAdmin,
       [],
-      [],
+      workspaceContext,
     );
 
     // Combine tool definitions from both registries
@@ -118,5 +136,92 @@ module {
         };
       };
     };
+  };
+
+  // Build workspace context blocks from ValueStreams, Objectives, and Metrics
+  private func buildWorkspaceContext(
+    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
+    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
+    metricsRegistry : MetricModel.MetricsRegistry,
+    metricDatapoints : MetricModel.MetricDatapointsStore,
+  ) : [InstructionTypes.InstructionBlock] {
+    var blocks : List.List<InstructionTypes.InstructionBlock> = List.empty();
+
+    // Add metrics summary with latest datapoints
+    let allMetrics = MetricModel.listMetrics(metricsRegistry);
+    if (allMetrics.size() > 0) {
+      let metricsText = Array.foldLeft<MetricModel.MetricRegistration, Text>(
+        allMetrics,
+        "Available Metrics:\n",
+        func(acc, m) {
+          let latestDatapoint = MetricModel.getLatestDatapoint(metricDatapoints, m.id);
+          let latestValue = switch (latestDatapoint) {
+            case (?dp) { " (latest: " # Float.toText(dp.value) # ")" };
+            case (null) { "" };
+          };
+          acc # "- " # m.name # " (" # m.unit # "): " # m.description # latestValue # "\n";
+        },
+      );
+      List.add(blocks, { id = "workspace-metrics"; content = metricsText });
+    };
+
+    // Add value streams for this workspace
+    let (_, valueStreamsMap) = workspaceValueStreamsState;
+    let streams = Iter.toArray(Map.values(valueStreamsMap));
+    if (streams.size() > 0) {
+      let streamsText = Array.foldLeft<ValueStreamModel.ValueStream, Text>(
+        streams,
+        "Value Streams:\n",
+        func(acc, vs) {
+          let statusText = switch (vs.status) {
+            case (#draft) "draft";
+            case (#active) "active";
+            case (#paused) "paused";
+            case (#archived) "archived";
+          };
+          acc # "- [" # statusText # "] " # vs.name # "\n" #
+          "  Problem: " # vs.problem # "\n" #
+          "  Goal: " # vs.goal # "\n";
+        },
+      );
+      List.add(blocks, { id = "workspace-value-streams"; content = streamsText });
+    };
+
+    // Add objectives for all value streams in this workspace
+    var objectivesText = "Objectives:\n";
+    var hasObjectives = false;
+
+    for ((vsId, (_, valueStreamObjMap)) in Map.entries(workspaceObjectivesMap)) {
+      let objectives = Iter.toArray(Map.values(valueStreamObjMap));
+      if (objectives.size() > 0) {
+        hasObjectives := true;
+        for (obj in objectives.vals()) {
+          let typeText = switch (obj.objectiveType) {
+            case (#target) "target";
+            case (#contributing) "contributing";
+            case (#prerequisite) "prerequisite";
+            case (#guardrail) "guardrail";
+          };
+          let statusText = switch (obj.status) {
+            case (#active) "active";
+            case (#paused) "paused";
+            case (#archived) "archived";
+          };
+          objectivesText := objectivesText # "- [" # statusText # "] " # obj.name # " (" # typeText # ")\n";
+          switch (obj.description) {
+            case (?desc) {
+              objectivesText := objectivesText # "  Description: " # desc # "\n";
+            };
+            case (null) {};
+          };
+        };
+      };
+    };
+
+    if (hasObjectives) {
+      List.add(blocks, { id = "workspace-objectives"; content = objectivesText });
+    };
+
+    List.toArray(blocks);
   };
 };

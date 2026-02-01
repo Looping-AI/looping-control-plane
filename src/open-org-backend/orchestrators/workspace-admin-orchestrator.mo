@@ -5,6 +5,9 @@ import Types "../types";
 import ApiKeysModel "../models/api-keys-model";
 import KeyDerivationService "../services/key-derivation-service";
 import ConversationModel "../models/conversation-model";
+import ValueStreamModel "../models/value-stream-model";
+import ObjectiveModel "../models/objective-model";
+import MetricModel "../models/metric-model";
 import GroqWorkspaceAdminService "../services/groq-workspace-admin-service";
 import McpToolRegistry "../tools/mcp-tool-registry";
 import Constants "../constants";
@@ -16,6 +19,10 @@ module {
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>,
     adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
+    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
+    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
+    metricsRegistry : MetricModel.MetricsRegistry,
+    metricDatapoints : MetricModel.MetricDatapointsStore,
     workspaceId : Nat,
     message : Text,
     keyCache : KeyDerivationService.KeyCache,
@@ -38,6 +45,10 @@ module {
             await GroqWorkspaceAdminService.executeAdminTalk(
               mcpToolRegistry,
               adminConversations,
+              workspaceValueStreamsState,
+              workspaceObjectivesMap,
+              metricsRegistry,
+              metricDatapoints,
               workspaceId,
               message,
               key,

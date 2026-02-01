@@ -427,11 +427,25 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         if (Text.trim(message, #char ' ') == "") {
           return #err("Message cannot be empty.");
         };
+        // Extract workspace-specific data
+        let workspaceValueStreamsState = switch (Map.get(workspaceValueStreams, Nat.compare, workspaceId)) {
+          case (null) { return #err("Workspace value streams not found.") };
+          case (?state) { state };
+        };
+        let workspaceObjectivesMap = switch (Map.get(workspaceObjectives, Nat.compare, workspaceId)) {
+          case (null) { return #err("Workspace objectives not found.") };
+          case (?objMap) { objMap };
+        };
+
         // Delegate to orchestrator for business logic
         await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
           mcpToolRegistry,
           apiKeys,
           adminConversations,
+          workspaceValueStreamsState,
+          workspaceObjectivesMap,
+          metricsRegistry,
+          metricDatapoints,
           workspaceId,
           message,
           keyCache,
