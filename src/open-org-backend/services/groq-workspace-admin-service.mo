@@ -37,19 +37,13 @@ module {
     #ok : Text;
     #err : Text;
   } {
-    // Build workspace context from data
-    let workspaceContext = buildWorkspaceContext(
+    // Build instructions with workspace-specific context
+    let instructions = buildAdminInstructions(
       workspaceValueStreamsState,
       workspaceObjectivesMap,
       metricsRegistry,
       metricDatapoints,
-    );
-
-    // Compose instructions for workspace admin context
-    let instructions = InstructionComposer.compose(
-      #workspaceAdmin,
-      [],
-      workspaceContext,
+      workspaceId,
     );
 
     // Combine tool definitions from both registries
@@ -223,5 +217,44 @@ module {
     };
 
     List.toArray(blocks);
+  };
+
+  // Build admin instructions with context-aware layers
+  private func buildAdminInstructions(
+    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
+    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
+    metricsRegistry : MetricModel.MetricsRegistry,
+    metricDatapoints : MetricModel.MetricDatapointsStore,
+    _workspaceId : Nat,
+  ) : Text {
+    // Build workspace context from data
+    let workspaceContext = buildWorkspaceContext(
+      workspaceValueStreamsState,
+      workspaceObjectivesMap,
+      metricsRegistry,
+      metricDatapoints,
+    );
+
+    // Determine which context layers to include based on workspace state
+    var contextIds : List.List<InstructionTypes.ContextId> = List.empty();
+
+    // Check if workspace needs value stream setup
+    let (_, valueStreamsMap) = workspaceValueStreamsState;
+    let streams = Iter.toArray(Map.values(valueStreamsMap));
+    let hasActiveStream = Array.any<ValueStreamModel.ValueStream>(
+      streams,
+      func(vs) { vs.status == #active },
+    );
+
+    if (not hasActiveStream) {
+      List.add(contextIds, #needsValueStreamSetup);
+    };
+
+    // Compose instructions with appropriate context layers
+    InstructionComposer.compose(
+      #workspaceAdmin,
+      List.toArray(contextIds),
+      workspaceContext,
+    );
   };
 };
