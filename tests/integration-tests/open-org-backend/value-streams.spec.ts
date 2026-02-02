@@ -610,4 +610,290 @@ describe("Value Streams API", () => {
       expectOk(deleteResult);
     });
   });
+
+  describe("setValueStreamPlan", () => {
+    it("should allow workspace admin to set a plan", async () => {
+      // Create a value stream
+      const input: ValueStreamInput = {
+        name: "Growth Strategy",
+        problem: "Low customer acquisition",
+        goal: "Increase signups by 50%",
+      };
+      const createResult = await actor.createValueStream(
+        defaultWorkspaceId,
+        input,
+      );
+      const vs = expectOk(createResult);
+
+      // Set a plan
+      const planInput = {
+        summary: "Focus on content marketing and referrals",
+        currentState: "100 signups/month from direct traffic",
+        targetState: "150 signups/month from multiple channels",
+        steps: "1. Create blog\n2. Launch referral program\n3. Track metrics",
+        risks: "Content may not rank - mitigation: paid ads backup",
+        resources: "Content writer, referral software, $500/month budget",
+      };
+
+      const result = await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        planInput,
+        "Initial plan",
+      );
+
+      const updated = expectOk(result);
+      expect(updated.plan.length).toBe(1);
+      const plan = updated.plan[0];
+      expect(plan.summary).toBe("Focus on content marketing and referrals");
+      expect(plan.currentState).toBe("100 signups/month from direct traffic");
+      expect(plan.targetState).toBe("150 signups/month from multiple channels");
+      expect(plan.steps).toBe(
+        "1. Create blog\n2. Launch referral program\n3. Track metrics",
+      );
+      expect(plan.risks).toBe(
+        "Content may not rank - mitigation: paid ads backup",
+      );
+      expect(plan.resources).toBe(
+        "Content writer, referral software, $500/month budget",
+      );
+
+      // Check plan history
+      expect(updated.planHistory.length).toBe(1);
+      expect(updated.planHistory[0].diff).toBe("Initial plan");
+    });
+
+    it("should update existing plan and record in history", async () => {
+      // Create value stream and set initial plan
+      const input: ValueStreamInput = {
+        name: "Test Stream",
+        problem: "Problem",
+        goal: "Goal",
+      };
+      const vs = expectOk(
+        await actor.createValueStream(defaultWorkspaceId, input),
+      );
+
+      const planInput1 = {
+        summary: "Original approach",
+        currentState: "Starting point",
+        targetState: "End goal",
+        steps: "Step 1",
+        risks: "Risk A",
+        resources: "Resource X",
+      };
+
+      await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        planInput1,
+        "First plan",
+      );
+
+      // Update the plan
+      const planInput2 = {
+        summary: "Revised approach after learning",
+        currentState: "New starting point",
+        targetState: "Adjusted end goal",
+        steps: "Step 1\nStep 2",
+        risks: "Risk A\nRisk B",
+        resources: "Resource X\nResource Y",
+      };
+
+      const result = await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        planInput2,
+        "Updated after market research",
+      );
+
+      const updated = expectOk(result);
+      expect(updated.plan.length).toBe(1);
+      expect(updated.plan[0].summary).toBe("Revised approach after learning");
+
+      // Check history has both entries
+      expect(updated.planHistory.length).toBe(2);
+      expect(updated.planHistory[0].diff).toBe("First plan");
+      expect(updated.planHistory[1].diff).toBe("Updated after market research");
+    });
+
+    it("should preserve createdAt when updating plan", async () => {
+      const input: ValueStreamInput = {
+        name: "Test Stream",
+        problem: "Problem",
+        goal: "Goal",
+      };
+      const vs = expectOk(
+        await actor.createValueStream(defaultWorkspaceId, input),
+      );
+
+      const planInput = {
+        summary: "Test",
+        currentState: "Current",
+        targetState: "Target",
+        steps: "Steps",
+        risks: "Risks",
+        resources: "Resources",
+      };
+
+      // Set initial plan
+      const result1 = await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        planInput,
+        "First",
+      );
+      const firstPlan = expectOk(result1).plan[0];
+      const initialCreatedAt = firstPlan.createdAt;
+
+      // Update plan
+      const result2 = await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        planInput,
+        "Second",
+      );
+      const secondPlan = expectOk(result2).plan[0];
+
+      // createdAt should be preserved
+      expect(secondPlan.createdAt).toBe(initialCreatedAt);
+      // updatedAt should be different (or equal if same nanosecond)
+      expect(secondPlan.updatedAt >= secondPlan.createdAt).toBe(true);
+    });
+
+    it("should allow clearing plan with empty strings", async () => {
+      const input: ValueStreamInput = {
+        name: "Test Stream",
+        problem: "Problem",
+        goal: "Goal",
+      };
+      const vs = expectOk(
+        await actor.createValueStream(defaultWorkspaceId, input),
+      );
+
+      // Set initial plan
+      const planInput = {
+        summary: "Initial summary",
+        currentState: "Current",
+        targetState: "Target",
+        steps: "Steps",
+        risks: "Risks",
+        resources: "Resources",
+      };
+      await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        planInput,
+        "Initial",
+      );
+
+      // Clear with empty strings
+      const emptyPlan = {
+        summary: "",
+        currentState: "",
+        targetState: "",
+        steps: "",
+        risks: "",
+        resources: "",
+      };
+      const result = await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        emptyPlan,
+        "Cleared plan",
+      );
+
+      const updated = expectOk(result);
+      expect(updated.plan.length).toBe(1);
+      expect(updated.plan[0].summary).toBe("");
+      expect(updated.planHistory.length).toBe(2);
+    });
+
+    it("should reject non-admin from setting plan", async () => {
+      const input: ValueStreamInput = {
+        name: "Test Stream",
+        problem: "Problem",
+        goal: "Goal",
+      };
+      const vs = expectOk(
+        await actor.createValueStream(defaultWorkspaceId, input),
+      );
+
+      actor.setIdentity(generateRandomIdentity());
+
+      const planInput = {
+        summary: "Unauthorized plan",
+        currentState: "Current",
+        targetState: "Target",
+        steps: "Steps",
+        risks: "Risks",
+        resources: "Resources",
+      };
+
+      const result = await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        planInput,
+        "Attempt",
+      );
+
+      expect(expectErr(result)).toContain("workspace admins");
+    });
+
+    it("should return error for non-existent value stream", async () => {
+      const planInput = {
+        summary: "Test",
+        currentState: "Current",
+        targetState: "Target",
+        steps: "Steps",
+        risks: "Risks",
+        resources: "Resources",
+      };
+
+      const result = await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        999n,
+        planInput,
+        "Test",
+      );
+
+      expect(expectErr(result)).toBe("Value stream not found.");
+    });
+
+    it("should be reflected in getValueStream", async () => {
+      const input: ValueStreamInput = {
+        name: "Test Stream",
+        problem: "Problem",
+        goal: "Goal",
+      };
+      const vs = expectOk(
+        await actor.createValueStream(defaultWorkspaceId, input),
+      );
+
+      const planInput = {
+        summary: "Test plan",
+        currentState: "Current",
+        targetState: "Target",
+        steps: "Steps",
+        risks: "Risks",
+        resources: "Resources",
+      };
+
+      await actor.setValueStreamPlan(
+        defaultWorkspaceId,
+        vs.id,
+        planInput,
+        "Set via API",
+      );
+
+      // Retrieve and verify
+      const getResult = await actor.getValueStream(defaultWorkspaceId, vs.id);
+      const retrieved = expectOk(getResult);
+
+      expect(retrieved.plan.length).toBe(1);
+      expect(retrieved.plan[0].summary).toBe("Test plan");
+      expect(retrieved.planHistory.length).toBe(1);
+      expect(retrieved.planHistory[0].diff).toBe("Set via API");
+    });
+  });
 });

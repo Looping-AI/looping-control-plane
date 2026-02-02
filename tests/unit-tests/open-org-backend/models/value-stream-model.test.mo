@@ -1,6 +1,8 @@
 import { test; suite; expect } "mo:test";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
+import List "mo:core/List";
+import Principal "mo:core/Principal";
 import ValueStreamModel "../../../../src/open-org-backend/models/value-stream-model";
 
 // Helper functions for Result comparison
@@ -39,6 +41,18 @@ func createValidInput() : ValueStreamModel.ValueStreamInput {
     name = "Test Stream";
     problem = "Test problem statement";
     goal = "Test goal statement";
+  };
+};
+
+// Test data for plans
+func createValidPlanInput() : ValueStreamModel.PlanInput {
+  {
+    summary = "Test plan summary";
+    currentState = "Starting point";
+    targetState = "Desired end state";
+    steps = "1. Step one\n2. Step two";
+    risks = "Risk A: mitigation A";
+    resources = "Resource X, Y, Z";
   };
 };
 
@@ -90,6 +104,23 @@ suite(
         let stream = ValueStreamModel.getValueStream(map, 0, 0);
         switch (stream) {
           case (#ok(s)) { expect.bool(s.status == #draft).equal(true) };
+          case (#err(_)) { expect.bool(false).equal(true) };
+        };
+      },
+    );
+
+    test(
+      "creates value stream with null plan",
+      func() {
+        let map = ValueStreamModel.emptyValueStreamsMap();
+        ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
+
+        let stream = ValueStreamModel.getValueStream(map, 0, 0);
+        switch (stream) {
+          case (#ok(s)) {
+            expect.bool(s.plan == null).equal(true);
+            expect.nat(List.size(s.planHistory)).equal(0);
+          };
           case (#err(_)) { expect.bool(false).equal(true) };
         };
       },
@@ -458,6 +489,335 @@ suite(
         let map = ValueStreamModel.emptyValueStreamsMap();
         let streams = ValueStreamModel.listValueStreams(map, 999);
         expect.bool(Result.isErr(streams)).equal(true);
+
+        suite(
+          "ValueStreamModel - setPlan",
+          func() {
+            test(
+              "creates plan when none exists",
+              func() {
+                let map = ValueStreamModel.emptyValueStreamsMap();
+                ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
+
+                let principal = Principal.fromText("aaaaa-aa");
+                let result = ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Initial plan",
+                );
+
+                expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).isOk();
+
+                let stream = ValueStreamModel.getValueStream(map, 0, 0);
+                switch (stream) {
+                  case (#ok(s)) {
+                    switch (s.plan) {
+                      case (null) { expect.bool(false).equal(true) };
+                      case (?p) {
+                        expect.text(p.summary).equal("Test plan summary");
+                        expect.text(p.currentState).equal("Starting point");
+                        expect.text(p.targetState).equal("Desired end state");
+                        expect.text(p.steps).equal("1. Step one\n2. Step two");
+                        expect.text(p.risks).equal("Risk A: mitigation A");
+                        expect.text(p.resources).equal("Resource X, Y, Z");
+                        expect.bool(p.createdAt > 0).equal(true);
+                        expect.bool(p.updatedAt > 0).equal(true);
+                      };
+                    };
+                    expect.nat(List.size(s.planHistory)).equal(1);
+                  };
+                  case (#err(_)) { expect.bool(false).equal(true) };
+                };
+              },
+            );
+
+            test(
+              "updates existing plan",
+              func() {
+                let map = ValueStreamModel.emptyValueStreamsMap();
+                ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
+
+                let principal = Principal.fromText("aaaaa-aa");
+
+                // Create initial plan
+                ignore ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Initial plan",
+                );
+
+                // Update plan
+                let updatedInput : ValueStreamModel.PlanInput = {
+                  summary = "Updated summary";
+                  currentState = "New current state";
+                  targetState = "New target state";
+                  steps = "1. New step";
+                  risks = "New risks";
+                  resources = "New resources";
+                };
+
+                let result = ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  updatedInput,
+                  #assistant("AI Agent"),
+                  "Updated approach",
+                );
+
+                expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).isOk();
+
+                let stream = ValueStreamModel.getValueStream(map, 0, 0);
+                switch (stream) {
+                  case (#ok(s)) {
+                    switch (s.plan) {
+                      case (null) { expect.bool(false).equal(true) };
+                      case (?p) {
+                        expect.text(p.summary).equal("Updated summary");
+                        expect.text(p.currentState).equal("New current state");
+                      };
+                    };
+                    expect.nat(List.size(s.planHistory)).equal(2);
+                  };
+                  case (#err(_)) { expect.bool(false).equal(true) };
+                };
+              },
+            );
+
+            test(
+              "preserves createdAt when updating plan",
+              func() {
+                let map = ValueStreamModel.emptyValueStreamsMap();
+                ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
+
+                let principal = Principal.fromText("aaaaa-aa");
+
+                // Create initial plan
+                ignore ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Initial",
+                );
+
+                let stream1 = ValueStreamModel.getValueStream(map, 0, 0);
+                let initialCreatedAt = switch (stream1) {
+                  case (#ok(s)) {
+                    switch (s.plan) {
+                      case (null) { 0 };
+                      case (?p) { p.createdAt };
+                    };
+                  };
+                  case (#err(_)) { 0 };
+                };
+
+                // Update plan
+                ignore ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Updated",
+                );
+
+                let stream2 = ValueStreamModel.getValueStream(map, 0, 0);
+                switch (stream2) {
+                  case (#ok(s)) {
+                    switch (s.plan) {
+                      case (null) { expect.bool(false).equal(true) };
+                      case (?p) {
+                        expect.int(p.createdAt).equal(initialCreatedAt);
+                        expect.bool(p.updatedAt >= p.createdAt).equal(true);
+                      };
+                    };
+                  };
+                  case (#err(_)) { expect.bool(false).equal(true) };
+                };
+              },
+            );
+
+            test(
+              "records plan change in history",
+              func() {
+                let map = ValueStreamModel.emptyValueStreamsMap();
+                ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
+
+                let principal = Principal.fromText("aaaaa-aa");
+                ignore ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Initial plan created",
+                );
+
+                let stream = ValueStreamModel.getValueStream(map, 0, 0);
+                switch (stream) {
+                  case (#ok(s)) {
+                    let history = List.toArray(s.planHistory);
+                    expect.nat(history.size()).equal(1);
+
+                    let change = history[0];
+                    expect.text(change.diff).equal("Initial plan created");
+                    expect.bool(change.timestamp > 0).equal(true);
+
+                    switch (change.changedBy) {
+                      case (#principal(p)) {
+                        expect.bool(p == principal).equal(true);
+                      };
+                      case (#assistant(_)) { expect.bool(false).equal(true) };
+                    };
+                  };
+                  case (#err(_)) { expect.bool(false).equal(true) };
+                };
+              },
+            );
+
+            test(
+              "supports clearing plan with empty strings",
+              func() {
+                let map = ValueStreamModel.emptyValueStreamsMap();
+                ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
+
+                let principal = Principal.fromText("aaaaa-aa");
+
+                // Create plan
+                ignore ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Initial",
+                );
+
+                // Clear with empty strings
+                let emptyInput : ValueStreamModel.PlanInput = {
+                  summary = "";
+                  currentState = "";
+                  targetState = "";
+                  steps = "";
+                  risks = "";
+                  resources = "";
+                };
+
+                ignore ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  emptyInput,
+                  #principal(principal),
+                  "Cleared plan",
+                );
+
+                let stream = ValueStreamModel.getValueStream(map, 0, 0);
+                switch (stream) {
+                  case (#ok(s)) {
+                    switch (s.plan) {
+                      case (null) { expect.bool(false).equal(true) };
+                      case (?p) {
+                        expect.text(p.summary).equal("");
+                        expect.text(p.steps).equal("");
+                      };
+                    };
+                    expect.nat(List.size(s.planHistory)).equal(2);
+                  };
+                  case (#err(_)) { expect.bool(false).equal(true) };
+                };
+              },
+            );
+
+            test(
+              "returns error for non-existent workspace",
+              func() {
+                let map = ValueStreamModel.emptyValueStreamsMap();
+                let principal = Principal.fromText("aaaaa-aa");
+
+                let result = ValueStreamModel.setPlan(
+                  map,
+                  999,
+                  0,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Test",
+                );
+
+                expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
+                  #err("Workspace not found.")
+                );
+              },
+            );
+
+            test(
+              "returns error for non-existent value stream",
+              func() {
+                let map = ValueStreamModel.emptyValueStreamsMap();
+                ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
+
+                let principal = Principal.fromText("aaaaa-aa");
+
+                let result = ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  999,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Test",
+                );
+
+                expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
+                  #err("Value stream not found.")
+                );
+              },
+            );
+          },
+        );
+
+        suite(
+          "ValueStreamModel - toShareable",
+          func() {
+            test(
+              "converts ValueStream to ShareableValueStream",
+              func() {
+                let map = ValueStreamModel.emptyValueStreamsMap();
+                ignore ValueStreamModel.createValueStream(map, 0, createValidInput());
+
+                let principal = Principal.fromText("aaaaa-aa");
+                ignore ValueStreamModel.setPlan(
+                  map,
+                  0,
+                  0,
+                  createValidPlanInput(),
+                  #principal(principal),
+                  "Test plan",
+                );
+
+                let stream = ValueStreamModel.getValueStream(map, 0, 0);
+                switch (stream) {
+                  case (#ok(s)) {
+                    let shareable = ValueStreamModel.toShareable(s);
+
+                    expect.nat(shareable.id).equal(s.id);
+                    expect.text(shareable.name).equal(s.name);
+                    expect.bool(shareable.plan != null).equal(true);
+                    expect.nat(shareable.planHistory.size()).equal(1);
+                  };
+                  case (#err(_)) { expect.bool(false).equal(true) };
+                };
+              },
+            );
+          },
+        );
       },
     );
 
