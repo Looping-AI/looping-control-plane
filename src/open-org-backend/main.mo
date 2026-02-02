@@ -443,6 +443,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           apiKeys,
           adminConversations,
           workspaceValueStreamsState,
+          workspaceValueStreams,
           workspaceObjectivesMap,
           metricsRegistry,
           metricDatapoints,

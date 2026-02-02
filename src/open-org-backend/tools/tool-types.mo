@@ -1,4 +1,5 @@
 import GroqWrapper "../wrappers/groq-wrapper";
+import ValueStreamModel "../models/value-stream-model";
 
 module {
   // ============================================
@@ -15,6 +16,28 @@ module {
   public type ToolCallOutcome = {
     #success : Text; // JSON string result
     #error : Text; // Error message
+  };
+
+  // ============================================
+  // Function Tool Resources
+  // ============================================
+
+  /// Resources that can be provided to function tools.
+  /// Each resource is optional - tools requiring unavailable resources are excluded.
+  /// This creates a natural allowlist mechanism controlled by the caller.
+  public type ToolResources = {
+    // Current workspace context
+    workspaceId : ?Nat;
+
+    // Value Streams - if provided with write=true, save_value_stream tool is available
+    valueStreams : ?{
+      map : ValueStreamModel.ValueStreamsMap;
+      write : Bool; // false = read-only (future: could enable a "get_value_streams" tool)
+    };
+
+    // Future resources:
+    // objectives : ?{ map : ObjectiveModel.WorkspaceObjectivesMap; write : Bool };
+    // metrics : ?{ registry : MetricModel.MetricsRegistry; write : Bool };
   };
 
   // ============================================

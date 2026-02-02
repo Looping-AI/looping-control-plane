@@ -16,17 +16,22 @@ import InstructionTypes "../instructions/instruction-types";
 import FunctionToolRegistry "../tools/function-tool-registry";
 import McpToolRegistry "../tools/mcp-tool-registry";
 import ToolExecutor "../tools/tool-executor";
+import ToolTypes "../tools/tool-types";
 
 module {
 
   // Maximum iterations for multi-turn tool execution loop
   let MAX_ITERATIONS : Nat = 10;
 
+  // Maximum number of previous conversation messages to include as context
+  let MAX_CONVERSATION_HISTORY : Nat = 30;
+
   // Execute admin talk using Groq LLM with multi-turn tool support
   public func executeAdminTalk(
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
+    valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
     metricsRegistry : MetricModel.MetricsRegistry,
     metricDatapoints : MetricModel.MetricDatapointsStore,
@@ -46,15 +51,26 @@ module {
       workspaceId,
     );
 
+    // Build tool resources - controls which tools are available
+    let toolResources : ToolTypes.ToolResources = {
+      workspaceId = ?workspaceId;
+      valueStreams = ?{
+        map = valueStreamsMap;
+        write = true;
+      };
+      // Future: add objectives, metrics, etc.
+    };
+
     // Combine tool definitions from both registries
-    let functionToolDefs = FunctionToolRegistry.getAllDefinitions();
+    let functionToolDefs = FunctionToolRegistry.getAllDefinitions(toolResources);
     let mcpToolDefs = McpToolRegistry.getAllDefinitions(mcpToolRegistry);
     let allTools = Array.concat(functionToolDefs, mcpToolDefs);
     let toolsOpt : ?[GroqWrapper.Tool] = if (allTools.size() == 0) null else ?allTools;
 
-    // Multi-turn loop for tool execution
-    // Build conversation history as array of messages
-    let inputMessages = List.empty<GroqWrapper.ResponseInputMessage>();
+    // Load conversation history (bounded to last 30 messages) and convert to input format
+    let inputMessages = loadConversationHistory(adminConversations, workspaceId);
+
+    // Add the new user message
     List.add(inputMessages, { role = #user; content = message });
     var iteration = 0;
 
@@ -97,7 +113,7 @@ module {
 
         case (#ok(#toolCalls(calls))) {
           // Execute tool calls
-          let toolResults = await ToolExecutor.execute(mcpToolRegistry, calls);
+          let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
 
           // Add assistant message indicating tool calls were made
           List.add(
@@ -130,6 +146,42 @@ module {
         };
       };
     };
+  };
+
+  // Load conversation history and convert to input messages format
+  // Bounds to MAX_CONVERSATION_HISTORY most recent messages
+  private func loadConversationHistory(
+    adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
+    workspaceId : Nat,
+  ) : List.List<GroqWrapper.ResponseInputMessage> {
+    // Load existing conversation history for this workspace
+    let existingConversation = switch (Map.get(adminConversations, Nat.compare, workspaceId)) {
+      case (null) { List.empty<ConversationModel.Message>() };
+      case (?conv) { conv };
+    };
+
+    // Convert to array and determine starting index for bounded history
+    let conversationArray = List.toArray(existingConversation);
+    let historyStartIndex = if (conversationArray.size() > MAX_CONVERSATION_HISTORY) {
+      Nat.sub(conversationArray.size(), MAX_CONVERSATION_HISTORY);
+    } else {
+      0;
+    };
+
+    // Convert bounded history to ResponseInputMessage format
+    let inputMessages = List.empty<GroqWrapper.ResponseInputMessage>();
+    var i = historyStartIndex;
+    while (i < conversationArray.size()) {
+      let msg = conversationArray[i];
+      let role : GroqWrapper.MessageRole = switch (msg.author) {
+        case (#user) { #user };
+        case (#agent) { #assistant };
+      };
+      List.add(inputMessages, { role; content = msg.content });
+      i += 1;
+    };
+
+    inputMessages;
   };
 
   // Build workspace context blocks from ValueStreams, Objectives, and Metrics
