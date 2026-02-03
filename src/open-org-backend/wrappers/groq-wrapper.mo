@@ -1,6 +1,7 @@
 import Text "mo:core/Text";
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";
+import Int "mo:core/Int";
 import Float "mo:core/Float";
 import Bool "mo:core/Bool";
 import List "mo:core/List";
@@ -43,6 +44,17 @@ module {
     stream : ?Bool;
   };
 
+  /// Request payload for Groq compound chat completions with built-in tools
+  public type CompoundChatCompletionRequest = {
+    model : Text;
+    messages : [ChatMessage];
+    temperature : ?Float;
+    max_tokens : ?Nat;
+    top_p : ?Float;
+    stream : ?Bool;
+    search_settings : ?SearchSettings;
+  };
+
   /// Choice from Groq response
   public type ChatChoice = {
     index : Nat;
@@ -63,6 +75,63 @@ module {
     created : Nat;
     model : Text;
     choices : [ChatChoice];
+    usage : ?Usage;
+  };
+
+  /// Search settings for web search built-in tool
+  public type SearchSettings = {
+    exclude_domains : ?[Text]; // Domains to exclude from search (supports wildcards like *.com)
+    include_domains : ?[Text]; // Restrict search to only these domains (supports wildcards)
+    country : ?Text; // Boost results from specific country (e.g., "us", "gb", "de")
+  };
+
+  /// Built-in tool selection with tool-specific configuration
+  /// Each variant represents a specific Groq built-in tool with its configuration
+  public type BuiltInTool = {
+    #web_search : { searchSettings : ?SearchSettings }; // Web search with optional domain/country filters
+    #visit_website; // Visit and analyze website content from a URL in the message
+    // Future tools will be added here:
+    // #browser_automation : { ... };
+    // #code_interpreter : { ... };
+  };
+
+  /// Search result from web search tool
+  public type SearchResult = {
+    title : Text;
+    url : Text;
+    content : Text;
+    relevance_score : Float; // Score from 0 to 1
+  };
+
+  /// Executed tool details from compound model
+  public type ExecutedTool = {
+    tool_type : Text; // "search" or "visit"
+    search_results : ?[SearchResult]; // Present for web search
+    visited_url : ?Text; // Present for visit website
+    content : ?Text; // Content retrieved from visited website
+  };
+
+  /// Enhanced chat message with reasoning and executed tools (for compound model)
+  public type CompoundChatMessage = {
+    role : MessageRole;
+    content : Text;
+    reasoning : ?Text; // Internal reasoning process
+    executed_tools : ?[ExecutedTool]; // Tools executed to generate response
+  };
+
+  /// Enhanced choice from compound model response
+  public type CompoundChatChoice = {
+    index : Nat;
+    message : CompoundChatMessage;
+    finish_reason : ?Text;
+  };
+
+  /// Response from compound model with built-in tools
+  public type CompoundChatCompletionResponse = {
+    id : Text;
+    created : Nat;
+    model : Text;
+    choices : [CompoundChatChoice];
     usage : ?Usage;
   };
 
@@ -421,6 +490,70 @@ module {
     Json.stringify(obj(List.toArray(requestFields)), null);
   };
 
+  /// Serialize SearchSettings to JSON
+  private func searchSettingsToJson(settings : SearchSettings) : Json.Json {
+    let fields = List.empty<(Text, Json.Json)>();
+
+    switch (settings.exclude_domains) {
+      case (?domains) {
+        List.add(fields, ("exclude_domains", arr(Array.map<Text, Json.Json>(domains, func(d : Text) : Json.Json { str(d) }))));
+      };
+      case (null) {};
+    };
+
+    switch (settings.include_domains) {
+      case (?domains) {
+        List.add(fields, ("include_domains", arr(Array.map<Text, Json.Json>(domains, func(d : Text) : Json.Json { str(d) }))));
+      };
+      case (null) {};
+    };
+
+    switch (settings.country) {
+      case (?c) { List.add(fields, ("country", str(c))) };
+      case (null) {};
+    };
+
+    obj(List.toArray(fields));
+  };
+
+  /// Serialize CompoundChatCompletionRequest to JSON string
+  private func serializeCompoundChatCompletionRequest(request : CompoundChatCompletionRequest) : Text {
+    let messagesJson = arr(Array.map<ChatMessage, Json.Json>(request.messages, messageToJson));
+
+    let requestFields = List.empty<(Text, Json.Json)>();
+    List.add(requestFields, ("model", str(request.model)));
+    List.add(requestFields, ("messages", messagesJson));
+
+    switch (request.temperature) {
+      case (?temp) { List.add(requestFields, ("temperature", float(temp))) };
+      case (null) {};
+    };
+
+    switch (request.max_tokens) {
+      case (?tokens) { List.add(requestFields, ("max_tokens", int(tokens))) };
+      case (null) {};
+    };
+
+    switch (request.top_p) {
+      case (?p) { List.add(requestFields, ("top_p", float(p))) };
+      case (null) {};
+    };
+
+    switch (request.stream) {
+      case (?s) { List.add(requestFields, ("stream", bool(s))) };
+      case (null) {};
+    };
+
+    switch (request.search_settings) {
+      case (?settings) {
+        List.add(requestFields, ("search_settings", searchSettingsToJson(settings)));
+      };
+      case (null) {};
+    };
+
+    Json.stringify(obj(List.toArray(requestFields)), null);
+  };
+
   /// Serialize ChatCompletionRequest to JSON string
   private func serializeChatCompletionRequest(request : ChatCompletionRequest) : Text {
     let messagesJson = arr(Array.map<ChatMessage, Json.Json>(request.messages, messageToJson));
@@ -565,6 +698,211 @@ module {
                 #err("Output field is not an array.");
               };
             };
+          };
+        };
+      };
+    };
+  };
+
+  /// Parse search results from executed tools
+  private func parseSearchResults(searchResultsJson : Json.Json) : [SearchResult] {
+    // search_results is an object with a "results" field containing the array
+    let resultsArrayOpt = Json.get(searchResultsJson, "results");
+    switch (resultsArrayOpt) {
+      case (?#array(results)) {
+        let searchResults = List.empty<SearchResult>();
+        for (resultJson in results.vals()) {
+          let titleOpt = switch (Json.get(resultJson, "title")) {
+            case (?#string(t)) { ?t };
+            case (_) { null };
+          };
+          let urlOpt = switch (Json.get(resultJson, "url")) {
+            case (?#string(u)) { ?u };
+            case (_) { null };
+          };
+          let contentOpt = switch (Json.get(resultJson, "content")) {
+            case (?#string(c)) { ?c };
+            case (_) { null };
+          };
+          let scoreOpt = switch (Json.get(resultJson, "score")) {
+            case (?#number(#float(s))) { ?s };
+            case (?#number(#int(i))) { ?Float.fromInt(i) };
+            case (_) { null };
+          };
+
+          switch (titleOpt, urlOpt, contentOpt, scoreOpt) {
+            case (?title, ?url, ?content, ?score) {
+              List.add(searchResults, { title; url; content; relevance_score = score });
+            };
+            case (_) {};
+          };
+        };
+        List.toArray(searchResults);
+      };
+      case (_) { [] };
+    };
+  };
+
+  /// Parse executed tools from compound response
+  private func parseExecutedTools(executedToolsJson : Json.Json) : [ExecutedTool] {
+    switch (executedToolsJson) {
+      case (#array(tools)) {
+        let executedTools = List.empty<ExecutedTool>();
+        for (toolJson in tools.vals()) {
+          let toolTypeOpt = switch (Json.get(toolJson, "type")) {
+            case (?#string(t)) { ?t };
+            case (_) { null };
+          };
+
+          switch (toolTypeOpt) {
+            case (?toolType) {
+              if (toolType == "search") {
+                // Parse search results
+                let searchResultsOpt = switch (Json.get(toolJson, "search_results")) {
+                  case (?results) { ?parseSearchResults(results) };
+                  case (null) { null };
+                };
+                List.add(
+                  executedTools,
+                  {
+                    tool_type = toolType;
+                    search_results = searchResultsOpt;
+                    visited_url = null;
+                    content = null;
+                  },
+                );
+              } else if (toolType == "visit") {
+                // Parse visited URL and content
+                let urlOpt = switch (Json.get(toolJson, "url")) {
+                  case (?#string(u)) { ?u };
+                  case (_) { null };
+                };
+                let contentOpt = switch (Json.get(toolJson, "content")) {
+                  case (?#string(c)) { ?c };
+                  case (_) { null };
+                };
+                List.add(
+                  executedTools,
+                  {
+                    tool_type = toolType;
+                    search_results = null;
+                    visited_url = urlOpt;
+                    content = contentOpt;
+                  },
+                );
+              };
+            };
+            case (null) {};
+          };
+        };
+        List.toArray(executedTools);
+      };
+      case (_) { [] };
+    };
+  };
+
+  /// Parse compound response with reasoning and executed tools
+  private func parseCompoundResponse(responseBody : Text) : {
+    #ok : CompoundChatCompletionResponse;
+    #err : Text;
+  } {
+    switch (Json.parse(responseBody)) {
+      case (#err(error)) {
+        #err("Failed to parse JSON response: " # debug_show error # ".");
+      };
+      case (#ok(json)) {
+        // Extract basic response fields
+        let idOpt = switch (Json.get(json, "id")) {
+          case (?#string(id)) { ?id };
+          case (_) { null };
+        };
+        let createdOpt = switch (Json.get(json, "created")) {
+          case (?#number(#int(c))) { ?c };
+          case (?#number(#float(f))) { ?Float.toInt(f) };
+          case (_) { null };
+        };
+        let modelOpt = switch (Json.get(json, "model")) {
+          case (?#string(m)) { ?m };
+          case (_) { null };
+        };
+
+        // Extract choices array
+        switch (Json.get(json, "choices")) {
+          case (?#array(choicesArray)) {
+            let choices = List.empty<CompoundChatChoice>();
+            for (choiceJson in choicesArray.vals()) {
+              let indexOpt = switch (Json.get(choiceJson, "index")) {
+                case (?#number(#int(i))) { ?i };
+                case (?#number(#float(f))) { ?Float.toInt(f) };
+                case (_) { null };
+              };
+              let finishReasonOpt = switch (Json.get(choiceJson, "finish_reason")) {
+                case (?#string(fr)) { ?fr };
+                case (_) { null };
+              };
+
+              // Extract message
+              switch (Json.get(choiceJson, "message")) {
+                case (?messageJson) {
+                  let roleOpt = switch (Json.get(messageJson, "role")) {
+                    case (?#string("assistant")) { ?#assistant };
+                    case (?#string("user")) { ?#user };
+                    case (?#string("developer")) { ?#developer };
+                    case (_) { null };
+                  };
+                  let contentOpt = switch (Json.get(messageJson, "content")) {
+                    case (?#string(c)) { ?c };
+                    case (_) { null };
+                  };
+                  let reasoningOpt = switch (Json.get(messageJson, "reasoning")) {
+                    case (?#string(r)) { ?r };
+                    case (_) { null };
+                  };
+                  let executedToolsOpt = switch (Json.get(messageJson, "executed_tools")) {
+                    case (?tools) { ?parseExecutedTools(tools) };
+                    case (null) { null };
+                  };
+
+                  switch (indexOpt, roleOpt, contentOpt) {
+                    case (?index, ?role, ?content) {
+                      List.add(
+                        choices,
+                        {
+                          index = Int.abs(index);
+                          message = {
+                            role;
+                            content;
+                            reasoning = reasoningOpt;
+                            executed_tools = executedToolsOpt;
+                          };
+                          finish_reason = finishReasonOpt;
+                        },
+                      );
+                    };
+                    case (_) {};
+                  };
+                };
+                case (null) {};
+              };
+            };
+
+            switch (idOpt, createdOpt, modelOpt) {
+              case (?id, ?created, ?model) {
+                #ok({
+                  id;
+                  created = Int.abs(created);
+                  model;
+                  choices = List.toArray(choices);
+                  usage = null; // Could be parsed if needed
+                });
+              };
+              case (_) {
+                #err("Missing required fields in response.");
+              };
+            };
+          };
+          case (_) {
+            #err("Choices field is not an array.");
           };
         };
       };
@@ -813,5 +1151,119 @@ module {
     let messages : [ChatMessage] = [{ role = #user; content = userMessage }];
 
     await chatCompletion(apiKey, messages, model, null, null);
+  };
+
+  /// Private function for compound model chat completion with built-in tools
+  ///
+  /// Calls the Groq chat completions endpoint with the compound model (groq/compound or groq/compound-mini).
+  /// The compound model has access to built-in tools like web search and website visiting.
+  ///
+  /// Important limitations:
+  /// - Only ONE URL will be visited per request (if multiple URLs are provided, only the first is processed)
+  /// - Web search and website visiting are performed automatically by the model when needed
+  ///
+  /// @param apiKey - The Groq API key
+  /// @param messages - Array of chat messages
+  /// @param model - Model name (should be "groq/compound" or "groq/compound-mini")
+  /// @param temperature - Optional temperature setting (0.0-1.0)
+  /// @param maxTokens - Optional maximum tokens in response
+  /// @param searchSettings - Optional search settings for web search (exclude/include domains, country)
+  /// @returns Result with compound response including content, reasoning, and executed tools, or error message
+  private func compound(
+    apiKey : Text,
+    messages : [ChatMessage],
+    model : Text,
+    temperature : ?Float,
+    maxTokens : ?Nat,
+    searchSettings : ?SearchSettings,
+  ) : async {
+    #ok : CompoundChatCompletionResponse;
+    #err : Text;
+  } {
+    let request : CompoundChatCompletionRequest = {
+      model;
+      messages;
+      temperature;
+      max_tokens = maxTokens;
+      top_p = null;
+      stream = ?false;
+      search_settings = searchSettings;
+    };
+
+    let requestBody = serializeCompoundChatCompletionRequest(request);
+    let url = GROQ_API_BASE_URL # "/chat/completions";
+
+    let headers : [HttpWrapper.HttpHeader] = [
+      { name = "Authorization"; value = "Bearer " # apiKey },
+      { name = "Content-Type"; value = "application/json" },
+      { name = "Groq-Model-Version"; value = "latest" },
+    ];
+
+    let httpResult = await HttpWrapper.post(url, headers, requestBody);
+
+    switch (httpResult) {
+      case (#err(error)) {
+        #err("HTTP request failed: " # error # ".");
+      };
+      case (#ok((status, responseBody))) {
+        if (status == 200) {
+          parseCompoundResponse(responseBody);
+        } else {
+          #err("Groq API returned status " # Nat.toText(status) # ": " # responseBody # ".");
+        };
+      };
+    };
+  };
+
+  /// Use built-in tools with Groq compound model
+  ///
+  /// This function enables the use of Groq's compound model with built-in tools.
+  /// The tool parameter explicitly specifies which tool to use and its configuration:
+  ///
+  /// - #web_search: Searches the web with optional domain filtering and country boosting
+  ///   - searchSettings.exclude_domains: Domains to exclude (supports wildcards like *.com)
+  ///   - searchSettings.include_domains: Restrict search to specific domains
+  ///   - searchSettings.country: Boost results from a specific country (e.g., "us", "gb")
+  ///
+  /// - #visit_website: Visits and analyzes website content from URLs in the message
+  ///   - Important: Only ONE URL will be visited per request
+  ///   - If multiple URLs are provided, only the first is processed
+  ///
+  /// The response includes:
+  /// - content: The final synthesized answer from the model
+  /// - reasoning: The internal decision-making process (optional)
+  /// - executed_tools: Details about which tools were used (search results, visited URLs, etc.)
+  ///
+  /// @param apiKey - The Groq API key
+  /// @param userMessage - The user's message (may include URLs for website visiting)
+  /// @param tool - The built-in tool to use with its specific configuration
+  /// @returns Result with compound response or error message
+  public func useBuiltInTool(
+    apiKey : Text,
+    userMessage : Text,
+    tool : BuiltInTool,
+  ) : async {
+    #ok : CompoundChatCompletionResponse;
+    #err : Text;
+  } {
+    assert Text.trim(apiKey, #char ' ') != "";
+    assert Text.trim(userMessage, #char ' ') != "";
+
+    let messages : [ChatMessage] = [{ role = #user; content = userMessage }];
+
+    // Extract search settings based on tool type
+    let searchSettings = switch (tool) {
+      case (#web_search(config)) { config.searchSettings };
+      case (#visit_website) { null };
+    };
+
+    await compound(
+      apiKey,
+      messages,
+      "groq/compound", // Use the compound model
+      null, // temperature
+      null, // maxTokens
+      searchSettings,
+    );
   };
 };

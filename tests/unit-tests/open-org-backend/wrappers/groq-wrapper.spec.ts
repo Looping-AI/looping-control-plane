@@ -793,4 +793,423 @@ describe("Groq Wrapper Unit Tests", () => {
       }
     });
   });
+
+  describe("Built-In Tools (useBuiltInTool) Tests", () => {
+    it(
+      "should handle web search without search settings",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/built-in-web-search-basic",
+          () =>
+            testCanister.groqUseBuiltInTool(
+              TEST_API_KEY,
+              "What happened in AI last week?",
+              {
+                web_search: { searchSettings: [] },
+              },
+            ),
+          { ticks: 10 },
+        );
+
+        const response = await result;
+
+        if ("ok" in response) {
+          expect(response.ok.id).toBeDefined();
+          expect(response.ok.model).toBe("groq/compound");
+          expect(response.ok.choices.length).toBeGreaterThan(0);
+
+          const choice = response.ok.choices[0];
+          expect(choice.message.content.length).toBeGreaterThan(0);
+
+          // Should have executed tools
+          const executedTools = choice.message.executed_tools[0];
+          if (executedTools && executedTools.length > 0) {
+            const tool = executedTools[0];
+            if (tool && tool.tool_type === "search" && tool.search_results[0]) {
+              const searchResults = tool.search_results[0];
+              expect(searchResults.length).toBeGreaterThan(0);
+              const firstResult = searchResults[0];
+              if (firstResult) {
+                expect(firstResult.title).toBeDefined();
+                expect(firstResult.url).toBeDefined();
+                expect(firstResult.content).toBeDefined();
+                expect(firstResult.relevance_score).toBeGreaterThanOrEqual(0);
+                expect(firstResult.relevance_score).toBeLessThanOrEqual(1);
+              }
+            }
+          }
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
+        }
+      },
+      { timeout: 30000 },
+    );
+
+    it(
+      "should handle web search with exclude domains",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/built-in-web-search-exclude",
+          () =>
+            testCanister.groqUseBuiltInTool(
+              TEST_API_KEY,
+              "Tell me about the history of Bonsai trees in America",
+              {
+                web_search: {
+                  searchSettings: [
+                    {
+                      exclude_domains: [["wikipedia.org"]],
+                      include_domains: [],
+                      country: [],
+                    },
+                  ],
+                },
+              },
+            ),
+          { ticks: 10 },
+        );
+
+        const response = await result;
+
+        if ("ok" in response) {
+          expect(response.ok.choices.length).toBeGreaterThan(0);
+          const choice = response.ok.choices[0];
+          expect(choice.message.content).toContain("Bonsai");
+
+          // Verify wikipedia is not in results if executed_tools present
+          const executedTools = choice.message.executed_tools[0];
+          if (executedTools && executedTools.length > 0) {
+            const tool = executedTools[0];
+            if (tool && tool.tool_type === "search" && tool.search_results[0]) {
+              const searchResults = tool.search_results[0];
+              for (const result of searchResults) {
+                expect(result.url).not.toContain("wikipedia.org");
+              }
+            }
+          }
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
+        }
+      },
+      { timeout: 30000 },
+    );
+
+    it(
+      "should handle web search with include domains and wildcards",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/built-in-web-search-include",
+          () =>
+            testCanister.groqUseBuiltInTool(
+              TEST_API_KEY,
+              "Latest research on quantum computing",
+              {
+                web_search: {
+                  searchSettings: [
+                    {
+                      exclude_domains: [],
+                      include_domains: [["*.edu"]],
+                      country: [],
+                    },
+                  ],
+                },
+              },
+            ),
+          { ticks: 10 },
+        );
+
+        const response = await result;
+
+        if ("ok" in response) {
+          expect(response.ok.choices.length).toBeGreaterThan(0);
+          const choice = response.ok.choices[0];
+          expect(choice.message.content.length).toBeGreaterThan(0);
+
+          // Results should be from .edu domains if search was executed
+          const executedTools = choice.message.executed_tools[0];
+          if (executedTools && executedTools.length > 0) {
+            const tool = executedTools[0];
+            if (tool && tool.tool_type === "search" && tool.search_results[0]) {
+              const searchResults = tool.search_results[0];
+              if (searchResults.length > 0) {
+                const hasEduDomain = searchResults.some((result) =>
+                  result.url.includes(".edu"),
+                );
+                // At least some results should be from .edu domains
+                expect(hasEduDomain).toBe(true);
+              }
+            }
+          }
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
+        }
+      },
+      { timeout: 30000 },
+    );
+
+    it(
+      "should handle web search with country boost",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/built-in-web-search-country",
+          () =>
+            testCanister.groqUseBuiltInTool(
+              TEST_API_KEY,
+              "Best universities in the country",
+              {
+                web_search: {
+                  searchSettings: [
+                    {
+                      exclude_domains: [],
+                      include_domains: [],
+                      country: ["united kingdom"],
+                    },
+                  ],
+                },
+              },
+            ),
+          { ticks: 10 },
+        );
+
+        const response = await result;
+
+        if ("ok" in response) {
+          expect(response.ok.choices.length).toBeGreaterThan(0);
+          const choice = response.ok.choices[0];
+          // Should mention UK universities
+          const lowerContent = choice.message.content.toLowerCase();
+          const hasUKReference =
+            lowerContent.includes("uk") ||
+            lowerContent.includes("british") ||
+            lowerContent.includes("britain") ||
+            lowerContent.includes("oxford") ||
+            lowerContent.includes("cambridge");
+          expect(hasUKReference).toBe(true);
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
+        }
+      },
+      { timeout: 30000 },
+    );
+
+    it(
+      "should handle visit website with single URL",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/built-in-visit-website",
+          () =>
+            testCanister.groqUseBuiltInTool(
+              TEST_API_KEY,
+              "Summarize the key points of this page: https://groq.com/blog/inside-the-lpu-deconstructing-groq-speed",
+              { visit_website: null },
+            ),
+          { ticks: 10 },
+        );
+
+        const response = await result;
+
+        if ("ok" in response) {
+          expect(response.ok.choices.length).toBeGreaterThan(0);
+          const choice = response.ok.choices[0];
+          expect(choice.message.content.length).toBeGreaterThan(0);
+
+          // Should contain summary of the page
+          const lowerContent = choice.message.content.toLowerCase();
+          expect(
+            lowerContent.includes("lpu") || lowerContent.includes("groq"),
+          ).toBe(true);
+
+          // Should have executed visit tool
+          const executedTools = choice.message.executed_tools[0];
+          if (executedTools && executedTools.length > 0) {
+            const tool = executedTools[0];
+            if (tool && tool.tool_type === "visit") {
+              // The URL is in the arguments field, and content is in tool.content
+              const content = tool.content[0];
+              if (content) {
+                expect(content.length).toBeGreaterThan(0);
+                expect(content.toLowerCase()).toContain("lpu");
+              }
+            }
+          }
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
+        }
+      },
+      { timeout: 30000 },
+    );
+
+    it(
+      "should handle visit website with analysis request",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/built-in-visit-website-analyze",
+          () =>
+            testCanister.groqUseBuiltInTool(
+              TEST_API_KEY,
+              "What are the main features described on https://example.com?",
+              { visit_website: null },
+            ),
+          { ticks: 10 },
+        );
+
+        const response = await result;
+
+        if ("ok" in response) {
+          expect(response.ok.choices.length).toBeGreaterThan(0);
+          const choice = response.ok.choices[0];
+          expect(choice.message.content.length).toBeGreaterThan(0);
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
+        }
+      },
+      { timeout: 30000 },
+    );
+
+    it(
+      "should include reasoning in response when available",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/built-in-with-reasoning",
+          () =>
+            testCanister.groqUseBuiltInTool(
+              TEST_API_KEY,
+              "Compare the latest iPhone and Android flagship phones",
+              {
+                web_search: { searchSettings: [] },
+              },
+            ),
+          { ticks: 10 },
+        );
+
+        const response = await result;
+
+        if ("ok" in response) {
+          expect(response.ok.choices.length).toBeGreaterThan(0);
+          const choice = response.ok.choices[0];
+          expect(choice.message.content.length).toBeGreaterThan(0);
+
+          // Reasoning field may or may not be present
+          if (choice.message.reasoning && choice.message.reasoning.length > 0) {
+            const reasoning = choice.message.reasoning[0];
+            if (reasoning) {
+              expect(reasoning.length).toBeGreaterThan(0);
+            }
+          }
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
+        }
+      },
+      { timeout: 30000 },
+    );
+
+    it("should fail with empty API key", async () => {
+      try {
+        await testCanister.groqUseBuiltInTool("", "Test message", {
+          web_search: { searchSettings: [] },
+        });
+        expect(false).toBe(true); // Should not reach here
+      } catch (error) {
+        expect(error).toBeDefined();
+      }
+    });
+
+    it("should fail with whitespace-only API key", async () => {
+      try {
+        await testCanister.groqUseBuiltInTool("   ", "Test message", {
+          visit_website: null,
+        });
+        expect(false).toBe(true); // Should not reach here
+      } catch (error) {
+        expect(error).toBeDefined();
+      }
+    });
+
+    it("should fail with empty message", async () => {
+      try {
+        await testCanister.groqUseBuiltInTool(TEST_API_KEY, "", {
+          web_search: { searchSettings: [] },
+        });
+        expect(false).toBe(true); // Should not reach here
+      } catch (error) {
+        expect(error).toBeDefined();
+      }
+    });
+
+    it(
+      "should handle complex search settings combination",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/open-org-backend/wrappers/groq-wrapper/built-in-complex-settings",
+          () =>
+            testCanister.groqUseBuiltInTool(
+              TEST_API_KEY,
+              "Recent breakthroughs in AI research",
+              {
+                web_search: {
+                  searchSettings: [
+                    {
+                      exclude_domains: [["*.com"]],
+                      include_domains: [["*.edu", "*.org"]],
+                      country: ["united states"],
+                    },
+                  ],
+                },
+              },
+            ),
+          { ticks: 10 },
+        );
+
+        const response = await result;
+
+        if ("ok" in response) {
+          expect(response.ok.choices.length).toBeGreaterThan(0);
+          const choice = response.ok.choices[0];
+          expect(choice.message.content.length).toBeGreaterThan(0);
+
+          // Verify search results respect filters if present
+          const executedTools = choice.message.executed_tools[0];
+          if (executedTools && executedTools.length > 0) {
+            const tool = executedTools[0];
+            if (tool && tool.tool_type === "search" && tool.search_results[0]) {
+              const searchResults = tool.search_results[0];
+              for (const result of searchResults) {
+                // Should not be .com domains
+                expect(result.url).not.toMatch(/\.com(?:\/|$)/);
+                // Should be .edu or .org
+                expect(result.url).toMatch(/\.(edu|org)(?:\/|$)/);
+              }
+            }
+          }
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
+        }
+      },
+      { timeout: 30000 },
+    );
+  });
 });

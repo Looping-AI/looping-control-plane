@@ -645,6 +645,7 @@ describe("Value Streams API", () => {
       const updated = expectOk(result);
       expect(updated.plan.length).toBe(1);
       const plan = updated.plan[0];
+      if (!plan) throw new Error("Plan should exist");
       expect(plan.summary).toBe("Focus on content marketing and referrals");
       expect(plan.currentState).toBe("100 signups/month from direct traffic");
       expect(plan.targetState).toBe("150 signups/month from multiple channels");
@@ -709,7 +710,9 @@ describe("Value Streams API", () => {
 
       const updated = expectOk(result);
       expect(updated.plan.length).toBe(1);
-      expect(updated.plan[0].summary).toBe("Revised approach after learning");
+      const updatedPlan = updated.plan[0];
+      if (!updatedPlan) throw new Error("Plan should exist");
+      expect(updatedPlan.summary).toBe("Revised approach after learning");
 
       // Check history has both entries
       expect(updated.planHistory.length).toBe(2);
@@ -744,6 +747,7 @@ describe("Value Streams API", () => {
         "First",
       );
       const firstPlan = expectOk(result1).plan[0];
+      if (!firstPlan) throw new Error("First plan should exist");
       const initialCreatedAt = firstPlan.createdAt;
 
       // Update plan
@@ -754,6 +758,7 @@ describe("Value Streams API", () => {
         "Second",
       );
       const secondPlan = expectOk(result2).plan[0];
+      if (!secondPlan) throw new Error("Second plan should exist");
 
       // createdAt should be preserved
       expect(secondPlan.createdAt).toBe(initialCreatedAt);
@@ -805,7 +810,9 @@ describe("Value Streams API", () => {
 
       const updated = expectOk(result);
       expect(updated.plan.length).toBe(1);
-      expect(updated.plan[0].summary).toBe("");
+      const clearedPlan = updated.plan[0];
+      if (!clearedPlan) throw new Error("Cleared plan should exist");
+      expect(clearedPlan.summary).toBe("");
       expect(updated.planHistory.length).toBe(2);
     });
 
@@ -891,7 +898,9 @@ describe("Value Streams API", () => {
       const retrieved = expectOk(getResult);
 
       expect(retrieved.plan.length).toBe(1);
-      expect(retrieved.plan[0].summary).toBe("Test plan");
+      const retrievedPlan = retrieved.plan[0];
+      if (!retrievedPlan) throw new Error("Retrieved plan should exist");
+      expect(retrievedPlan.summary).toBe("Test plan");
       expect(retrieved.planHistory.length).toBe(1);
       expect(retrieved.planHistory[0].diff).toBe("Set via API");
     });
