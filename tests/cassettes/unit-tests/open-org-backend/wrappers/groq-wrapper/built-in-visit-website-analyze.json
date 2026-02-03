@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "name": "built-in-visit-website-analyze",
+  "recordedAt": "2026-02-03T11:38:52.578Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["Groq-Model-Version", "latest"]
+        ],
+        "body": "{\"model\":\"groq/compound\",\"messages\":[{\"role\":\"user\",\"content\":\"What are the main features described on https://example.com?\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9c81a4ff6a74e32c-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Tue, 03 Feb 2026 11:38:54 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "fra"],
+          ["x-ratelimit-limit-requests", "20000"],
+          ["x-ratelimit-limit-tokens", "200000"],
+          ["x-ratelimit-remaining-requests", "396"],
+          ["x-ratelimit-remaining-tokens", "199979"],
+          ["x-ratelimit-reset-requests", "23h31m29.28s"],
+          ["x-ratelimit-reset-tokens", "6ms"],
+          ["x-request-id", "req_01kghmrpy3empvfq5xxrk3s166"],
+          ["set-cookie", "[REDACTED]"]
+        ],
+        "body": "{\"id\":\"stub\",\"object\":\"chat.completion\",\"created\":1770118734,\"model\":\"groq/compound\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"**Answer**\\n\\nThe page at **https://example.com** does not list any product or service “features.”  \\nWhen the site is visited, the content is simply a placeholder that reads:\\n\\n```\\nExample Domain\\n\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\\n\\n[Learn more] (link to iana.org)\\n```\\n\\nBecause the page is intentionally minimal—a generic example domain used in documentation—it contains no description of features, capabilities, or functionalities. Therefore, there are **no main features** to report for this URL.\",\"reasoning\":\"\\nTo answer the question about the main features described on https://example.com, I first need to visit the webpage to gather information about its content.\\n\\n\\u003ctool\\u003e\\nvisit(https://example.com)\\n\\u003c/tool\\u003e\\n\\u003coutput\\u003eTitle: example.com\\nURL: https://example.com\\n\\n\\nURL: https://example.com\\n# Example Domain\\n\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\\n\\n【0†Learn more†iana.org】\\u003c/output\\u003e\\n\\n\\nThe main features described on https://example.com are not explicitly listed as the page seems to be a placeholder or example domain.\",\"executed_tools\":[{\"index\":0,\"type\":\"visit\",\"arguments\":\"{\\\"url\\\": \\\"https://example.com\\\"}\",\"output\":\"Title: example.com\\nURL: https://example.com\\n\\n\\nURL: https://example.com\\n# Example Domain\\n\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\\n\\n【0†Learn more†iana.org】\",\"search_results\":{\"results\":[]}}]},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.483698,\"prompt_tokens\":1647,\"prompt_time\":0.056601,\"completion_tokens\":270,\"completion_time\":0.603041,\"total_tokens\":1917,\"total_time\":0.659644},\"usage_breakdown\":{\"models\":[{\"model\":\"meta-llama/llama-4-scout-17b-16e-instruct\",\"usage\":{\"queue_time\":0.110974513,\"prompt_tokens\":120,\"prompt_time\":0.003649485,\"completion_tokens\":4,\"completion_time\":0.010296438,\"total_tokens\":124,\"total_time\":0.013945923}},{\"model\":\"meta-llama/llama-4-scout-17b-16e-instruct\",\"usage\":{\"queue_time\":0.075131457,\"prompt_tokens\":523,\"prompt_time\":0.016631236,\"completion_tokens\":68,\"completion_time\":0.173716412,\"total_tokens\":591,\"total_time\":0.190347648}},{\"model\":\"meta-llama/llama-4-scout-17b-16e-instruct\",\"usage\":{\"queue_time\":0.280402157,\"prompt_tokens\":623,\"prompt_time\":0.021027052,\"completion_tokens\":29,\"completion_time\":0.065751906,\"total_tokens\":652,\"total_time\":0.086778958}},{\"model\":\"openai/gpt-oss-120b\",\"usage\":{\"queue_time\":0.017189834,\"prompt_tokens\":381,\"prompt_time\":0.015294009,\"completion_tokens\":169,\"completion_time\":0.353277066,\"total_tokens\":550,\"total_time\":0.368571075,\"completion_tokens_details\":{\"reasoning_tokens\":47}}}]},\"x_groq\":{\"id\":\"stub\"},\"service_tier\":\"on_demand\"}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

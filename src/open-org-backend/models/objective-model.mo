@@ -19,6 +19,14 @@ module {
     #archived;
   };
 
+  /// Type of an objective indicating its role in the value stream
+  public type ObjectiveType = {
+    #target; // ideally only one per value stream, the best current definition of success
+    #contributing; // expected to strongly contribute to the target(s) objectives
+    #prerequisite; // they are "dependencies" that would block or seriously risk the success of target
+    #guardrail; // they should be closely monitored and ensured their levels are maintained
+  };
+
   /// Direction for count-based targets
   public type ObjectiveTargetDirection = {
     #increase;
@@ -33,8 +41,8 @@ module {
     #boolean : Bool;
   };
 
-  /// Author of a comment on an objective datapoint
-  public type ObjectiveDatapointCommentAuthor = {
+  /// Author of a comment on an objective (datapoint or impact review)
+  public type ObjectiveCommentAuthor = {
     #principal : Principal;
     #assistant : Text;
     #task : Text;
@@ -43,10 +51,26 @@ module {
   /// A comment attached to an objective datapoint
   public type ObjectiveDatapointComment = {
     timestamp : Int;
-    author : ObjectiveDatapointCommentAuthor;
+    author : ObjectiveCommentAuthor;
     message : Text;
   };
+  /// Perceived impact level for an impact review
+  public type PerceivedImpact = {
+    #negative;
+    #none;
+    #low;
+    #medium;
+    #high;
+    #unclear;
+  };
 
+  /// An impact review to assess whether an objective is still meaningful
+  public type ImpactReview = {
+    timestamp : Int;
+    author : ObjectiveCommentAuthor;
+    perceivedImpact : PerceivedImpact;
+    comment : ?Text;
+  };
   /// A computed datapoint for an objective
   public type ObjectiveDatapoint = {
     timestamp : Int;
@@ -60,29 +84,33 @@ module {
     id : Nat;
     name : Text;
     description : ?Text;
+    objectiveType : ObjectiveType;
     metricIds : [Nat];
     computation : Text; // TODO: to be improved with a proper way to run an eval function
     target : ObjectiveTarget;
     targetDate : ?Int;
     current : ?Float;
     history : List.List<ObjectiveDatapoint>; // Using List for O(1) prepend
+    impactReviews : List.List<ImpactReview>; // Using List for O(1) prepend
     status : ObjectiveStatus;
     createdAt : Int;
     updatedAt : Int;
   };
 
   /// Shareable version of Objective for canister API responses
-  /// Uses [ObjectiveDatapoint] instead of List.List for shared type compatibility
+  /// Uses [ObjectiveDatapoint] and [ImpactReview] instead of List.List for shared type compatibility
   public type ShareableObjective = {
     id : Nat;
     name : Text;
     description : ?Text;
+    objectiveType : ObjectiveType;
     metricIds : [Nat];
     computation : Text;
     target : ObjectiveTarget;
     targetDate : ?Int;
     current : ?Float;
     history : [ObjectiveDatapoint];
+    impactReviews : [ImpactReview];
     status : ObjectiveStatus;
     createdAt : Int;
     updatedAt : Int;
@@ -94,12 +122,14 @@ module {
       id = objective.id;
       name = objective.name;
       description = objective.description;
+      objectiveType = objective.objectiveType;
       metricIds = objective.metricIds;
       computation = objective.computation;
       target = objective.target;
       targetDate = objective.targetDate;
       current = objective.current;
       history = List.toArray(objective.history);
+      impactReviews = List.toArray(objective.impactReviews);
       status = objective.status;
       createdAt = objective.createdAt;
       updatedAt = objective.updatedAt;
@@ -110,6 +140,7 @@ module {
   public type ObjectiveInput = {
     name : Text;
     description : ?Text;
+    objectiveType : ObjectiveType;
     metricIds : [Nat];
     computation : Text;
     target : ObjectiveTarget;
@@ -223,12 +254,14 @@ module {
       id = nextId;
       name = input.name;
       description = input.description;
+      objectiveType = input.objectiveType;
       metricIds = input.metricIds;
       computation = input.computation;
       target = input.target;
       targetDate = input.targetDate;
       current = null;
       history = List.empty<ObjectiveDatapoint>();
+      impactReviews = List.empty<ImpactReview>();
       status = #active;
       createdAt = now;
       updatedAt = now;
@@ -304,6 +337,7 @@ module {
   /// @param objectiveId - The objective ID
   /// @param newName - Optional new name
   /// @param newDescription - Optional new description (use ?null to clear)
+  /// @param newObjectiveType - Optional new objective type
   /// @param newMetricIds - Optional new metric IDs
   /// @param newComputation - Optional new computation
   /// @param newTarget - Optional new target
@@ -317,6 +351,7 @@ module {
     objectiveId : Nat,
     newName : ?Text,
     newDescription : ??Text,
+    newObjectiveType : ?ObjectiveType,
     newMetricIds : ?[Nat],
     newComputation : ?Text,
     newTarget : ?ObjectiveTarget,
@@ -347,6 +382,10 @@ module {
         case (null) { o.description };
         case (?d) { d };
       };
+      objectiveType = switch (newObjectiveType) {
+        case (null) { o.objectiveType };
+        case (?ot) { ot };
+      };
       metricIds = switch (newMetricIds) {
         case (null) { o.metricIds };
         case (?m) { m };
@@ -365,6 +404,7 @@ module {
       };
       current = o.current;
       history = o.history;
+      impactReviews = o.impactReviews;
       status = switch (newStatus) {
         case (null) { o.status };
         case (?s) { s };
@@ -397,6 +437,7 @@ module {
       workspaceId,
       valueStreamId,
       objectiveId,
+      null,
       null,
       null,
       null,
@@ -453,12 +494,14 @@ module {
       id = o.id;
       name = o.name;
       description = o.description;
+      objectiveType = o.objectiveType;
       metricIds = o.metricIds;
       computation = o.computation;
       target = o.target;
       targetDate = o.targetDate;
       current = datapoint.value;
       history = o.history;
+      impactReviews = o.impactReviews;
       status = o.status;
       createdAt = o.createdAt;
       updatedAt = now;
@@ -558,6 +601,66 @@ module {
     switch (getObjective(objectivesMap, workspaceId, valueStreamId, objectiveId)) {
       case (#err(e)) { #err(e) };
       case (#ok(o)) { #ok(List.toArray(o.history)) };
+    };
+  };
+
+  // ============================================
+  // Impact Review Functions
+  // ============================================
+
+  /// Add an impact review to an objective
+  ///
+  /// @param objectivesMap - The full objectives map
+  /// @param workspaceId - The workspace ID
+  /// @param valueStreamId - The value stream ID
+  /// @param objectiveId - The objective ID
+  /// @param review - The impact review to add
+  /// @returns Result indicating success or error
+  public func addImpactReview(
+    objectivesMap : ObjectivesMap,
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    review : ImpactReview,
+  ) : Result.Result<(), Text> {
+    let workspaceMap = switch (Map.get(objectivesMap, Nat.compare, workspaceId)) {
+      case (null) { return #err("Workspace not found.") };
+      case (?wm) { wm };
+    };
+
+    let (_, objectives) = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
+      case (null) { return #err("Value stream not found.") };
+      case (?state) { state };
+    };
+
+    // O(1) lookup by ID
+    let o = switch (Map.get(objectives, Nat.compare, objectiveId)) {
+      case (null) { return #err("Objective not found.") };
+      case (?obj) { obj };
+    };
+
+    // Add review to the beginning of the list (O(1))
+    List.add(o.impactReviews, review);
+
+    #ok(());
+  };
+
+  /// Get impact reviews as an array (for read-only operations)
+  ///
+  /// @param objectivesMap - The full objectives map
+  /// @param workspaceId - The workspace ID
+  /// @param valueStreamId - The value stream ID
+  /// @param objectiveId - The objective ID
+  /// @returns Result with array of impact reviews or an error message
+  public func getImpactReviews(
+    objectivesMap : ObjectivesMap,
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : Result.Result<[ImpactReview], Text> {
+    switch (getObjective(objectivesMap, workspaceId, valueStreamId, objectiveId)) {
+      case (#err(e)) { #err(e) };
+      case (#ok(o)) { #ok(List.toArray(o.impactReviews)) };
     };
   };
 };

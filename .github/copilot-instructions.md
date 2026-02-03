@@ -52,6 +52,45 @@ RECORD_CASSETTES=true bun test tests/integration-tests/open-org-backend/workspac
 - All standard modules are available in `mo:core` (Array, Blob, Principal, Timer, Text, etc.)
 - If you encounter compatibility issues, check the module definitions in `.mops/core@{version}/src/` for the correct API
 
+## When to Request Feedback (CRITICAL)
+
+**STOP and REQUEST USER FEEDBACK** before proceeding in these situations:
+
+### Design Decision Blockers
+
+- **Feature removal or significant reduction in scope** (e.g., removing web search capability, disabling a planned feature)
+- **Architecture changes** that affect multiple files or core patterns
+- **API contract changes** that impact external integrations or user-facing behavior
+- **Performance trade-offs** where there are multiple valid approaches with different costs
+- **Security or privacy implications** (encryption, authentication, data access)
+
+### Technical Blockers
+
+- **Multiple solution paths exist** with unclear "best" choice
+- **External dependency limitations** (API doesn't support intended feature, library missing capability)
+- **Breaking changes required** to existing tests or production code
+- **Workarounds needed** that compromise original requirements
+
+### How to Request Feedback
+
+When you encounter a blocking decision:
+
+1. **Stop immediately** - do not implement a solution
+2. **Explain the situation**: What you discovered, why it's blocking progress
+3. **Present options**: List 2-3 alternatives with pros/cons for each
+4. **Recommend approach**: State your preference with reasoning
+5. **Wait for user decision** before coding
+
+**Example**:
+
+> "I discovered that Groq's Responses API doesn't support the built-in web search tool. I have three options:
+>
+> 1. **Remove web search** from planning (simplest, but loses key feature)
+> 2. **Integrate Compound API** (enables web search, but adds complexity)
+> 3. **Implement custom HTTP outcall** for search (full control, most work)
+>
+> I recommend option 2 (Compound API) since web search was a core requirement. Should I proceed with that approach?"
+
 ## Architectural Patterns
 
 ### Guard Rails vs Service Logic

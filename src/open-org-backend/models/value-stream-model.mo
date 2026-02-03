@@ -3,6 +3,8 @@ import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 import Time "mo:core/Time";
 import Iter "mo:core/Iter";
+import List "mo:core/List";
+import Principal "mo:core/Principal";
 
 module {
   // ============================================
@@ -17,6 +19,41 @@ module {
     #archived;
   };
 
+  /// A structured plan for achieving the value stream's goal
+  public type Plan = {
+    summary : Text;
+    currentState : Text;
+    targetState : Text;
+    steps : Text;
+    risks : Text;
+    resources : Text;
+    createdAt : Int;
+    updatedAt : Int;
+  };
+
+  /// Input for creating or updating a plan
+  public type PlanInput = {
+    summary : Text;
+    currentState : Text;
+    targetState : Text;
+    steps : Text;
+    risks : Text;
+    resources : Text;
+  };
+
+  /// Author of a plan change
+  public type PlanChangeAuthor = {
+    #principal : Principal;
+    #assistant : Text;
+  };
+
+  /// A record of a plan change
+  public type PlanChange = {
+    timestamp : Int;
+    changedBy : PlanChangeAuthor;
+    diff : Text;
+  };
+
   /// A value stream represents a problem-goal pair
   /// Note: Objectives are managed separately in ObjectiveModel
   public type ValueStream = {
@@ -26,8 +63,40 @@ module {
     problem : Text;
     goal : Text;
     status : ValueStreamStatus;
+    plan : ?Plan;
+    planHistory : List.List<PlanChange>;
     createdAt : Int;
     updatedAt : Int;
+  };
+
+  /// Shareable version of ValueStream for canister API responses
+  public type ShareableValueStream = {
+    id : Nat;
+    workspaceId : Nat;
+    name : Text;
+    problem : Text;
+    goal : Text;
+    status : ValueStreamStatus;
+    plan : ?Plan;
+    planHistory : [PlanChange];
+    createdAt : Int;
+    updatedAt : Int;
+  };
+
+  /// Convert a ValueStream to a ShareableValueStream
+  public func toShareable(valueStream : ValueStream) : ShareableValueStream {
+    {
+      id = valueStream.id;
+      workspaceId = valueStream.workspaceId;
+      name = valueStream.name;
+      problem = valueStream.problem;
+      goal = valueStream.goal;
+      status = valueStream.status;
+      plan = valueStream.plan;
+      planHistory = List.toArray(valueStream.planHistory);
+      createdAt = valueStream.createdAt;
+      updatedAt = valueStream.updatedAt;
+    };
   };
 
   /// Input for creating a new value stream
@@ -98,6 +167,8 @@ module {
       problem = input.problem;
       goal = input.goal;
       status = #draft;
+      plan = null;
+      planHistory = List.empty<PlanChange>();
       createdAt = now;
       updatedAt = now;
     };
@@ -175,6 +246,8 @@ module {
                 case (null) { existing.status };
                 case (?s) { s };
               };
+              plan = existing.plan;
+              planHistory = existing.planHistory;
               createdAt = existing.createdAt;
               updatedAt = now;
             };
@@ -225,6 +298,83 @@ module {
       case (null) { #err("Workspace not found.") };
       case (?(_, streamsMap)) {
         #ok(Iter.toArray(Map.values(streamsMap)));
+      };
+    };
+  };
+
+  // ============================================
+  // Plan Management
+  // ============================================
+
+  /// Set or update the plan for a value stream
+  /// Mutates the valueStream by replacing it in the map with updated version
+  ///
+  /// @param valueStreamsMap - The full value streams map
+  /// @param workspaceId - The workspace ID
+  /// @param valueStreamId - The value stream ID
+  /// @param input - The plan input
+  /// @param changedBy - Who made the change
+  /// @param diff - Description of what changed
+  /// @returns Result indicating success or error
+  public func setPlan(
+    valueStreamsMap : ValueStreamsMap,
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    input : PlanInput,
+    changedBy : PlanChangeAuthor,
+    diff : Text,
+  ) : Result.Result<(), Text> {
+    switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
+      case (null) { #err("Workspace not found.") };
+      case (?(_nextId, streamsMap)) {
+        switch (Map.get(streamsMap, Nat.compare, valueStreamId)) {
+          case (null) { #err("Value stream not found.") };
+          case (?existing) {
+            let now = Time.now();
+
+            // Create or update the plan
+            let newPlan : Plan = {
+              summary = input.summary;
+              currentState = input.currentState;
+              targetState = input.targetState;
+              steps = input.steps;
+              risks = input.risks;
+              resources = input.resources;
+              createdAt = switch (existing.plan) {
+                case (null) { now };
+                case (?p) { p.createdAt };
+              };
+              updatedAt = now;
+            };
+
+            // Create plan change record
+            let planChange : PlanChange = {
+              timestamp = now;
+              changedBy;
+              diff;
+            };
+
+            // Add to history (List.add mutates in place)
+            List.add(existing.planHistory, planChange);
+
+            // Update the value stream with new plan
+            let updated : ValueStream = {
+              id = existing.id;
+              workspaceId = existing.workspaceId;
+              name = existing.name;
+              problem = existing.problem;
+              goal = existing.goal;
+              status = existing.status;
+              plan = ?newPlan;
+              planHistory = existing.planHistory;
+              createdAt = existing.createdAt;
+              updatedAt = now;
+            };
+
+            Map.add(streamsMap, Nat.compare, valueStreamId, updated);
+            #ok(());
+          };
+        };
       };
     };
   };

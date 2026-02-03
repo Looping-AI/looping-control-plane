@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-1",
-  "recordedAt": "2026-01-28T13:56:30.915Z",
+  "recordedAt": "2026-02-03T22:34:45.181Z",
   "interactions": [
     {
       "request": {
@@ -23,24 +23,24 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c50fe5dfc2fc708-LIS"],
+          ["cf-ray", "9c8565c12bc04842-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 28 Jan 2026 13:56:31 GMT"],
+          ["date", "Tue, 03 Feb 2026 22:34:45 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
           ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "1000"],
-          ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "996"],
-          ["x-ratelimit-remaining-tokens", "7920"],
-          ["x-ratelimit-reset-requests", "5m45.6s"],
-          ["x-ratelimit-reset-tokens", "600ms"],
-          ["x-request-id", "req_01kg2e8dptenv9vf1w19c8sd4q"],
+          ["x-ratelimit-limit-requests", "500000"],
+          ["x-ratelimit-limit-tokens", "250000"],
+          ["x-ratelimit-remaining-requests", "233121"],
+          ["x-ratelimit-remaining-tokens", "249920"],
+          ["x-ratelimit-reset-requests", "12h48m36.691s"],
+          ["x-ratelimit-reset-tokens", "19ms"],
+          ["x-request-id", "req_01kgjt9n6kfzarprxn18h38vdq"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-98c14123-7a67-498b-98eb-bf1cc919453c\",\"object\":\"chat.completion\",\"created\":1769608591,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"User asks simple math question. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017466627,\"prompt_tokens\":79,\"prompt_time\":0.003682149,\"completion_tokens\":27,\"completion_time\":0.057860746,\"total_tokens\":106,\"total_time\":0.061542895,\"completion_tokens_details\":{\"reasoning_tokens\":10}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kg2e8dptenv9vf1w19c8sd4q\",\"seed\":1279673287},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-4be5c28b-fdcc-4eab-8e67-7ae89ab80ad0\",\"object\":\"chat.completion\",\"created\":1770158085,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"The user asks a simple math question: \\\"What is 2 + 2?\\\" The answer: 4. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.016761458,\"prompt_tokens\":79,\"prompt_time\":0.00297079,\"completion_tokens\":46,\"completion_time\":0.094705066,\"total_tokens\":125,\"total_time\":0.097675856,\"completion_tokens_details\":{\"reasoning_tokens\":27}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kgjt9n6kfzarprxn18h38vdq\",\"seed\":533094984},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

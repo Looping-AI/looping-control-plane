@@ -69,12 +69,14 @@ func unwrapObjective(r : Result.Result<ObjectiveModel.Objective, Text>) : Object
         id = 0;
         name = "";
         description = null;
+        objectiveType = #target;
         metricIds = [];
         computation = "";
         target = #boolean(false);
         targetDate = null;
         current = null;
         history = List.empty<ObjectiveModel.ObjectiveDatapoint>();
+        impactReviews = List.empty<ObjectiveModel.ImpactReview>();
         status = #active;
         createdAt = 0;
         updatedAt = 0;
@@ -101,6 +103,7 @@ func createValidObjectiveInput() : ObjectiveModel.ObjectiveInput {
   {
     name = "Test Objective";
     description = ?"Test description";
+    objectiveType = #target;
     metricIds = [0, 1];
     computation = "metric:0";
     target = #count({ target = 100.0; direction = #increase });
@@ -216,6 +219,7 @@ suite(
         let input : ObjectiveModel.ObjectiveInput = {
           name = "";
           description = null;
+          objectiveType = #target;
           metricIds = [0];
           computation = "metric:0";
           target = #boolean(true);
@@ -238,6 +242,7 @@ suite(
         let input : ObjectiveModel.ObjectiveInput = {
           name = "Test";
           description = null;
+          objectiveType = #target;
           metricIds = [];
           computation = "metric:0";
           target = #boolean(true);
@@ -260,6 +265,7 @@ suite(
         let input : ObjectiveModel.ObjectiveInput = {
           name = "Test";
           description = null;
+          objectiveType = #target;
           metricIds = [0];
           computation = "";
           target = #boolean(true);
@@ -373,6 +379,7 @@ suite(
           null,
           null,
           null,
+          null,
         );
 
         expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).isOk();
@@ -394,6 +401,7 @@ suite(
           0,
           0,
           0,
+          null,
           null,
           null,
           ?[5, 6, 7],
@@ -426,6 +434,7 @@ suite(
           null,
           null,
           null,
+          null,
           ?"metric:5 + metric:6",
           null,
           null,
@@ -451,6 +460,7 @@ suite(
           0,
           0,
           0,
+          null,
           null,
           null,
           null,
@@ -486,6 +496,7 @@ suite(
           null,
           null,
           null,
+          null,
         );
 
         expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
@@ -513,6 +524,7 @@ suite(
           null,
           null,
           null,
+          null,
         );
 
         expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
@@ -532,6 +544,7 @@ suite(
           0,
           0,
           ?"Name",
+          null,
           null,
           null,
           null,
@@ -1127,6 +1140,7 @@ suite(
         let input : ObjectiveModel.ObjectiveInput = {
           name = "Percentage Test";
           description = null;
+          objectiveType = #target;
           metricIds = [0];
           computation = "metric:0";
           target = #percentage({ target = 95.0 });
@@ -1153,6 +1167,7 @@ suite(
         let input : ObjectiveModel.ObjectiveInput = {
           name = "Count Test";
           description = null;
+          objectiveType = #target;
           metricIds = [0];
           computation = "metric:0";
           target = #count({ target = 1000.0; direction = #increase });
@@ -1180,6 +1195,7 @@ suite(
         let input : ObjectiveModel.ObjectiveInput = {
           name = "Threshold Test";
           description = null;
+          objectiveType = #target;
           metricIds = [0];
           computation = "metric:0";
           target = #threshold({ min = ?10.0; max = ?100.0 });
@@ -1213,6 +1229,7 @@ suite(
         let input : ObjectiveModel.ObjectiveInput = {
           name = "Boolean Test";
           description = null;
+          objectiveType = #target;
           metricIds = [0];
           computation = "metric:0";
           target = #boolean(true);

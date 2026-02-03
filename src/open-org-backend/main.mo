@@ -427,11 +427,26 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         if (Text.trim(message, #char ' ') == "") {
           return #err("Message cannot be empty.");
         };
+        // Extract workspace-specific data
+        let workspaceValueStreamsState = switch (Map.get(workspaceValueStreams, Nat.compare, workspaceId)) {
+          case (null) { return #err("Workspace value streams not found.") };
+          case (?state) { state };
+        };
+        let workspaceObjectivesMap = switch (Map.get(workspaceObjectives, Nat.compare, workspaceId)) {
+          case (null) { return #err("Workspace objectives not found.") };
+          case (?objMap) { objMap };
+        };
+
         // Delegate to orchestrator for business logic
         await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
           mcpToolRegistry,
           apiKeys,
           adminConversations,
+          workspaceValueStreamsState,
+          workspaceValueStreams,
+          workspaceObjectivesMap,
+          metricsRegistry,
+          metricDatapoints,
           workspaceId,
           message,
           keyCache,
@@ -722,7 +737,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     workspaceId : Nat,
     input : ValueStreamModel.ValueStreamInput,
   ) : async {
-    #ok : ValueStreamModel.ValueStream;
+    #ok : ValueStreamModel.ShareableValueStream;
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
@@ -731,7 +746,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         switch (ValueStreamModel.createValueStream(workspaceValueStreams, workspaceId, input)) {
           case (#err(msg)) { #err(msg) };
           case (#ok(id)) {
-            ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, id);
+            switch (ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, id)) {
+              case (#err(msg)) { #err(msg) };
+              case (#ok(vs)) { #ok(ValueStreamModel.toShareable(vs)) };
+            };
           };
         };
       };
@@ -743,26 +761,39 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     workspaceId : Nat,
     valueStreamId : Nat,
   ) : async {
-    #ok : ValueStreamModel.ValueStream;
+    #ok : ValueStreamModel.ShareableValueStream;
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+        switch (ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(vs)) { #ok(ValueStreamModel.toShareable(vs)) };
+        };
       };
     };
   };
 
   /// List all value streams in a workspace
   public shared ({ caller }) func listValueStreams(workspaceId : Nat) : async {
-    #ok : [ValueStreamModel.ValueStream];
+    #ok : [ValueStreamModel.ShareableValueStream];
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ValueStreamModel.listValueStreams(workspaceValueStreams, workspaceId);
+        switch (ValueStreamModel.listValueStreams(workspaceValueStreams, workspaceId)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(streams)) {
+            #ok(
+              Array.map<ValueStreamModel.ValueStream, ValueStreamModel.ShareableValueStream>(
+                streams,
+                ValueStreamModel.toShareable,
+              )
+            );
+          };
+        };
       };
     };
   };
@@ -776,7 +807,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     newGoal : ?Text,
     newStatus : ?ValueStreamModel.ValueStreamStatus,
   ) : async {
-    #ok : ValueStreamModel.ValueStream;
+    #ok : ValueStreamModel.ShareableValueStream;
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
@@ -785,7 +816,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         switch (ValueStreamModel.updateValueStream(workspaceValueStreams, workspaceId, valueStreamId, newName, newProblem, newGoal, newStatus)) {
           case (#err(msg)) { #err(msg) };
           case (#ok(())) {
-            ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+            switch (ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId)) {
+              case (#err(msg)) { #err(msg) };
+              case (#ok(vs)) { #ok(ValueStreamModel.toShareable(vs)) };
+            };
           };
         };
       };
@@ -806,6 +840,33 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Also delete objectives for this value stream
         ObjectiveModel.deleteValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
         ValueStreamModel.deleteValueStream(workspaceValueStreams, workspaceId, valueStreamId);
+      };
+    };
+  };
+
+  /// Set or update the plan for a value stream
+  public shared ({ caller }) func setValueStreamPlan(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    input : ValueStreamModel.PlanInput,
+    diff : Text,
+  ) : async {
+    #ok : ValueStreamModel.ShareableValueStream;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let author : ValueStreamModel.PlanChangeAuthor = #principal(caller);
+        switch (ValueStreamModel.setPlan(workspaceValueStreams, workspaceId, valueStreamId, input, author, diff)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(())) {
+            switch (ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId)) {
+              case (#err(msg)) { #err(msg) };
+              case (#ok(vs)) { #ok(ValueStreamModel.toShareable(vs)) };
+            };
+          };
+        };
       };
     };
   };
@@ -891,6 +952,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     objectiveId : Nat,
     newName : ?Text,
     newDescription : ??Text,
+    newObjectiveType : ?ObjectiveModel.ObjectiveType,
     newMetricIds : ?[Nat],
     newComputation : ?Text,
     newTarget : ?ObjectiveModel.ObjectiveTarget,
@@ -903,7 +965,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        switch (ObjectiveModel.updateObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId, newName, newDescription, newMetricIds, newComputation, newTarget, newTargetDate, newStatus)) {
+        switch (ObjectiveModel.updateObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId, newName, newDescription, newObjectiveType, newMetricIds, newComputation, newTarget, newTargetDate, newStatus)) {
           case (#err(msg)) { #err(msg) };
           case (#ok(())) {
             switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId)) {
@@ -983,6 +1045,41 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         ObjectiveModel.addCommentToHistoryDatapoint(workspaceObjectives, workspaceId, valueStreamId, objectiveId, historyIndex, comment);
+      };
+    };
+  };
+
+  /// Add an impact review to an objective
+  public shared ({ caller }) func addImpactReview(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+    review : ObjectiveModel.ImpactReview,
+  ) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.addImpactReview(workspaceObjectives, workspaceId, valueStreamId, objectiveId, review);
+      };
+    };
+  };
+
+  /// Get impact reviews for an objective
+  public shared query ({ caller }) func getImpactReviews(
+    workspaceId : Nat,
+    valueStreamId : Nat,
+    objectiveId : Nat,
+  ) : async {
+    #ok : [ObjectiveModel.ImpactReview];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        ObjectiveModel.getImpactReviews(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
       };
     };
   };

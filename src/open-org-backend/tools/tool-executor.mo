@@ -1,4 +1,3 @@
-import Array "mo:core/Array";
 import List "mo:core/List";
 import Error "mo:core/Error";
 import GroqWrapper "../wrappers/groq-wrapper";
@@ -21,13 +20,14 @@ module {
   /// Execute all tool calls from an LLM response
   /// Returns results for each call in the same order
   public func execute(
+    resources : ToolTypes.ToolResources,
     mcpRegistry : McpToolRegistry.McpToolRegistryState,
     toolCalls : [GroqWrapper.ToolCall],
   ) : async [ToolTypes.ToolResult] {
     let results = List.empty<ToolTypes.ToolResult>();
 
     for (call in toolCalls.vals()) {
-      let result = await executeOne(mcpRegistry, call);
+      let result = await executeOne(resources, mcpRegistry, call);
       List.add(results, result);
     };
 
@@ -36,11 +36,12 @@ module {
 
   /// Execute a single tool call
   private func executeOne(
+    resources : ToolTypes.ToolResources,
     mcpRegistry : McpToolRegistry.McpToolRegistryState,
     call : GroqWrapper.ToolCall,
   ) : async ToolTypes.ToolResult {
     // First, check function tools (static registry)
-    switch (FunctionToolRegistry.get(call.toolName)) {
+    switch (FunctionToolRegistry.get(resources, call.toolName)) {
       case (?tool) {
         try {
           let output = await tool.handler(call.arguments);
