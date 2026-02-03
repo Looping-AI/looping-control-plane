@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "correct-message-content",
-  "recordedAt": "2026-01-28T13:56:29.334Z",
+  "recordedAt": "2026-02-03T22:34:43.525Z",
   "interactions": [
     {
       "request": {
@@ -23,24 +23,24 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c50fe545d63c708-LIS"],
+          ["cf-ray", "9c8565b739924842-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 28 Jan 2026 13:56:29 GMT"],
+          ["date", "Tue, 03 Feb 2026 22:34:43 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
           ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "1000"],
-          ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "997"],
-          ["x-ratelimit-remaining-tokens", "7921"],
-          ["x-ratelimit-reset-requests", "4m19.2s"],
-          ["x-ratelimit-reset-tokens", "592ms"],
-          ["x-request-id", "req_01kg2e8c7qfys83djxcfs75b0b"],
+          ["x-ratelimit-limit-requests", "500000"],
+          ["x-ratelimit-limit-tokens", "250000"],
+          ["x-ratelimit-remaining-requests", "233113"],
+          ["x-ratelimit-remaining-tokens", "249921"],
+          ["x-ratelimit-reset-requests", "12h48m38.073s"],
+          ["x-ratelimit-reset-tokens", "18ms"],
+          ["x-request-id", "req_01kgjt9kn0fyttd6mcc4rcqjbf"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-f8603725-55c9-498a-ba5e-5df6fe1b61f8\",\"object\":\"chat.completion\",\"created\":1769608589,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Germany is **Berlin**.\",\"reasoning\":\"The user asks a straightforward factual question: \\\"What is the capital of Germany?\\\" The answer: Berlin. Provide short answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017670146,\"prompt_tokens\":78,\"prompt_time\":0.025905758,\"completion_tokens\":44,\"completion_time\":0.09365684,\"total_tokens\":122,\"total_time\":0.119562598,\"completion_tokens_details\":{\"reasoning_tokens\":26}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kg2e8c7qfys83djxcfs75b0b\",\"seed\":1979129662},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-1a23627a-c787-4a4c-91e9-4d92d8efe0cf\",\"object\":\"chat.completion\",\"created\":1770158083,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of Germany is **Berlin**.\",\"reasoning\":\"The user asks a simple factual question: \\\"What is the capital of Germany?\\\" The answer: Berlin. No policy issues. Provide concise answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.018135172,\"prompt_tokens\":78,\"prompt_time\":0.002860084,\"completion_tokens\":48,\"completion_time\":0.098856882,\"total_tokens\":126,\"total_time\":0.101716966,\"completion_tokens_details\":{\"reasoning_tokens\":30}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kgjt9kn0fyttd6mcc4rcqjbf\",\"seed\":984587610},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }
