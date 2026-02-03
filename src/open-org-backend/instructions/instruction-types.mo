@@ -17,5 +17,6 @@ module {
     #hasTools;
     #errorRecovery;
     #needsValueStreamSetup;
+    #needsPlanCreation;
   };
 };

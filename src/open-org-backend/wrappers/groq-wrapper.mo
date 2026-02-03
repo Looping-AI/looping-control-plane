@@ -82,7 +82,7 @@ module {
   public type SearchSettings = {
     exclude_domains : ?[Text]; // Domains to exclude from search (supports wildcards like *.com)
     include_domains : ?[Text]; // Restrict search to only these domains (supports wildcards)
-    country : ?Text; // Boost results from specific country (e.g., "us", "gb", "de")
+    country : ?Text; // Boost results from specific country. See full list: https://docs.tavily.com/documentation/api-reference/endpoint/search#body-country
   };
 
   /// Built-in tool selection with tool-specific configuration

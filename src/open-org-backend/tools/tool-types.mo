@@ -29,6 +29,9 @@ module {
     // Current workspace context
     workspaceId : ?Nat;
 
+    // Groq API key - required for web search and other Groq-powered tools
+    groqApiKey : ?Text;
+
     // Value Streams - if provided with write=true, save_value_stream tool is available
     valueStreams : ?{
       map : ValueStreamModel.ValueStreamsMap;

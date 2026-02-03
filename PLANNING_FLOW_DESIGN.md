@@ -71,9 +71,10 @@ case (#needsPlanCreation) {
    - Clarify desired outcomes and success criteria
 
 2. **Research Best Practices**:
-   - Use the `web_search` tool to research proven approaches for this type of problem
+   - You have web search capabilities - use them to research proven approaches for this type of problem
    - Look for 80/20 solutions: high impact with low effort
    - Find common pitfalls to avoid
+   - Visit specific websites or documentation when needed for deeper understanding
 
 3. **Propose Smart Plan**:
    - Focus on macro-level strategy (detailed sub-tasks will come later via 'strategies')
@@ -106,70 +107,53 @@ Work smarter, not harder. Focus on leverage and impact.";
 
 ```
 
-### 3. Web Search Tool
+### 3. Use Groq's Built-In Web Search
 
-**Location**: `tools/function-tool-registry.mo`
+**Implementation Strategy**: Instead of implementing a custom web search tool, we'll leverage **Groq's built-in web search capability** via the `compound` model.
 
-Add a `web_search` tool to enable research:
+**Location**: `services/groq-workspace-admin-service.mo`
+
+The planning flow will use Groq's `compound` model with built-in tools enabled. When the planning context is active, calls to Groq will automatically have web search capabilities without needing explicit tool definitions.
+
+**How it works**:
+
+- Use the compound model (`groq/compound`) for planning conversations
+- The LLM automatically decides when to search based on the conversation context
+- Search results are integrated directly into the LLM's response
+- The `CompoundChatCompletionResponse` includes:
+  - `reasoning`: The LLM's internal thought process
+  - `executed_tools`: Details about searches performed (queries, results, relevance scores)
+  - `content`: The synthesized answer incorporating search findings
+
+**Built-In Tool Types**:
 
 ```motoko
-/// Web search tool - uses HTTP outcall to search for best practices
-private func webSearchTool() : FunctionTool {
-  {
-    definition = {
-      tool_type = "function";
-      function = {
-        name = "web_search";
-        description = ?"Search the web for best practices, approaches, and information to inform planning decisions.";
-        parameters = ?"{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query\"},\"focus\":{\"type\":\"string\",\"description\":\"Optional. What to focus on (e.g., 'best practices', 'common mistakes', 'case studies', 'tools')\"}},\"required\":[\"query\"]}";
-      };
-    };
-    handler = func(args : Text) : async Text {
-      // Parse arguments
-      switch (Json.parse(args)) {
-        case (#err(error)) {
-          return buildErrorResponse("Failed to parse arguments: " # debug_show error);
-        };
-        case (#ok(json)) {
-          let queryOpt = switch (Json.get(json, "query")) {
-            case (?#string(s)) { ?s };
-            case (_) { null };
-          };
-
-          let focusOpt = switch (Json.get(json, "focus")) {
-            case (?#string(s)) { ?s };
-            case (_) { null };
-          };
-
-          switch (queryOpt) {
-            case (?query) {
-              // TODO: Implement actual web search via HTTP outcall
-              // For now, return placeholder that can be implemented later
-              let searchQuery = query # switch (focusOpt) {
-                case (?focus) { " " # focus };
-                case (null) { "" };
-              };
-
-              return "{\"success\":false,\"error\":\"Web search not yet implemented. Query was: " # searchQuery # "\"}";
-            };
-            case (null) {
-              return buildErrorResponse("Missing required field: query");
-            };
-          };
-        };
-      };
-    };
-  };
+public type BuiltInTool = {
+  #web_search : { searchSettings : ?SearchSettings }; // Web search with optional configuration
+  #visit_website; // Visit and analyze website content from a URL
 };
 
 ```
 
-**Note**: The actual web search implementation will require:
+**Optional Search Configuration**:
 
-- HTTP outcall to a search API (DuckDuckGo, Brave Search, or similar)
-- Parsing and summarizing results
-- Rate limiting and error handling
-- This can be implemented in a separate PR after the basic flow is working
+```motoko
+public type SearchSettings = {
+  exclude_domains : ?[Text]; // Exclude domains (supports wildcards like *.com)
+  include_domains : ?[Text]; // Restrict to specific domains
+  country : ?Text; // Boost results from specific country
+};
+
+```
+
+**Benefits**:
+
+- ✅ No need to implement custom HTTP outcall logic
+- ✅ No need to manage search API keys or quotas
+- ✅ LLM can intelligently decide when/what to search
+- ✅ Results are automatically integrated and synthesized
+- ✅ Built-in relevance scoring and ranking
+- ✅ Can also use `#visit_website` for deep diving into specific resources
 
 ### 4. Save Plan Tool
 
@@ -292,7 +276,7 @@ public func getAllDefinitions(resources : ToolTypes.ToolResources) : [GroqWrappe
 
   // Always available tools
   List.add(tools, echoTool().definition);
-  List.add(tools, webSearchTool().definition); // NEW - always available
+  // Note: Web search is handled by Groq's built-in compound model, not as a custom tool
 
   // Value stream tools (when write access provided)
   switch (resources.valueStreams) {
@@ -328,10 +312,6 @@ public func executeFunctionTool(
   switch (name) {
     case ("echo") {
       await echoTool().handler(args);
-    };
-    case ("web_search") {
-      // NEW
-      await webSearchTool().handler(args);
     };
     case ("save_value_stream") {
       // Existing implementation
@@ -387,7 +367,7 @@ AI: Great! Let me help you build a smart, effective plan. First, I'd like to und
 
 AI: Thanks! Let me research some proven approaches for API performance optimization...
 
-[AI uses web_search tool]
+[AI internally uses Groq's built-in web search to research the topic]
 
 Based on best practices and your constraints, here's what I found:
 - Caching is the #1 quick win (80% of the benefit)
@@ -515,11 +495,13 @@ Would you like to start working on the first phase, or set up objectives and met
 
 4. **Incomplete Plans**: Validate that all required fields are provided before saving
 
-5. **Web Search Quota**: When real search is implemented, add rate limiting and usage tracking
+5. **Web Search Usage**: Groq's compound model handles search automatically, but we should monitor token usage as searches increase context size
 
-6. **Assistant Identity**: Track which assistant (or which task) created/updated a plan via `PlanChangeAuthor`
+6. **Search Result Quality**: The LLM decides when/what to search - trust its judgment but provide good context in instructions
 
-7. **Context Window**: Keep plans concise to avoid bloating conversation context
+7. **Context Window**: Keep plans concise to avoid bloating conversation context (especially with search results) a plan via `PlanChangeAuthor`
+
+8. **Context Window**: Keep plans concise to avoid bloating conversation context
 
 ## Future Enhancements
 
@@ -533,13 +515,13 @@ Would you like to start working on the first phase, or set up objectives and met
 
 ## Open Questions
 
-1. **Web Search API Choice**: Which search API should we use? DuckDuckGo is free but limited. Brave Search has better features but costs money.
+1. **Search Settings**: Should we configure domain filters or country preferences for planning searches, or use defaults?
 
 2. **Plan Approval Flow**: Should we add a formal approval state for plans (draft → approved), or is implicit confirmation enough?
 
 3. **Plan Versioning**: Should we implement full version control with rollback, or is the change history sufficient?
 
-4. **AI Research Depth**: How many searches should the AI make? Should we limit to 2-3 searches per planning session?
+4. **Search Transparency**: Should we show users what searches the AI performed, or just present the synthesized plan?
 
 5. **Context Persistence**: Should planning conversations be preserved separately from regular admin conversations?
 
@@ -549,16 +531,18 @@ The planning flow is successful if:
 
 1. ✅ Users can create plans through natural conversation
 2. ✅ AI asks thoughtful clarifying questions
-3. ✅ AI can research best practices (even if stub initially)
-4. ✅ Plans emphasize high-impact, low-effort approaches
+3. ✅ AI leverages web search to research best practices and proven approaches
+4. ✅ Plans emphasize high-impact, low-effort approaches (80/20 principle)
 5. ✅ Users must explicitly confirm before saving
 6. ✅ Plans are stored with history and attribution
 7. ✅ Plans can be revised later
 8. ✅ Context detection works (shows planning guidance when needed)
+9. ✅ Groq compound model seamlessly integrates search results into responses
 
 ## References
 
 - Value Stream Model: [src/open-org-backend/models/value-stream-model.mo](src/open-org-backend/models/value-stream-model.mo)
 - Function Tool Registry: [src/open-org-backend/tools/function-tool-registry.mo](src/open-org-backend/tools/function-tool-registry.mo)
+- Groq Wrapper (Built-In Tools): [src/open-org-backend/wrappers/groq-wrapper.mo](src/open-org-backend/wrappers/groq-wrapper.mo)
 - Admin Service: [src/open-org-backend/services/groq-workspace-admin-service.mo](src/open-org-backend/services/groq-workspace-admin-service.mo)
 - Context Layer: [src/open-org-backend/instructions/layers/context-layer.mo](src/open-org-backend/instructions/layers/context-layer.mo)

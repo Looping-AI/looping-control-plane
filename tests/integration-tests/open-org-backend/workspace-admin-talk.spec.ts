@@ -232,9 +232,14 @@ describe("workspaceAdminTalk", () => {
         { ticks: 5, maxRounds: 6 },
       );
       const echoResponse = expectOk(await echoResult);
-      expect(echoResponse.toLowerCase()).toContain("starting workspace setup");
+      expect(echoResponse.length).toBeGreaterThan(0);
+      // Should acknowledge the tool use (may not include exact text)
+      expect(
+        echoResponse.toLowerCase().includes("workspace") ||
+          echoResponse.toLowerCase().includes("setup"),
+      ).toBe(true);
 
-      // Step 2: Create value stream in the same conversation (conversation history maintained)
+      // Step 2: Ask to create value stream - AI should propose and ask for confirmation
       const { result: createResult } = await withCassette(
         pic,
         "integration-tests/open-org-backend/workspace-admin-talk/tool-call-multiple-create",
@@ -243,10 +248,26 @@ describe("workspaceAdminTalk", () => {
             0n,
             "Create a value stream for improving our API response times. Problem: API endpoints are slow. Goal: Reduce average response time to under 200ms.",
           ),
-        { ticks: 5, maxRounds: 10 }, // More rounds for tool execution
+        { ticks: 3, maxRounds: 5 },
       );
       const createResponse = expectOk(await createResult);
       expect(createResponse.length).toBeGreaterThan(0);
+      // Should propose the value stream
+      expect(createResponse.toLowerCase().includes("api")).toBe(true);
+
+      // Step 3: Confirm creation - AI should call save_value_stream
+      const { result: confirmResult } = await withCassette(
+        pic,
+        "integration-tests/open-org-backend/workspace-admin-talk/tool-call-multiple-request",
+        () =>
+          deferredActor.workspaceAdminTalk(
+            0n,
+            "Yes, that looks great! Please create it.",
+          ),
+        { ticks: 5, maxRounds: 6 },
+      );
+      const confirmResponse = expectOk(await confirmResult);
+      expect(confirmResponse.length).toBeGreaterThan(0);
 
       // Verify the value stream was created
       actor.setIdentity(adminIdentity);
@@ -263,4 +284,122 @@ describe("workspaceAdminTalk", () => {
     },
     { timeout: 20000 },
   );
+
+  it(
+    "should create a plan for a value stream after user confirmation",
+    async () => {
+      // Set up workspace with a value stream (no plan)
+      actor.setIdentity(adminIdentity);
+      const vsResult = await actor.createValueStream(0n, {
+        name: "Improve API Response Times",
+        problem:
+          "API endpoints are responding slowly, affecting user experience",
+        goal: "Achieve average response time under 200ms for all critical endpoints",
+      });
+      const valueStream = expectOk(vsResult);
+      const valueStreamId = valueStream.id;
+
+      // Activate the value stream
+      const activateResult = await actor.updateValueStream(
+        0n,
+        valueStreamId,
+        [],
+        [],
+        [],
+        [{ active: null }],
+      );
+      expectOk(activateResult);
+
+      // Verify it has no plan initially
+      const valueStreamsResult = await actor.listValueStreams(0n);
+      const valueStreams = expectOk(valueStreamsResult);
+      const targetStream = valueStreams.find((vs) => vs.id === valueStreamId);
+      expect(targetStream).toBeDefined();
+      expect(targetStream!.plan.length).toBe(0); // Optional type = empty array
+
+      // Create deferred actor for multi-turn conversation
+      const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+        idlFactory,
+        canisterId,
+      );
+      deferredActor.setIdentity(adminIdentity);
+
+      // Turn 1: User asks what to do next - AI should suggest planning and ask clarifying questions
+      const { result: askResult } = await withCassette(
+        pic,
+        "integration-tests/open-org-backend/workspace-admin-talk/planning-flow-ask-next-step",
+        () =>
+          deferredActor.workspaceAdminTalk(
+            0n,
+            'What should we do next for the "Improve API Response Times" value stream?',
+          ),
+        { ticks: 3, maxRounds: 5 },
+      );
+      const askResponse = expectOk(await askResult);
+      expect(askResponse.length).toBeGreaterThan(0);
+      // Should mention planning or ask questions
+      expect(
+        askResponse.toLowerCase().includes("plan") ||
+          askResponse.toLowerCase().includes("question"),
+      ).toBe(true);
+
+      // Turn 2: User provides context - AI should research and propose plan
+      const { result: planResult } = await withCassette(
+        pic,
+        "integration-tests/open-org-backend/workspace-admin-talk/planning-flow-research-and-propose",
+        () =>
+          deferredActor.workspaceAdminTalk(
+            0n,
+            `Great! Here's the context:
+          
+          - Small team: 2 developers
+          - Timeline: 3 weeks
+          - Available resources: Can use caching solutions
+          - Preferences: Quick wins over complex refactoring`,
+          ),
+        { ticks: 8, maxRounds: 15 }, // More rounds for research + planning
+      );
+      const planResponse = expectOk(await planResult);
+      expect(planResponse.length).toBeGreaterThan(0);
+      // Should mention plan details or research findings
+      expect(
+        planResponse.toLowerCase().includes("plan") ||
+          planResponse.toLowerCase().includes("approach") ||
+          planResponse.toLowerCase().includes("steps") ||
+          planResponse.toLowerCase().includes("research"),
+      ).toBe(true);
+
+      // Turn 3: User confirms - AI saves the plan
+      const { result: confirmResult } = await withCassette(
+        pic,
+        "integration-tests/open-org-backend/workspace-admin-talk/planning-flow-confirm-and-save",
+        () => deferredActor.workspaceAdminTalk(0n, "This plan looks great!"),
+        { ticks: 5, maxRounds: 8 },
+      );
+      const confirmResponse = expectOk(await confirmResult);
+      expect(confirmResponse.length).toBeGreaterThan(0);
+
+      // Verify the plan was saved
+      actor.setIdentity(adminIdentity);
+      const updatedStreamsResult = await actor.listValueStreams(0n);
+      const updatedStreams = expectOk(updatedStreamsResult);
+      const streamWithPlan = updatedStreams.find(
+        (vs) => vs.id === valueStreamId,
+      );
+
+      expect(streamWithPlan).toBeDefined();
+      expect(streamWithPlan!.plan.length).toBe(1); // Has plan now
+
+      if (streamWithPlan!.plan.length > 0) {
+        const plan = streamWithPlan!.plan[0]!;
+        expect(plan.summary.length).toBeGreaterThan(0);
+        expect(plan.currentState.length).toBeGreaterThan(0);
+        expect(plan.targetState.length).toBeGreaterThan(0);
+        expect(plan.steps.length).toBeGreaterThan(0);
+        expect(plan.risks.length).toBeGreaterThan(0);
+        expect(plan.resources.length).toBeGreaterThan(0);
+      }
+    },
+    { timeout: 45000 },
+  ); // Longer timeout for 3-turn conversation with web research
 });

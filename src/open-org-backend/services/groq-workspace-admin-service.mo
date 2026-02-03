@@ -54,6 +54,7 @@ module {
     // Build tool resources - controls which tools are available
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = ?workspaceId;
+      groqApiKey = ?apiKey;
       valueStreams = ?{
         map = valueStreamsMap;
         write = true;
@@ -225,7 +226,11 @@ module {
             case (#paused) "paused";
             case (#archived) "archived";
           };
-          acc # "- [" # statusText # "] " # vs.name # "\n" #
+          let planStatus = switch (vs.plan) {
+            case (null) " [no plan]";
+            case (?p) " [has plan: " # p.summary # "]";
+          };
+          acc # "- [" # statusText # "] " # vs.name # " (ID: " # Nat.toText(vs.id) # ")" # planStatus # "\n" #
           "  Problem: " # vs.problem # "\n" #
           "  Goal: " # vs.goal # "\n";
         },
@@ -300,6 +305,16 @@ module {
 
     if (not hasActiveStream) {
       List.add(contextIds, #needsValueStreamSetup);
+    } else {
+      // Check if any active value stream needs a plan
+      let hasActiveStreamWithoutPlan = Array.any<ValueStreamModel.ValueStream>(
+        streams,
+        func(vs) { vs.status == #active and vs.plan == null },
+      );
+
+      if (hasActiveStreamWithoutPlan) {
+        List.add(contextIds, #needsPlanCreation);
+      };
     };
 
     // Compose instructions with appropriate context layers
