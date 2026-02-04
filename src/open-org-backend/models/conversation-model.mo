@@ -9,6 +9,8 @@ module {
     author : {
       #user;
       #agent;
+      #tool_call;
+      #tool_response;
     };
     content : Text;
     timestamp : Int;

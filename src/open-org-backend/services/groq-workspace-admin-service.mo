@@ -39,7 +39,7 @@ module {
     message : Text,
     apiKey : Text,
   ) : async {
-    #ok : Text;
+    #ok : [ConversationModel.Message];
     #err : Text;
   } {
     // Build instructions with workspace-specific context
@@ -68,11 +68,22 @@ module {
     let allTools = Array.concat(functionToolDefs, mcpToolDefs);
     let toolsOpt : ?[GroqWrapper.Tool] = if (allTools.size() == 0) null else ?allTools;
 
+    // Track messages added during this conversation turn
+    var newMessages = List.empty<ConversationModel.Message>();
+
+    // Store user message in conversation history
+    ConversationModel.addMessageToAdminConversation(
+      adminConversations,
+      workspaceId,
+      {
+        author = #user;
+        content = message;
+        timestamp = Time.now();
+      },
+    );
+
     // Load conversation history (bounded to last 30 messages) and convert to input format
     let inputMessages = loadConversationHistory(adminConversations, workspaceId);
-
-    // Add the new user message
-    List.add(inputMessages, { role = #user; content = message });
     var iteration = 0;
 
     loop {
@@ -88,52 +99,72 @@ module {
 
       switch (groqResult) {
         case (#ok(#textResponse(response))) {
-          // Final response - store conversation and return
+          let agentMessage : ConversationModel.Message = {
+            author = #agent;
+            content = response;
+            timestamp = Time.now();
+          };
           ConversationModel.addMessageToAdminConversation(
             adminConversations,
             workspaceId,
-            {
-              author = #user;
-              content = message;
-              timestamp = Time.now();
-            },
+            agentMessage,
           );
+          List.add(newMessages, agentMessage);
 
-          ConversationModel.addMessageToAdminConversation(
-            adminConversations,
-            workspaceId,
-            {
-              author = #agent;
-              content = response;
-              timestamp = Time.now();
-            },
-          );
-
-          return #ok(response);
+          return #ok(List.toArray(newMessages));
         };
 
         case (#ok(#toolCalls(calls))) {
-          // Execute tool calls
-          let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
+          // Format tool call message
+          let toolCallContent = "Using tools: " # Array.foldLeft<GroqWrapper.ToolCall, Text>(
+            calls,
+            "",
+            func(acc, call) {
+              if (acc == "") call.toolName else acc # ", " # call.toolName;
+            },
+          );
 
           // Add assistant message indicating tool calls were made
           List.add(
             inputMessages,
             {
               role = #assistant;
-              content = "Using tools: " # Array.foldLeft<GroqWrapper.ToolCall, Text>(
-                calls,
-                "",
-                func(acc, call) {
-                  if (acc == "") call.toolName else acc # ", " # call.toolName;
-                },
-              );
+              content = toolCallContent;
             },
           );
+
+          // Store tool call message in conversation history
+          let toolCallMessage : ConversationModel.Message = {
+            author = #tool_call;
+            content = toolCallContent;
+            timestamp = Time.now();
+          };
+          ConversationModel.addMessageToAdminConversation(
+            adminConversations,
+            workspaceId,
+            toolCallMessage,
+          );
+          List.add(newMessages, toolCallMessage);
+
+          // Execute tool calls
+          let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
 
           // Add tool results as user message
           let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
           List.add(inputMessages, { role = #assistant; content = formattedResults });
+
+          // Store tool results in conversation history
+          let toolResponseMessage : ConversationModel.Message = {
+            author = #tool_response;
+            content = formattedResults;
+            timestamp = Time.now();
+          };
+          ConversationModel.addMessageToAdminConversation(
+            adminConversations,
+            workspaceId,
+            toolResponseMessage,
+          );
+          List.add(newMessages, toolResponseMessage);
 
           iteration += 1;
           if (iteration >= MAX_ITERATIONS) {
@@ -170,6 +201,7 @@ module {
     };
 
     // Convert bounded history to ResponseInputMessage format
+    // Include tool calls and responses to provide full context to LLM
     let inputMessages = List.empty<GroqWrapper.ResponseInputMessage>();
     var i = historyStartIndex;
     while (i < conversationArray.size()) {
@@ -177,6 +209,8 @@ module {
       let role : GroqWrapper.MessageRole = switch (msg.author) {
         case (#user) { #user };
         case (#agent) { #assistant };
+        case (#tool_call) { #assistant };
+        case (#tool_response) { #assistant };
       };
       List.add(inputMessages, { role; content = msg.content });
       i += 1;

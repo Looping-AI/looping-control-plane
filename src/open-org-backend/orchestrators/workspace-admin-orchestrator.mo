@@ -28,7 +28,7 @@ module {
     message : Text,
     keyCache : KeyDerivationService.KeyCache,
   ) : async {
-    #ok : Text;
+    #ok : [ConversationModel.Message];
     #err : Text;
   } {
     // Get api key (requires deriving encryption key for the workspace)

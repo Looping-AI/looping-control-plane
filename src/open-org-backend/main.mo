@@ -418,7 +418,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
 
   public shared ({ caller }) func workspaceAdminTalk(workspaceId : Nat, message : Text) : async {
-    #ok : Text;
+    #ok : [ConversationModel.Message];
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {

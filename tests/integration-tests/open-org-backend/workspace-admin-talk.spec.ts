@@ -124,11 +124,17 @@ describe("workspaceAdminTalk", () => {
         { ticks: 5, maxRounds: 3 },
       );
       const confirmationResponse = expectOk(await confirmationResult);
+      // Extract the final agent response
+      const agentMessage = confirmationResponse.find(
+        (msg) => "agent" in msg.author,
+      );
+      expect(agentMessage).toBeDefined();
+      const responseText = agentMessage!.content;
       // LLM should ask about the name or ask to confirm
       expect(
-        confirmationResponse.toLowerCase().includes("save") ||
-          confirmationResponse.toLowerCase().includes("confirm") ||
-          confirmationResponse.toLowerCase().includes("let me know"),
+        responseText.toLowerCase().includes("save") ||
+          responseText.toLowerCase().includes("confirm") ||
+          responseText.toLowerCase().includes("let me know"),
       ).toBe(true);
 
       // Value stream should not exist yet
@@ -233,10 +239,16 @@ describe("workspaceAdminTalk", () => {
       );
       const echoResponse = expectOk(await echoResult);
       expect(echoResponse.length).toBeGreaterThan(0);
+      // Extract the final agent response
+      const echoAgentMessage = echoResponse.find(
+        (msg) => "agent" in msg.author,
+      );
+      expect(echoAgentMessage).toBeDefined();
+      const echoText = echoAgentMessage!.content;
       // Should acknowledge the tool use (may not include exact text)
       expect(
-        echoResponse.toLowerCase().includes("workspace") ||
-          echoResponse.toLowerCase().includes("setup"),
+        echoText.toLowerCase().includes("workspace") ||
+          echoText.toLowerCase().includes("setup"),
       ).toBe(true);
 
       // Step 2: Ask to create value stream - AI should propose and ask for confirmation
@@ -252,8 +264,14 @@ describe("workspaceAdminTalk", () => {
       );
       const createResponse = expectOk(await createResult);
       expect(createResponse.length).toBeGreaterThan(0);
+      // Extract the final agent response
+      const createAgentMessage = createResponse.find(
+        (msg) => "agent" in msg.author,
+      );
+      expect(createAgentMessage).toBeDefined();
+      const createText = createAgentMessage!.content;
       // Should propose the value stream
-      expect(createResponse.toLowerCase().includes("api")).toBe(true);
+      expect(createText.toLowerCase().includes("api")).toBe(true);
 
       // Step 3: Confirm creation - AI should call save_value_stream
       const { result: confirmResult } = await withCassette(
@@ -337,10 +355,14 @@ describe("workspaceAdminTalk", () => {
       );
       const askResponse = expectOk(await askResult);
       expect(askResponse.length).toBeGreaterThan(0);
+      // Extract the final agent response
+      const askAgentMessage = askResponse.find((msg) => "agent" in msg.author);
+      expect(askAgentMessage).toBeDefined();
+      const askText = askAgentMessage!.content;
       // Should mention planning or ask questions
       expect(
-        askResponse.toLowerCase().includes("plan") ||
-          askResponse.toLowerCase().includes("question"),
+        askText.toLowerCase().includes("plan") ||
+          askText.toLowerCase().includes("question"),
       ).toBe(true);
 
       // Turn 2: User provides context - AI should research and propose plan
@@ -361,12 +383,18 @@ describe("workspaceAdminTalk", () => {
       );
       const planResponse = expectOk(await planResult);
       expect(planResponse.length).toBeGreaterThan(0);
+      // Extract the final agent response
+      const planAgentMessage = planResponse.find(
+        (msg) => "agent" in msg.author,
+      );
+      expect(planAgentMessage).toBeDefined();
+      const planText = planAgentMessage!.content;
       // Should mention plan details or research findings
       expect(
-        planResponse.toLowerCase().includes("plan") ||
-          planResponse.toLowerCase().includes("approach") ||
-          planResponse.toLowerCase().includes("steps") ||
-          planResponse.toLowerCase().includes("research"),
+        planText.toLowerCase().includes("plan") ||
+          planText.toLowerCase().includes("approach") ||
+          planText.toLowerCase().includes("steps") ||
+          planText.toLowerCase().includes("research"),
       ).toBe(true);
 
       // Turn 3: User confirms - AI saves the plan
