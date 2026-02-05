@@ -2,10 +2,10 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Iter "mo:core/Iter";
-import Array "mo:core/Array";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Time "mo:core/Time";
+import List "mo:core/List";
 
 module {
   // ============================================
@@ -62,8 +62,14 @@ module {
   /// Type alias for the metrics registry
   public type MetricsRegistry = Map.Map<Nat, MetricRegistration>;
 
-  /// Type alias for the metric datapoints store
-  public type MetricDatapointsStore = Map.Map<Nat, [MetricDatapoint]>;
+  /// Type alias for a time bucket (stores datapoints for a single day, sorted by timestamp)
+  public type TimeBucket = List.List<MetricDatapoint>;
+
+  /// Type alias for metric buckets (map from bucket key to time bucket)
+  public type MetricBuckets = Map.Map<Nat, TimeBucket>;
+
+  /// Type alias for the metric datapoints store (metricId -> buckets)
+  public type MetricDatapointsStore = Map.Map<Nat, MetricBuckets>;
 
   // ============================================
   // Registry Functions
@@ -76,7 +82,45 @@ module {
 
   /// Create an empty datapoints store
   public func emptyDatapoints() : MetricDatapointsStore {
-    Map.empty<Nat, [MetricDatapoint]>();
+    Map.empty<Nat, MetricBuckets>();
+  };
+
+  // ============================================
+  // Bucket Helpers
+  // ============================================
+
+  /// Calculate the bucket key for a given timestamp (days since epoch)
+  ///
+  /// @param timestamp - The timestamp in nanoseconds
+  /// @returns The bucket key (day number)
+  public func calculateBucketKey(timestamp : Int) : Nat {
+    Int.abs(timestamp / NANOS_PER_DAY);
+  };
+
+  /// Insert a datapoint into a sorted list (sorted by timestamp descending - newest first)
+  /// Adds the datapoint and re-sorts the list to maintain descending timestamp order
+  ///
+  /// @param list - The list to insert into
+  /// @param datapoint - The datapoint to insert
+  /// @returns The updated list with the datapoint inserted in sorted position
+  public func insertSorted(list : TimeBucket, datapoint : MetricDatapoint) : TimeBucket {
+    // Add the new datapoint
+    List.add(list, datapoint);
+
+    // Sort in-place by timestamp descending (newest first)
+    List.sortInPlace<MetricDatapoint>(
+      list,
+      func(a : MetricDatapoint, b : MetricDatapoint) : {
+        #less;
+        #equal;
+        #greater;
+      } {
+        if (a.timestamp > b.timestamp) { #less } // reverse order for descending
+        else if (a.timestamp < b.timestamp) { #greater } else { #equal };
+      },
+    );
+
+    list;
   };
 
   /// Register a new metric
@@ -207,14 +251,28 @@ module {
       source;
     };
 
-    let existingDatapoints = switch (Map.get(datapoints, Nat.compare, metricId)) {
-      case (null) { [] };
-      case (?dps) { dps };
+    // Get or create metric buckets
+    let buckets = switch (Map.get(datapoints, Nat.compare, metricId)) {
+      case (null) {
+        let newBuckets = Map.empty<Nat, TimeBucket>();
+        Map.add(datapoints, Nat.compare, metricId, newBuckets);
+        newBuckets;
+      };
+      case (?b) { b };
     };
 
-    // Append new datapoint
-    let updatedDatapoints = Array.concat(existingDatapoints, [datapoint]);
-    Map.add(datapoints, Nat.compare, metricId, updatedDatapoints);
+    // Calculate bucket key (day)
+    let bucketKey = calculateBucketKey(timestamp);
+
+    // Get or create time bucket for this day
+    let timeBucket = switch (Map.get(buckets, Nat.compare, bucketKey)) {
+      case (null) { List.empty<MetricDatapoint>() };
+      case (?tb) { tb };
+    };
+
+    // Insert datapoint in sorted position
+    let updatedBucket = insertSorted(timeBucket, datapoint);
+    Map.add(buckets, Nat.compare, bucketKey, updatedBucket);
 
     #ok(());
   };
@@ -230,17 +288,44 @@ module {
     metricId : Nat,
     since : ?Int,
   ) : [MetricDatapoint] {
-    let dps = switch (Map.get(datapoints, Nat.compare, metricId)) {
+    let buckets = switch (Map.get(datapoints, Nat.compare, metricId)) {
       case (null) { return [] };
-      case (?d) { d };
+      case (?b) { b };
     };
 
+    // Collect datapoints from all buckets
+    var allDatapoints = List.empty<MetricDatapoint>();
+
     switch (since) {
-      case (null) { dps };
+      case (null) {
+        // No filter - collect all datapoints from all buckets
+        for ((_, timeBucket) in Map.entries(buckets)) {
+          let bucketArray = List.toArray(timeBucket);
+          for (dp in bucketArray.vals()) {
+            List.add(allDatapoints, dp);
+          };
+        };
+      };
       case (?minTimestamp) {
-        Array.filter<MetricDatapoint>(dps, func(dp) { dp.timestamp >= minTimestamp });
+        // Filter by timestamp - only scan relevant buckets
+        let minBucketKey = calculateBucketKey(minTimestamp);
+
+        for ((bucketKey, timeBucket) in Map.entries(buckets)) {
+          // Skip buckets that are entirely before the filter
+          if (bucketKey >= minBucketKey) {
+            // For buckets at or after minBucketKey, filter datapoints
+            let bucketArray = List.toArray(timeBucket);
+            for (dp in bucketArray.vals()) {
+              if (dp.timestamp >= minTimestamp) {
+                List.add(allDatapoints, dp);
+              };
+            };
+          };
+        };
       };
     };
+
+    List.toArray(allDatapoints);
   };
 
   /// Get the latest datapoint for a metric
@@ -252,27 +337,35 @@ module {
     datapoints : MetricDatapointsStore,
     metricId : Nat,
   ) : ?MetricDatapoint {
-    let dps = switch (Map.get(datapoints, Nat.compare, metricId)) {
+    let buckets = switch (Map.get(datapoints, Nat.compare, metricId)) {
       case (null) { return null };
-      case (?d) { d };
+      case (?b) { b };
     };
 
-    if (Array.size(dps) == 0) {
-      return null;
-    };
+    // Find the bucket with the highest key (most recent day)
+    var maxBucketKey : ?Nat = null;
+    var latestBucket : ?TimeBucket = null;
 
-    // Find datapoint with maximum timestamp
-    var latest : ?MetricDatapoint = ?dps[0];
-    var maxTimestamp : Int = dps[0].timestamp;
-
-    for (dp in dps.vals()) {
-      if (dp.timestamp > maxTimestamp) {
-        maxTimestamp := dp.timestamp;
-        latest := ?dp;
+    for ((bucketKey, timeBucket) in Map.entries(buckets)) {
+      switch (maxBucketKey) {
+        case (null) {
+          maxBucketKey := ?bucketKey;
+          latestBucket := ?timeBucket;
+        };
+        case (?currentMax) {
+          if (bucketKey > currentMax) {
+            maxBucketKey := ?bucketKey;
+            latestBucket := ?timeBucket;
+          };
+        };
       };
     };
 
-    latest;
+    // Within the latest bucket, the first element is the newest (sorted descending)
+    switch (latestBucket) {
+      case (null) { null };
+      case (?tb) { List.first(tb) };
+    };
   };
 
   /// Count total datapoints across all metrics
@@ -281,8 +374,10 @@ module {
   /// @returns Total count of all datapoints
   public func totalDatapointsCount(datapoints : MetricDatapointsStore) : Nat {
     var total : Nat = 0;
-    for ((_, dps) in Map.entries(datapoints)) {
-      total += dps.size();
+    for ((_, buckets) in Map.entries(datapoints)) {
+      for ((_, timeBucket) in Map.entries(buckets)) {
+        total += List.size(timeBucket);
+      };
     };
     total;
   };
@@ -297,7 +392,8 @@ module {
     registry : MetricsRegistry,
   ) : MetricDatapointsStore {
     let now = Time.now();
-    label purgeLoop for ((metricId, dps) in Map.entries(datapoints)) {
+
+    for ((metricId, buckets) in Map.entries(datapoints)) {
       switch (Map.get(registry, Nat.compare, metricId)) {
         case (null) {
           // Metric was deleted, remove all datapoints
@@ -306,11 +402,41 @@ module {
         case (?reg) {
           let retentionNanos : Int = reg.retentionDays * NANOS_PER_DAY;
           let cutoffTimestamp : Int = now - retentionNanos;
-          let filtered = Array.filter<MetricDatapoint>(
-            dps,
-            func(dp) { dp.timestamp >= cutoffTimestamp },
-          );
-          Map.add(datapoints, Nat.compare, metricId, filtered);
+          let cutoffBucketKey = calculateBucketKey(cutoffTimestamp);
+
+          // Collect bucket keys to remove (buckets entirely before cutoff)
+          var bucketsToRemove = List.empty<Nat>();
+
+          for ((bucketKey, timeBucket) in Map.entries(buckets)) {
+            if (bucketKey < cutoffBucketKey) {
+              // Entire bucket is before cutoff - delete it
+              List.add(bucketsToRemove, bucketKey);
+            } else if (bucketKey == cutoffBucketKey) {
+              // Boundary bucket - filter datapoints within it
+              var filteredBucket = List.empty<MetricDatapoint>();
+              let bucketArray = List.toArray(timeBucket);
+
+              for (dp in bucketArray.vals()) {
+                if (dp.timestamp >= cutoffTimestamp) {
+                  List.add(filteredBucket, dp);
+                };
+              };
+
+              // Update or remove bucket
+              if (List.isEmpty(filteredBucket)) {
+                List.add(bucketsToRemove, bucketKey);
+              } else {
+                Map.add(buckets, Nat.compare, bucketKey, filteredBucket);
+              };
+            };
+            // Buckets after cutoffBucketKey are kept as-is
+          };
+
+          // Remove old buckets
+          let toRemoveArray = List.toArray(bucketsToRemove);
+          for (bucketKey in toRemoveArray.vals()) {
+            Map.remove(buckets, Nat.compare, bucketKey);
+          };
         };
       };
     };
