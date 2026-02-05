@@ -247,8 +247,7 @@ module {
     };
 
     // Add value streams for this workspace
-    let (_, valueStreamsMap) = workspaceValueStreamsState;
-    let streams = Iter.toArray(Map.values(valueStreamsMap));
+    let streams = Iter.toArray(Map.values(workspaceValueStreamsState.valueStreams));
     if (streams.size() > 0) {
       let streamsText = Array.foldLeft<ValueStreamModel.ValueStream, Text>(
         streams,
@@ -276,8 +275,8 @@ module {
     var objectivesText = "Objectives:\n";
     var hasObjectives = false;
 
-    for ((vsId, (_, valueStreamObjMap)) in Map.entries(workspaceObjectivesMap)) {
-      let objectives = Iter.toArray(Map.values(valueStreamObjMap));
+    for ((vsId, vsObjectivesState) in Map.entries(workspaceObjectivesMap)) {
+      let objectives = Iter.toArray(Map.values(vsObjectivesState.objectives));
       if (objectives.size() > 0) {
         hasObjectives := true;
         for (obj in objectives.vals()) {
@@ -330,8 +329,7 @@ module {
     var contextIds : List.List<InstructionTypes.ContextId> = List.empty();
 
     // Check if workspace needs value stream setup
-    let (_, valueStreamsMap) = workspaceValueStreamsState;
-    let streams = Iter.toArray(Map.values(valueStreamsMap));
+    let streams = Iter.toArray(Map.values(workspaceValueStreamsState.valueStreams));
     let hasActiveStream = Array.any<ValueStreamModel.ValueStream>(
       streams,
       func(vs) { vs.status == #active },

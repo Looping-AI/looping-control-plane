@@ -106,9 +106,11 @@ module {
     goal : Text;
   };
 
-  /// Type alias for workspace value streams state
-  /// (nextValueStreamId, Map<valueStreamId, ValueStream>)
-  public type WorkspaceValueStreamsState = (Nat, Map.Map<Nat, ValueStream>);
+  /// Type alias for workspace value streams state with mutable nextId counter
+  public type WorkspaceValueStreamsState = {
+    var nextId : Nat;
+    valueStreams : Map.Map<Nat, ValueStream>;
+  };
 
   /// Type alias for the full value streams map
   public type ValueStreamsMap = Map.Map<Nat, WorkspaceValueStreamsState>;
@@ -119,7 +121,10 @@ module {
 
   /// Create an empty workspace value streams state
   public func emptyWorkspaceState() : WorkspaceValueStreamsState {
-    (0, Map.empty<Nat, ValueStream>());
+    {
+      var nextId = 0;
+      valueStreams = Map.empty<Nat, ValueStream>();
+    };
   };
 
   /// Create an empty value streams map
@@ -154,14 +159,19 @@ module {
     };
 
     // Get or create workspace state
-    let (nextId, streamsMap) = switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
-      case (null) { emptyWorkspaceState() };
+    let workspaceState = switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
+      case (null) {
+        let newState = emptyWorkspaceState();
+        Map.add(valueStreamsMap, Nat.compare, workspaceId, newState);
+        newState;
+      };
       case (?state) { state };
     };
 
+    let id = workspaceState.nextId;
     let now = Time.now();
     let valueStream : ValueStream = {
-      id = nextId;
+      id;
       workspaceId;
       name = input.name;
       problem = input.problem;
@@ -173,10 +183,10 @@ module {
       updatedAt = now;
     };
 
-    Map.add(streamsMap, Nat.compare, nextId, valueStream);
-    Map.add(valueStreamsMap, Nat.compare, workspaceId, (nextId + 1, streamsMap));
+    Map.add(workspaceState.valueStreams, Nat.compare, id, valueStream);
+    workspaceState.nextId += 1;
 
-    #ok(nextId);
+    #ok(id);
   };
 
   /// Get a value stream by ID
@@ -192,8 +202,8 @@ module {
   ) : Result.Result<ValueStream, Text> {
     switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
       case (null) { #err("Workspace not found.") };
-      case (?(_, streamsMap)) {
-        switch (Map.get(streamsMap, Nat.compare, valueStreamId)) {
+      case (?workspaceState) {
+        switch (Map.get(workspaceState.valueStreams, Nat.compare, valueStreamId)) {
           case (null) { #err("Value stream not found.") };
           case (?vs) { #ok(vs) };
         };
@@ -222,8 +232,8 @@ module {
   ) : Result.Result<(), Text> {
     switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
       case (null) { #err("Workspace not found.") };
-      case (?(_nextId, streamsMap)) {
-        switch (Map.get(streamsMap, Nat.compare, valueStreamId)) {
+      case (?workspaceState) {
+        switch (Map.get(workspaceState.valueStreams, Nat.compare, valueStreamId)) {
           case (null) { #err("Value stream not found.") };
           case (?existing) {
             let now = Time.now();
@@ -251,7 +261,7 @@ module {
               createdAt = existing.createdAt;
               updatedAt = now;
             };
-            Map.add(streamsMap, Nat.compare, valueStreamId, updated);
+            Map.add(workspaceState.valueStreams, Nat.compare, valueStreamId, updated);
             #ok(());
           };
         };
@@ -273,11 +283,11 @@ module {
   ) : Result.Result<(), Text> {
     switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
       case (null) { #err("Workspace not found.") };
-      case (?(_nextId, streamsMap)) {
-        switch (Map.get(streamsMap, Nat.compare, valueStreamId)) {
+      case (?workspaceState) {
+        switch (Map.get(workspaceState.valueStreams, Nat.compare, valueStreamId)) {
           case (null) { #err("Value stream not found.") };
           case (?_) {
-            Map.remove(streamsMap, Nat.compare, valueStreamId);
+            Map.remove(workspaceState.valueStreams, Nat.compare, valueStreamId);
             #ok(());
           };
         };
@@ -296,8 +306,8 @@ module {
   ) : Result.Result<[ValueStream], Text> {
     switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
       case (null) { #err("Workspace not found.") };
-      case (?(_, streamsMap)) {
-        #ok(Iter.toArray(Map.values(streamsMap)));
+      case (?workspaceState) {
+        #ok(Iter.toArray(Map.values(workspaceState.valueStreams)));
       };
     };
   };
@@ -326,8 +336,8 @@ module {
   ) : Result.Result<(), Text> {
     switch (Map.get(valueStreamsMap, Nat.compare, workspaceId)) {
       case (null) { #err("Workspace not found.") };
-      case (?(_nextId, streamsMap)) {
-        switch (Map.get(streamsMap, Nat.compare, valueStreamId)) {
+      case (?workspaceState) {
+        switch (Map.get(workspaceState.valueStreams, Nat.compare, valueStreamId)) {
           case (null) { #err("Value stream not found.") };
           case (?existing) {
             let now = Time.now();
@@ -371,7 +381,7 @@ module {
               updatedAt = now;
             };
 
-            Map.add(streamsMap, Nat.compare, valueStreamId, updated);
+            Map.add(workspaceState.valueStreams, Nat.compare, valueStreamId, updated);
             #ok(());
           };
         };

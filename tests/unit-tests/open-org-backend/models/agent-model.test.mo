@@ -1,5 +1,4 @@
 import { test; suite; expect } "mo:test";
-import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 import AgentModel "../../../../src/open-org-backend/models/agent-model";

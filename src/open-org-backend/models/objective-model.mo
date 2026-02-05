@@ -147,8 +147,11 @@ module {
     targetDate : ?Int;
   };
 
-  /// State for objectives within a value stream: (nextObjectiveId, objectives map)
-  public type ValueStreamObjectivesState = (Nat, Map.Map<Nat, Objective>);
+  /// State for objectives within a value stream
+  public type ValueStreamObjectivesState = {
+    var nextId : Nat;
+    objectives : Map.Map<Nat, Objective>;
+  };
 
   /// Map from valueStreamId to objectives state
   public type WorkspaceObjectivesMap = Map.Map<Nat, ValueStreamObjectivesState>;
@@ -172,7 +175,10 @@ module {
 
   /// Create an empty value stream objectives state
   public func emptyValueStreamObjectivesState() : ValueStreamObjectivesState {
-    (0, Map.empty<Nat, Objective>());
+    {
+      var nextId = 0;
+      objectives = Map.empty<Nat, Objective>();
+    };
   };
 
   /// Initialize objectives state for a new value stream
@@ -244,14 +250,14 @@ module {
       case (?wm) { wm };
     };
 
-    let (nextId, objectives) = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
+    let vsState = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
       case (null) { return #err("Value stream not found.") };
       case (?state) { state };
     };
 
     let now = Time.now();
     let objective : Objective = {
-      id = nextId;
+      id = vsState.nextId;
       name = input.name;
       description = input.description;
       objectiveType = input.objectiveType;
@@ -268,12 +274,13 @@ module {
     };
 
     // Add to the map (O(1))
-    Map.add(objectives, Nat.compare, nextId, objective);
+    Map.add(vsState.objectives, Nat.compare, vsState.nextId, objective);
 
-    // Update nextId counter
-    Map.add(workspaceMap, Nat.compare, valueStreamId, (nextId + 1, objectives));
+    // Increment nextId counter
+    let result = vsState.nextId;
+    vsState.nextId += 1;
 
-    #ok(nextId);
+    #ok(result);
   };
 
   /// Get an objective by ID
@@ -294,8 +301,8 @@ module {
       case (?workspaceMap) {
         switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
           case (null) { #err("Value stream not found.") };
-          case (?(_, objectives)) {
-            switch (Map.get(objectives, Nat.compare, objectiveId)) {
+          case (?vsState) {
+            switch (Map.get(vsState.objectives, Nat.compare, objectiveId)) {
               case (null) { #err("Objective not found.") };
               case (?o) { #ok(o) };
             };
@@ -321,8 +328,8 @@ module {
       case (?workspaceMap) {
         switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
           case (null) { #err("Value stream not found.") };
-          case (?(_, objectives)) {
-            #ok(Iter.toArray(Map.values(objectives)));
+          case (?vsState) {
+            #ok(Iter.toArray(Map.values(vsState.objectives)));
           };
         };
       };
@@ -363,13 +370,13 @@ module {
       case (?wm) { wm };
     };
 
-    let (_, objectives) = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
+    let vsState = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
       case (null) { return #err("Value stream not found.") };
       case (?state) { state };
     };
 
     // O(1) lookup by ID
-    let o = switch (Map.get(objectives, Nat.compare, objectiveId)) {
+    let o = switch (Map.get(vsState.objectives, Nat.compare, objectiveId)) {
       case (null) { return #err("Objective not found.") };
       case (?obj) { obj };
     };
@@ -414,7 +421,7 @@ module {
     };
 
     // O(1) update
-    Map.add(objectives, Nat.compare, objectiveId, updated);
+    Map.add(vsState.objectives, Nat.compare, objectiveId, updated);
 
     #ok(());
   };
@@ -468,13 +475,13 @@ module {
       case (?wm) { wm };
     };
 
-    let (_, objectives) = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
+    let vsState = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
       case (null) { return #err("Value stream not found.") };
       case (?state) { state };
     };
 
     // O(1) lookup by ID
-    let o = switch (Map.get(objectives, Nat.compare, objectiveId)) {
+    let o = switch (Map.get(vsState.objectives, Nat.compare, objectiveId)) {
       case (null) { return #err("Objective not found.") };
       case (?obj) { obj };
     };
@@ -508,7 +515,7 @@ module {
     };
 
     // O(1) update
-    Map.add(objectives, Nat.compare, objectiveId, updated);
+    Map.add(vsState.objectives, Nat.compare, objectiveId, updated);
 
     #ok(());
   };
@@ -552,13 +559,13 @@ module {
       case (?wm) { wm };
     };
 
-    let (_, objectives) = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
+    let vsState = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
       case (null) { return #err("Value stream not found.") };
       case (?state) { state };
     };
 
     // O(1) lookup by ID
-    let o = switch (Map.get(objectives, Nat.compare, objectiveId)) {
+    let o = switch (Map.get(vsState.objectives, Nat.compare, objectiveId)) {
       case (null) { return #err("Objective not found.") };
       case (?obj) { obj };
     };
@@ -628,13 +635,13 @@ module {
       case (?wm) { wm };
     };
 
-    let (_, objectives) = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
+    let vsState = switch (Map.get(workspaceMap, Nat.compare, valueStreamId)) {
       case (null) { return #err("Value stream not found.") };
       case (?state) { state };
     };
 
     // O(1) lookup by ID
-    let o = switch (Map.get(objectives, Nat.compare, objectiveId)) {
+    let o = switch (Map.get(vsState.objectives, Nat.compare, objectiveId)) {
       case (null) { return #err("Objective not found.") };
       case (?obj) { obj };
     };

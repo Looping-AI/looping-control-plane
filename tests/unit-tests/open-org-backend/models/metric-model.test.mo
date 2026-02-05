@@ -1,5 +1,4 @@
 import { test; suite; expect } "mo:test";
-import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
