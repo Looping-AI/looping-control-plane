@@ -22,7 +22,7 @@ module {
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistry,
+    metricsRegistry : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
     workspaceId : Nat,
     message : Text,

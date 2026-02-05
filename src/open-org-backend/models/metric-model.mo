@@ -59,8 +59,8 @@ module {
     retentionDays : Nat;
   };
 
-  /// Type alias for the metrics registry
-  public type MetricsRegistry = Map.Map<Nat, MetricRegistration>;
+  /// Type alias for the metrics registry state (nextMetricId, Map<metricId, MetricRegistration>)
+  public type MetricsRegistryState = (Nat, Map.Map<Nat, MetricRegistration>);
 
   /// Type alias for a time bucket (stores datapoints for a single day, sorted by timestamp)
   public type TimeBucket = List.List<MetricDatapoint>;
@@ -75,9 +75,9 @@ module {
   // Registry Functions
   // ============================================
 
-  /// Create an empty metrics registry
-  public func emptyRegistry() : MetricsRegistry {
-    Map.empty<Nat, MetricRegistration>();
+  /// Create an empty metrics registry state
+  public func emptyRegistry() : MetricsRegistryState {
+    (0, Map.empty<Nat, MetricRegistration>());
   };
 
   /// Create an empty datapoints store
@@ -125,30 +125,30 @@ module {
 
   /// Register a new metric
   ///
-  /// @param registry - The metrics registry
-  /// @param nextId - The next available metric ID
+  /// @param registryState - The metrics registry state (nextId, registry)
   /// @param input - The metric registration input
   /// @param caller - The principal registering the metric
   /// @param now - Current timestamp
-  /// @returns Result with new metric ID, and the updated nextId
+  /// @returns Result with new metric ID
   public func registerMetric(
-    registry : MetricsRegistry,
-    nextId : Nat,
+    registryState : MetricsRegistryState,
     input : MetricRegistrationInput,
     caller : Principal,
     now : Int,
-  ) : (Result.Result<Nat, Text>, Nat) {
+  ) : Result.Result<Nat, Text> {
+    let (nextId, registry) = registryState;
+
     // Validate name
     if (input.name == "") {
-      return (#err("Metric name cannot be empty."), nextId);
+      return #err("Metric name cannot be empty.");
     };
 
     // Validate retention days
     if (input.retentionDays < MIN_RETENTION_DAYS) {
-      return (#err("Retention days must be at least " # Nat.toText(MIN_RETENTION_DAYS) # "."), nextId);
+      return #err("Retention days must be at least " # Nat.toText(MIN_RETENTION_DAYS) # ".");
     };
     if (input.retentionDays > MAX_RETENTION_DAYS) {
-      return (#err("Retention days cannot exceed " # Nat.toText(MAX_RETENTION_DAYS) # "."), nextId);
+      return #err("Retention days cannot exceed " # Nat.toText(MAX_RETENTION_DAYS) # ".");
     };
 
     // Check for duplicate name
@@ -158,7 +158,7 @@ module {
     );
     switch (duplicate) {
       case (?_) {
-        return (#err("A metric with this name already exists."), nextId);
+        return #err("A metric with this name already exists.");
       };
       case (null) {};
     };
@@ -175,20 +175,21 @@ module {
     };
 
     Map.add(registry, Nat.compare, id, registration);
-    (#ok(id), nextId + 1);
+    #ok(id);
   };
 
   /// Unregister a metric (removes from registry and clears datapoints)
   ///
-  /// @param registry - The metrics registry
+  /// @param registryState - The metrics registry state (nextId, registry)
   /// @param datapoints - The datapoints store
   /// @param metricId - The metric ID to unregister
   /// @returns True if the metric was found and removed, false otherwise
   public func unregisterMetric(
-    registry : MetricsRegistry,
+    registryState : MetricsRegistryState,
     datapoints : MetricDatapointsStore,
     metricId : Nat,
   ) : Bool {
+    let (_, registry) = registryState;
     switch (Map.get(registry, Nat.compare, metricId)) {
       case (null) { false };
       case (?_) {
@@ -201,18 +202,20 @@ module {
 
   /// Get a metric registration by ID
   ///
-  /// @param registry - The metrics registry
+  /// @param registryState - The metrics registry state (nextId, registry)
   /// @param metricId - The metric ID
   /// @returns The metric registration if found
-  public func getMetric(registry : MetricsRegistry, metricId : Nat) : ?MetricRegistration {
+  public func getMetric(registryState : MetricsRegistryState, metricId : Nat) : ?MetricRegistration {
+    let (_, registry) = registryState;
     Map.get(registry, Nat.compare, metricId);
   };
 
   /// List all registered metrics
   ///
-  /// @param registry - The metrics registry
+  /// @param registryState - The metrics registry state (nextId, registry)
   /// @returns Array of all metric registrations
-  public func listMetrics(registry : MetricsRegistry) : [MetricRegistration] {
+  public func listMetrics(registryState : MetricsRegistryState) : [MetricRegistration] {
+    let (_, registry) = registryState;
     Iter.toArray(Map.values(registry));
   };
 
@@ -223,7 +226,7 @@ module {
   /// Record a new datapoint for a metric
   ///
   /// @param datapoints - The datapoints store
-  /// @param registry - The metrics registry (to validate metric exists)
+  /// @param registryState - The metrics registry state (to validate metric exists)
   /// @param metricId - The metric ID
   /// @param value - The value to record
   /// @param source - The source of the datapoint
@@ -231,12 +234,13 @@ module {
   /// @returns Result indicating success or error
   public func recordDatapoint(
     datapoints : MetricDatapointsStore,
-    registry : MetricsRegistry,
+    registryState : MetricsRegistryState,
     metricId : Nat,
     value : Float,
     source : MetricSource,
     timestamp : Int,
   ) : Result.Result<(), Text> {
+    let (_, registry) = registryState;
     // Validate metric exists
     switch (Map.get(registry, Nat.compare, metricId)) {
       case (null) {
@@ -386,12 +390,13 @@ module {
   /// Purge datapoints older than their metric's retention period
   ///
   /// @param datapoints - The datapoints store
-  /// @param registry - The metrics registry
+  /// @param registryState - The metrics registry state
   /// @returns Updated datapoints store (also mutates in place)
   public func purgeOldDatapoints(
     datapoints : MetricDatapointsStore,
-    registry : MetricsRegistry,
+    registryState : MetricsRegistryState,
   ) : MetricDatapointsStore {
+    let (_, registry) = registryState;
     let now = Time.now();
 
     for ((metricId, buckets) in Map.entries(datapoints)) {

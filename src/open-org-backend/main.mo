@@ -43,8 +43,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
   // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
-  var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions
-  var nextMetricId : Nat = 0;
+  var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
   var metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
   var workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
   var workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
@@ -584,9 +583,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        let (result, newNextId) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           metricsRegistry,
-          nextMetricId,
           input,
           caller,
           Time.now(),
@@ -594,7 +592,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         switch (result) {
           case (#err(msg)) { #err(msg) };
           case (#ok(id)) {
-            nextMetricId := newNextId;
+            // Update the tuple with incremented nextId
+            let (nextId, registry) = metricsRegistry;
+            metricsRegistry := (nextId + 1, registry);
+
             switch (MetricModel.getMetric(metricsRegistry, id)) {
               case (null) { #err("Failed to retrieve registered metric.") };
               case (?metric) { #ok(metric) };

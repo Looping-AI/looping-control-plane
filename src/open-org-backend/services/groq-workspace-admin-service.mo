@@ -33,7 +33,7 @@ module {
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistry,
+    metricsRegistry : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
     workspaceId : Nat,
     message : Text,
@@ -223,7 +223,7 @@ module {
   private func buildWorkspaceContext(
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistry,
+    metricsRegistry : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
   ) : [InstructionTypes.InstructionBlock] {
     var blocks : List.List<InstructionTypes.InstructionBlock> = List.empty();
@@ -314,7 +314,7 @@ module {
   private func buildAdminInstructions(
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistry,
+    metricsRegistry : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
     _workspaceId : Nat,
   ) : Text {
