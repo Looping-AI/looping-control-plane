@@ -38,8 +38,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
-  var nextAgentId : Nat = 0;
-  var workspaceAgents = Map.fromArray<Nat, Map.Map<Nat, AgentModel.Agent>>([(0, Map.empty<Nat, AgentModel.Agent>())], Nat.compare);
+  var workspaceAgents = Map.fromArray<Nat, AgentModel.WorkspaceAgentsState>([(0, AgentModel.emptyWorkspaceState())], Nat.compare);
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
   // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
@@ -256,10 +255,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
-          case (?agents) {
-            let (result, newId) = AgentModel.createAgent(name, provider, model, agents, nextAgentId);
-            nextAgentId := newId;
-            result;
+          case (?workspaceState) {
+            AgentModel.createAgent(name, provider, model, workspaceState);
           };
         };
       };
@@ -276,7 +273,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
-          case (?agents) { #ok(AgentModel.getAgent(id, agents)) };
+          case (?workspaceState) {
+            #ok(AgentModel.getAgent(id, workspaceState));
+          };
         };
       };
     };
@@ -292,8 +291,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
-          case (?agents) {
-            AgentModel.updateAgent(id, newName, newProvider, newModel, agents);
+          case (?workspaceState) {
+            AgentModel.updateAgent(id, newName, newProvider, newModel, workspaceState);
           };
         };
       };
@@ -310,7 +309,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
-          case (?agents) { AgentModel.deleteAgent(id, agents) };
+          case (?workspaceState) { AgentModel.deleteAgent(id, workspaceState) };
         };
       };
     };
@@ -326,7 +325,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
           case (null) { #err("Workspace not found.") };
-          case (?agents) { #ok(AgentModel.listAgents(agents)) };
+          case (?workspaceState) { #ok(AgentModel.listAgents(workspaceState)) };
         };
       };
     };
@@ -592,10 +591,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         switch (result) {
           case (#err(msg)) { #err(msg) };
           case (#ok(id)) {
-            // Update the tuple with incremented nextId
-            let (nextId, registry) = metricsRegistry;
-            metricsRegistry := (nextId + 1, registry);
-
             switch (MetricModel.getMetric(metricsRegistry, id)) {
               case (null) { #err("Failed to retrieve registered metric.") };
               case (?metric) { #ok(metric) };

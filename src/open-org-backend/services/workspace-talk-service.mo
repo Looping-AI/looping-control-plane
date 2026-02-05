@@ -13,21 +13,21 @@ module {
 
   // Get agent for a given workspace
   private func getAgentForWorkspace(
-    workspaceAgents : Map.Map<Nat, Map.Map<Nat, AgentModel.Agent>>,
+    workspaceAgents : Map.Map<Nat, AgentModel.WorkspaceAgentsState>,
     workspaceId : Nat,
     agentId : Nat,
   ) : ?AgentModel.Agent {
     switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
       case (null) { null };
-      case (?agents) {
-        AgentModel.getAgent(agentId, agents);
+      case (?workspaceState) {
+        AgentModel.getAgent(agentId, workspaceState);
       };
     };
   };
 
   // Process the workspace talk request after validation
   public func processWorkspaceTalk(
-    workspaceAgents : Map.Map<Nat, Map.Map<Nat, AgentModel.Agent>>,
+    workspaceAgents : Map.Map<Nat, AgentModel.WorkspaceAgentsState>,
     apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>,
     conversations : Map.Map<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>,
     workspaceId : Nat,

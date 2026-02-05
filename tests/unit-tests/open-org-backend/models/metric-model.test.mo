@@ -66,7 +66,7 @@ suite(
     test(
       "registerMetric creates a new metric with valid input",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let input : MetricModel.MetricRegistrationInput = {
           name = "response_time";
           description = "API response time";
@@ -74,16 +74,17 @@ suite(
           retentionDays = 90;
         };
 
-        let (result, newNextId) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
         );
 
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).isOk();
-        expect.nat(newNextId).equal(1);
+
+        // Verify nextId was incremented
+        expect.nat(registry.nextId).equal(1);
 
         let metrics = MetricModel.listMetrics(registry);
         expect.nat(metrics.size()).equal(1);
@@ -93,7 +94,7 @@ suite(
     test(
       "registerMetric rejects empty name",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let input : MetricModel.MetricRegistrationInput = {
           name = "";
           description = "Test";
@@ -101,9 +102,8 @@ suite(
           retentionDays = 90;
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
@@ -118,7 +118,7 @@ suite(
     test(
       "registerMetric rejects retention below minimum",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let input : MetricModel.MetricRegistrationInput = {
           name = "test_metric";
           description = "Test";
@@ -126,9 +126,8 @@ suite(
           retentionDays = 10; // Below 30
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
@@ -143,7 +142,7 @@ suite(
     test(
       "registerMetric rejects retention above maximum",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let input : MetricModel.MetricRegistrationInput = {
           name = "test_metric";
           description = "Test";
@@ -151,9 +150,8 @@ suite(
           retentionDays = 2000; // Above 1825
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
@@ -168,7 +166,7 @@ suite(
     test(
       "registerMetric rejects duplicate names",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let input : MetricModel.MetricRegistrationInput = {
           name = "duplicate_metric";
           description = "First";
@@ -176,9 +174,8 @@ suite(
           retentionDays = 90;
         };
 
-        let (_, nextId) = MetricModel.registerMetric(
+        ignore MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
@@ -191,9 +188,8 @@ suite(
           retentionDays = 60;
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          nextId,
           input2,
           testPrincipal,
           testTimestamp,
@@ -208,7 +204,7 @@ suite(
     test(
       "getMetric returns registered metric",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let input : MetricModel.MetricRegistrationInput = {
           name = "get_test";
           description = "Test";
@@ -216,9 +212,8 @@ suite(
           retentionDays = 90;
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
@@ -248,7 +243,7 @@ suite(
     test(
       "getMetric returns null for non-existent metric",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let metric = MetricModel.getMetric(registry, 999);
         expect.bool(metric == null).equal(true);
       },
@@ -257,7 +252,7 @@ suite(
     test(
       "unregisterMetric removes metric and its datapoints",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let datapoints = MetricModel.emptyDatapoints();
 
         let input : MetricModel.MetricRegistrationInput = {
@@ -267,9 +262,8 @@ suite(
           retentionDays = 90;
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
@@ -309,7 +303,7 @@ suite(
     test(
       "unregisterMetric returns false for non-existent metric",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let datapoints = MetricModel.emptyDatapoints();
         let removed = MetricModel.unregisterMetric(registry, datapoints, 999);
         expect.bool(removed).equal(false);
@@ -324,7 +318,7 @@ suite(
     test(
       "recordDatapoint stores a datapoint",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let datapoints = MetricModel.emptyDatapoints();
 
         let input : MetricModel.MetricRegistrationInput = {
@@ -334,9 +328,8 @@ suite(
           retentionDays = 90;
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
@@ -368,7 +361,7 @@ suite(
     test(
       "recordDatapoint fails for non-existent metric",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let datapoints = MetricModel.emptyDatapoints();
 
         let result = MetricModel.recordDatapoint(
@@ -389,7 +382,7 @@ suite(
     test(
       "getDatapoints with since filter returns filtered results",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let datapoints = MetricModel.emptyDatapoints();
 
         let input : MetricModel.MetricRegistrationInput = {
@@ -399,9 +392,8 @@ suite(
           retentionDays = 90;
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,
@@ -436,7 +428,7 @@ suite(
     test(
       "getLatestDatapoint returns most recent datapoint",
       func() {
-        let registry = MetricModel.emptyRegistry();
+        var registry = MetricModel.emptyRegistry();
         let datapoints = MetricModel.emptyDatapoints();
 
         let input : MetricModel.MetricRegistrationInput = {
@@ -446,9 +438,8 @@ suite(
           retentionDays = 90;
         };
 
-        let (result, _) = MetricModel.registerMetric(
+        let result = MetricModel.registerMetric(
           registry,
-          0,
           input,
           testPrincipal,
           testTimestamp,

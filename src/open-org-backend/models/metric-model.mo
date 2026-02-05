@@ -59,8 +59,11 @@ module {
     retentionDays : Nat;
   };
 
-  /// Type alias for the metrics registry state (nextMetricId, Map<metricId, MetricRegistration>)
-  public type MetricsRegistryState = (Nat, Map.Map<Nat, MetricRegistration>);
+  /// Type alias for the metrics registry state with mutable nextId counter
+  public type MetricsRegistryState = {
+    var nextId : Nat;
+    registry : Map.Map<Nat, MetricRegistration>;
+  };
 
   /// Type alias for a time bucket (stores datapoints for a single day, sorted by timestamp)
   public type TimeBucket = List.List<MetricDatapoint>;
@@ -77,7 +80,10 @@ module {
 
   /// Create an empty metrics registry state
   public func emptyRegistry() : MetricsRegistryState {
-    (0, Map.empty<Nat, MetricRegistration>());
+    {
+      var nextId = 0;
+      registry = Map.empty<Nat, MetricRegistration>();
+    };
   };
 
   /// Create an empty datapoints store
@@ -125,7 +131,7 @@ module {
 
   /// Register a new metric
   ///
-  /// @param registryState - The metrics registry state (nextId, registry)
+  /// @param registryState - The metrics registry state with mutable nextId
   /// @param input - The metric registration input
   /// @param caller - The principal registering the metric
   /// @param now - Current timestamp
@@ -136,8 +142,6 @@ module {
     caller : Principal,
     now : Int,
   ) : Result.Result<Nat, Text> {
-    let (nextId, registry) = registryState;
-
     // Validate name
     if (input.name == "") {
       return #err("Metric name cannot be empty.");
@@ -153,7 +157,7 @@ module {
 
     // Check for duplicate name
     let duplicate = Iter.find<MetricRegistration>(
-      Map.values(registry),
+      Map.values(registryState.registry),
       func(m : MetricRegistration) : Bool { m.name == input.name },
     );
     switch (duplicate) {
@@ -163,7 +167,7 @@ module {
       case (null) {};
     };
 
-    let id = nextId;
+    let id = registryState.nextId;
     let registration : MetricRegistration = {
       id;
       name = input.name;
@@ -174,13 +178,14 @@ module {
       createdAt = now;
     };
 
-    Map.add(registry, Nat.compare, id, registration);
+    Map.add(registryState.registry, Nat.compare, id, registration);
+    registryState.nextId += 1;
     #ok(id);
   };
 
   /// Unregister a metric (removes from registry and clears datapoints)
   ///
-  /// @param registryState - The metrics registry state (nextId, registry)
+  /// @param registryState - The metrics registry state with mutable nextId
   /// @param datapoints - The datapoints store
   /// @param metricId - The metric ID to unregister
   /// @returns True if the metric was found and removed, false otherwise
@@ -189,11 +194,10 @@ module {
     datapoints : MetricDatapointsStore,
     metricId : Nat,
   ) : Bool {
-    let (_, registry) = registryState;
-    switch (Map.get(registry, Nat.compare, metricId)) {
+    switch (Map.get(registryState.registry, Nat.compare, metricId)) {
       case (null) { false };
       case (?_) {
-        Map.remove(registry, Nat.compare, metricId);
+        Map.remove(registryState.registry, Nat.compare, metricId);
         Map.remove(datapoints, Nat.compare, metricId);
         true;
       };
@@ -202,21 +206,19 @@ module {
 
   /// Get a metric registration by ID
   ///
-  /// @param registryState - The metrics registry state (nextId, registry)
+  /// @param registryState - The metrics registry state with mutable nextId
   /// @param metricId - The metric ID
   /// @returns The metric registration if found
   public func getMetric(registryState : MetricsRegistryState, metricId : Nat) : ?MetricRegistration {
-    let (_, registry) = registryState;
-    Map.get(registry, Nat.compare, metricId);
+    Map.get(registryState.registry, Nat.compare, metricId);
   };
 
   /// List all registered metrics
   ///
-  /// @param registryState - The metrics registry state (nextId, registry)
+  /// @param registryState - The metrics registry state with mutable nextId
   /// @returns Array of all metric registrations
   public func listMetrics(registryState : MetricsRegistryState) : [MetricRegistration] {
-    let (_, registry) = registryState;
-    Iter.toArray(Map.values(registry));
+    Iter.toArray(Map.values(registryState.registry));
   };
 
   // ============================================
@@ -240,9 +242,8 @@ module {
     source : MetricSource,
     timestamp : Int,
   ) : Result.Result<(), Text> {
-    let (_, registry) = registryState;
     // Validate metric exists
-    switch (Map.get(registry, Nat.compare, metricId)) {
+    switch (Map.get(registryState.registry, Nat.compare, metricId)) {
       case (null) {
         return #err("Metric not found.");
       };
@@ -396,11 +397,10 @@ module {
     datapoints : MetricDatapointsStore,
     registryState : MetricsRegistryState,
   ) : MetricDatapointsStore {
-    let (_, registry) = registryState;
     let now = Time.now();
 
     for ((metricId, buckets) in Map.entries(datapoints)) {
-      switch (Map.get(registry, Nat.compare, metricId)) {
+      switch (Map.get(registryState.registry, Nat.compare, metricId)) {
         case (null) {
           // Metric was deleted, remove all datapoints
           Map.remove(datapoints, Nat.compare, metricId);

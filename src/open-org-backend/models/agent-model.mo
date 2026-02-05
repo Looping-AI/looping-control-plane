@@ -12,31 +12,49 @@ module {
     model : Text;
   };
 
-  // Create a new agent
-  public func createAgent(name : Text, provider : Types.LlmProvider, model : Text, agents : Map.Map<Nat, Agent>, nextAgentId : Nat) : (Result.Result<Nat, Text>, Nat) {
-    if (name == "") {
-      (#err("Agent name cannot be empty."), nextAgentId);
-    } else {
-      let id = nextAgentId;
-      let agent : Agent = {
-        id;
-        name;
-        provider;
-        model;
-      };
-      Map.add(agents, Nat.compare, id, agent);
-      (#ok(id), nextAgentId + 1);
+  /// Type alias for workspace agents state with mutable nextId counter
+  public type WorkspaceAgentsState = {
+    var nextId : Nat;
+    agents : Map.Map<Nat, Agent>;
+  };
+
+  /// Type alias for the full workspace agents map
+  public type WorkspaceAgentsMap = Map.Map<Nat, WorkspaceAgentsState>;
+
+  /// Create an empty workspace agents state
+  public func emptyWorkspaceState() : WorkspaceAgentsState {
+    {
+      var nextId = 0;
+      agents = Map.empty<Nat, Agent>();
     };
   };
 
+  // Create a new agent
+  public func createAgent(name : Text, provider : Types.LlmProvider, model : Text, workspaceState : WorkspaceAgentsState) : Result.Result<Nat, Text> {
+    if (name == "") {
+      return #err("Agent name cannot be empty.");
+    };
+
+    let id = workspaceState.nextId;
+    let agent : Agent = {
+      id;
+      name;
+      provider;
+      model;
+    };
+    Map.add(workspaceState.agents, Nat.compare, id, agent);
+    workspaceState.nextId += 1;
+    #ok(id);
+  };
+
   // Read/Get an agent
-  public func getAgent(id : Nat, agents : Map.Map<Nat, Agent>) : ?Agent {
-    Map.get(agents, Nat.compare, id);
+  public func getAgent(id : Nat, workspaceState : WorkspaceAgentsState) : ?Agent {
+    Map.get(workspaceState.agents, Nat.compare, id);
   };
 
   // Update an agent
-  public func updateAgent(id : Nat, newName : ?Text, newProvider : ?Types.LlmProvider, newModel : ?Text, agents : Map.Map<Nat, Agent>) : Result.Result<Bool, Text> {
-    switch (Map.get(agents, Nat.compare, id)) {
+  public func updateAgent(id : Nat, newName : ?Text, newProvider : ?Types.LlmProvider, newModel : ?Text, workspaceState : WorkspaceAgentsState) : Result.Result<Bool, Text> {
+    switch (Map.get(workspaceState.agents, Nat.compare, id)) {
       case (null) {
         #err("Agent not found.");
       };
@@ -56,27 +74,27 @@ module {
             case (?model) { model };
           };
         };
-        Map.add(agents, Nat.compare, id, updatedAgent);
+        Map.add(workspaceState.agents, Nat.compare, id, updatedAgent);
         #ok(true);
       };
     };
   };
 
   // Delete an agent
-  public func deleteAgent(id : Nat, agents : Map.Map<Nat, Agent>) : Result.Result<Bool, Text> {
-    switch (Map.get(agents, Nat.compare, id)) {
+  public func deleteAgent(id : Nat, workspaceState : WorkspaceAgentsState) : Result.Result<Bool, Text> {
+    switch (Map.get(workspaceState.agents, Nat.compare, id)) {
       case (null) {
         #err("Agent not found.");
       };
       case (?_) {
-        Map.remove(agents, Nat.compare, id);
+        Map.remove(workspaceState.agents, Nat.compare, id);
         #ok(true);
       };
     };
   };
 
   // List all agents
-  public func listAgents(agents : Map.Map<Nat, Agent>) : [Agent] {
-    Iter.toArray(Map.values(agents));
+  public func listAgents(workspaceState : WorkspaceAgentsState) : [Agent] {
+    Iter.toArray(Map.values(workspaceState.agents));
   };
 };
