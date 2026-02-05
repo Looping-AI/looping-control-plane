@@ -639,7 +639,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         MetricModel.recordDatapoint(
@@ -659,7 +659,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : [MetricModel.MetricDatapoint];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (MetricModel.getMetric(metricsRegistry, metricId)) {
@@ -677,7 +677,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : ?MetricModel.MetricDatapoint;
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         switch (MetricModel.getMetric(metricsRegistry, metricId)) {
@@ -695,7 +695,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         if (MetricModel.unregisterMetric(metricsRegistry, metricDatapoints, metricId)) {

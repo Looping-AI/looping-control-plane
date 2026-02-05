@@ -1,5 +1,6 @@
 import GroqWrapper "../wrappers/groq-wrapper";
 import ValueStreamModel "../models/value-stream-model";
+import MetricModel "../models/metric-model";
 
 module {
   // ============================================
@@ -38,9 +39,15 @@ module {
       write : Bool; // false = read-only (future: could enable a "get_value_streams" tool)
     };
 
+    // Metrics - if provided with write=true, metric management tools are available
+    metrics : ?{
+      registryState : MetricModel.MetricsRegistryState;
+      datapoints : MetricModel.MetricDatapointsStore;
+      write : Bool; // false = read-only (future: could enable read-only metric tools)
+    };
+
     // Future resources:
     // objectives : ?{ map : ObjectiveModel.WorkspaceObjectivesMap; write : Bool };
-    // metrics : ?{ registry : MetricModel.MetricsRegistry; write : Bool };
   };
 
   // ============================================

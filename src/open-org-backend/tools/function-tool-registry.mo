@@ -2,11 +2,14 @@ import Array "mo:core/Array";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
+import Time "mo:core/Time";
+import Principal "mo:core/Principal";
 import Json "mo:json";
 import { str; obj; int; float; bool; arr } "mo:json";
 import GroqWrapper "../wrappers/groq-wrapper";
 import ToolTypes "./tool-types";
 import ValueStreamModel "../models/value-stream-model";
+import MetricModel "../models/metric-model";
 
 module {
   // ============================================
@@ -64,6 +67,21 @@ module {
         // Future: if read access, add getValueStreamsTool
       };
       case _ {};
+    };
+
+    // ==========================================
+    // METRIC TOOLS - require metrics resource
+    // ==========================================
+    switch (resources.metrics) {
+      case (?m) {
+        if (m.write) {
+          List.add(tools, createMetricTool(m.registryState));
+          List.add(tools, updateMetricTool(m.registryState));
+        };
+        // get_metric_datapoints available for read or write access
+        List.add(tools, getMetricDatapointsTool(m.registryState, m.datapoints));
+      };
+      case (null) {};
     };
 
     // ==========================================
@@ -495,6 +513,297 @@ module {
               };
               case (null) {
                 return buildErrorResponse("Missing required field: query");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  // ============================================
+  // METRIC TOOLS
+  // ============================================
+
+  /// Create metric tool - requires registryState with write access
+  private func createMetricTool(registryState : MetricModel.MetricsRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "create_metric";
+          description = ?"Register a new metric for tracking progress. Metrics measure specific aspects of value streams and objectives. Use this to define what should be measured, not to record actual measurements.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Unique name for the metric (e.g., 'Monthly Active Users', 'Response Time')\"},\"description\":{\"type\":\"string\",\"description\":\"Clear description of what this metric measures and why it matters\"},\"unit\":{\"type\":\"string\",\"description\":\"Unit of measurement (e.g., 'count', 'USD', 'percent', 'seconds', 'milliseconds')\"},\"retentionDays\":{\"type\":\"integer\",\"description\":\"How long to retain datapoints (30-1825 days). Use 90 for short-term, 365 for annual, 1825 for 5-year history.\"}},\"required\":[\"name\",\"description\",\"unit\",\"retentionDays\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            // Extract required fields
+            let nameOpt = switch (Json.get(json, "name")) {
+              case (?#string(s)) { ?s };
+              case (_) { null };
+            };
+            let descriptionOpt = switch (Json.get(json, "description")) {
+              case (?#string(s)) { ?s };
+              case (_) { null };
+            };
+            let unitOpt = switch (Json.get(json, "unit")) {
+              case (?#string(s)) { ?s };
+              case (_) { null };
+            };
+            let retentionDaysOpt = switch (Json.get(json, "retentionDays")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+
+            switch (nameOpt, descriptionOpt, unitOpt, retentionDaysOpt) {
+              case (?name, ?description, ?unit, ?retentionDays) {
+                let input : MetricModel.MetricRegistrationInput = {
+                  name;
+                  description;
+                  unit;
+                  retentionDays;
+                };
+
+                // Use anonymous principal for tool-created metrics
+                let caller = Principal.fromText("2vxsx-fae");
+                let result = MetricModel.registerMetric(
+                  registryState,
+                  input,
+                  caller,
+                  Time.now(),
+                );
+
+                switch (result) {
+                  case (#ok(metricId)) {
+                    return Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("metricId", int(metricId)),
+                        ("action", str("metric_created")),
+                        ("message", str("Metric '" # name # "' created successfully with ID " # Nat.toText(metricId))),
+                      ]),
+                      null,
+                    );
+                  };
+                  case (#err(msg)) {
+                    return buildErrorResponse(msg);
+                  };
+                };
+              };
+              case _ {
+                return buildErrorResponse("Missing required fields: name, description, unit, retentionDays");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Update metric tool - requires registryState with write access
+  private func updateMetricTool(registryState : MetricModel.MetricsRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "update_metric";
+          description = ?"Update an existing metric's configuration. Cannot modify actual datapoints - only the metric definition (name, description, unit, retention). Use this to refine metric definitions or fix mistakes.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"metricId\":{\"type\":\"integer\",\"description\":\"The ID of the metric to update\"},\"name\":{\"type\":\"string\",\"description\":\"New name for the metric (optional)\"},\"description\":{\"type\":\"string\",\"description\":\"New description (optional)\"},\"unit\":{\"type\":\"string\",\"description\":\"New unit of measurement (optional)\"},\"retentionDays\":{\"type\":\"integer\",\"description\":\"New retention period in days, 30-1825 (optional)\"}},\"required\":[\"metricId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            // Extract metricId (required)
+            let metricIdOpt = switch (Json.get(json, "metricId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+
+            switch (metricIdOpt) {
+              case (?metricId) {
+                // Extract optional fields
+                let name = switch (Json.get(json, "name")) {
+                  case (?#string(s)) { ?s };
+                  case (_) { null };
+                };
+                let description = switch (Json.get(json, "description")) {
+                  case (?#string(s)) { ?s };
+                  case (_) { null };
+                };
+                let unit = switch (Json.get(json, "unit")) {
+                  case (?#string(s)) { ?s };
+                  case (_) { null };
+                };
+                let retentionDays = switch (Json.get(json, "retentionDays")) {
+                  case (?#number(#int n)) {
+                    if (n >= 0) { ?Int.abs(n) } else { null };
+                  };
+                  case _ { null };
+                };
+
+                let result = MetricModel.updateMetric(
+                  registryState,
+                  metricId,
+                  name,
+                  description,
+                  unit,
+                  retentionDays,
+                );
+
+                switch (result) {
+                  case (#ok(())) {
+                    return Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("metricId", int(metricId)),
+                        ("action", str("metric_updated")),
+                        ("message", str("Metric " # Nat.toText(metricId) # " updated successfully")),
+                      ]),
+                      null,
+                    );
+                  };
+                  case (#err(msg)) {
+                    return buildErrorResponse(msg);
+                  };
+                };
+              };
+              case (null) {
+                return buildErrorResponse("Missing required field: metricId");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Get metric datapoints tool - read access sufficient
+  private func getMetricDatapointsTool(
+    registryState : MetricModel.MetricsRegistryState,
+    datapoints : MetricModel.MetricDatapointsStore,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_metric_datapoints";
+          description = ?"Retrieve datapoint history for a metric. Use this to analyze trends, check current values, or understand metric behavior. Returns datapoints sorted by timestamp (newest first).";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"metricId\":{\"type\":\"integer\",\"description\":\"The ID of the metric\"},\"since\":{\"type\":\"string\",\"description\":\"Optional ISO timestamp to filter datapoints from (e.g., '2026-01-01T00:00:00Z'). Only returns datapoints after this time.\"},\"limit\":{\"type\":\"integer\",\"description\":\"Optional maximum number of recent datapoints to return (default: all)\"}},\"required\":[\"metricId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            // Extract metricId (required)
+            let metricIdOpt = switch (Json.get(json, "metricId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+
+            switch (metricIdOpt) {
+              case (?metricId) {
+                // Verify metric exists
+                switch (MetricModel.getMetric(registryState, metricId)) {
+                  case (null) {
+                    return buildErrorResponse("Metric not found");
+                  };
+                  case (?metric) {
+                    // Parse optional since timestamp (ISO string -> nanoseconds)
+                    let sinceNanos = switch (Json.get(json, "since")) {
+                      case (?#string(_isoString)) {
+                        // For now, accept the timestamp as-is
+                        // TODO: implement proper ISO string parsing
+                        null;
+                      };
+                      case (_) { null };
+                    };
+
+                    // Get datapoints
+                    let allDatapoints = MetricModel.getDatapoints(
+                      datapoints,
+                      metricId,
+                      sinceNanos,
+                    );
+
+                    // Apply limit if specified
+                    let limitOpt = switch (Json.get(json, "limit")) {
+                      case (?#number(#int n)) {
+                        if (n >= 0) { ?Int.abs(n) } else { null };
+                      };
+                      case _ { null };
+                    };
+
+                    let limitedDatapoints = switch (limitOpt) {
+                      case (?limit) {
+                        if (allDatapoints.size() <= limit) {
+                          allDatapoints;
+                        } else {
+                          // Take first N (already sorted newest first)
+                          Array.tabulate<MetricModel.MetricDatapoint>(
+                            limit,
+                            func(i : Nat) : MetricModel.MetricDatapoint {
+                              allDatapoints[i];
+                            },
+                          );
+                        };
+                      };
+                      case (null) { allDatapoints };
+                    };
+
+                    // Format datapoints as JSON
+                    let datapointsJson = arr(
+                      Array.map<MetricModel.MetricDatapoint, Json.Json>(
+                        limitedDatapoints,
+                        func(dp : MetricModel.MetricDatapoint) : Json.Json {
+                          let sourceText = switch (dp.source) {
+                            case (#manual(s)) { "manual: " # s };
+                            case (#integration(s)) { "integration: " # s };
+                            case (#evaluator(s)) { "evaluator: " # s };
+                            case (#other(s)) { "other: " # s };
+                          };
+                          obj([
+                            ("timestamp", int(dp.timestamp)),
+                            ("value", #number(#float(dp.value))),
+                            ("source", str(sourceText)),
+                          ]);
+                        },
+                      )
+                    );
+
+                    return Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("metricId", int(metricId)),
+                        ("metricName", str(metric.name)),
+                        ("unit", str(metric.unit)),
+                        ("count", int(limitedDatapoints.size())),
+                        ("datapoints", datapointsJson),
+                      ]),
+                      null,
+                    );
+                  };
+                };
+              };
+              case (null) {
+                return buildErrorResponse("Missing required field: metricId");
               };
             };
           };

@@ -129,6 +129,61 @@ module {
     list;
   };
 
+  // ============================================
+  // Private Validation Helpers
+  // ============================================
+
+  /// Validate metric name is not empty
+  ///
+  /// @param name - The name to validate
+  /// @returns Result indicating success or error
+  private func validateName(name : Text) : Result.Result<(), Text> {
+    if (name == "") {
+      return #err("Metric name cannot be empty.");
+    };
+    #ok(());
+  };
+
+  /// Validate retention days are within bounds
+  ///
+  /// @param days - The retention days to validate
+  /// @returns Result indicating success or error
+  private func validateRetentionDays(days : Nat) : Result.Result<(), Text> {
+    if (days < MIN_RETENTION_DAYS) {
+      return #err("Retention days must be at least " # Nat.toText(MIN_RETENTION_DAYS) # ".");
+    };
+    if (days > MAX_RETENTION_DAYS) {
+      return #err("Retention days cannot exceed " # Nat.toText(MAX_RETENTION_DAYS) # ".");
+    };
+    #ok(());
+  };
+
+  /// Check if a metric name already exists (optionally excluding a specific metric ID)
+  ///
+  /// @param registryState - The metrics registry state
+  /// @param name - The name to check
+  /// @param excludeId - Optional metric ID to exclude from the check (for updates)
+  /// @returns Result indicating success or error
+  private func checkDuplicateName(
+    registryState : MetricsRegistryState,
+    name : Text,
+    excludeId : ?Nat,
+  ) : Result.Result<(), Text> {
+    let duplicate = Iter.find<MetricRegistration>(
+      Map.values(registryState.registry),
+      func(m : MetricRegistration) : Bool {
+        switch (excludeId) {
+          case (null) { m.name == name };
+          case (?id) { m.name == name and m.id != id };
+        };
+      },
+    );
+    switch (duplicate) {
+      case (?_) { #err("A metric with this name already exists.") };
+      case (null) { #ok(()) };
+    };
+  };
+
   /// Register a new metric
   ///
   /// @param registryState - The metrics registry state with mutable nextId
@@ -143,28 +198,21 @@ module {
     now : Int,
   ) : Result.Result<Nat, Text> {
     // Validate name
-    if (input.name == "") {
-      return #err("Metric name cannot be empty.");
+    switch (validateName(input.name)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
     };
 
     // Validate retention days
-    if (input.retentionDays < MIN_RETENTION_DAYS) {
-      return #err("Retention days must be at least " # Nat.toText(MIN_RETENTION_DAYS) # ".");
-    };
-    if (input.retentionDays > MAX_RETENTION_DAYS) {
-      return #err("Retention days cannot exceed " # Nat.toText(MAX_RETENTION_DAYS) # ".");
+    switch (validateRetentionDays(input.retentionDays)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
     };
 
     // Check for duplicate name
-    let duplicate = Iter.find<MetricRegistration>(
-      Map.values(registryState.registry),
-      func(m : MetricRegistration) : Bool { m.name == input.name },
-    );
-    switch (duplicate) {
-      case (?_) {
-        return #err("A metric with this name already exists.");
-      };
-      case (null) {};
+    switch (checkDuplicateName(registryState, input.name, null)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
     };
 
     let id = registryState.nextId;
@@ -181,6 +229,83 @@ module {
     Map.add(registryState.registry, Nat.compare, id, registration);
     registryState.nextId += 1;
     #ok(id);
+  };
+
+  /// Update an existing metric's configuration
+  ///
+  /// @param registryState - The metrics registry state
+  /// @param metricId - The metric ID to update
+  /// @param name - Optional new name
+  /// @param description - Optional new description
+  /// @param unit - Optional new unit
+  /// @param retentionDays - Optional new retention period
+  /// @returns Result indicating success or error
+  public func updateMetric(
+    registryState : MetricsRegistryState,
+    metricId : Nat,
+    name : ?Text,
+    description : ?Text,
+    unit : ?Text,
+    retentionDays : ?Nat,
+  ) : Result.Result<(), Text> {
+    // Get existing metric
+    let existing = switch (Map.get(registryState.registry, Nat.compare, metricId)) {
+      case (null) { return #err("Metric not found.") };
+      case (?m) { m };
+    };
+
+    // Validate and determine new name
+    let newName = switch (name) {
+      case (null) { existing.name };
+      case (?n) {
+        // Validate name
+        switch (validateName(n)) {
+          case (#err(msg)) { return #err(msg) };
+          case (#ok(())) {};
+        };
+        // Check for duplicate name (only if name is actually changing)
+        if (n != existing.name) {
+          switch (checkDuplicateName(registryState, n, ?metricId)) {
+            case (#err(msg)) { return #err(msg) };
+            case (#ok(())) {};
+          };
+        };
+        n;
+      };
+    };
+
+    // Validate and determine new retention days
+    let newRetentionDays = switch (retentionDays) {
+      case (null) { existing.retentionDays };
+      case (?r) {
+        switch (validateRetentionDays(r)) {
+          case (#err(msg)) { return #err(msg) };
+          case (#ok(())) {};
+        };
+        r;
+      };
+    };
+
+    // Create updated registration (preserve id, createdBy, createdAt)
+    let updated : MetricRegistration = {
+      id = existing.id;
+      name = newName;
+      description = switch (description) {
+        case (null) { existing.description };
+        case (?d) { d };
+      };
+      unit = switch (unit) {
+        case (null) { existing.unit };
+        case (?u) { u };
+      };
+      retentionDays = newRetentionDays;
+      createdBy = existing.createdBy;
+      createdAt = existing.createdAt;
+    };
+
+    // Update in registry
+    Map.add(registryState.registry, Nat.compare, metricId, updated);
+    #ok(());
   };
 
   /// Unregister a metric (removes from registry and clears datapoints)

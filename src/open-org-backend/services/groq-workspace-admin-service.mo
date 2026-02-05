@@ -33,7 +33,7 @@ module {
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistryState,
+    metricsRegistryState : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
     workspaceId : Nat,
     message : Text,
@@ -46,7 +46,7 @@ module {
     let instructions = buildAdminInstructions(
       workspaceValueStreamsState,
       workspaceObjectivesMap,
-      metricsRegistry,
+      metricsRegistryState,
       metricDatapoints,
       workspaceId,
     );
@@ -59,7 +59,11 @@ module {
         map = valueStreamsMap;
         write = true;
       };
-      // Future: add objectives, metrics, etc.
+      metrics = ?{
+        registryState = metricsRegistryState;
+        datapoints = metricDatapoints;
+        write = true;
+      };
     };
 
     // Combine tool definitions from both registries
@@ -223,13 +227,13 @@ module {
   private func buildWorkspaceContext(
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistryState,
+    metricsRegistryState : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
   ) : [InstructionTypes.InstructionBlock] {
     var blocks : List.List<InstructionTypes.InstructionBlock> = List.empty();
 
     // Add metrics summary with latest datapoints
-    let allMetrics = MetricModel.listMetrics(metricsRegistry);
+    let allMetrics = MetricModel.listMetrics(metricsRegistryState);
     if (allMetrics.size() > 0) {
       let metricsText = Array.foldLeft<MetricModel.MetricRegistration, Text>(
         allMetrics,
@@ -313,7 +317,7 @@ module {
   private func buildAdminInstructions(
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistryState,
+    metricsRegistryState : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
     _workspaceId : Nat,
   ) : Text {
@@ -321,7 +325,7 @@ module {
     let workspaceContext = buildWorkspaceContext(
       workspaceValueStreamsState,
       workspaceObjectivesMap,
-      metricsRegistry,
+      metricsRegistryState,
       metricDatapoints,
     );
 
@@ -346,6 +350,10 @@ module {
 
       if (hasActiveStreamWithoutPlan) {
         List.add(contextIds, #needsPlanCreation);
+      } else {
+        // At least one active stream has plans
+        // Check if metrics review is warranted
+        List.add(contextIds, #needsMetricsReview);
       };
     };
 

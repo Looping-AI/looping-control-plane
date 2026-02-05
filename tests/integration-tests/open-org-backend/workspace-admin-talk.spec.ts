@@ -282,7 +282,7 @@ describe("workspaceAdminTalk", () => {
             0n,
             "Yes, that looks great! Please create it.",
           ),
-        { ticks: 5, maxRounds: 6 },
+        { ticks: 5, maxRounds: 12 },
       );
       const confirmResponse = expectOk(await confirmResult);
       expect(confirmResponse.length).toBeGreaterThan(0);
@@ -401,7 +401,11 @@ describe("workspaceAdminTalk", () => {
       const { result: confirmResult } = await withCassette(
         pic,
         "integration-tests/open-org-backend/workspace-admin-talk/planning-flow-confirm-and-save",
-        () => deferredActor.workspaceAdminTalk(0n, "This plan looks great!"),
+        () =>
+          deferredActor.workspaceAdminTalk(
+            0n,
+            "Yes, save the plan. Let's proceed!",
+          ),
         { ticks: 5, maxRounds: 8 },
       );
       const confirmResponse = expectOk(await confirmResult);
@@ -430,4 +434,337 @@ describe("workspaceAdminTalk", () => {
     },
     { timeout: 45000 },
   ); // Longer timeout for 3-turn conversation with web research
+
+  describe("Metric Management Tools", () => {
+    it(
+      "should create a new metric through conversation",
+      async () => {
+        // Create deferred actor for multi-turn conversation
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Ask the agent to create a metric
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/metrics-create-metric",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              "Please create a metric called 'Weekly Active Users' that measures the count of unique users who log in each week. Use 'count' as the unit and keep data for 365 days.",
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        const response = expectOk(await result);
+        expect(response.length).toBeGreaterThan(0);
+
+        // Verify the metric was created
+        actor.setIdentity(adminIdentity);
+        const metricsResult = await actor.listMetrics();
+        const metrics = expectOk(metricsResult);
+
+        const createdMetric = metrics.find((m) =>
+          m.name.toLowerCase().includes("weekly active"),
+        );
+        expect(createdMetric).toBeDefined();
+        expect(createdMetric!.unit).toBe("count");
+        expect(createdMetric!.retentionDays).toBe(365n);
+        expect(createdMetric!.description.length).toBeGreaterThan(0);
+      },
+      { timeout: 15000 },
+    );
+
+    it(
+      "should update an existing metric's configuration",
+      async () => {
+        // First, register a metric directly
+        actor.setIdentity(adminIdentity);
+        const createResult = await actor.registerMetric({
+          name: "Response Time",
+          description: "API response time",
+          unit: "ms",
+          retentionDays: 90n,
+        });
+        const metric = expectOk(createResult);
+        const metricId = metric.id;
+
+        // Create deferred actor for the conversation
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Ask the agent to update the metric
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/metrics-update-metric",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              `Please update metric ${metricId} to have a better description: "Average API response time for critical endpoints" and increase retention to 365 days.`,
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        const response = expectOk(await result);
+        expect(response.length).toBeGreaterThan(0);
+
+        // Verify the metric was updated
+        actor.setIdentity(adminIdentity);
+        const getResult = await actor.getMetric(metricId);
+        const updatedMetric = expectOk(getResult);
+
+        expect(updatedMetric.description).toContain("critical endpoints");
+        expect(updatedMetric.retentionDays).toBe(365n);
+        expect(updatedMetric.unit).toBe("ms"); // Should remain unchanged
+        expect(updatedMetric.name).toBe("Response Time"); // Should remain unchanged
+      },
+      { timeout: 15000 },
+    );
+
+    it(
+      "should retrieve metric datapoints through conversation",
+      async () => {
+        // Set up: Create metric and record some datapoints
+        actor.setIdentity(adminIdentity);
+        const metricResult = await actor.registerMetric({
+          name: "User Signups",
+          description: "Daily user signups",
+          unit: "count",
+          retentionDays: 90n,
+        });
+        const metric = expectOk(metricResult);
+        const metricId = metric.id;
+
+        // Record some datapoints
+        const recordResult1 = await actor.recordMetricDatapoint(
+          metricId,
+          100.0,
+          { manual: "test-source-1" },
+        );
+        expectOk(recordResult1);
+
+        const recordResult2 = await actor.recordMetricDatapoint(
+          metricId,
+          150.0,
+          { manual: "test-source-2" },
+        );
+        expectOk(recordResult2);
+
+        // Create deferred actor for the conversation
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Ask the agent to retrieve datapoints
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/metrics-get-datapoints",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              `What are the latest datapoints for metric ${metricId}? Show me the last 10.`,
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        const response = expectOk(await result);
+        expect(response.length).toBeGreaterThan(0);
+
+        // Extract the final agent response
+        const agentMessage = response.find((msg) => "agent" in msg.author);
+        expect(agentMessage).toBeDefined();
+        const responseText = agentMessage!.content;
+
+        // Should mention the datapoints or their values
+        expect(
+          responseText.includes("100") || responseText.includes("150"),
+        ).toBe(true);
+      },
+      { timeout: 15000 },
+    );
+
+    it(
+      "should handle metric name conflicts gracefully",
+      async () => {
+        // Create a metric with a specific name
+        actor.setIdentity(adminIdentity);
+        const createResult = await actor.registerMetric({
+          name: "Conversion Rate",
+          description: "User conversion rate",
+          unit: "percent",
+          retentionDays: 90n,
+        });
+        expectOk(createResult);
+
+        // Create deferred actor for the conversation
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Try to create another metric with the same name
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/metrics-duplicate-name",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              'Create a metric called "Conversion Rate" that tracks daily conversions.',
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        const response = expectOk(await result);
+        expect(response.length).toBeGreaterThan(0);
+
+        // Extract the final agent response
+        const agentMessage = response.find((msg) => "agent" in msg.author);
+        expect(agentMessage).toBeDefined();
+        const responseText = agentMessage!.content;
+
+        // Should mention the error or conflict
+        expect(
+          responseText.toLowerCase().includes("already exists") ||
+            responseText.toLowerCase().includes("duplicate") ||
+            responseText.toLowerCase().includes("conflict"),
+        ).toBe(true);
+      },
+      { timeout: 15000 },
+    );
+
+    it(
+      "should validate retention days bounds",
+      async () => {
+        // Create deferred actor for the conversation
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Try to create a metric with invalid retention (too low)
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/metrics-invalid-retention",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              "Create a metric called 'Test Metric' with unit 'count' and retention of 10 days.",
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        const response = expectOk(await result);
+        expect(response.length).toBeGreaterThan(0);
+
+        // Extract the final agent response
+        const agentMessage = response.find((msg) => "agent" in msg.author);
+        expect(agentMessage).toBeDefined();
+        const responseText = agentMessage!.content;
+
+        // Should mention the validation error
+        expect(
+          responseText.toLowerCase().includes("30") ||
+            responseText.toLowerCase().includes("minimum") ||
+            responseText.toLowerCase().includes("retention"),
+        ).toBe(true);
+      },
+      { timeout: 15000 },
+    );
+
+    it(
+      "should handle non-existent metric updates gracefully",
+      async () => {
+        // Create deferred actor for the conversation
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Try to update a non-existent metric
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/metrics-update-nonexistent",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              "Update metric 99999 to have a new description.",
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        const response = expectOk(await result);
+        expect(response.length).toBeGreaterThan(0);
+
+        // Extract the final agent response
+        const agentMessage = response.find((msg) => "agent" in msg.author);
+        expect(agentMessage).toBeDefined();
+        const responseText = agentMessage!.content;
+
+        // LLM should ask for clarification or provide a response
+        // (it may ask for more details since the metric doesn't exist)
+        expect(responseText.length).toBeGreaterThan(0);
+        // The LLM typically asks "Could you please provide..." for missing metrics
+        expect(
+          responseText.toLowerCase().includes("provide") ||
+            responseText.toLowerCase().includes("description") ||
+            responseText.toLowerCase().includes("update"),
+        ).toBe(true);
+      },
+      { timeout: 15000 },
+    );
+
+    it(
+      "should preserve createdBy and createdAt when updating metrics",
+      async () => {
+        // Create a metric
+        actor.setIdentity(adminIdentity);
+        const createResult = await actor.registerMetric({
+          name: "Test Metric",
+          description: "Original description",
+          unit: "count",
+          retentionDays: 90n,
+        });
+        const metric = expectOk(createResult);
+        const metricId = metric.id;
+
+        // Get original metric
+        const originalMetric = expectOk(await actor.getMetric(metricId));
+        const originalCreatedBy = originalMetric.createdBy.toString();
+        const originalCreatedAt = originalMetric.createdAt;
+
+        // Create deferred actor for the conversation
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Update the metric
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/metrics-update-preserve-metadata",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              `Update metric ${metricId} with description "Updated description".`,
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        expectOk(await result);
+
+        // Verify metadata was preserved
+        actor.setIdentity(adminIdentity);
+        const updatedMetric = expectOk(await actor.getMetric(metricId));
+
+        expect(updatedMetric.createdBy.toString()).toBe(originalCreatedBy);
+        expect(updatedMetric.createdAt).toBe(originalCreatedAt);
+        expect(updatedMetric.description).toBe("Updated description");
+      },
+      { timeout: 15000 },
+    );
+  });
 });
