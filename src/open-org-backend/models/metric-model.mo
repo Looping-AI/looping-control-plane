@@ -300,10 +300,7 @@ module {
       case (null) {
         // No filter - collect all datapoints from all buckets
         for ((_, timeBucket) in Map.entries(buckets)) {
-          let bucketArray = List.toArray(timeBucket);
-          for (dp in bucketArray.vals()) {
-            List.add(allDatapoints, dp);
-          };
+          List.append(allDatapoints, timeBucket);
         };
       };
       case (?minTimestamp) {
@@ -311,15 +308,19 @@ module {
         let minBucketKey = calculateBucketKey(minTimestamp);
 
         for ((bucketKey, timeBucket) in Map.entries(buckets)) {
-          // Skip buckets that are entirely before the filter
-          if (bucketKey >= minBucketKey) {
-            // For buckets at or after minBucketKey, filter datapoints
+          if (bucketKey < minBucketKey) {
+            // Skip buckets entirely before the cutoff
+          } else if (bucketKey == minBucketKey) {
+            // Boundary bucket - filter datapoints within it
             let bucketArray = List.toArray(timeBucket);
             for (dp in bucketArray.vals()) {
               if (dp.timestamp >= minTimestamp) {
                 List.add(allDatapoints, dp);
               };
             };
+          } else {
+            // Buckets after minBucketKey - add all datapoints without filtering
+            List.append(allDatapoints, timeBucket);
           };
         };
       };
