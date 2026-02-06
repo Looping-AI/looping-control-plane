@@ -2,6 +2,8 @@ import { test; suite; expect } "mo:test";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
+import List "mo:core/List";
+import Map "mo:core/Map";
 import MetricModel "../../../../src/open-org-backend/models/metric-model";
 
 // Helper functions for Result comparison
@@ -379,6 +381,82 @@ suite(
     );
 
     test(
+      "getDatapoints keeps same order as it is stored internally (ascending by timestamp)",
+      func() {
+        var registry = MetricModel.emptyRegistry();
+        let datapoints = MetricModel.emptyDatapoints();
+
+        // Register metric
+        let input : MetricModel.MetricRegistrationInput = {
+          name = "manual_test";
+          description = "Test";
+          unit = "count";
+          retentionDays = 90;
+        };
+
+        let result = MetricModel.registerMetric(
+          registry,
+          input,
+          testPrincipal,
+          testTimestamp,
+        );
+
+        switch (result) {
+          case (#ok(metricId)) {
+            // Manually create a time bucket with datapoints in ASCENDING order (how they're stored internally)
+            let dp1 : MetricModel.MetricDatapoint = {
+              timestamp = 1000;
+              value = 100.0;
+              source = #manual("test");
+            };
+            let dp2 : MetricModel.MetricDatapoint = {
+              timestamp = 2000;
+              value = 200.0;
+              source = #manual("test");
+            };
+            let dp3 : MetricModel.MetricDatapoint = {
+              timestamp = 3000;
+              value = 300.0;
+              source = #manual("test");
+            };
+
+            // Create a list in ascending order (oldest first) - internal storage format
+            var timeBucket = List.empty<MetricModel.MetricDatapoint>();
+            List.add(timeBucket, dp1); // 1000 added first
+            List.add(timeBucket, dp2); // 2000 added second
+            List.add(timeBucket, dp3); // 3000 added last
+            // List.add adds to end, so order is: 1000, 2000, 3000 (ascending)
+
+            // Verify our manual construction is in ascending order
+            let arr = List.toArray(timeBucket);
+            expect.nat(arr.size()).equal(3);
+            expect.int(arr[0].timestamp).equal(1000);
+            expect.int(arr[1].timestamp).equal(2000);
+            expect.int(arr[2].timestamp).equal(3000);
+
+            // Now manually add this to the datapoints store
+            let buckets = Map.empty<Nat, MetricModel.TimeBucket>();
+            let bucketKey = MetricModel.calculateBucketKey(2000); // All same day
+            Map.add(buckets, Nat.compare, bucketKey, timeBucket);
+            Map.add(datapoints, Nat.compare, metricId, buckets);
+
+            // Now call getDatapoints and see if it preserves order
+            let result = MetricModel.getDatapoints(datapoints, metricId, null);
+            expect.nat(result.size()).equal(3);
+
+            // Should still be ascending: 1000, 2000, 3000
+            expect.int(result[0].timestamp).equal(1000);
+            expect.int(result[1].timestamp).equal(2000);
+            expect.int(result[2].timestamp).equal(3000);
+          };
+          case (#err(_)) {
+            expect.bool(false).equal(true);
+          };
+        };
+      },
+    );
+
+    test(
       "getDatapoints with since filter returns filtered results",
       func() {
         var registry = MetricModel.emptyRegistry();
@@ -400,21 +478,25 @@ suite(
 
         switch (result) {
           case (#ok(id)) {
-            // Add multiple datapoints at different times
-            ignore MetricModel.recordDatapoint(datapoints, registry, id, 10.0, #manual("test"), 1000);
-            ignore MetricModel.recordDatapoint(datapoints, registry, id, 20.0, #manual("test"), 2000);
-            ignore MetricModel.recordDatapoint(datapoints, registry, id, 30.0, #manual("test"), 3000);
+            // Add multiple datapoints at different times and days
+            ignore MetricModel.recordDatapoint(datapoints, registry, id, 10.0, #manual("test"), 1770219720000);
+            ignore MetricModel.recordDatapoint(datapoints, registry, id, 20.0, #manual("test"), 1770392525216);
+            ignore MetricModel.recordDatapoint(datapoints, registry, id, 30.0, #manual("test"), 1770565330432);
 
             // Get all
             let all = MetricModel.getDatapoints(datapoints, id, null);
             expect.nat(all.size()).equal(3);
+            // Should still be ascending
+            expect.int(all[0].timestamp).equal(1770219720000);
+            expect.int(all[1].timestamp).equal(1770392525216);
+            expect.int(all[2].timestamp).equal(1770565330432);
 
-            // Get since 2000
-            let filtered = MetricModel.getDatapoints(datapoints, id, ?2000);
+            // Get since 1770392525216
+            let filtered = MetricModel.getDatapoints(datapoints, id, ?1770392525216);
             expect.nat(filtered.size()).equal(2);
 
-            // Get since 3000
-            let latest = MetricModel.getDatapoints(datapoints, id, ?3000);
+            // Get since 1770565330432
+            let latest = MetricModel.getDatapoints(datapoints, id, ?1770565330432);
             expect.nat(latest.size()).equal(1);
           };
           case (#err(_)) {

@@ -6,6 +6,7 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Time "mo:core/Time";
 import List "mo:core/List";
+import Runtime "mo:core/Runtime";
 
 module {
   // ============================================
@@ -103,30 +104,46 @@ module {
     Int.abs(timestamp / NANOS_PER_DAY);
   };
 
-  /// Insert a datapoint into a sorted list (sorted by timestamp descending - newest first)
-  /// Adds the datapoint and re-sorts the list to maintain descending timestamp order
+  /// Insert a datapoint into a sorted list (sorted by timestamp ascending - smallest first)
+  /// Optimized to avoid sorting when the datapoint is bigger than all existing datapoints
+  /// Mutates the list in place.
   ///
   /// @param list - The list to insert into
   /// @param datapoint - The datapoint to insert
-  /// @returns The updated list with the datapoint inserted in sorted position
-  public func insertSorted(list : TimeBucket, datapoint : MetricDatapoint) : TimeBucket {
-    // Add the new datapoint
+  public func insertSorted(list : TimeBucket, datapoint : MetricDatapoint) {
+    // Get last before insertion
+    let currentLast = List.last(list);
+
+    // Always add (appends to end)
     List.add(list, datapoint);
+    if (List.size(list) == 1) {
+      return; // First element, no need to sort
+    };
 
-    // Sort in-place by timestamp descending (newest first)
-    List.sortInPlace<MetricDatapoint>(
-      list,
-      func(a : MetricDatapoint, b : MetricDatapoint) : {
-        #less;
-        #equal;
-        #greater;
-      } {
-        if (a.timestamp > b.timestamp) { #less } // reverse order for descending
-        else if (a.timestamp < b.timestamp) { #greater } else { #equal };
-      },
-    );
-
-    list;
+    // Optimization: if new datapoint is bigger than or equal to the previously last element,
+    // we can skip sorting (common case for real-time metrics)
+    let last = switch (currentLast) {
+      case (null) { Runtime.unreachable() };
+      case (?last) { last };
+    };
+    if (datapoint.timestamp >= last.timestamp) {
+      return; // it's already sorted ascending
+    }
+    // Otherwise, we need to sort
+    else {
+      // Sort in-place by timestamp ascending (smallest first)
+      List.sortInPlace<MetricDatapoint>(
+        list,
+        func(a : MetricDatapoint, b : MetricDatapoint) : {
+          #less;
+          #equal;
+          #greater;
+        } {
+          if (a.timestamp < b.timestamp) { #less } // ascending order
+          else if (a.timestamp > b.timestamp) { #greater } else { #equal };
+        },
+      );
+    };
   };
 
   // ============================================
@@ -400,9 +417,9 @@ module {
       case (?tb) { tb };
     };
 
-    // Insert datapoint in sorted position
-    let updatedBucket = insertSorted(timeBucket, datapoint);
-    Map.add(buckets, Nat.compare, bucketKey, updatedBucket);
+    // Insert datapoint in sorted position (mutates timeBucket in place)
+    insertSorted(timeBucket, datapoint);
+    Map.add(buckets, Nat.compare, bucketKey, timeBucket);
 
     #ok(());
   };
@@ -492,10 +509,10 @@ module {
       };
     };
 
-    // Within the latest bucket, the first element is the newest (sorted descending)
+    // Within the latest bucket, the last element is the biggest (sorted ascending)
     switch (latestBucket) {
       case (null) { null };
-      case (?tb) { List.first(tb) };
+      case (?tb) { List.last(tb) };
     };
   };
 

@@ -309,7 +309,7 @@ describe("Metrics API", () => {
       const datapoints = expectOk(result);
 
       expect(datapoints.length).toBe(3);
-      expect(datapoints.map((d) => d.value)).toEqual([300.0, 200.0, 100.0]); // Sorted descending by timestamp
+      expect(datapoints.map((d) => d.value)).toEqual([100.0, 200.0, 300.0]); // Sorted ascending by timestamp
     });
 
     it("should return error for non-existent metric", async () => {
