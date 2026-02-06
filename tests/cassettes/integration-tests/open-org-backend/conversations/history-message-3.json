@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-3",
-  "recordedAt": "2026-02-03T22:34:45.879Z",
+  "recordedAt": "2026-02-06T09:33:14.993Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c8565c57fd14842-LIS"],
+          ["cf-ray", "9c99a5197f7c2f61-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 03 Feb 2026 22:34:46 GMT"],
+          ["date", "Fri, 06 Feb 2026 09:33:15 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "500000"],
           ["x-ratelimit-limit-tokens", "250000"],
-          ["x-ratelimit-remaining-requests", "233122"],
+          ["x-ratelimit-remaining-requests", "499999"],
           ["x-ratelimit-remaining-tokens", "249920"],
-          ["x-ratelimit-reset-requests", "12h48m36.518s"],
+          ["x-ratelimit-reset-requests", "172ms"],
           ["x-ratelimit-reset-tokens", "19ms"],
-          ["x-request-id", "req_01kgjt9nw6fzfvbndsxbpj3ze0"],
+          ["x-request-id", "req_01kgs4rv0aetd8qhfyvxx9q4yp"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-f23f09f9-6c60-4b11-a08f-4b5b5071ee22\",\"object\":\"chat.completion\",\"created\":1770158086,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"4 + 4 = 8.\",\"reasoning\":\"The user asks a simple math question: \\\"What is 4 + 8?\\\" Wait, it's \\\"What is 4 + 4?\\\" The answer is 8. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.020016976,\"prompt_tokens\":79,\"prompt_time\":0.003134409,\"completion_tokens\":58,\"completion_time\":0.120369059,\"total_tokens\":137,\"total_time\":0.123503468,\"completion_tokens_details\":{\"reasoning_tokens\":39}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kgjt9nw6fzfvbndsxbpj3ze0\",\"seed\":742959319},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-3dd86795-b817-472b-bad2-b9e0551c8c03\",\"object\":\"chat.completion\",\"created\":1770370395,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"8.\",\"reasoning\":\"User asks a simple arithmetic: 4+4 = 8. No policy issue. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.01802527,\"prompt_tokens\":79,\"prompt_time\":0.00309005,\"completion_tokens\":33,\"completion_time\":0.067821281,\"total_tokens\":112,\"total_time\":0.070911331,\"completion_tokens_details\":{\"reasoning_tokens\":22}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_178e424650\",\"x_groq\":{\"id\":\"req_01kgs4rv0aetd8qhfyvxx9q4yp\",\"seed\":1721021239},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

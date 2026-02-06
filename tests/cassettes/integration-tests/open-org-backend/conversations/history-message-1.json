@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-1",
-  "recordedAt": "2026-02-03T22:34:45.181Z",
+  "recordedAt": "2026-02-06T09:33:14.330Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c8565c12bc04842-LIS"],
+          ["cf-ray", "9c99a5156a692f61-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 03 Feb 2026 22:34:45 GMT"],
+          ["date", "Fri, 06 Feb 2026 09:33:14 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "500000"],
           ["x-ratelimit-limit-tokens", "250000"],
-          ["x-ratelimit-remaining-requests", "233121"],
+          ["x-ratelimit-remaining-requests", "499999"],
           ["x-ratelimit-remaining-tokens", "249920"],
-          ["x-ratelimit-reset-requests", "12h48m36.691s"],
+          ["x-ratelimit-reset-requests", "172ms"],
           ["x-ratelimit-reset-tokens", "19ms"],
-          ["x-request-id", "req_01kgjt9n6kfzarprxn18h38vdq"],
+          ["x-request-id", "req_01kgs4rtc2ez3tyrrzjttc1j5n"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-4be5c28b-fdcc-4eab-8e67-7ae89ab80ad0\",\"object\":\"chat.completion\",\"created\":1770158085,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"The user asks a simple math question: \\\"What is 2 + 2?\\\" The answer: 4. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.016761458,\"prompt_tokens\":79,\"prompt_time\":0.00297079,\"completion_tokens\":46,\"completion_time\":0.094705066,\"total_tokens\":125,\"total_time\":0.097675856,\"completion_tokens_details\":{\"reasoning_tokens\":27}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kgjt9n6kfzarprxn18h38vdq\",\"seed\":533094984},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-c7b34138-f041-4b7d-af69-46dca768d093\",\"object\":\"chat.completion\",\"created\":1770370394,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"The user asks a simple math question. It's allowed. Provide answer: 4.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017301692,\"prompt_tokens\":79,\"prompt_time\":0.003551294,\"completion_tokens\":37,\"completion_time\":0.077773143,\"total_tokens\":116,\"total_time\":0.081324437,\"completion_tokens_details\":{\"reasoning_tokens\":18}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kgs4rtc2ez3tyrrzjttc1j5n\",\"seed\":1154180631},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

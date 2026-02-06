@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-2",
-  "recordedAt": "2026-02-03T22:34:45.548Z",
+  "recordedAt": "2026-02-06T09:33:14.694Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c8565c3799c4842-LIS"],
+          ["cf-ray", "9c99a517990f2f61-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 03 Feb 2026 22:34:45 GMT"],
+          ["date", "Fri, 06 Feb 2026 09:33:14 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "500000"],
           ["x-ratelimit-limit-tokens", "250000"],
-          ["x-ratelimit-remaining-requests", "233122"],
+          ["x-ratelimit-remaining-requests", "499999"],
           ["x-ratelimit-remaining-tokens", "249920"],
-          ["x-ratelimit-reset-requests", "12h48m36.518s"],
+          ["x-ratelimit-reset-requests", "172ms"],
           ["x-ratelimit-reset-tokens", "19ms"],
-          ["x-request-id", "req_01kgjt9nj5fj58e46kd73p0yrj"],
+          ["x-request-id", "req_01kgs4rtpyetda9zkexdhpn9rq"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-fee01ddc-9abd-4acb-be2a-760bceaf1662\",\"object\":\"chat.completion\",\"created\":1770158085,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"3 + 3 = 6.\",\"reasoning\":\"The user asks a simple arithmetic question. We answer: 6.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017381528,\"prompt_tokens\":79,\"prompt_time\":0.003214176,\"completion_tokens\":34,\"completion_time\":0.07231051,\"total_tokens\":113,\"total_time\":0.075524686,\"completion_tokens_details\":{\"reasoning_tokens\":15}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_854fa9be4c\",\"x_groq\":{\"id\":\"req_01kgjt9nj5fj58e46kd73p0yrj\",\"seed\":63964433},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-5866418f-e57c-4f23-b85b-085c9cb16d55\",\"object\":\"chat.completion\",\"created\":1770370394,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"6\",\"reasoning\":\"User asks simple math. Answer 6.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017213856,\"prompt_tokens\":79,\"prompt_time\":0.003204575,\"completion_tokens\":20,\"completion_time\":0.041225214,\"total_tokens\":99,\"total_time\":0.044429789,\"completion_tokens_details\":{\"reasoning_tokens\":10}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_4f366d0fc3\",\"x_groq\":{\"id\":\"req_01kgs4rtpyetda9zkexdhpn9rq\",\"seed\":46784825},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "isolate-agent-1",
-  "recordedAt": "2026-02-03T22:34:47.605Z",
+  "recordedAt": "2026-02-06T09:33:16.784Z",
   "interactions": [
     {
       "request": {
@@ -23,9 +23,9 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c8565d06d2f4842-LIS"],
+          ["cf-ray", "9c99a524cc502f61-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 03 Feb 2026 22:34:47 GMT"],
+          ["date", "Fri, 06 Feb 2026 09:33:17 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
@@ -33,14 +33,14 @@
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "500000"],
           ["x-ratelimit-limit-tokens", "250000"],
-          ["x-ratelimit-remaining-requests", "233131"],
+          ["x-ratelimit-remaining-requests", "499999"],
           ["x-ratelimit-remaining-tokens", "249921"],
-          ["x-ratelimit-reset-requests", "12h48m34.963s"],
+          ["x-ratelimit-reset-requests", "172ms"],
           ["x-ratelimit-reset-tokens", "18ms"],
-          ["x-request-id", "req_01kgjt9qjsf9zvrgjzghc6d66c"],
+          ["x-request-id", "req_01kgs4rwrqett97mb924by5pv8"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-d081fef2-a775-4c9d-9428-33e2722e5f59\",\"object\":\"chat.completion\",\"created\":1770158087,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of France is **Paris**.\",\"reasoning\":\"The user asks: \\\"What is the capital of France?\\\" Straightforward factual answer: Paris. No policy issues. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017020782,\"prompt_tokens\":78,\"prompt_time\":0.003076367,\"completion_tokens\":45,\"completion_time\":0.092607048,\"total_tokens\":123,\"total_time\":0.095683415,\"completion_tokens_details\":{\"reasoning_tokens\":27}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_854fa9be4c\",\"x_groq\":{\"id\":\"req_01kgjt9qjsf9zvrgjzghc6d66c\",\"seed\":1541459465},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-e801c8c1-122c-4287-8252-71de57dfcc9c\",\"object\":\"chat.completion\",\"created\":1770370397,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The capital of France is **Paris**.\",\"reasoning\":\"The user asks a simple factual question. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017327792,\"prompt_tokens\":78,\"prompt_time\":0.003555145,\"completion_tokens\":30,\"completion_time\":0.062892036,\"total_tokens\":108,\"total_time\":0.066447181,\"completion_tokens_details\":{\"reasoning_tokens\":12}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kgs4rwrqett97mb924by5pv8\",\"seed\":442002376},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }
