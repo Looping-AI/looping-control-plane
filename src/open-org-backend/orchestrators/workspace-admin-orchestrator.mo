@@ -22,13 +22,13 @@ module {
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistry,
+    metricsRegistryState : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
     workspaceId : Nat,
     message : Text,
     keyCache : KeyDerivationService.KeyCache,
   ) : async {
-    #ok : Text;
+    #ok : [ConversationModel.Message];
     #err : Text;
   } {
     // Get api key (requires deriving encryption key for the workspace)
@@ -49,7 +49,7 @@ module {
               workspaceValueStreamsState,
               valueStreamsMap,
               workspaceObjectivesMap,
-              metricsRegistry,
+              metricsRegistryState,
               metricDatapoints,
               workspaceId,
               message,

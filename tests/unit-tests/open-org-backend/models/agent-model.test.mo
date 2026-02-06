@@ -1,5 +1,4 @@
 import { test; suite; expect } "mo:test";
-import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 import AgentModel "../../../../src/open-org-backend/models/agent-model";
@@ -33,20 +32,19 @@ suite(
     test(
       "creates agent with valid input",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        let (result, newNextId) = AgentModel.createAgent(
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        let result = AgentModel.createAgent(
           "TestAgent",
           #groq,
           "llama-3.1-70b-versatile",
-          agents,
-          0,
+          workspaceState,
         );
 
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).isOk();
-        expect.nat(newNextId).equal(1);
+        expect.nat(workspaceState.nextId).equal(1);
 
         // Verify agent was added
-        let agent = AgentModel.getAgent(0, agents);
+        let agent = AgentModel.getAgent(0, workspaceState);
         switch (agent) {
           case (?a) {
             expect.text(a.name).equal("TestAgent");
@@ -62,38 +60,37 @@ suite(
     test(
       "rejects empty agent name",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        let (result, nextId) = AgentModel.createAgent(
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        let result = AgentModel.createAgent(
           "",
           #groq,
           "llama-3.1-70b-versatile",
-          agents,
-          0,
+          workspaceState,
         );
 
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
           #err("Agent name cannot be empty.")
         );
-        expect.nat(nextId).equal(0); // ID should not increment
+        expect.nat(workspaceState.nextId).equal(0); // ID should not increment
       },
     );
 
     test(
       "increments ID for each new agent",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
+        let workspaceState = AgentModel.emptyWorkspaceState();
 
-        let (result1, nextId1) = AgentModel.createAgent("Agent1", #groq, "model1", agents, 0);
+        let result1 = AgentModel.createAgent("Agent1", #groq, "model1", workspaceState);
         expect.result<Nat, Text>(result1, resultNatToText, resultNatEqual).equal(#ok(0));
-        expect.nat(nextId1).equal(1);
+        expect.nat(workspaceState.nextId).equal(1);
 
-        let (result2, nextId2) = AgentModel.createAgent("Agent2", #openai, "model2", agents, nextId1);
+        let result2 = AgentModel.createAgent("Agent2", #openai, "model2", workspaceState);
         expect.result<Nat, Text>(result2, resultNatToText, resultNatEqual).equal(#ok(1));
-        expect.nat(nextId2).equal(2);
+        expect.nat(workspaceState.nextId).equal(2);
 
-        let (result3, nextId3) = AgentModel.createAgent("Agent3", #groq, "model3", agents, nextId2);
+        let result3 = AgentModel.createAgent("Agent3", #groq, "model3", workspaceState);
         expect.result<Nat, Text>(result3, resultNatToText, resultNatEqual).equal(#ok(2));
-        expect.nat(nextId3).equal(3);
+        expect.nat(workspaceState.nextId).equal(3);
       },
     );
   },
@@ -105,10 +102,10 @@ suite(
     test(
       "returns agent when exists",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        ignore AgentModel.createAgent("TestAgent", #groq, "test-model", agents, 0);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        ignore AgentModel.createAgent("TestAgent", #groq, "test-model", workspaceState);
 
-        let agent = AgentModel.getAgent(0, agents);
+        let agent = AgentModel.getAgent(0, workspaceState);
         switch (agent) {
           case (?a) {
             expect.text(a.name).equal("TestAgent");
@@ -124,8 +121,8 @@ suite(
     test(
       "returns null for non-existent agent",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        let agent = AgentModel.getAgent(999, agents);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        let agent = AgentModel.getAgent(999, workspaceState);
         expect.bool(agent == null).equal(true);
       },
     );
@@ -138,13 +135,13 @@ suite(
     test(
       "updates agent name",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        ignore AgentModel.createAgent("OldName", #groq, "model", agents, 0);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        ignore AgentModel.createAgent("OldName", #groq, "model", workspaceState);
 
-        let result = AgentModel.updateAgent(0, ?"NewName", null, null, agents);
+        let result = AgentModel.updateAgent(0, ?"NewName", null, null, workspaceState);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
-        let agent = AgentModel.getAgent(0, agents);
+        let agent = AgentModel.getAgent(0, workspaceState);
         switch (agent) {
           case (?a) { expect.text(a.name).equal("NewName") };
           case (null) { expect.bool(false).equal(true) };
@@ -155,13 +152,13 @@ suite(
     test(
       "updates agent model",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        ignore AgentModel.createAgent("Agent", #groq, "old-model", agents, 0);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        ignore AgentModel.createAgent("Agent", #groq, "old-model", workspaceState);
 
-        let result = AgentModel.updateAgent(0, null, null, ?"new-model", agents);
+        let result = AgentModel.updateAgent(0, null, null, ?"new-model", workspaceState);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
-        let agent = AgentModel.getAgent(0, agents);
+        let agent = AgentModel.getAgent(0, workspaceState);
         switch (agent) {
           case (?a) { expect.text(a.model).equal("new-model") };
           case (null) { expect.bool(false).equal(true) };
@@ -172,13 +169,13 @@ suite(
     test(
       "updates agent provider",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        ignore AgentModel.createAgent("Agent", #groq, "model", agents, 0);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        ignore AgentModel.createAgent("Agent", #groq, "model", workspaceState);
 
-        let result = AgentModel.updateAgent(0, null, ?#openai, null, agents);
+        let result = AgentModel.updateAgent(0, null, ?#openai, null, workspaceState);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
-        let agent = AgentModel.getAgent(0, agents);
+        let agent = AgentModel.getAgent(0, workspaceState);
         switch (agent) {
           case (?a) { expect.bool(a.provider == #openai).equal(true) };
           case (null) { expect.bool(false).equal(true) };
@@ -189,13 +186,13 @@ suite(
     test(
       "updates multiple fields at once",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        ignore AgentModel.createAgent("OldAgent", #groq, "old-model", agents, 0);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        ignore AgentModel.createAgent("OldAgent", #groq, "old-model", workspaceState);
 
-        let result = AgentModel.updateAgent(0, ?"NewAgent", ?#openai, ?"new-model", agents);
+        let result = AgentModel.updateAgent(0, ?"NewAgent", ?#openai, ?"new-model", workspaceState);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
-        let agent = AgentModel.getAgent(0, agents);
+        let agent = AgentModel.getAgent(0, workspaceState);
         switch (agent) {
           case (?a) {
             expect.text(a.name).equal("NewAgent");
@@ -210,8 +207,8 @@ suite(
     test(
       "returns error for non-existent agent",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        let result = AgentModel.updateAgent(999, ?"Name", null, null, agents);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        let result = AgentModel.updateAgent(999, ?"Name", null, null, workspaceState);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(
           #err("Agent not found.")
         );
@@ -221,13 +218,13 @@ suite(
     test(
       "preserves unchanged fields when updating",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        ignore AgentModel.createAgent("OriginalName", #groq, "original-model", agents, 0);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        ignore AgentModel.createAgent("OriginalName", #groq, "original-model", workspaceState);
 
         // Only update the name
-        ignore AgentModel.updateAgent(0, ?"UpdatedName", null, null, agents);
+        ignore AgentModel.updateAgent(0, ?"UpdatedName", null, null, workspaceState);
 
-        let agent = AgentModel.getAgent(0, agents);
+        let agent = AgentModel.getAgent(0, workspaceState);
         switch (agent) {
           case (?a) {
             expect.text(a.name).equal("UpdatedName");
@@ -247,25 +244,25 @@ suite(
     test(
       "deletes existing agent",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        ignore AgentModel.createAgent("ToDelete", #groq, "model", agents, 0);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        ignore AgentModel.createAgent("ToDelete", #groq, "model", workspaceState);
 
         // Verify agent exists
-        expect.bool(AgentModel.getAgent(0, agents) != null).equal(true);
+        expect.bool(AgentModel.getAgent(0, workspaceState) != null).equal(true);
 
-        let result = AgentModel.deleteAgent(0, agents);
+        let result = AgentModel.deleteAgent(0, workspaceState);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Verify agent is gone
-        expect.bool(AgentModel.getAgent(0, agents) == null).equal(true);
+        expect.bool(AgentModel.getAgent(0, workspaceState) == null).equal(true);
       },
     );
 
     test(
       "returns error for non-existent agent",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        let result = AgentModel.deleteAgent(999, agents);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        let result = AgentModel.deleteAgent(999, workspaceState);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(
           #err("Agent not found.")
         );
@@ -280,8 +277,8 @@ suite(
     test(
       "returns empty array for no agents",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        let list = AgentModel.listAgents(agents);
+        let workspaceState = AgentModel.emptyWorkspaceState();
+        let list = AgentModel.listAgents(workspaceState);
         expect.nat(list.size()).equal(0);
       },
     );
@@ -289,16 +286,13 @@ suite(
     test(
       "returns all agents",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        var nextId = 0;
+        let workspaceState = AgentModel.emptyWorkspaceState();
 
-        let (_, id1) = AgentModel.createAgent("Agent1", #groq, "model1", agents, nextId);
-        nextId := id1;
-        let (_, id2) = AgentModel.createAgent("Agent2", #openai, "model2", agents, nextId);
-        nextId := id2;
-        let (_, _) = AgentModel.createAgent("Agent3", #groq, "model3", agents, nextId);
+        ignore AgentModel.createAgent("Agent1", #groq, "model1", workspaceState);
+        ignore AgentModel.createAgent("Agent2", #openai, "model2", workspaceState);
+        ignore AgentModel.createAgent("Agent3", #groq, "model3", workspaceState);
 
-        let list = AgentModel.listAgents(agents);
+        let list = AgentModel.listAgents(workspaceState);
         expect.nat(list.size()).equal(3);
       },
     );
@@ -306,18 +300,15 @@ suite(
     test(
       "does not include deleted agents",
       func() {
-        let agents = Map.empty<Nat, AgentModel.Agent>();
-        var nextId = 0;
+        let workspaceState = AgentModel.emptyWorkspaceState();
 
-        let (_, id1) = AgentModel.createAgent("Agent1", #groq, "model1", agents, nextId);
-        nextId := id1;
-        let (_, id2) = AgentModel.createAgent("Agent2", #openai, "model2", agents, nextId);
-        nextId := id2;
+        ignore AgentModel.createAgent("Agent1", #groq, "model1", workspaceState);
+        ignore AgentModel.createAgent("Agent2", #openai, "model2", workspaceState);
 
         // Delete first agent
-        ignore AgentModel.deleteAgent(0, agents);
+        ignore AgentModel.deleteAgent(0, workspaceState);
 
-        let list = AgentModel.listAgents(agents);
+        let list = AgentModel.listAgents(workspaceState);
         expect.nat(list.size()).equal(1);
       },
     );

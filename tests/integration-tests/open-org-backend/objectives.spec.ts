@@ -716,9 +716,9 @@ describe("Objectives API", () => {
       const history = expectOk(historyResult);
 
       expect(history.length).toBe(3);
-      // History is stored with most recent first (prepended), but converted to array
-      // The order might be reversed in toArray, so check values exist rather than specific order
-      const values = history.map((h) => h.value[0]).sort();
+      // History is stored in chronological order (appended to end)
+      // Check values exist and stored in correct order
+      const values = history.map((h) => h.value[0]);
       expect(values).toEqual([60.0, 70.0, 80.0]);
     });
 

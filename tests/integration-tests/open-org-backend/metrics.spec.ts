@@ -295,17 +295,21 @@ describe("Metrics API", () => {
       const registerResult = await actor.registerMetric(metricInput);
       const metric = expectOk(registerResult);
 
-      // Record multiple datapoints
+      // Record multiple datapoints with time advancement to ensure different timestamps
       const source: MetricSource = { manual: "admin" };
       await actor.recordMetricDatapoint(metric.id, 100.0, source);
+      await pic.advanceTime(1000);
+      await pic.tick();
       await actor.recordMetricDatapoint(metric.id, 200.0, source);
+      await pic.advanceTime(1000);
+      await pic.tick();
       await actor.recordMetricDatapoint(metric.id, 300.0, source);
 
       const result = await actor.getMetricDatapoints(metric.id, []);
       const datapoints = expectOk(result);
 
       expect(datapoints.length).toBe(3);
-      expect(datapoints.map((d) => d.value)).toEqual([100.0, 200.0, 300.0]);
+      expect(datapoints.map((d) => d.value)).toEqual([100.0, 200.0, 300.0]); // Sorted ascending by timestamp
     });
 
     it("should return error for non-existent metric", async () => {
@@ -340,10 +344,14 @@ describe("Metrics API", () => {
       const registerResult = await actor.registerMetric(metricInput);
       const metric = expectOk(registerResult);
 
-      // Record multiple datapoints
+      // Record multiple datapoints with time advancement
       const source: MetricSource = { manual: "admin" };
       await actor.recordMetricDatapoint(metric.id, 100.0, source);
+      await pic.advanceTime(1000);
+      await pic.tick();
       await actor.recordMetricDatapoint(metric.id, 200.0, source);
+      await pic.advanceTime(1000);
+      await pic.tick();
       await actor.recordMetricDatapoint(metric.id, 300.0, source);
 
       const result = await actor.getLatestMetricDatapoint(metric.id);

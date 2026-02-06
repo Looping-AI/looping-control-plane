@@ -18,5 +18,6 @@ module {
     #errorRecovery;
     #needsValueStreamSetup;
     #needsPlanCreation;
+    #needsMetricsReview;
   };
 };

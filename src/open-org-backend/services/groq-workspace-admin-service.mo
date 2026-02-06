@@ -33,20 +33,20 @@ module {
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistry,
+    metricsRegistryState : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
     workspaceId : Nat,
     message : Text,
     apiKey : Text,
   ) : async {
-    #ok : Text;
+    #ok : [ConversationModel.Message];
     #err : Text;
   } {
     // Build instructions with workspace-specific context
     let instructions = buildAdminInstructions(
       workspaceValueStreamsState,
       workspaceObjectivesMap,
-      metricsRegistry,
+      metricsRegistryState,
       metricDatapoints,
       workspaceId,
     );
@@ -59,7 +59,15 @@ module {
         map = valueStreamsMap;
         write = true;
       };
-      // Future: add objectives, metrics, etc.
+      metrics = ?{
+        registryState = metricsRegistryState;
+        datapoints = metricDatapoints;
+        write = true;
+      };
+      objectives = ?{
+        map = workspaceObjectivesMap;
+        write = true;
+      };
     };
 
     // Combine tool definitions from both registries
@@ -68,11 +76,22 @@ module {
     let allTools = Array.concat(functionToolDefs, mcpToolDefs);
     let toolsOpt : ?[GroqWrapper.Tool] = if (allTools.size() == 0) null else ?allTools;
 
+    // Track messages added during this conversation turn
+    var newMessages = List.empty<ConversationModel.Message>();
+
+    // Store user message in conversation history
+    ConversationModel.addMessageToAdminConversation(
+      adminConversations,
+      workspaceId,
+      {
+        author = #user;
+        content = message;
+        timestamp = Time.now();
+      },
+    );
+
     // Load conversation history (bounded to last 30 messages) and convert to input format
     let inputMessages = loadConversationHistory(adminConversations, workspaceId);
-
-    // Add the new user message
-    List.add(inputMessages, { role = #user; content = message });
     var iteration = 0;
 
     loop {
@@ -88,52 +107,72 @@ module {
 
       switch (groqResult) {
         case (#ok(#textResponse(response))) {
-          // Final response - store conversation and return
+          let agentMessage : ConversationModel.Message = {
+            author = #agent;
+            content = response;
+            timestamp = Time.now();
+          };
           ConversationModel.addMessageToAdminConversation(
             adminConversations,
             workspaceId,
-            {
-              author = #user;
-              content = message;
-              timestamp = Time.now();
-            },
+            agentMessage,
           );
+          List.add(newMessages, agentMessage);
 
-          ConversationModel.addMessageToAdminConversation(
-            adminConversations,
-            workspaceId,
-            {
-              author = #agent;
-              content = response;
-              timestamp = Time.now();
-            },
-          );
-
-          return #ok(response);
+          return #ok(List.toArray(newMessages));
         };
 
         case (#ok(#toolCalls(calls))) {
-          // Execute tool calls
-          let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
+          // Format tool call message
+          let toolCallContent = "Using tools: " # Array.foldLeft<GroqWrapper.ToolCall, Text>(
+            calls,
+            "",
+            func(acc, call) {
+              if (acc == "") call.toolName else acc # ", " # call.toolName;
+            },
+          );
 
           // Add assistant message indicating tool calls were made
           List.add(
             inputMessages,
             {
               role = #assistant;
-              content = "Using tools: " # Array.foldLeft<GroqWrapper.ToolCall, Text>(
-                calls,
-                "",
-                func(acc, call) {
-                  if (acc == "") call.toolName else acc # ", " # call.toolName;
-                },
-              );
+              content = toolCallContent;
             },
           );
+
+          // Store tool call message in conversation history
+          let toolCallMessage : ConversationModel.Message = {
+            author = #tool_call;
+            content = toolCallContent;
+            timestamp = Time.now();
+          };
+          ConversationModel.addMessageToAdminConversation(
+            adminConversations,
+            workspaceId,
+            toolCallMessage,
+          );
+          List.add(newMessages, toolCallMessage);
+
+          // Execute tool calls
+          let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
 
           // Add tool results as user message
           let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
           List.add(inputMessages, { role = #assistant; content = formattedResults });
+
+          // Store tool results in conversation history
+          let toolResponseMessage : ConversationModel.Message = {
+            author = #tool_response;
+            content = formattedResults;
+            timestamp = Time.now();
+          };
+          ConversationModel.addMessageToAdminConversation(
+            adminConversations,
+            workspaceId,
+            toolResponseMessage,
+          );
+          List.add(newMessages, toolResponseMessage);
 
           iteration += 1;
           if (iteration >= MAX_ITERATIONS) {
@@ -170,6 +209,7 @@ module {
     };
 
     // Convert bounded history to ResponseInputMessage format
+    // Include tool calls and responses to provide full context to LLM
     let inputMessages = List.empty<GroqWrapper.ResponseInputMessage>();
     var i = historyStartIndex;
     while (i < conversationArray.size()) {
@@ -177,6 +217,8 @@ module {
       let role : GroqWrapper.MessageRole = switch (msg.author) {
         case (#user) { #user };
         case (#agent) { #assistant };
+        case (#tool_call) { #assistant };
+        case (#tool_response) { #assistant };
       };
       List.add(inputMessages, { role; content = msg.content });
       i += 1;
@@ -189,13 +231,13 @@ module {
   private func buildWorkspaceContext(
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistry,
+    metricsRegistryState : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
   ) : [InstructionTypes.InstructionBlock] {
     var blocks : List.List<InstructionTypes.InstructionBlock> = List.empty();
 
     // Add metrics summary with latest datapoints
-    let allMetrics = MetricModel.listMetrics(metricsRegistry);
+    let allMetrics = MetricModel.listMetrics(metricsRegistryState);
     if (allMetrics.size() > 0) {
       let metricsText = Array.foldLeft<MetricModel.MetricRegistration, Text>(
         allMetrics,
@@ -213,8 +255,7 @@ module {
     };
 
     // Add value streams for this workspace
-    let (_, valueStreamsMap) = workspaceValueStreamsState;
-    let streams = Iter.toArray(Map.values(valueStreamsMap));
+    let streams = Iter.toArray(Map.values(workspaceValueStreamsState.valueStreams));
     if (streams.size() > 0) {
       let streamsText = Array.foldLeft<ValueStreamModel.ValueStream, Text>(
         streams,
@@ -240,10 +281,13 @@ module {
 
     // Add objectives for all value streams in this workspace
     var objectivesText = "Objectives:\n";
+    var contextIdsText = "";
     var hasObjectives = false;
+    var needsAttention = List.empty<Text>();
+    let now = Time.now();
 
-    for ((vsId, (_, valueStreamObjMap)) in Map.entries(workspaceObjectivesMap)) {
-      let objectives = Iter.toArray(Map.values(valueStreamObjMap));
+    for ((vsId, vsObjectivesState) in Map.entries(workspaceObjectivesMap)) {
+      let objectives = Iter.toArray(Map.values(vsObjectivesState.objectives));
       if (objectives.size() > 0) {
         hasObjectives := true;
         for (obj in objectives.vals()) {
@@ -258,10 +302,51 @@ module {
             case (#paused) "paused";
             case (#archived) "archived";
           };
-          objectivesText := objectivesText # "- [" # statusText # "] " # obj.name # " (" # typeText # ")\n";
+
+          // Build current vs target display
+          let progressText = switch (obj.current, obj.target) {
+            case (?current, #percentage({ target })) {
+              " | Current: " # Float.toText(current) # "%, Target: " # Float.toText(target) # "%";
+            };
+            case (?current, #count({ target; direction })) {
+              let dir = switch (direction) {
+                case (#increase) "↑";
+                case (#decrease) "↓";
+              };
+              " | Current: " # Float.toText(current) # ", Target: " # Float.toText(target) # " " # dir;
+            };
+            case (?current, #threshold({ min; max })) {
+              let range = switch (min, max) {
+                case (?minVal, ?maxVal) {
+                  Float.toText(minVal) # "-" # Float.toText(maxVal);
+                };
+                case (?minVal, null) { "≥" # Float.toText(minVal) };
+                case (null, ?maxVal) { "≤" # Float.toText(maxVal) };
+                case (null, null) { "no bounds" };
+              };
+              " | Current: " # Float.toText(current) # ", Range: " # range;
+            };
+            case (?current, #boolean(target)) {
+              " | Current: " # (if (current == 1.0) "true" else "false") # ", Target: " # (if (target) "true" else "false");
+            };
+            case (null, _) { " | No data yet" };
+          };
+
+          objectivesText := objectivesText # "- [" # statusText # "] " # obj.name # " (" # typeText # ", VS:" # Nat.toText(vsId) # ", ID:" # Nat.toText(obj.id) # ")" # progressText # "\n";
+
           switch (obj.description) {
             case (?desc) {
               objectivesText := objectivesText # "  Description: " # desc # "\n";
+            };
+            case (null) {};
+          };
+
+          // Check if needs attention (past target date or no recent updates)
+          switch (obj.targetDate) {
+            case (?targetDate) {
+              if (targetDate < now and obj.status == #active) {
+                List.add(needsAttention, "- Objective '" # obj.name # "' (VS:" # Nat.toText(vsId) # ", ID:" # Nat.toText(obj.id) # ") is past its target date. Consider an impact review and updating targets if continuing.");
+              };
             };
             case (null) {};
           };
@@ -273,6 +358,16 @@ module {
       List.add(blocks, { id = "workspace-objectives"; content = objectivesText });
     };
 
+    // Add context IDs for objectives needing attention
+    if (List.size(needsAttention) > 0) {
+      contextIdsText := "⚠️ Objectives Needing Attention:\n" # Array.foldLeft<Text, Text>(
+        List.toArray(needsAttention),
+        "",
+        func(acc, item) { acc # item # "\n" },
+      );
+      List.add(blocks, { id = "objectives-attention"; content = contextIdsText });
+    };
+
     List.toArray(blocks);
   };
 
@@ -280,7 +375,7 @@ module {
   private func buildAdminInstructions(
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistry : MetricModel.MetricsRegistry,
+    metricsRegistryState : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
     _workspaceId : Nat,
   ) : Text {
@@ -288,7 +383,7 @@ module {
     let workspaceContext = buildWorkspaceContext(
       workspaceValueStreamsState,
       workspaceObjectivesMap,
-      metricsRegistry,
+      metricsRegistryState,
       metricDatapoints,
     );
 
@@ -296,8 +391,7 @@ module {
     var contextIds : List.List<InstructionTypes.ContextId> = List.empty();
 
     // Check if workspace needs value stream setup
-    let (_, valueStreamsMap) = workspaceValueStreamsState;
-    let streams = Iter.toArray(Map.values(valueStreamsMap));
+    let streams = Iter.toArray(Map.values(workspaceValueStreamsState.valueStreams));
     let hasActiveStream = Array.any<ValueStreamModel.ValueStream>(
       streams,
       func(vs) { vs.status == #active },
@@ -314,6 +408,10 @@ module {
 
       if (hasActiveStreamWithoutPlan) {
         List.add(contextIds, #needsPlanCreation);
+      } else {
+        // At least one active stream has plans
+        // Check if metrics review is warranted
+        List.add(contextIds, #needsMetricsReview);
       };
     };
 

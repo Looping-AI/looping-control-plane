@@ -62,8 +62,8 @@ suite(
     test(
       "emptyWorkspaceState creates state with nextId 0",
       func() {
-        let (nextId, _) = ValueStreamModel.emptyWorkspaceState();
-        expect.nat(nextId).equal(0);
+        let state = ValueStreamModel.emptyWorkspaceState();
+        expect.nat(state.nextId).equal(0);
       },
     );
 
