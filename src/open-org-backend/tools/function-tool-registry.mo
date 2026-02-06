@@ -1,7 +1,9 @@
 import Array "mo:core/Array";
 import List "mo:core/List";
+import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
+import Float "mo:core/Float";
 import Time "mo:core/Time";
 import Principal "mo:core/Principal";
 import Json "mo:json";
@@ -10,6 +12,7 @@ import GroqWrapper "../wrappers/groq-wrapper";
 import ToolTypes "./tool-types";
 import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
+import ObjectiveModel "../models/objective-model";
 
 module {
   // ============================================
@@ -85,6 +88,23 @@ module {
     };
 
     // ==========================================
+    // OBJECTIVE TOOLS - require workspaceId + objectives with write access
+    // ==========================================
+    switch (resources.workspaceId, resources.objectives) {
+      case (?wsId, ?obj) {
+        if (obj.write) {
+          List.add(tools, createObjectiveTool(wsId, obj.map));
+          List.add(tools, updateObjectiveTool(wsId, obj.map));
+          List.add(tools, archiveObjectiveTool(wsId, obj.map));
+          List.add(tools, recordObjectiveDatapointTool(wsId, obj.map));
+          List.add(tools, addImpactReviewTool(wsId, obj.map));
+        };
+        // Future: if read access, add read-only objective tools
+      };
+      case _ {};
+    };
+
+    // ==========================================
     // ADD NEW TOOL CATEGORIES BELOW
     // ==========================================
 
@@ -112,6 +132,22 @@ module {
   // ============================================
   // PRIVATE TOOL IMPLEMENTATIONS
   // ============================================
+
+  /// Helper function to extract Nat array from JSON array
+  private func extractNatArray(jsonArray : [Json.Json]) : [Nat] {
+    let buffer = List.empty<Nat>();
+    for (item in jsonArray.vals()) {
+      switch (item) {
+        case (#number(#int n)) {
+          if (n >= 0) {
+            List.add(buffer, Int.abs(n));
+          };
+        };
+        case _ {};
+      };
+    };
+    List.toArray(buffer);
+  };
 
   /// Echo tool - no resources required
   private func echoTool() : FunctionTool {
@@ -804,6 +840,629 @@ module {
               };
               case (null) {
                 return buildErrorResponse("Missing required field: metricId");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  // ============================================
+  // OBJECTIVE TOOLS
+  // ============================================
+
+  /// Create objective tool - requires workspaceId + objectives with write
+  private func createObjectiveTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "create_objective";
+          description = ?"Creates a new objective for a value stream. Use this after discussing and confirming the objective details with the user. An objective tracks progress toward a specific target using one or more metrics.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream this objective belongs to\"},\"name\":{\"type\":\"string\",\"description\":\"Name of the objective\"},\"description\":{\"type\":\"string\",\"description\":\"Optional. Detailed description of what this objective measures\"},\"objectiveType\":{\"type\":\"string\",\"enum\":[\"target\",\"contributing\",\"prerequisite\",\"guardrail\"],\"description\":\"Role of this objective: target (main success metric), contributing (supports target), prerequisite (blocks progress if not met), guardrail (maintain threshold)\"},\"metricIds\":{\"type\":\"array\",\"items\":{\"type\":\"number\"},\"description\":\"Array of metric IDs this objective uses for computation\"},\"computation\":{\"type\":\"string\",\"description\":\"Formula or description of how to compute the objective value from metrics\"},\"targetType\":{\"type\":\"string\",\"enum\":[\"percentage\",\"count\",\"threshold\",\"boolean\"],\"description\":\"Type of target to achieve\"},\"targetValue\":{\"type\":\"number\",\"description\":\"Target value (for percentage, count, or threshold min/max)\"},\"targetDirection\":{\"type\":\"string\",\"enum\":[\"increase\",\"decrease\"],\"description\":\"For count targets: should the value increase or decrease?\"},\"targetMax\":{\"type\":\"number\",\"description\":\"For threshold targets: maximum acceptable value\"},\"targetBoolean\":{\"type\":\"boolean\",\"description\":\"For boolean targets: desired true/false state\"},\"targetDate\":{\"type\":\"number\",\"description\":\"Optional. Unix timestamp (nanoseconds) when target should be achieved\"}},\"required\":[\"valueStreamId\",\"name\",\"objectiveType\",\"metricIds\",\"computation\",\"targetType\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            // Extract required fields
+            let valueStreamIdOpt = switch (Json.get(json, "valueStreamId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let nameOpt = switch (Json.get(json, "name")) {
+              case (?#string(s)) { ?s };
+              case _ { null };
+            };
+            let descriptionOpt = switch (Json.get(json, "description")) {
+              case (?#string(s)) { ?s };
+              case _ { null };
+            };
+            let objectiveTypeOpt = switch (Json.get(json, "objectiveType")) {
+              case (?#string("target")) { ?#target };
+              case (?#string("contributing")) { ?#contributing };
+              case (?#string("prerequisite")) { ?#prerequisite };
+              case (?#string("guardrail")) { ?#guardrail };
+              case _ { null };
+            };
+            let metricIdsOpt = switch (Json.get(json, "metricIds")) {
+              case (?#array(items)) {
+                ?extractNatArray(items);
+              };
+              case _ { null };
+            };
+            let computationOpt = switch (Json.get(json, "computation")) {
+              case (?#string(s)) { ?s };
+              case _ { null };
+            };
+            let targetTypeOpt = switch (Json.get(json, "targetType")) {
+              case (?#string(s)) { ?s };
+              case _ { null };
+            };
+            let targetDateOpt = switch (Json.get(json, "targetDate")) {
+              case (?#number(#int n)) { ?n };
+              case _ { null };
+            };
+
+            // Validate required fields
+            switch (valueStreamIdOpt, nameOpt, objectiveTypeOpt, metricIdsOpt, computationOpt, targetTypeOpt) {
+              case (?valueStreamId, ?name, ?objectiveType, ?metricIds, ?computation, ?targetType) {
+                // Build target based on targetType
+                let targetOpt : ?ObjectiveModel.ObjectiveTarget = switch (targetType) {
+                  case ("percentage") {
+                    switch (Json.get(json, "targetValue")) {
+                      case (?#number(#float f)) { ?#percentage({ target = f }) };
+                      case (?#number(#int i)) {
+                        ?#percentage({ target = Float.fromInt(i) });
+                      };
+                      case _ { null };
+                    };
+                  };
+                  case ("count") {
+                    let targetValueOpt = switch (Json.get(json, "targetValue")) {
+                      case (?#number(#float f)) { ?f };
+                      case (?#number(#int i)) { ?Float.fromInt(i) };
+                      case _ { null };
+                    };
+                    let directionOpt = switch (Json.get(json, "targetDirection")) {
+                      case (?#string("increase")) { ?#increase };
+                      case (?#string("decrease")) { ?#decrease };
+                      case _ { null };
+                    };
+                    switch (targetValueOpt, directionOpt) {
+                      case (?target, ?direction) {
+                        ?#count({ target; direction });
+                      };
+                      case _ { null };
+                    };
+                  };
+                  case ("threshold") {
+                    let minOpt = switch (Json.get(json, "targetValue")) {
+                      case (?#number(#float f)) { ?f };
+                      case (?#number(#int i)) { ?Float.fromInt(i) };
+                      case _ { null };
+                    };
+                    let maxOpt = switch (Json.get(json, "targetMax")) {
+                      case (?#number(#float f)) { ?f };
+                      case (?#number(#int i)) { ?Float.fromInt(i) };
+                      case _ { null };
+                    };
+                    ?#threshold({ min = minOpt; max = maxOpt });
+                  };
+                  case ("boolean") {
+                    switch (Json.get(json, "targetBoolean")) {
+                      case (?#bool(b)) { ?#boolean(b) };
+                      case _ { null };
+                    };
+                  };
+                  case _ { null };
+                };
+
+                switch (targetOpt) {
+                  case (?target) {
+                    let input : ObjectiveModel.ObjectiveInput = {
+                      name;
+                      description = descriptionOpt;
+                      objectiveType;
+                      metricIds;
+                      computation;
+                      target;
+                      targetDate = targetDateOpt;
+                    };
+
+                    // Wrap workspace map into full objectives map
+                    let fullObjectivesMap = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(workspaceId, workspaceObjectivesMap)], Nat.compare);
+
+                    // Initialize value stream objectives if not exists
+                    ObjectiveModel.initValueStreamObjectives(fullObjectivesMap, workspaceId, valueStreamId);
+
+                    let result = ObjectiveModel.addObjective(
+                      fullObjectivesMap,
+                      workspaceId,
+                      valueStreamId,
+                      input,
+                    );
+
+                    switch (result) {
+                      case (#ok(objectiveId)) {
+                        return Json.stringify(
+                          obj([
+                            ("success", bool(true)),
+                            ("objectiveId", int(objectiveId)),
+                            ("message", str("Objective created successfully")),
+                          ]),
+                          null,
+                        );
+                      };
+                      case (#err(error)) {
+                        return buildErrorResponse(error);
+                      };
+                    };
+                  };
+                  case (null) {
+                    return buildErrorResponse("Invalid target configuration for targetType: " # targetType);
+                  };
+                };
+              };
+              case _ {
+                return buildErrorResponse("Missing required fields: valueStreamId, name, objectiveType, metricIds, computation, and targetType are required");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Update objective tool - requires workspaceId + objectives with write
+  private func updateObjectiveTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "update_objective";
+          description = ?"Updates an existing objective. Can modify any field except the id. Use this to adjust targets, change status, or update descriptions based on user feedback.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective to update\"},\"name\":{\"type\":\"string\",\"description\":\"Optional. New name\"},\"description\":{\"type\":\"string\",\"description\":\"Optional. New description (use empty string to clear)\"},\"clearDescription\":{\"type\":\"boolean\",\"description\":\"Optional. Set to true to clear the description\"},\"objectiveType\":{\"type\":\"string\",\"enum\":[\"target\",\"contributing\",\"prerequisite\",\"guardrail\"],\"description\":\"Optional. New objective type\"},\"metricIds\":{\"type\":\"array\",\"items\":{\"type\":\"number\"},\"description\":\"Optional. New array of metric IDs\"},\"computation\":{\"type\":\"string\",\"description\":\"Optional. New computation formula\"},\"targetType\":{\"type\":\"string\",\"enum\":[\"percentage\",\"count\",\"threshold\",\"boolean\"],\"description\":\"Optional. New target type\"},\"targetValue\":{\"type\":\"number\",\"description\":\"Optional. New target value\"},\"targetDirection\":{\"type\":\"string\",\"enum\":[\"increase\",\"decrease\"],\"description\":\"Optional. For count targets\"},\"targetMax\":{\"type\":\"number\",\"description\":\"Optional. For threshold targets\"},\"targetBoolean\":{\"type\":\"boolean\",\"description\":\"Optional. For boolean targets\"},\"targetDate\":{\"type\":\"number\",\"description\":\"Optional. New target date (Unix timestamp in nanoseconds)\"},\"clearTargetDate\":{\"type\":\"boolean\",\"description\":\"Optional. Set to true to clear the target date\"},\"status\":{\"type\":\"string\",\"enum\":[\"active\",\"paused\",\"archived\"],\"description\":\"Optional. New status\"}},\"required\":[\"valueStreamId\",\"objectiveId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            // Extract required IDs
+            let valueStreamIdOpt = switch (Json.get(json, "valueStreamId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let objectiveIdOpt = switch (Json.get(json, "objectiveId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+
+            switch (valueStreamIdOpt, objectiveIdOpt) {
+              case (?valueStreamId, ?objectiveId) {
+                // Extract optional update fields
+                let nameOpt = switch (Json.get(json, "name")) {
+                  case (?#string(s)) { ?s };
+                  case _ { null };
+                };
+
+                let descriptionOpt : ??Text = switch (Json.get(json, "clearDescription")) {
+                  case (?#bool(true)) { ?null };
+                  case _ {
+                    switch (Json.get(json, "description")) {
+                      case (?#string(s)) { ?(?s) };
+                      case _ { null };
+                    };
+                  };
+                };
+
+                let objectiveTypeOpt = switch (Json.get(json, "objectiveType")) {
+                  case (?#string("target")) { ?#target };
+                  case (?#string("contributing")) { ?#contributing };
+                  case (?#string("prerequisite")) { ?#prerequisite };
+                  case (?#string("guardrail")) { ?#guardrail };
+                  case _ { null };
+                };
+
+                let metricIdsOpt = switch (Json.get(json, "metricIds")) {
+                  case (?#array(items)) {
+                    ?extractNatArray(items);
+                  };
+                  case _ { null };
+                };
+
+                let computationOpt = switch (Json.get(json, "computation")) {
+                  case (?#string(s)) { ?s };
+                  case _ { null };
+                };
+
+                // Handle target updates
+                let targetOpt : ?ObjectiveModel.ObjectiveTarget = switch (Json.get(json, "targetType")) {
+                  case (?#string("percentage")) {
+                    switch (Json.get(json, "targetValue")) {
+                      case (?#number(#float f)) { ?#percentage({ target = f }) };
+                      case (?#number(#int i)) {
+                        ?#percentage({ target = Float.fromInt(i) });
+                      };
+                      case _ { null };
+                    };
+                  };
+                  case (?#string("count")) {
+                    let targetValueOpt = switch (Json.get(json, "targetValue")) {
+                      case (?#number(#float f)) { ?f };
+                      case (?#number(#int i)) { ?Float.fromInt(i) };
+                      case _ { null };
+                    };
+                    let directionOpt = switch (Json.get(json, "targetDirection")) {
+                      case (?#string("increase")) { ?#increase };
+                      case (?#string("decrease")) { ?#decrease };
+                      case _ { null };
+                    };
+                    switch (targetValueOpt, directionOpt) {
+                      case (?target, ?direction) {
+                        ?#count({ target; direction });
+                      };
+                      case _ { null };
+                    };
+                  };
+                  case (?#string("threshold")) {
+                    let minOpt = switch (Json.get(json, "targetValue")) {
+                      case (?#number(#float f)) { ?f };
+                      case (?#number(#int i)) { ?Float.fromInt(i) };
+                      case _ { null };
+                    };
+                    let maxOpt = switch (Json.get(json, "targetMax")) {
+                      case (?#number(#float f)) { ?f };
+                      case (?#number(#int i)) { ?Float.fromInt(i) };
+                      case _ { null };
+                    };
+                    ?#threshold({ min = minOpt; max = maxOpt });
+                  };
+                  case (?#string("boolean")) {
+                    switch (Json.get(json, "targetBoolean")) {
+                      case (?#bool(b)) { ?#boolean(b) };
+                      case _ { null };
+                    };
+                  };
+                  case _ { null };
+                };
+
+                let targetDateOpt : ??Int = switch (Json.get(json, "clearTargetDate")) {
+                  case (?#bool(true)) { ?null };
+                  case _ {
+                    switch (Json.get(json, "targetDate")) {
+                      case (?#number(#int n)) { ?(?n) };
+                      case _ { null };
+                    };
+                  };
+                };
+
+                let statusOpt = switch (Json.get(json, "status")) {
+                  case (?#string("active")) { ?#active };
+                  case (?#string("paused")) { ?#paused };
+                  case (?#string("archived")) { ?#archived };
+                  case _ { null };
+                };
+
+                // Wrap workspace map into full objectives map
+                let fullObjectivesMap = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(workspaceId, workspaceObjectivesMap)], Nat.compare);
+
+                let result = ObjectiveModel.updateObjective(
+                  fullObjectivesMap,
+                  workspaceId,
+                  valueStreamId,
+                  objectiveId,
+                  nameOpt,
+                  descriptionOpt,
+                  objectiveTypeOpt,
+                  metricIdsOpt,
+                  computationOpt,
+                  targetOpt,
+                  targetDateOpt,
+                  statusOpt,
+                );
+
+                switch (result) {
+                  case (#ok(())) {
+                    return Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("message", str("Objective updated successfully")),
+                      ]),
+                      null,
+                    );
+                  };
+                  case (#err(error)) {
+                    return buildErrorResponse(error);
+                  };
+                };
+              };
+              case _ {
+                return buildErrorResponse("Missing required fields: valueStreamId and objectiveId are required");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Archive objective tool - requires workspaceId + objectives with write
+  private func archiveObjectiveTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "archive_objective";
+          description = ?"Archives an objective by setting its status to archived. Use this when an objective is no longer relevant or has been achieved and should be preserved but not actively tracked.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective to archive\"}},\"required\":[\"valueStreamId\",\"objectiveId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            let valueStreamIdOpt = switch (Json.get(json, "valueStreamId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let objectiveIdOpt = switch (Json.get(json, "objectiveId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+
+            switch (valueStreamIdOpt, objectiveIdOpt) {
+              case (?valueStreamId, ?objectiveId) {
+                // Wrap workspace map into full objectives map
+                let fullObjectivesMap = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(workspaceId, workspaceObjectivesMap)], Nat.compare);
+
+                let result = ObjectiveModel.archiveObjective(
+                  fullObjectivesMap,
+                  workspaceId,
+                  valueStreamId,
+                  objectiveId,
+                );
+
+                switch (result) {
+                  case (#ok(())) {
+                    return Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("message", str("Objective archived successfully")),
+                      ]),
+                      null,
+                    );
+                  };
+                  case (#err(error)) {
+                    return buildErrorResponse(error);
+                  };
+                };
+              };
+              case _ {
+                return buildErrorResponse("Missing required fields: valueStreamId and objectiveId are required");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Record objective datapoint tool - requires workspaceId + objectives with write
+  private func recordObjectiveDatapointTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "record_objective_datapoint";
+          description = ?"Records a new datapoint for an objective, updating both the current value and adding an entry to the history. Use this when the user provides a progress update or you calculate a new value based on metric data.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective\"},\"value\":{\"type\":\"number\",\"description\":\"The computed objective value\"},\"timestamp\":{\"type\":\"number\",\"description\":\"Optional. Unix timestamp in nanoseconds. Defaults to now if not provided\"},\"valueWarning\":{\"type\":\"string\",\"description\":\"Optional. A warning message if there were issues computing the value\"},\"comment\":{\"type\":\"string\",\"description\":\"Optional. A comment about this datapoint\"},\"commentAuthor\":{\"type\":\"string\",\"description\":\"Optional. Author of the comment (assistant name or 'user'). Defaults to 'assistant'\"}},\"required\":[\"valueStreamId\",\"objectiveId\",\"value\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            let valueStreamIdOpt = switch (Json.get(json, "valueStreamId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let objectiveIdOpt = switch (Json.get(json, "objectiveId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let valueOpt = switch (Json.get(json, "value")) {
+              case (?#number(#float f)) { ?f };
+              case (?#number(#int i)) { ?Float.fromInt(i) };
+              case _ { null };
+            };
+
+            switch (valueStreamIdOpt, objectiveIdOpt, valueOpt) {
+              case (?valueStreamId, ?objectiveId, ?value) {
+                let timestamp = switch (Json.get(json, "timestamp")) {
+                  case (?#number(#int n)) { n };
+                  case _ { Time.now() };
+                };
+
+                let valueWarning = switch (Json.get(json, "valueWarning")) {
+                  case (?#string(s)) { ?s };
+                  case _ { null };
+                };
+
+                // Build comment if provided
+                let comments : [ObjectiveModel.ObjectiveDatapointComment] = switch (Json.get(json, "comment")) {
+                  case (?#string(commentText)) {
+                    let author = switch (Json.get(json, "commentAuthor")) {
+                      case (?#string("user")) {
+                        #principal(Principal.fromText("2vxsx-fae"));
+                      }; // Placeholder
+                      case (?#string(name)) { #assistant(name) };
+                      case _ { #assistant("assistant") };
+                    };
+                    [{
+                      timestamp = Time.now();
+                      author;
+                      message = commentText;
+                    }];
+                  };
+                  case _ { [] };
+                };
+
+                let datapoint : ObjectiveModel.ObjectiveDatapoint = {
+                  timestamp;
+                  value = ?value;
+                  valueWarning;
+                  comments;
+                };
+
+                // Wrap workspace map into full objectives map
+                let fullObjectivesMap = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(workspaceId, workspaceObjectivesMap)], Nat.compare);
+
+                let result = ObjectiveModel.recordObjectiveDatapoint(
+                  fullObjectivesMap,
+                  workspaceId,
+                  valueStreamId,
+                  objectiveId,
+                  datapoint,
+                );
+
+                switch (result) {
+                  case (#ok(())) {
+                    return Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("message", str("Datapoint recorded successfully")),
+                        ("value", #number(#float(value))),
+                      ]),
+                      null,
+                    );
+                  };
+                  case (#err(error)) {
+                    return buildErrorResponse(error);
+                  };
+                };
+              };
+              case _ {
+                return buildErrorResponse("Missing required fields: valueStreamId, objectiveId, and value are required");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Add impact review tool - requires workspaceId + objectives with write
+  private func addImpactReviewTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "add_impact_review";
+          description = ?"Adds an impact review to assess whether an objective is still meaningful and making progress. Use this periodically or when requested to evaluate objective effectiveness, especially for objectives past their target date or showing little progress.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective\"},\"perceivedImpact\":{\"type\":\"string\",\"enum\":[\"negative\",\"none\",\"low\",\"medium\",\"high\",\"unclear\"],\"description\":\"Assessment of the objective's perceived impact\"},\"comment\":{\"type\":\"string\",\"description\":\"Optional. Comments explaining the impact assessment\"},\"author\":{\"type\":\"string\",\"description\":\"Optional. Author of the review (assistant name). Defaults to 'assistant'\"}},\"required\":[\"valueStreamId\",\"objectiveId\",\"perceivedImpact\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            let valueStreamIdOpt = switch (Json.get(json, "valueStreamId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let objectiveIdOpt = switch (Json.get(json, "objectiveId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let perceivedImpactOpt = switch (Json.get(json, "perceivedImpact")) {
+              case (?#string("negative")) { ?#negative };
+              case (?#string("none")) { ?#none };
+              case (?#string("low")) { ?#low };
+              case (?#string("medium")) { ?#medium };
+              case (?#string("high")) { ?#high };
+              case (?#string("unclear")) { ?#unclear };
+              case _ { null };
+            };
+
+            switch (valueStreamIdOpt, objectiveIdOpt, perceivedImpactOpt) {
+              case (?valueStreamId, ?objectiveId, ?perceivedImpact) {
+                let comment = switch (Json.get(json, "comment")) {
+                  case (?#string(s)) { ?s };
+                  case _ { null };
+                };
+
+                let author = switch (Json.get(json, "author")) {
+                  case (?#string(name)) { #assistant(name) };
+                  case _ { #assistant("assistant") };
+                };
+
+                let review : ObjectiveModel.ImpactReview = {
+                  timestamp = Time.now();
+                  author;
+                  perceivedImpact;
+                  comment;
+                };
+
+                // Wrap workspace map into full objectives map
+                let fullObjectivesMap = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(workspaceId, workspaceObjectivesMap)], Nat.compare);
+
+                let result = ObjectiveModel.addImpactReview(
+                  fullObjectivesMap,
+                  workspaceId,
+                  valueStreamId,
+                  objectiveId,
+                  review,
+                );
+
+                switch (result) {
+                  case (#ok(())) {
+                    return Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("message", str("Impact review added successfully")),
+                      ]),
+                      null,
+                    );
+                  };
+                  case (#err(error)) {
+                    return buildErrorResponse(error);
+                  };
+                };
+              };
+              case _ {
+                return buildErrorResponse("Missing required fields: valueStreamId, objectiveId, and perceivedImpact are required");
               };
             };
           };

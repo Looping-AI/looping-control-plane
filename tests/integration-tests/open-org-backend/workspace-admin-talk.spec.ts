@@ -767,4 +767,299 @@ describe("workspaceAdminTalk", () => {
       { timeout: 15000 },
     );
   });
+
+  describe("Objective Management", () => {
+    it(
+      "should create an objective through LLM conversation",
+      async () => {
+        // First setup: create a value stream and metric
+        actor.setIdentity(adminIdentity);
+        const vsResult = await actor.createValueStream(0n, {
+          name: "User Onboarding",
+          problem: "Low signup completion",
+          goal: "Achieve 90% completion rate",
+        });
+        const valueStream = expectOk(vsResult);
+        const vsId = valueStream.id;
+
+        // Activate the value stream
+        const activateResult = await actor.updateValueStream(
+          0n,
+          vsId,
+          [],
+          [],
+          [],
+          [{ active: null }],
+        );
+        expectOk(activateResult);
+
+        const metricResult = await actor.registerMetric({
+          name: "Signup Completion Rate",
+          description: "Percentage of users who complete signup",
+          unit: "%",
+          retentionDays: 90n,
+        });
+        const metric = expectOk(metricResult);
+        const metricId = metric.id;
+
+        // Create a deferred actor for the HTTP outcall test
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Ask LLM to create an objective
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/tool-call-create-objective",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              `Create a target objective called "90% Signup Completion" for the User Onboarding value stream. Use metric ${metricId} (computation: "metric_${metricId}"). Target: 90% completion rate.`,
+            ),
+          { ticks: 5, maxRounds: 15 },
+        );
+        expectOk(await result);
+
+        // Verify the objective was created
+        actor.setIdentity(adminIdentity);
+        const objectives = expectOk(await actor.listObjectives(0n, vsId));
+        expect(objectives.length).toBeGreaterThan(0);
+        const createdObj = objectives[0];
+        expect(createdObj.name).toContain("90%");
+        expect(createdObj.metricIds.length).toBe(1);
+        expect(createdObj.metricIds[0]).toBe(metricId);
+      },
+      { timeout: 30000 },
+    );
+
+    it(
+      "should update an objective with new target",
+      async () => {
+        // Setup: create value stream, metric, and objective
+        actor.setIdentity(adminIdentity);
+        const vsResult = await actor.createValueStream(0n, {
+          name: "Product Quality",
+          problem: "Bug reports increasing",
+          goal: "Reduce critical bugs to zero",
+        });
+        const valueStream = expectOk(vsResult);
+        const vsId = valueStream.id;
+
+        // Activate the value stream
+        const activateResult = await actor.updateValueStream(
+          0n,
+          vsId,
+          [],
+          [],
+          [],
+          [{ active: null }],
+        );
+        expectOk(activateResult);
+
+        const metricResult = await actor.registerMetric({
+          name: "Critical Bugs",
+          description: "Number of critical bugs in production",
+          unit: "count",
+          retentionDays: 365n,
+        });
+        const metric = expectOk(metricResult);
+        const metricId = metric.id;
+
+        const objResult = await actor.addObjective(0n, vsId, {
+          name: "Zero Critical Bugs",
+          description: ["Maintain zero critical bugs in production"],
+          objectiveType: { target: null },
+          metricIds: [metricId],
+          computation: `metric_${metricId}`,
+          target: { count: { target: 0, direction: { decrease: null } } },
+          targetDate: [],
+        });
+        const objective = expectOk(objResult);
+        const objId = objective.id;
+
+        // Create a deferred actor for the HTTP outcall test
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Ask LLM to update the objective with new target
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/tool-call-update-objective",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              `Update objective ${objId} in value stream ${vsId} to have a target of 2 bugs (count, decrease direction). This is more realistic.`,
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        expectOk(await result);
+
+        // Verify the update
+        actor.setIdentity(adminIdentity);
+        const updated = expectOk(await actor.getObjective(0n, vsId, objId));
+        expect("count" in updated.target).toBe(true);
+        if ("count" in updated.target) {
+          expect(updated.target.count.target).toBe(2);
+        }
+      },
+      { timeout: 30000 },
+    );
+
+    it(
+      "should record objective datapoint",
+      async () => {
+        // Setup: create value stream, metric, and objective
+        actor.setIdentity(adminIdentity);
+        const vsResult = await actor.createValueStream(0n, {
+          name: "Customer Satisfaction",
+          problem: "NPS score declining",
+          goal: "Achieve NPS of 50+",
+        });
+        const valueStream = expectOk(vsResult);
+        const vsId = valueStream.id;
+
+        // Activate the value stream
+        const activateResult = await actor.updateValueStream(
+          0n,
+          vsId,
+          [],
+          [],
+          [],
+          [{ active: null }],
+        );
+        expectOk(activateResult);
+
+        const metricResult = await actor.registerMetric({
+          name: "Net Promoter Score",
+          description: "Customer satisfaction metric",
+          unit: "score",
+          retentionDays: 365n,
+        });
+        const metric = expectOk(metricResult);
+        const metricId = metric.id;
+
+        const objResult = await actor.addObjective(0n, vsId, {
+          name: "NPS Target",
+          description: [],
+          objectiveType: { target: null },
+          metricIds: [metricId],
+          computation: `metric_${metricId}`,
+          target: { count: { target: 50, direction: { increase: null } } },
+          targetDate: [],
+        });
+        const objective = expectOk(objResult);
+        const objId = objective.id;
+
+        // Create a deferred actor for the HTTP outcall test
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Ask LLM to record a datapoint
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/tool-call-record-datapoint",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              `Record a datapoint for objective ${objId} in value stream ${vsId}: current NPS is 45.`,
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        expectOk(await result);
+
+        // Verify the datapoint was recorded
+        actor.setIdentity(adminIdentity);
+        const updated = expectOk(await actor.getObjective(0n, vsId, objId));
+        expect(updated.current.length).toBe(1);
+        if (updated.current.length > 0) {
+          expect(updated.current[0]).toBeCloseTo(45, 1);
+        }
+        expect(updated.history.length).toBeGreaterThan(0);
+      },
+      { timeout: 20000 },
+    );
+
+    it(
+      "should add impact review to objective",
+      async () => {
+        // Setup: create value stream, metric, and objective
+        actor.setIdentity(adminIdentity);
+        const vsResult = await actor.createValueStream(0n, {
+          name: "Performance Monitoring",
+          problem: "Page load times increasing",
+          goal: "Sub-second page loads",
+        });
+        const valueStream = expectOk(vsResult);
+        const vsId = valueStream.id;
+
+        // Activate the value stream
+        const activateResult = await actor.updateValueStream(
+          0n,
+          vsId,
+          [],
+          [],
+          [],
+          [{ active: null }],
+        );
+        expectOk(activateResult);
+
+        const metricResult = await actor.registerMetric({
+          name: "Page Load Time",
+          description: "Average page load time in milliseconds",
+          unit: "ms",
+          retentionDays: 90n,
+        });
+        const metric = expectOk(metricResult);
+        const metricId = metric.id;
+
+        const objResult = await actor.addObjective(0n, vsId, {
+          name: "Fast Page Loads",
+          description: [],
+          objectiveType: { target: null },
+          metricIds: [metricId],
+          computation: `metric_${metricId}`,
+          target: { count: { target: 1000, direction: { decrease: null } } },
+          targetDate: [],
+        });
+        const objective = expectOk(objResult);
+        const objId = objective.id;
+
+        // Create a deferred actor for the HTTP outcall test
+        const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
+          idlFactory,
+          canisterId,
+        );
+        deferredActor.setIdentity(adminIdentity);
+
+        // Ask LLM to add an impact review
+        const { result } = await withCassette(
+          pic,
+          "integration-tests/open-org-backend/workspace-admin-talk/tool-call-add-impact-review",
+          () =>
+            deferredActor.workspaceAdminTalk(
+              0n,
+              `Add an impact review for objective ${objId} in value stream ${vsId}. The perceived impact is medium, and we should continue monitoring this but it's not critical yet.`,
+            ),
+          { ticks: 5, maxRounds: 6 },
+        );
+        expectOk(await result);
+
+        // Verify the impact review was added
+        actor.setIdentity(adminIdentity);
+        const updated = expectOk(await actor.getObjective(0n, vsId, objId));
+        expect(updated.impactReviews.length).toBeGreaterThan(0);
+        const review = updated.impactReviews[0];
+        expect("medium" in review.perceivedImpact).toBe(true);
+      },
+      { timeout: 20000 },
+    );
+  });
 });

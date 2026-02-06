@@ -64,6 +64,10 @@ module {
         datapoints = metricDatapoints;
         write = true;
       };
+      objectives = ?{
+        map = workspaceObjectivesMap;
+        write = true;
+      };
     };
 
     // Combine tool definitions from both registries
@@ -277,7 +281,10 @@ module {
 
     // Add objectives for all value streams in this workspace
     var objectivesText = "Objectives:\n";
+    var contextIdsText = "";
     var hasObjectives = false;
+    var needsAttention = List.empty<Text>();
+    let now = Time.now();
 
     for ((vsId, vsObjectivesState) in Map.entries(workspaceObjectivesMap)) {
       let objectives = Iter.toArray(Map.values(vsObjectivesState.objectives));
@@ -295,10 +302,51 @@ module {
             case (#paused) "paused";
             case (#archived) "archived";
           };
-          objectivesText := objectivesText # "- [" # statusText # "] " # obj.name # " (" # typeText # ")\n";
+
+          // Build current vs target display
+          let progressText = switch (obj.current, obj.target) {
+            case (?current, #percentage({ target })) {
+              " | Current: " # Float.toText(current) # "%, Target: " # Float.toText(target) # "%";
+            };
+            case (?current, #count({ target; direction })) {
+              let dir = switch (direction) {
+                case (#increase) "↑";
+                case (#decrease) "↓";
+              };
+              " | Current: " # Float.toText(current) # ", Target: " # Float.toText(target) # " " # dir;
+            };
+            case (?current, #threshold({ min; max })) {
+              let range = switch (min, max) {
+                case (?minVal, ?maxVal) {
+                  Float.toText(minVal) # "-" # Float.toText(maxVal);
+                };
+                case (?minVal, null) { "≥" # Float.toText(minVal) };
+                case (null, ?maxVal) { "≤" # Float.toText(maxVal) };
+                case (null, null) { "no bounds" };
+              };
+              " | Current: " # Float.toText(current) # ", Range: " # range;
+            };
+            case (?current, #boolean(target)) {
+              " | Current: " # (if (current == 1.0) "true" else "false") # ", Target: " # (if (target) "true" else "false");
+            };
+            case (null, _) { " | No data yet" };
+          };
+
+          objectivesText := objectivesText # "- [" # statusText # "] " # obj.name # " (" # typeText # ", VS:" # Nat.toText(vsId) # ", ID:" # Nat.toText(obj.id) # ")" # progressText # "\n";
+
           switch (obj.description) {
             case (?desc) {
               objectivesText := objectivesText # "  Description: " # desc # "\n";
+            };
+            case (null) {};
+          };
+
+          // Check if needs attention (past target date or no recent updates)
+          switch (obj.targetDate) {
+            case (?targetDate) {
+              if (targetDate < now and obj.status == #active) {
+                List.add(needsAttention, "- Objective '" # obj.name # "' (VS:" # Nat.toText(vsId) # ", ID:" # Nat.toText(obj.id) # ") is past its target date. Consider an impact review and updating targets if continuing.");
+              };
             };
             case (null) {};
           };
@@ -308,6 +356,16 @@ module {
 
     if (hasObjectives) {
       List.add(blocks, { id = "workspace-objectives"; content = objectivesText });
+    };
+
+    // Add context IDs for objectives needing attention
+    if (List.size(needsAttention) > 0) {
+      contextIdsText := "⚠️ Objectives Needing Attention:\n" # Array.foldLeft<Text, Text>(
+        List.toArray(needsAttention),
+        "",
+        func(acc, item) { acc # item # "\n" },
+      );
+      List.add(blocks, { id = "objectives-attention"; content = contextIdsText });
     };
 
     List.toArray(blocks);
