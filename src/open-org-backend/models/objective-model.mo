@@ -90,8 +90,8 @@ module {
     target : ObjectiveTarget;
     targetDate : ?Int;
     current : ?Float;
-    history : List.List<ObjectiveDatapoint>; // Using List for O(1) prepend
-    impactReviews : List.List<ImpactReview>; // Using List for O(1) prepend
+    history : List.List<ObjectiveDatapoint>; // Using List for O(1) append
+    impactReviews : List.List<ImpactReview>; // Using List for O(1) append
     status : ObjectiveStatus;
     createdAt : Int;
     updatedAt : Int;
@@ -646,7 +646,7 @@ module {
       case (?obj) { obj };
     };
 
-    // Add review to the beginning of the list (O(1))
+    // Add review to the end of the list (O(1))
     List.add(o.impactReviews, review);
 
     #ok(());
