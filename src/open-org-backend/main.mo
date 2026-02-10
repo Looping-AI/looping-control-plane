@@ -7,6 +7,7 @@ import Text "mo:core/Text";
 import Timer "mo:core/Timer";
 import Int "mo:core/Int";
 import Array "mo:core/Array";
+import Blob "mo:core/Blob";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
@@ -1077,6 +1078,50 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#ok(())) {
         ObjectiveModel.getImpactReviews(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
       };
+    };
+  };
+
+  // ============================================
+  // HTTP Incoming Requests (Webhooks)
+  // ============================================
+
+  /// Query entry point for all incoming HTTP requests.
+  /// POST requests are upgraded to update calls so they can mutate state.
+  /// GET requests return a simple status message.
+  public query func http_request(req : Types.HttpRequest) : async Types.HttpResponse {
+    if (req.method == "POST") {
+      {
+        status_code = 200;
+        headers = [];
+        body = Blob.fromArray([]);
+        upgrade = ?true;
+      };
+    } else if (req.method == "GET") {
+      {
+        status_code = 200;
+        headers = [("content-type", "text/plain")];
+        body = Text.encodeUtf8("Looping AI API Server");
+        upgrade = ?false;
+      };
+    } else {
+      {
+        status_code = 400;
+        headers = [("content-type", "text/plain")];
+        body = Text.encodeUtf8("Bad Request");
+        upgrade = null;
+      };
+    };
+  };
+
+  /// Update entry point called when http_request returns upgrade = ?true.
+  /// Handles POST webhook payloads and can safely mutate canister state.
+  public func http_request_update(_req : Types.HttpUpdateRequest) : async Types.HttpResponse {
+    // TODO: route and process webhook payload (e.g. Slack events)
+    {
+      status_code = 200;
+      headers = [("content-type", "text/plain")];
+      body = Text.encodeUtf8("Webhook received");
+      upgrade = null;
     };
   };
 };
