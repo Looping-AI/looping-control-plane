@@ -23,6 +23,7 @@ import Constants "./constants";
 import MetricModel "./models/metric-model";
 import ValueStreamModel "./models/value-stream-model";
 import ObjectiveModel "./models/objective-model";
+import HttpCertification "./utilities/http-certification";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -47,6 +48,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
   var workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
   var workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
+
+  // HTTP certification state (skip-certification for query responses)
+  var httpCertStore = HttpCertification.initStore();
 
   // ============================================
   // Auth Helper
@@ -92,6 +96,18 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     );
   };
 
+  // Register HTTP paths that skip response verification
+  private func certifyHttpEndpoints() {
+    HttpCertification.certifySkipPath(httpCertStore, "/");
+  };
+
+  // ============================================
+  // Canister Init and Postupgrade
+  // ============================================
+
+  // Certify HTTP endpoints on first install
+  certifyHttpEndpoints();
+
   // This logic runs only on the VERY FIRST installation (init)
   // Subsequent upgrades will wipe this timer and it won't be replaced
   let _initTimer = Timer.setTimer<system>(
@@ -127,6 +143,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       Nat.fromInt(Constants.THIRTY_DAYS_NS - retentionElapsed);
     };
     ignore Timer.setTimer<system>(#nanoseconds(retentionDelay), metricRetentionCleanupTimer);
+
+    // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
+    certifyHttpEndpoints();
   };
 
   // ============================================
@@ -1097,9 +1116,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         upgrade = ?true;
       };
     } else if (req.method == "GET") {
+      let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, "/");
       {
         status_code = 200;
-        headers = [("content-type", "text/plain")];
+        headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
         body = Text.encodeUtf8("Looping AI API Server");
         upgrade = ?false;
       };
