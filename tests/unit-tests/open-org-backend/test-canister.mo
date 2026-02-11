@@ -78,7 +78,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     HttpCertification.certifySkipFallbackPath(certStore, url);
   };
 
-  public func httpCertGetHeaders(url : Text) : async {
+  public query func httpCertGetHeaders(url : Text) : async {
     #ok : [(Text, Text)];
     #err : Text;
   } {
@@ -91,7 +91,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   /// Check if a path exists in the MerkleTree and return its details
-  public func httpCertCheckPath(url : Text) : async {
+  public query func httpCertCheckPath(url : Text) : async {
     #ok : {
       exists : Bool;
       path : [Text];

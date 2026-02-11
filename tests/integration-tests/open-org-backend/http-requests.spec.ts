@@ -29,7 +29,12 @@ describe("HTTP Requests", () => {
 
       expect(response.status_code).toBe(200);
       expect(response.upgrade).toEqual([false]); // Candid optional: [false] means Some(false)
-      expect(response.headers).toEqual([["content-type", "text/plain"]]);
+
+      // Check that content-type header is present (along with certification headers)
+      const contentTypeHeader = response.headers.find(
+        ([key]) => key === "content-type",
+      );
+      expect(contentTypeHeader).toEqual(["content-type", "text/plain"]);
 
       // Decode the body to verify message
       const decoder = new TextDecoder();
@@ -63,7 +68,12 @@ describe("HTTP Requests", () => {
 
       expect(response.status_code).toBe(400);
       expect(response.upgrade).toEqual([]); // Candid optional: [] means None (null)
-      expect(response.headers).toEqual([["content-type", "text/plain"]]);
+
+      // Check that content-type header is present (along with certification headers)
+      const contentTypeHeader = response.headers.find(
+        ([key]) => key === "content-type",
+      );
+      expect(contentTypeHeader).toEqual(["content-type", "text/plain"]);
 
       const decoder = new TextDecoder();
       const bodyText = decoder.decode(new Uint8Array(response.body));
