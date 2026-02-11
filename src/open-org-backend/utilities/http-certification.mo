@@ -6,14 +6,15 @@
 /// Uses only `ic-certification` (MerkleTree) + `sha2` — no other external dependencies.
 ///
 /// Usage:
-///   1. Store:    `var certStore = HttpCertification.initStore();`
-///   2. Certify:  call `HttpCertification.certifySkipPath(certStore, "/")` from an update context
-///   3. Recert:   call `HttpCertification.recertify(certStore)` in `postupgrade`
-///   4. Headers:  append `HttpCertification.getSkipCertificationHeaders(certStore, "/")` to query response
+///   1. Store:      `var certStore = HttpCertification.initStore();`
+///   2. Certify:    call `HttpCertification.certifySkipFallbackPath(certStore, "/")` from an update context
+///   3. Recertify:  call `HttpCertification.certifySkipFallbackPath(certStore, "/")` in `postupgrade`
+///   4. Headers:    append `HttpCertification.getSkipCertificationHeaders(certStore, "/")` to query response
 
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import CertifiedData "mo:core/CertifiedData";
+import Debug "mo:core/Debug";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Nat8 "mo:core/Nat8";
@@ -50,12 +51,12 @@ module {
     { var tree = MerkleTree.empty() };
   };
 
-  /// Register a URL path as "skip certification" in the Merkle tree and
+  /// Register a URL fallback path as "skip certification" in the Merkle tree and
   /// commit the root hash via `CertifiedData.set`.
   ///
   /// **Must be called from an update context** (actor init, `postupgrade`, or an update method).
-  /// Call once per path you want to serve from `http_request` without full verification.
-  public func certifySkipPath(store : CertStore, url : Text) {
+  /// Call once per fallback path you want to serve from `http_request` without full verification.
+  public func certifySkipFallbackPath(store : CertStore, url : Text) {
     let textExprPath = buildTextExprPath(url);
     let blobExprPath = Array.map<Text, Blob>(textExprPath, Text.encodeUtf8);
     let exprHash = SHA256.fromBlob(#sha256, Text.encodeUtf8(SKIP_CERT_EXPR));
@@ -63,17 +64,6 @@ module {
     // For no_certification both request_hash and response_hash are empty blobs
     let fullPath = appendBlobs(blobExprPath, [exprHash, "", ""]);
     store.tree := MerkleTree.put(store.tree, fullPath, "");
-    CertifiedData.set(MerkleTree.treeHash(store.tree));
-  };
-
-  /// Re-commit the existing tree's root hash after a canister upgrade.
-  ///
-  /// The IC clears `CertifiedData` on upgrade, but a `persistent actor` preserves
-  /// the `CertStore` variable. This function re-sets the root hash without
-  /// rebuilding the tree.
-  ///
-  /// **Must be called from `postupgrade`.**
-  public func recertify(store : CertStore) {
     CertifiedData.set(MerkleTree.treeHash(store.tree));
   };
 
@@ -117,29 +107,38 @@ module {
   // Internal — Expression Path
   // ============================================
 
-  /// Build the V2 text expression path for a URL (exact-match variant).
+  /// Build the V2 text expression path for a URL (fallback variant).
   ///
   /// Examples:
-  ///   "/" → ["http_expr", "", "<$>"]
-  ///   "/health" → ["http_expr", "health", "<$>"]
-  ///   "/api/status" → ["http_expr", "api", "status", "<$>"]
+  ///   "/" → ["http_expr", "", "<*>"]
+  ///   "/health" → ["http_expr", "health", "<*>"]
+  ///   "/api/status" → ["http_expr", "api", "status", "<*>"]
   func buildTextExprPath(url : Text) : [Text] {
-    let segments : [Text] = if (url == "" or url == "/") {
+    // Strip query parameters (everything after '?')
+    let pathOnly = switch (Text.split(url, #char '?').next()) {
+      case (?path) { path };
+      case (null) { url };
+    };
+    Debug.print("[HttpCert] Path only (no query): " # pathOnly);
+
+    let segments : [Text] = if (pathOnly == "" or pathOnly == "/") {
       [""];
     } else {
-      let parts = Text.split(url, #char '/');
+      let parts = Text.split(pathOnly, #char '/');
       ignore parts.next(); // skip leading empty segment from "/"
       Iter.toArray(parts);
     };
 
-    let size : Nat = segments.size() + 2; // "http_expr" + segments + "<$>"
+    let size : Nat = segments.size() + 2; // "http_expr" + segments + "<*>"
     let lastIdx : Nat = size - 1 : Nat;
-    Array.tabulate<Text>(
+    let result = Array.tabulate<Text>(
       size,
       func(i : Nat) : Text {
-        if (i == 0) "http_expr" else if (i < lastIdx) segments[i - 1 : Nat] else "<$>";
+        if (i == 0) "http_expr" else if (i < lastIdx) segments[i - 1 : Nat] else "<*>";
       },
     );
+    Debug.print("[HttpCert] Built path array: " # debug_show (result));
+    result;
   };
 
   // ============================================

@@ -8,6 +8,8 @@ import Timer "mo:core/Timer";
 import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
+import Debug "mo:core/Debug";
+import Json "mo:json";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
@@ -98,7 +100,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Register HTTP paths that skip response verification
   private func certifyHttpEndpoints() {
-    HttpCertification.certifySkipPath(httpCertStore, "/");
+    HttpCertification.certifySkipFallbackPath(httpCertStore, "/");
   };
 
   // ============================================
@@ -145,6 +147,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     ignore Timer.setTimer<system>(#nanoseconds(retentionDelay), metricRetentionCleanupTimer);
 
     // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
+    // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
+    httpCertStore := HttpCertification.initStore();
     certifyHttpEndpoints();
   };
 
@@ -1108,6 +1112,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   /// POST requests are upgraded to update calls so they can mutate state.
   /// GET requests return a simple status message.
   public query func http_request(req : Types.HttpRequest) : async Types.HttpResponse {
+    Debug.print("[HTTP] Request URL: " # req.url);
     if (req.method == "POST") {
       {
         status_code = 200;
@@ -1116,7 +1121,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         upgrade = ?true;
       };
     } else if (req.method == "GET") {
-      let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, "/");
+      let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, req.url);
       {
         status_code = 200;
         headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
@@ -1124,9 +1129,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         upgrade = ?false;
       };
     } else {
+      let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, req.url);
       {
         status_code = 400;
-        headers = [("content-type", "text/plain")];
+        headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
         body = Text.encodeUtf8("Bad Request");
         upgrade = null;
       };
@@ -1135,12 +1141,31 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   /// Update entry point called when http_request returns upgrade = ?true.
   /// Handles POST webhook payloads and can safely mutate canister state.
-  public func http_request_update(_req : Types.HttpUpdateRequest) : async Types.HttpResponse {
-    // TODO: route and process webhook payload (e.g. Slack events)
+  public func http_request_update(req : Types.HttpUpdateRequest) : async Types.HttpResponse {
+    let bodyText = switch (Text.decodeUtf8(req.body)) {
+      case (?text) { text };
+      case (null) { "" };
+    };
+
+    let challengeOpt : ?Text = switch (Json.parse(bodyText)) {
+      case (#ok(json)) {
+        switch (Json.get(json, "challenge")) {
+          case (?#string(challenge)) { ?challenge };
+          case _ { null };
+        };
+      };
+      case (#err(_)) { null };
+    };
+
+    let responseText = switch (challengeOpt) {
+      case (?challenge) { challenge };
+      case (null) { "Webhook received" };
+    };
+
     {
       status_code = 200;
       headers = [("content-type", "text/plain")];
-      body = Text.encodeUtf8("Webhook received");
+      body = Text.encodeUtf8(responseText);
       upgrade = null;
     };
   };
