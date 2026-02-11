@@ -8,7 +8,6 @@ import Timer "mo:core/Timer";
 import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
-import Debug "mo:core/Debug";
 import Json "mo:json";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
@@ -1112,7 +1111,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   /// POST requests are upgraded to update calls so they can mutate state.
   /// GET requests return a simple status message.
   public query func http_request(req : Types.HttpRequest) : async Types.HttpResponse {
-    Debug.print("[HTTP] Request URL: " # req.url);
     if (req.method == "POST") {
       {
         status_code = 200;

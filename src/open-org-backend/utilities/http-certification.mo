@@ -14,7 +14,6 @@
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import CertifiedData "mo:core/CertifiedData";
-import Debug "mo:core/Debug";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Nat8 "mo:core/Nat8";
@@ -146,7 +145,6 @@ module {
       case (?path) { path };
       case (null) { url };
     };
-    Debug.print("[HttpCert] Path only (no query): " # pathOnly);
 
     let segments : [Text] = if (pathOnly == "" or pathOnly == "/") {
       [""];
@@ -158,14 +156,12 @@ module {
 
     let size : Nat = segments.size() + 2; // "http_expr" + segments + "<*>"
     let lastIdx : Nat = size - 1 : Nat;
-    let result = Array.tabulate<Text>(
+    Array.tabulate<Text>(
       size,
       func(i : Nat) : Text {
         if (i == 0) "http_expr" else if (i < lastIdx) segments[i - 1 : Nat] else "<*>";
       },
     );
-    Debug.print("[HttpCert] Built path array: " # debug_show (result));
-    result;
   };
 
   // ============================================
