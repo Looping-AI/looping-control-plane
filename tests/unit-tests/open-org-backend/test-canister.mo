@@ -1,5 +1,8 @@
+import Error "mo:core/Error";
+
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
+import HttpCertification "../../../src/open-org-backend/utilities/http-certification";
 
 // ============================================
 // Test Canister
@@ -9,6 +12,9 @@ import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
 // Never add this canister to dfx or deploy it
 
 shared ({ caller = parent }) persistent actor class TestCanister() {
+  // Store for HTTP certification testing
+  var certStore = HttpCertification.initStore();
+
   public shared ({ caller }) func httpGet(url : Text, headers : [HttpWrapper.HttpHeader]) : async {
     #ok : (Nat, Text);
     #err : Text;
@@ -56,5 +62,48 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   } {
     assert caller == parent;
     await GroqWrapper.useBuiltInTool(apiKey, userMessage, tool);
+  };
+
+  // ============================================
+  // HTTP Certification Methods
+  // ============================================
+
+  public shared ({ caller }) func httpCertInit() : async () {
+    assert caller == parent;
+    certStore := HttpCertification.initStore();
+  };
+
+  public shared ({ caller }) func httpCertCertifyPath(url : Text) : async () {
+    assert caller == parent;
+    HttpCertification.certifySkipFallbackPath(certStore, url);
+  };
+
+  public func httpCertGetHeaders(url : Text) : async {
+    #ok : [(Text, Text)];
+    #err : Text;
+  } {
+    try {
+      let headers = HttpCertification.getSkipCertificationHeaders(certStore, url);
+      #ok(headers);
+    } catch (_) {
+      #err("Failed to get headers");
+    };
+  };
+
+  /// Check if a path exists in the MerkleTree and return its details
+  public func httpCertCheckPath(url : Text) : async {
+    #ok : {
+      exists : Bool;
+      path : [Text];
+      treeHash : Blob;
+    };
+    #err : Text;
+  } {
+    try {
+      let result = HttpCertification.checkPath(certStore, url);
+      #ok(result);
+    } catch (e) {
+      #err("Failed to check path: " # Error.message(e));
+    };
   };
 };

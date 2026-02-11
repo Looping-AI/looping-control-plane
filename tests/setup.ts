@@ -104,10 +104,11 @@ export async function createTestEnvironment(): Promise<{
 }
 
 /**
- * Creates a new PocketIC test environment with test canister
- * @returns Object with PocketIC instance, test canister deferred actor, and canisterId
+ * Creates a new PocketIC test environment with test canister (deferred actor).
+ * Use this for tests that require cassette recording/playback.
+ * @returns Object with PocketIC instance, deferred test canister actor, and canisterId
  */
-export async function createTestCanisterEnvironment(): Promise<{
+export async function createDeferredTestCanister(): Promise<{
   pic: PocketIc;
   actor: DeferredActor<TestCanisterService>;
   canisterId: import("@dfinity/principal").Principal;
@@ -119,13 +120,33 @@ export async function createTestCanisterEnvironment(): Promise<{
     wasm: TEST_CANISTER_WASM_PATH,
   });
 
-  // Create a deferred actor instead of regular actor
+  // Create a deferred actor for cassette recording
   const deferredActor = pic.createDeferredActor<TestCanisterService>(
     testCanisterIdlFactory,
     fixture.canisterId,
   );
 
   return { pic, actor: deferredActor, canisterId: fixture.canisterId };
+}
+
+/**
+ * Creates a new PocketIC test environment with test canister (normal actor).
+ * Use this for unit tests that don't require cassette recording.
+ * @returns Object with PocketIC instance, test canister actor, and canisterId
+ */
+export async function createTestCanister(): Promise<{
+  pic: PocketIc;
+  actor: Actor<TestCanisterService>;
+  canisterId: import("@dfinity/principal").Principal;
+}> {
+  const pic = await PocketIc.create(process.env.PIC_URL || "");
+
+  const fixture = await pic.setupCanister<TestCanisterService>({
+    idlFactory: testCanisterIdlFactory,
+    wasm: TEST_CANISTER_WASM_PATH,
+  });
+
+  return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
 }
 
 /**

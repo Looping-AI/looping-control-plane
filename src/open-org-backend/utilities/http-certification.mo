@@ -103,6 +103,33 @@ module {
     ];
   };
 
+  /// Check if a path exists in the certification store's MerkleTree.
+  ///
+  /// Returns details about the path including whether it exists, the expression path array,
+  /// and the current tree hash. Useful for testing and verification.
+  public func checkPath(store : CertStore, url : Text) : {
+    exists : Bool;
+    path : [Text];
+    treeHash : Blob;
+  } {
+    let textExprPath = buildTextExprPath(url);
+    let blobExprPath = Array.map<Text, Blob>(textExprPath, Text.encodeUtf8);
+    let exprHash = SHA256.fromBlob(#sha256, Text.encodeUtf8(SKIP_CERT_EXPR));
+    let fullPath = appendBlobs(blobExprPath, [exprHash, "", ""]);
+
+    // Check if path exists in the tree
+    let pathExists = switch (MerkleTree.lookup(store.tree, fullPath)) {
+      case (?_) { true };
+      case (null) { false };
+    };
+
+    {
+      exists = pathExists;
+      path = textExprPath;
+      treeHash = MerkleTree.treeHash(store.tree);
+    };
+  };
+
   // ============================================
   // Internal — Expression Path
   // ============================================
