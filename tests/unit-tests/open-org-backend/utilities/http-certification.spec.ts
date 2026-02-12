@@ -106,24 +106,16 @@ describe("HttpCertification Unit Tests", () => {
       await testCanister.httpCertCertifyPath("/");
 
       const response = await testCanister.httpCertGetHeaders("/");
-
-      // In test environment, getSkipCertificationHeaders returns empty array
-      // because CertifiedData.getCertificate() returns null
       expect("ok" in response).toBe(true);
 
       if ("ok" in response) {
         const headers = response.ok;
         expect(Array.isArray(headers)).toBe(true);
-        // Headers will be empty in test context since certificate is unavailable
-        expect(headers.length).toBe(0);
+        expect(headers.length).toBe(2);
 
-        // Verify format of headers (if any)
-        for (const header of headers) {
-          expect(Array.isArray(header)).toBe(true);
-          expect(header.length).toBe(2);
-          expect(typeof header[0]).toBe("string");
-          expect(typeof header[1]).toBe("string");
-        }
+        // Verify format of headers
+        expect(headers[0][0]).toBe("ic-certificate");
+        expect(headers[1][0]).toBe("ic-certificateexpression");
       }
     });
 
