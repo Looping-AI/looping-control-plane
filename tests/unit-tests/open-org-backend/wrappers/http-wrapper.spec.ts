@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, DeferredActor } from "@dfinity/pic";
 import {
-  createTestCanisterEnvironment,
+  createDeferredTestCanister,
   type TestCanisterService,
 } from "../../../setup";
 import { withCassette } from "../../../lib/cassette";
@@ -12,7 +12,7 @@ describe("HTTP Wrapper Unit Tests", () => {
   let testCanister: DeferredActor<TestCanisterService>;
 
   beforeEach(async () => {
-    const testEnv = await createTestCanisterEnvironment();
+    const testEnv = await createDeferredTestCanister();
     pic = testEnv.pic;
     testCanister = testEnv.actor;
   });
