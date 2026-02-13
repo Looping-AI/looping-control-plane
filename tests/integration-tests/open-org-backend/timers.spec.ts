@@ -27,10 +27,10 @@ describe("Timer Management", () => {
 
   describe("Cache clearing timer", () => {
     it("should clear the key cache after 30 days", async () => {
-      // Store an API key at the workspace
-      const storeResult = await actor.storeApiKey(
+      // Store a secret at the workspace
+      const storeResult = await actor.storeSecret(
         0n,
-        { groq: null },
+        { groqApiKey: null },
         "test-api-key-for-timer",
       );
       expectOk(storeResult);

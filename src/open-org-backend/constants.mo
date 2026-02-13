@@ -9,5 +9,6 @@ module {
 
   // Admin talk configuration
   public let ADMIN_TALK_PROVIDER : Types.LlmProvider = #groq;
+  public let ADMIN_TALK_SECRET : Types.SecretId = #groqApiKey;
   public let ADMIN_TALK_MODEL : Text = "openai/gpt-oss-120b";
 };

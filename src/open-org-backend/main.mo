@@ -14,7 +14,7 @@ import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
 import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
-import ApiKeysModel "./models/api-keys-model";
+import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
 import WorkspaceTalkService "./services/workspace-talk-service";
 import WorkspaceAdminOrchestrator "./orchestrators/workspace-admin-orchestrator";
@@ -35,7 +35,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var orgAdmins : [Principal] = [owner];
   var conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
   var adminConversations = Map.fromArray<Nat, List.List<ConversationModel.Message>>([(0, List.empty<ConversationModel.Message>())], Nat.compare);
-  var apiKeys = Map.empty<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>(); // Encrypted API keys per workspace
+  var secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>(); // Encrypted secrets per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
@@ -461,7 +461,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Delegate to orchestrator for business logic
         await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
           mcpToolRegistry,
-          apiKeys,
+          secrets,
           adminConversations,
           workspaceValueStreamsState,
           workspaceValueStreams,
@@ -493,7 +493,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Delegate to service for business logic
         await WorkspaceTalkService.processWorkspaceTalk(
           workspaceAgents,
-          apiKeys,
+          secrets,
           conversations,
           workspaceId,
           agentId,
@@ -505,20 +505,29 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // API Key Management
+  // Secrets Management
   // ============================================
 
-  // Store an API key for a provider in a workspace (encrypted at rest)
-  // Only workspace admins can store API keys
-  public shared ({ caller }) func storeApiKey(workspaceId : Nat, provider : Types.LlmProvider, apiKey : Text) : async {
+  // Store a secret in a workspace (encrypted at rest)
+  // Workspace admins can store LLM API keys; org owner/admins can store integration secrets
+  public shared ({ caller }) func storeSecret(workspaceId : Nat, secretId : Types.SecretId, secret : Text) : async {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+    // Integration secrets (Slack) require org-level auth; LLM keys require workspace admin
+    let requiredRoles = switch (secretId) {
+      case (#slackSigningSecret or #slackBotToken) {
+        [#IsOrgOwner, #IsOrgAdmin];
+      };
+      case (#groqApiKey or #openaiApiKey) {
+        [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin];
+      };
+    };
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), requiredRoles)) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        if (Text.trim(apiKey, #char ' ') == "") {
-          return #err("API key cannot be empty.");
+        if (Text.trim(secret, #char ' ') == "") {
+          return #err("Secret cannot be empty.");
         };
         // Verify workspace exists
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
@@ -529,35 +538,43 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Derive encryption key for this workspace
         let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
 
-        ApiKeysModel.storeApiKey(apiKeys, encryptionKey, workspaceId, provider, apiKey);
+        SecretModel.storeSecret(secrets, encryptionKey, workspaceId, secretId, secret);
       };
     };
   };
 
-  // Get API keys for a workspace
-  // Only workspace admins can view API keys
-  public shared ({ caller }) func getWorkspaceApiKeys(workspaceId : Nat) : async {
-    #ok : [Types.LlmProvider];
+  // Get stored secret identifiers for a workspace (does not return the secret values)
+  // Only workspace admins can view stored secrets
+  public shared ({ caller }) func getWorkspaceSecrets(workspaceId : Nat) : async {
+    #ok : [Types.SecretId];
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ApiKeysModel.getWorkspaceApiKeys(apiKeys, workspaceId);
+        SecretModel.getWorkspaceSecrets(secrets, workspaceId);
       };
     };
   };
 
-  // Delete an API key for a specific provider in a workspace
-  // Only workspace admins can delete API keys
-  public shared ({ caller }) func deleteApiKey(workspaceId : Nat, provider : Types.LlmProvider) : async {
+  // Delete a secret for a specific secret ID in a workspace
+  // Workspace admins can delete LLM API keys; org owner/admins can delete integration secrets
+  public shared ({ caller }) func deleteSecret(workspaceId : Nat, secretId : Types.SecretId) : async {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+    let requiredRoles = switch (secretId) {
+      case (#slackSigningSecret or #slackBotToken) {
+        [#IsOrgOwner, #IsOrgAdmin];
+      };
+      case (#groqApiKey or #openaiApiKey) {
+        [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin];
+      };
+    };
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), requiredRoles)) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ApiKeysModel.deleteApiKey(apiKeys, workspaceId, provider);
+        SecretModel.deleteSecret(secrets, workspaceId, secretId);
       };
     };
   };

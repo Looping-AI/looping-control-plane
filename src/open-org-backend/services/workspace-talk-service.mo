@@ -4,7 +4,7 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Types "../types";
 import AgentModel "../models/agent-model";
-import ApiKeysModel "../models/api-keys-model";
+import SecretModel "../models/secret-model";
 import KeyDerivationService "./key-derivation-service";
 import ConversationModel "../models/conversation-model";
 import GroqWrapper "../wrappers/groq-wrapper";
@@ -28,7 +28,7 @@ module {
   // Process the workspace talk request after validation
   public func processWorkspaceTalk(
     workspaceAgents : Map.Map<Nat, AgentModel.WorkspaceAgentsState>,
-    apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>,
+    apiKeys : Map.Map<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>,
     conversations : Map.Map<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>,
     workspaceId : Nat,
     agentId : Nat,
@@ -46,7 +46,11 @@ module {
       case (?foundAgent) {
         // Get api key (requires deriving encryption key for the workspace)
         let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-        let apiKey = ApiKeysModel.getApiKey(apiKeys, encryptionKey, workspaceId, foundAgent.provider);
+        let secretId : Types.SecretId = switch (foundAgent.provider) {
+          case (#groq) { #groqApiKey };
+          case (#openai) { #openaiApiKey };
+        };
+        let apiKey = SecretModel.getSecret(apiKeys, encryptionKey, workspaceId, secretId);
 
         // Generate response based on provider and API key availability
         var response : Text = "";

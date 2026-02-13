@@ -47,9 +47,9 @@ describe("API Key Encryption & Cache Management", () => {
 
     // Admin stores an API key for the workspace
     actor.setIdentity(workspaceAdminIdentity);
-    const storeResult = await actor.storeApiKey(
+    const storeResult = await actor.storeSecret(
       0n,
-      { groq: null },
+      { groqApiKey: null },
       "workspace-api-key",
     );
     expectOk(storeResult);
@@ -64,7 +64,7 @@ describe("API Key Encryption & Cache Management", () => {
   it("should share workspace API keys between admins", async () => {
     // First admin stores an API key
     actor.setIdentity(workspaceAdminIdentity);
-    await actor.storeApiKey(0n, { groq: null }, "shared-key");
+    await actor.storeSecret(0n, { groqApiKey: null }, "shared-key");
 
     // Create a second admin
     const admin2Identity = generateRandomIdentity();
@@ -72,7 +72,7 @@ describe("API Key Encryption & Cache Management", () => {
 
     // Second admin should see the same key
     actor.setIdentity(admin2Identity);
-    const keysResult = await actor.getWorkspaceApiKeys(0n);
+    const keysResult = await actor.getWorkspaceSecrets(0n);
     const keys = expectOk(keysResult);
     expect(keys.length).toBe(1);
   });
@@ -101,11 +101,11 @@ describe("API Key Encryption & Cache Management", () => {
   });
 
   it("should successfully clear cache as admin", async () => {
-    // First store an API key to populate cache
+    // First store a secret to populate cache
     actor.setIdentity(workspaceAdminIdentity);
-    const storeResult = await actor.storeApiKey(
+    const storeResult = await actor.storeSecret(
       0n,
-      { groq: null },
+      { groqApiKey: null },
       "test-key-for-clear",
     );
     expectOk(storeResult);
