@@ -28,7 +28,7 @@ describe("HTTP Requests", () => {
       });
 
       expect(response.status_code).toBe(200);
-      expect(response.upgrade).toEqual([false]); // Candid optional: [false] means Some(false)
+      expect(response.upgrade).toEqual([]); // Candid optional: [] means None (null)
 
       // Check that content-type header is present (along with certification headers)
       const contentTypeHeader = response.headers.find(

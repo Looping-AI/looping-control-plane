@@ -8,7 +8,6 @@ import Timer "mo:core/Timer";
 import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
-import Json "mo:json";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
@@ -25,6 +24,10 @@ import MetricModel "./models/metric-model";
 import ValueStreamModel "./models/value-stream-model";
 import ObjectiveModel "./models/objective-model";
 import HttpCertification "./utilities/http-certification";
+import EventQueueModel "./models/event-queue-model";
+import EventRouter "./events/event-router";
+import SlackAdapter "./events/slack-adapter";
+import Logger "./utilities/logger";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -52,6 +55,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // HTTP certification state (skip-certification for query responses)
   var httpCertStore = HttpCertification.initStore();
+
+  // Event queue state (Slack events, processed by timer)
+  var eventQueue = EventQueueModel.empty();
+  transient var eventTimerId : ?Timer.TimerId = null;
 
   // ============================================
   // Auth Helper
@@ -100,6 +107,21 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Register HTTP paths that skip response verification
   private func certifyHttpEndpoints() {
     HttpCertification.certifySkipFallbackPath(httpCertStore, "/");
+  };
+
+  // Event Queue Timer — "schedule only when queue is non-empty"
+  // Processes a batch of events, then reschedules if more remain
+  private func eventQueueTimer() : async () {
+    let processed = EventRouter.processNextEvents(eventQueue);
+    Logger.log(#_debug, ?"EventQueue", "Processed " # debug_show (processed) # " events, remaining: " # debug_show (EventQueueModel.size(eventQueue)));
+
+    if (EventQueueModel.isEmpty(eventQueue)) {
+      // No more events — let timer expire, don't reschedule
+      eventTimerId := null;
+    } else {
+      // More events remain — reschedule for next tick (1 second)
+      eventTimerId := ?Timer.setTimer<system>(#seconds 1, eventQueueTimer);
+    };
   };
 
   // ============================================
@@ -1124,6 +1146,27 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // HTTP Incoming Requests (Webhooks)
   // ============================================
 
+  // Helper to construct a standard text response
+  private func respondWithText(statusCode : Nat16, message : Text) : Types.HttpResponse {
+    {
+      status_code = statusCode;
+      headers = [("content-type", "text/plain")];
+      body = Text.encodeUtf8(message);
+      upgrade = null;
+    };
+  };
+
+  // Helper to construct a text response with certification headers
+  private func respondWithTextAndCertificate(statusCode : Nat16, message : Text, url : Text) : Types.HttpResponse {
+    let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, url);
+    {
+      status_code = statusCode;
+      headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
+      body = Text.encodeUtf8(message);
+      upgrade = null;
+    };
+  };
+
   /// Query entry point for all incoming HTTP requests.
   /// POST requests are upgraded to update calls so they can mutate state.
   /// GET requests return a simple status message.
@@ -1136,52 +1179,135 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         upgrade = ?true;
       };
     } else if (req.method == "GET") {
-      let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, req.url);
-      {
-        status_code = 200;
-        headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
-        body = Text.encodeUtf8("Looping AI API Server");
-        upgrade = ?false;
-      };
+      respondWithTextAndCertificate(200, "Looping AI API Server", req.url);
     } else {
-      let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, req.url);
-      {
-        status_code = 400;
-        headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
-        body = Text.encodeUtf8("Bad Request");
-        upgrade = null;
-      };
+      respondWithTextAndCertificate(400, "Bad Request", req.url);
     };
   };
 
   /// Update entry point called when http_request returns upgrade = ?true.
-  /// Handles POST webhook payloads and can safely mutate canister state.
+  /// Handles Slack webhook payloads: verifies signature, parses events, enqueues for processing.
+  /// Responds immediately (no awaits for LLM calls) to avoid Slack retries.
   public func http_request_update(req : Types.HttpUpdateRequest) : async Types.HttpResponse {
+    // Ensure this is a request to the Slack webhook endpoint
+    if (req.url != "/webhook/slack") {
+      return respondWithText(400, "Unrecognized path");
+    };
+
     let bodyText = switch (Text.decodeUtf8(req.body)) {
       case (?text) { text };
-      case (null) { "" };
+      case (null) {
+        return respondWithText(400, "Invalid request body encoding");
+      };
     };
 
-    let challengeOpt : ?Text = switch (Json.parse(bodyText)) {
-      case (#ok(json)) {
-        switch (Json.get(json, "challenge")) {
-          case (?#string(challenge)) { ?challenge };
-          case _ { null };
+    // Parse the envelope to determine type
+    let envelope = switch (SlackAdapter.parseEnvelope(bodyText)) {
+      case (#err(e)) {
+        Logger.log(#error, ?"SlackWebhook", "Failed to parse envelope: " # e);
+        return respondWithText(400, "Invalid payload");
+      };
+      case (#ok(env)) { env };
+    };
+
+    // Handle url_verification (challenge handshake) — no signature check needed
+    switch (envelope) {
+      case (#url_verification(verification)) {
+        return respondWithText(200, verification.challenge);
+      };
+      case _ {};
+    };
+
+    // For all other event types, verify the Slack signature
+    // Retrieve the signing secret from workspace 0
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let signingSecret = SecretModel.getSecret(secrets, encryptionKey, 0, #slackSigningSecret);
+
+    switch (signingSecret) {
+      case (null) {
+        Logger.log(#error, ?"SlackWebhook", "No signing secret configured for workspace 0");
+        return respondWithText(401, "Slack signing secret not configured");
+      };
+      case (?secret) {
+        let signature = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Signature")) {
+          case (null) {
+            return respondWithText(401, "Missing signature");
+          };
+          case (?sig) { sig };
+        };
+        let timestamp = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Request-Timestamp")) {
+          case (null) {
+            return respondWithText(401, "Missing timestamp");
+          };
+          case (?ts) { ts };
+        };
+
+        if (not SlackAdapter.verifySignature(secret, signature, timestamp, bodyText)) {
+          Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
+          return respondWithText(401, "Invalid signature");
         };
       };
-      case (#err(_)) { null };
     };
 
-    let responseText = switch (challengeOpt) {
-      case (?challenge) { challenge };
-      case (null) { "Webhook received" };
+    // Signature verified — process the envelope
+    switch (envelope) {
+      case (#url_verification(_)) {
+        // Already handled above, should not reach here
+        respondWithText(200, "");
+      };
+      case (#event_callback(callback)) {
+        // Normalize and enqueue the event
+        switch (SlackAdapter.normalizeEvent(callback)) {
+          case (#err(reason)) {
+            Logger.log(#_debug, ?"SlackWebhook", "Skipping event: " # reason);
+            // Still return 200 so Slack doesn't retry
+            respondWithText(200, "ok");
+          };
+          case (#ok(event)) {
+            switch (EventQueueModel.enqueue(eventQueue, event)) {
+              case (#duplicate) {
+                Logger.log(#_debug, ?"EventQueue", "Duplicate event: " # event.idempotencyKey);
+              };
+              case (#ok) {
+                Logger.log(#_debug, ?"EventQueue", "Enqueued event: " # event.idempotencyKey);
+                // Schedule event processing timer if not already running
+                switch (eventTimerId) {
+                  case (?_) {}; // Timer already active
+                  case (null) {
+                    eventTimerId := ?Timer.setTimer<system>(#seconds 1, eventQueueTimer);
+                  };
+                };
+              };
+            };
+            respondWithText(200, "ok");
+          };
+        };
+      };
+      case (#app_rate_limited) {
+        Logger.log(#warn, ?"SlackWebhook", "Rate-limiting events");
+        respondWithText(200, "ok");
+      };
+      case (#unknown(envelopeType)) {
+        Logger.log(#warn, ?"SlackWebhook", "Unknown envelope type: " # envelopeType);
+        respondWithText(200, "ok");
+      };
     };
+  };
 
-    {
-      status_code = 200;
-      headers = [("content-type", "text/plain")];
-      body = Text.encodeUtf8(responseText);
-      upgrade = null;
+  // ============================================
+  // Event Queue Stats (Admin)
+  // ============================================
+
+  /// Get event queue statistics (admin only)
+  public shared ({ caller }) func getEventQueueStats() : async {
+    #ok : { pendingEvents : Nat };
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        #ok({ pendingEvents = EventQueueModel.size(eventQueue) });
+      };
     };
   };
 };
