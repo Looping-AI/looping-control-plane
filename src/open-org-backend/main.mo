@@ -8,6 +8,7 @@ import Timer "mo:core/Timer";
 import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
+import Runtime "mo:core/Runtime";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
@@ -1205,7 +1206,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     let envelope = switch (SlackAdapter.parseEnvelope(bodyText)) {
       case (#err(e)) {
         Logger.log(#error, ?"SlackWebhook", "Failed to parse envelope: " # e);
-        return respondWithText(400, "Invalid payload");
+        return respondWithText(400, "Invalid payload. Error: " # e);
       };
       case (#ok(env)) { env };
     };
@@ -1219,13 +1220,14 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
 
     // For all other event types, verify the Slack signature
-    // Retrieve the signing secret from workspace 0
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let signingSecret = SecretModel.getSecret(secrets, encryptionKey, 0, #slackSigningSecret);
+    // Retrieve the signing secret from workspace
+    let workspaceId = 0; // TODO: Support multiple workspaces in the future
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
+    let signingSecret = SecretModel.getSecret(secrets, encryptionKey, workspaceId, #slackSigningSecret);
 
     switch (signingSecret) {
       case (null) {
-        Logger.log(#error, ?"SlackWebhook", "No signing secret configured for workspace 0");
+        Logger.log(#error, ?"SlackWebhook", "No signing secret configured for workspace " # Nat.toText(workspaceId));
         return respondWithText(401, "Slack signing secret not configured");
       };
       case (?secret) {
@@ -1252,8 +1254,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     // Signature verified — process the envelope
     switch (envelope) {
       case (#url_verification(_)) {
-        // Already handled above, should not reach here
-        respondWithText(200, "");
+        Runtime.unreachable(); // handled before and returned
       };
       case (#event_callback(callback)) {
         // Normalize and enqueue the event
@@ -1283,8 +1284,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           };
         };
       };
-      case (#app_rate_limited) {
-        Logger.log(#warn, ?"SlackWebhook", "Rate-limiting events");
+      case (#app_rate_limited(rateLimited)) {
+        let minuteStr = Int.toText(rateLimited.minute_rate_limited);
+        let logMsg = "Rate-limiting events for team " # rateLimited.team_id # " at minute " # minuteStr;
+        Logger.log(#warn, ?"SlackWebhook", logMsg);
         respondWithText(200, "ok");
       };
       case (#unknown(envelopeType)) {

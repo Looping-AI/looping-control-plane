@@ -122,12 +122,35 @@ module {
         };
       };
       case ("app_rate_limited") {
-        #ok(#app_rate_limited);
+        switch (parseAppRateLimited(json)) {
+          case (#ok(event)) { #ok(#app_rate_limited(event)) };
+          case (#err(e)) { #err(e) };
+        };
       };
       case (other) {
         #ok(#unknown(other));
       };
     };
+  };
+
+  /// Parse app_rate_limited envelope
+  func parseAppRateLimited(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackAppRateLimitedEvent;
+    #err : Text;
+  } {
+    let teamId = switch (Json.get(json, "team_id")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'team_id' in app_rate_limited") };
+    };
+    let minuteRateLimited = switch (Json.get(json, "minute_rate_limited")) {
+      case (?#number(#int(n))) { Int.abs(n) };
+      case (?#number(#float(f))) { Int.abs(Float.toInt(f)) };
+      case _ {
+        return #err("Missing 'minute_rate_limited' in app_rate_limited");
+      };
+    };
+
+    #ok({ team_id = teamId; minute_rate_limited = minuteRateLimited });
   };
 
   /// Parse url_verification envelope

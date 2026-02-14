@@ -61,11 +61,19 @@ module {
     token : Text;
   };
 
+  /// Slack app rate limited event
+  /// Sent when the app is being rate-limited by Slack
+  /// See: https://docs.slack.dev/apis/events-api/#rate-limiting
+  public type SlackAppRateLimitedEvent = {
+    team_id : Text; // Workspace ID that is being rate-limited
+    minute_rate_limited : Nat; // Epoch timestamp (rounded to minute) when rate-limiting started
+  };
+
   /// Top-level Slack envelope type (what arrives at http_request_update)
   public type SlackEnvelope = {
     #url_verification : SlackUrlVerification;
     #event_callback : SlackEventCallback;
-    #app_rate_limited; // Slack is throttling events (no payload needed)
+    #app_rate_limited : SlackAppRateLimitedEvent;
     #unknown : Text; // Unrecognized envelope type
   };
 };
