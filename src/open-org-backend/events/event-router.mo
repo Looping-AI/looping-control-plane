@@ -1,57 +1,45 @@
 /// Event Router
-/// Timer-driven processor that dequeues events and dispatches them to handlers
+/// Timer-driven processor that claims a single event by ID and dispatches it
 ///
-/// Strategy: "schedule timer only when queue is non-empty"
-///   - When an event is enqueued, if no timer is active, schedule one
-///   - Timer processes a batch, then reschedules itself if queue still has events
-///   - This avoids unnecessary timer ticks when the system is idle
+/// Strategy: "one timer per event"
+///   - When an event is enqueued, a Timer.setTimer(#seconds 0) is scheduled
+///   - The timer callback claims the event by ID and routes to the handler
+///   - On success: event moves to processed map
+///   - On failure: event moves to failed map with error message
 ///
-/// Each event handling wraps in try/catch per architecture guidelines.
-/// Failed events are logged, not lost (via Debug.print for dev environments).
+/// Each event runs independently, leveraging ICP's native concurrency.
 
-import Debug "mo:core/Debug";
-import NormalizedEventTypes "./types/normalized-event-types";
-import EventQueueModel "../models/event-queue-model";
-import Constants "../constants";
+import EventStoreModel "../models/event-store-model";
+import Logger "../utilities/logger";
 
 module {
 
   // ============================================
-  // Constants
+  // Single Event Processing
   // ============================================
 
-  /// Number of events to process per batch
-  let BATCH_SIZE : Nat = 5;
-
-  // ============================================
-  // Event Processing
-  // ============================================
-
-  /// Process the next batch of events from the queue
-  /// Returns the number of events processed
+  /// Process a single event by its ID.
+  /// Claims the event, routes it to the appropriate handler, then marks it
+  /// as processed or failed.
   ///
-  /// @param state - The event queue state
-  /// @returns Number of events processed in this batch
-  public func processNextEvents(state : EventQueueModel.EventQueueState) : Nat {
-    var processed : Nat = 0;
-
-    label batch while (processed < BATCH_SIZE) {
-      switch (EventQueueModel.dequeue(state)) {
-        case (null) { break batch }; // Queue is empty
-        case (?event) {
-          processEvent(event);
-          processed += 1;
-        };
+  /// @param state - The event store state
+  /// @param eventId - The event ID to process
+  public func processSingleEvent(state : EventStoreModel.EventStoreState, eventId : Text) {
+    // Claim the event (sets claimed_at)
+    let event = switch (EventStoreModel.claim(state, eventId)) {
+      case (null) {
+        Logger.log(#warn, ?"EventRouter", "Event not found in unprocessed: " # eventId);
+        return;
       };
+      case (?e) { e };
     };
 
-    processed;
-  };
+    Logger.log(#info, ?"EventRouter", "Processing event: " # eventId);
 
-  /// Process a single event by routing it to the appropriate handler
-  func processEvent(event : NormalizedEventTypes.Event) {
-    debugLog("Processing event: " # event.idempotencyKey);
-
+    // Route to handler
+    // NOTE: When handlers become async (LLM calls, Slack API), this function
+    // must become async and wrap the routing in try/catch, using
+    // EventStoreModel.markFailed on error.
     switch (event.payload) {
       case (#app_mention(mention)) {
         handleAppMention(event.workspaceId, mention);
@@ -60,7 +48,15 @@ module {
         handleMessage(event.workspaceId, msg);
       };
     };
+
+    // Success — move to processed
+    EventStoreModel.markProcessed(state, eventId);
+    Logger.log(#info, ?"EventRouter", "Event processed successfully: " # eventId);
   };
+
+  // ============================================
+  // Event Handlers (stubs — will be async in the future)
+  // ============================================
 
   /// Handle an app_mention event
   /// TODO: Once SlackWrapper is implemented, post LLM response back to Slack via chat.postMessage
@@ -74,11 +70,13 @@ module {
       thread_ts : ?Text;
     },
   ) {
-    debugLog(
+    Logger.log(
+      #info,
+      ?"EventRouter",
       "app_mention in workspace " # debug_show (workspaceId) #
       " | channel: " # mention.channel #
       " | user: " # mention.user #
-      " | text: " # mention.text
+      " | text: " # mention.text,
     );
 
     // TODO: Route to workspace admin talk or conversation orchestrator
@@ -98,29 +96,18 @@ module {
       thread_ts : ?Text;
     },
   ) {
-    debugLog(
+    Logger.log(
+      #info,
+      ?"EventRouter",
       "message in workspace " # debug_show (workspaceId) #
       " | channel: " # msg.channel #
       " | user: " # msg.user #
-      " | text: " # msg.text
+      " | text: " # msg.text,
     );
 
     // TODO: Check if message is in a tracked thread (where the bot was mentioned)
     // TODO: If in tracked thread, continue conversation
     // TODO: Post response back to Slack via SlackWrapper.postMessage
     // For now, just log the event
-  };
-
-  // ============================================
-  // Debug Logging
-  // ============================================
-
-  func debugLog(msg : Text) {
-    switch (Constants.ENVIRONMENT) {
-      case (#local or #staging) {
-        Debug.print("[EVENT_ROUTER] " # msg);
-      };
-      case _ {};
-    };
   };
 };

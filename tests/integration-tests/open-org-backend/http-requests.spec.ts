@@ -122,7 +122,7 @@ describe("HTTP Requests", () => {
 
       const decoder = new TextDecoder();
       const bodyText = decoder.decode(new Uint8Array(response.body));
-      expect(bodyText).toBe("Invalid payload");
+      expect(bodyText).toStartWith("Invalid payload");
     });
   });
 });

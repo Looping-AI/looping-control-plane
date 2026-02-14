@@ -25,8 +25,9 @@ import MetricModel "./models/metric-model";
 import ValueStreamModel "./models/value-stream-model";
 import ObjectiveModel "./models/objective-model";
 import HttpCertification "./utilities/http-certification";
-import EventQueueModel "./models/event-queue-model";
+import EventStoreModel "./models/event-store-model";
 import EventRouter "./events/event-router";
+import NormalizedEventTypes "./events/types/normalized-event-types";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
 
@@ -57,9 +58,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // HTTP certification state (skip-certification for query responses)
   var httpCertStore = HttpCertification.initStore();
 
-  // Event queue state (Slack events, processed by timer)
-  var eventQueue = EventQueueModel.empty();
-  transient var eventTimerId : ?Timer.TimerId = null;
+  // Event store state (Slack events, per-event timer dispatch)
+  var eventStore = EventStoreModel.empty();
+  var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
 
   // ============================================
   // Auth Helper
@@ -110,19 +111,23 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     HttpCertification.certifySkipFallbackPath(httpCertStore, "/");
   };
 
-  // Event Queue Timer — "schedule only when queue is non-empty"
-  // Processes a batch of events, then reschedules if more remain
-  private func eventQueueTimer() : async () {
-    let processed = EventRouter.processNextEvents(eventQueue);
-    Logger.log(#_debug, ?"EventQueue", "Processed " # debug_show (processed) # " events, remaining: " # debug_show (EventQueueModel.size(eventQueue)));
+  // Per-event timer callback factory — returns an async closure that processes one event by ID
+  private func makeEventProcessor(eventId : Text) : async () {
+    EventRouter.processSingleEvent(eventStore, eventId);
+  };
 
-    if (EventQueueModel.isEmpty(eventQueue)) {
-      // No more events — let timer expire, don't reschedule
-      eventTimerId := null;
-    } else {
-      // More events remain — reschedule for next tick (1 second)
-      eventTimerId := ?Timer.setTimer<system>(#seconds 1, eventQueueTimer);
-    };
+  // Processed Events Cleanup Timer
+  // Runs every 7 days to purge old processed events
+  private func processedEventsCleanupTimer() : async () {
+    let purged = EventStoreModel.purgeProcessed(eventStore);
+    Logger.log(#_debug, ?"EventStore", "Purged " # debug_show (purged) # " processed events");
+    lastProcessedCleanupTimestamp := Time.now();
+
+    // Reschedule for next interval
+    ignore Timer.recurringTimer<system>(
+      #nanoseconds(Constants.SEVEN_DAYS_NS),
+      processedEventsCleanupTimer,
+    );
   };
 
   // ============================================
@@ -146,6 +151,13 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     metricRetentionCleanupTimer,
   );
 
+  // This logic runs only on the VERY FIRST installation (init)
+  // Subsequent upgrades will wipe this timer and it won't be replaced
+  let _processedCleanupTimer = Timer.setTimer<system>(
+    #nanoseconds(Constants.SEVEN_DAYS_NS),
+    processedEventsCleanupTimer,
+  );
+
   // System hook called after every upgrade
   system func postupgrade() {
     let now = Time.now();
@@ -167,6 +179,15 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       Nat.fromInt(Constants.THIRTY_DAYS_NS - retentionElapsed);
     };
     ignore Timer.setTimer<system>(#nanoseconds(retentionDelay), metricRetentionCleanupTimer);
+
+    // Restart processed events cleanup timer with remaining time
+    let cleanupElapsed = now - lastProcessedCleanupTimestamp;
+    let cleanupDelay : Nat = if (cleanupElapsed >= Constants.SEVEN_DAYS_NS) {
+      0;
+    } else {
+      Nat.fromInt(Constants.SEVEN_DAYS_NS - cleanupElapsed);
+    };
+    ignore Timer.setTimer<system>(#nanoseconds(cleanupDelay), processedEventsCleanupTimer);
 
     // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
@@ -1265,19 +1286,20 @@ persistent actor class OpenOrgBackend(owner : Principal) {
             respondWithText(200, "ok");
           };
           case (#ok(event)) {
-            switch (EventQueueModel.enqueue(eventQueue, event)) {
+            switch (EventStoreModel.enqueue(eventStore, event)) {
               case (#duplicate) {
-                Logger.log(#_debug, ?"EventQueue", "Duplicate event: " # event.idempotencyKey);
+                Logger.log(#_debug, ?"EventStore", "Duplicate event: " # event.eventId);
               };
               case (#ok) {
-                Logger.log(#_debug, ?"EventQueue", "Enqueued event: " # event.idempotencyKey);
-                // Schedule event processing timer if not already running
-                switch (eventTimerId) {
-                  case (?_) {}; // Timer already active
-                  case (null) {
-                    eventTimerId := ?Timer.setTimer<system>(#seconds 1, eventQueueTimer);
-                  };
-                };
+                Logger.log(#_debug, ?"EventStore", "Enqueued event: " # event.eventId);
+                // Schedule a per-event timer to process immediately
+                let eid = event.eventId;
+                ignore Timer.setTimer<system>(
+                  #seconds 0,
+                  func() : async () {
+                    await makeEventProcessor(eid);
+                  },
+                );
               };
             };
             respondWithText(200, "ok");
@@ -1298,18 +1320,50 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // Event Queue Stats (Admin)
+  // Event Queue Stats & Management (Admin)
   // ============================================
 
   /// Get event queue statistics (admin only)
-  public shared ({ caller }) func getEventQueueStats() : async {
-    #ok : { pendingEvents : Nat };
+  public shared ({ caller }) func getEventStoreStats() : async {
+    #ok : { unprocessedEvents : Nat; processedEvents : Nat; failedEvents : Nat };
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        #ok({ pendingEvents = EventQueueModel.size(eventQueue) });
+        let stats = EventStoreModel.sizes(eventStore);
+        #ok({
+          unprocessedEvents = stats.unprocessed;
+          processedEvents = stats.processed;
+          failedEvents = stats.failed;
+        });
+      };
+    };
+  };
+
+  /// Get all failed events (admin only)
+  public shared ({ caller }) func getFailedEvents() : async {
+    #ok : [NormalizedEventTypes.Event];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        #ok(EventStoreModel.listFailed(eventStore));
+      };
+    };
+  };
+
+  /// Delete failed event(s) — null deletes all, ?id deletes specific
+  public shared ({ caller }) func deleteFailedEvents(eventId : ?Text) : async {
+    #ok : { deleted : Nat };
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let deleted = EventStoreModel.deleteFailed(eventStore, eventId);
+        #ok({ deleted });
       };
     };
   };

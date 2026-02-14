@@ -6,8 +6,8 @@
 ///   - app_rate_limited
 ///   - Signature verification using HMAC-SHA256
 ///
-/// Debug logging: when ENVIRONMENT is #local or #staging, raw payloads are
-/// printed via Debug.print so they can be retrieved with `dfx canister logs`
+/// Debug logging: when LOG_SLACK_EVENTS is true, raw payloads are logged
+/// via Logger so they can be retrieved with `dfx canister logs`
 /// and copy-pasted into test stubs.
 
 import Text "mo:core/Text";
@@ -394,8 +394,14 @@ module {
       source = #slack;
       workspaceId = 0; // Hardcoded for now — future: map from Slack team_id/channel
       idempotencyKey = callback.event_id;
+      eventId = NormalizedEventTypes.buildEventId(#slack, callback.event_id);
       timestamp = callback.event_time;
       payload;
+      enqueued_at = 0; // Set by EventStoreModel.enqueue
+      claimed_at = null;
+      processed_at = null;
+      failed_at = null;
+      failed_error = "";
     });
   };
 };
