@@ -18,6 +18,26 @@ module {
     // Future: #email, #github, etc.
   };
 
+  // ============================================
+  // Processing Step — handler observability
+  // ============================================
+
+  /// A single step taken by a handler during event processing.
+  /// Provides observability into what actions were attempted and their outcomes.
+  public type ProcessingStep = {
+    action : Text; // e.g. "fetch_llm_response", "post_to_slack", "update_conversation"
+    result : { #ok; #err : Text }; // Did this step succeed?
+    timestamp : Int; // Time.now() when this step completed
+  };
+
+  /// Return type for all handlers — standardized contract between router and handlers.
+  /// #ok returns the processing steps taken (even if individual steps failed).
+  /// #err means a fatal/unrecoverable error that should mark the event as failed.
+  public type HandlerResult = {
+    #ok : [ProcessingStep];
+    #err : Text;
+  };
+
   /// Normalized event payload — what the router/handlers work with
   public type EventPayload = {
     #message : {
@@ -68,6 +88,7 @@ module {
     processedAt : ?Int; // null = not done, ?timestamp = completed successfully
     failedAt : ?Int; // null = not failed, ?timestamp = processing failed
     failedError : Text; // empty string by default, error message on failure
+    processingLog : [ProcessingStep]; // Steps taken by the handler during processing
   };
 
   /// Convert an EventSource variant to its string prefix for eventId construction

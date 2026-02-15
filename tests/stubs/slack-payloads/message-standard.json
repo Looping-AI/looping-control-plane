@@ -1,0 +1,12 @@
+{
+  "TODO": "Paste a real standard message event_callback payload from Slack logs here. Trigger by sending a regular message in a channel the bot is subscribed to (no subtype).",
+  "type": "event_callback",
+  "token": "",
+  "team_id": "",
+  "api_app_id": "",
+  "event": {
+    "type": "message"
+  },
+  "event_id": "",
+  "event_time": 0
+}

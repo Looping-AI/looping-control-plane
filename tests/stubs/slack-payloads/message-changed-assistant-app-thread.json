@@ -1,0 +1,16 @@
+{
+  "TODO": "Paste a real message_changed with assistant_app_thread event_callback payload from Slack logs here. Trigger by having an assistant app thread created (Slack's AI assistant feature). The inner message will have subtype 'assistant_app_thread'.",
+  "type": "event_callback",
+  "token": "",
+  "team_id": "",
+  "api_app_id": "",
+  "event": {
+    "type": "message",
+    "subtype": "message_changed",
+    "message": {
+      "subtype": "assistant_app_thread"
+    }
+  },
+  "event_id": "",
+  "event_time": 0
+}

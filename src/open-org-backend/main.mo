@@ -113,7 +113,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Per-event timer callback factory — returns an async closure that processes one event by ID
   private func makeEventProcessor(eventId : Text) : async () {
-    EventRouter.processSingleEvent(eventStore, eventId);
+    await EventRouter.processSingleEvent(eventStore, eventId);
   };
 
   // Processed Events Cleanup Timer

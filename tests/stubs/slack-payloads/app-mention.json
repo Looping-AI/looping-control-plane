@@ -1,0 +1,12 @@
+{
+  "TODO": "Paste a real app_mention event_callback payload from Slack logs here. Trigger by @mentioning your bot in a channel.",
+  "type": "event_callback",
+  "token": "",
+  "team_id": "",
+  "api_app_id": "",
+  "event": {
+    "type": "app_mention"
+  },
+  "event_id": "",
+  "event_time": 0
+}

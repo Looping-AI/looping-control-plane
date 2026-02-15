@@ -664,6 +664,7 @@ module {
       processedAt = null;
       failedAt = null;
       failedError = "";
+      processingLog = [];
     });
   };
 };

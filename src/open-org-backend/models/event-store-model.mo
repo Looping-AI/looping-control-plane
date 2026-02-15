@@ -104,17 +104,19 @@ module {
   };
 
   /// Mark an event as successfully processed.
-  /// Moves from unprocessed → processed with processedAt timestamp.
+  /// Moves from unprocessed → processed with processedAt timestamp and processing log.
   ///
   /// @param state - The event store state
   /// @param eventId - The event ID to mark as processed
-  public func markProcessed(state : EventStoreState, eventId : Text) {
+  /// @param steps - The processing steps taken by the handler
+  public func markProcessed(state : EventStoreState, eventId : Text, steps : [NormalizedEventTypes.ProcessingStep]) {
     switch (Map.get(state.unprocessed, Text.compare, eventId)) {
       case (null) {}; // Already removed or not found — no-op
       case (?event) {
         let completed : NormalizedEventTypes.Event = {
           event with
           processedAt = ?Time.now();
+          processingLog = steps;
         };
         Map.remove(state.unprocessed, Text.compare, eventId);
         Map.add(state.processed, Text.compare, eventId, completed);

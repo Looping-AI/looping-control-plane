@@ -1,0 +1,13 @@
+{
+  "TODO": "Paste a real thread_broadcast event_callback payload from Slack logs here. Trigger by replying in a thread and checking 'Also send to channel'.",
+  "type": "event_callback",
+  "token": "",
+  "team_id": "",
+  "api_app_id": "",
+  "event": {
+    "type": "message",
+    "subtype": "thread_broadcast"
+  },
+  "event_id": "",
+  "event_time": 0
+}

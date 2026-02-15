@@ -1,0 +1,13 @@
+{
+  "TODO": "Paste a real bot_message event_callback payload from Slack logs here. Trigger by having another bot/integration post a message in a channel the bot is subscribed to.",
+  "type": "event_callback",
+  "token": "",
+  "team_id": "",
+  "api_app_id": "",
+  "event": {
+    "type": "message",
+    "subtype": "bot_message"
+  },
+  "event_id": "",
+  "event_time": 0
+}
