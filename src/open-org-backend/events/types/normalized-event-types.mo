@@ -20,19 +20,36 @@ module {
 
   /// Normalized event payload — what the router/handlers work with
   public type EventPayload = {
-    #app_mention : {
-      user : Text; // Who mentioned the bot
-      text : Text; // Full message text
-      channel : Text; // Channel ID
-      ts : Text; // Message timestamp
-      thread_ts : ?Text; // Thread timestamp (if in a thread)
-    };
     #message : {
       user : Text; // Who sent the message
       text : Text; // Message text
       channel : Text; // Channel ID
       ts : Text; // Message timestamp
-      thread_ts : ?Text; // Thread timestamp
+      threadTs : ?Text; // Thread timestamp
+    };
+    #threadEvent : {
+      user : Text; // Who sent the thread message
+      text : Text; // Message text
+      channel : Text; // Channel ID
+      ts : Text; // Message timestamp
+      threadTs : Text; // Thread timestamp (always present for thread events)
+    };
+    #botMessage : {
+      botId : Text; // Bot ID
+      text : Text; // Message text
+      channel : Text; // Channel ID
+      ts : Text; // Message timestamp
+      username : ?Text; // Bot username if available
+    };
+    #messageEdited : {
+      channel : Text; // Channel ID
+      messageTs : Text; // ts of the original message that was edited
+      newText : Text; // Current text after the edit
+      editedBy : ?Text; // Who edited (may differ from original author)
+    };
+    #messageDeleted : {
+      channel : Text; // Channel ID
+      deletedTs : Text; // ts of the message that was deleted
     };
   };
 
@@ -46,11 +63,11 @@ module {
     payload : EventPayload; // The actual event data
 
     // Lifecycle timestamps
-    enqueued_at : Int; // Time.now() when enqueued
-    claimed_at : ?Int; // null = unclaimed, ?timestamp = processing started
-    processed_at : ?Int; // null = not done, ?timestamp = completed successfully
-    failed_at : ?Int; // null = not failed, ?timestamp = processing failed
-    failed_error : Text; // empty string by default, error message on failure
+    enqueuedAt : Int; // Time.now() when enqueued
+    claimedAt : ?Int; // null = unclaimed, ?timestamp = processing started
+    processedAt : ?Int; // null = not done, ?timestamp = completed successfully
+    failedAt : ?Int; // null = not failed, ?timestamp = processing failed
+    failedError : Text; // empty string by default, error message on failure
   };
 
   /// Convert an EventSource variant to its string prefix for eventId construction

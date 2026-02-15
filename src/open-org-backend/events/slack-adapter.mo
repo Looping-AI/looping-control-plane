@@ -280,54 +280,275 @@ module {
     #ok({ user; text; ts; channel; event_ts = eventTs; thread_ts = threadTs });
   };
 
-  /// Parse message event
+  /// Parse message event — dispatches to subtype-specific parsers
   func parseMessageEvent(json : Json.Json) : {
     #ok : SlackEventTypes.SlackMessageEvent;
     #err : Text;
   } {
-    let user = switch (Json.get(json, "user")) {
-      case (?#string(u)) { ?u };
+    let subtype = switch (Json.get(json, "subtype")) {
+      case (?#string(s)) { ?s };
       case _ { null };
     };
+
+    switch (subtype) {
+      case (null) { parseStandardMessage(json) };
+      case (?"bot_message") { parseBotMessage(json) };
+      case (?"me_message") { parseMeMessage(json) };
+      case (?"thread_broadcast") { parseThreadBroadcastMessage(json) };
+      case (?"message_changed") { parseMessageChangedEvent(json) };
+      case (?"message_deleted") { parseMessageDeletedEvent(json) };
+      case (?other) {
+        // Catch-all: log and capture minimal fields
+        Logger.log(#info, ?"SlackAdapter", "Unhandled message subtype: " # other);
+        let channel = switch (Json.get(json, "channel")) {
+          case (?#string(c)) { c };
+          case _ { "" };
+        };
+        let ts = switch (Json.get(json, "ts")) {
+          case (?#string(t)) { t };
+          case _ { "" };
+        };
+        #ok(#other({ subtype = other; channel; ts }));
+      };
+    };
+  };
+
+  /// Parse standard message (no subtype)
+  func parseStandardMessage(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackMessageEvent;
+    #err : Text;
+  } {
+    let user = switch (Json.get(json, "user")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user' in standard message") };
+    };
     let text = switch (Json.get(json, "text")) {
-      case (?#string(t)) { ?t };
-      case _ { null };
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'text' in standard message") };
     };
     let ts = switch (Json.get(json, "ts")) {
       case (?#string(t)) { t };
-      case _ { return #err("Missing 'ts' in message event") };
+      case _ { return #err("Missing 'ts' in standard message") };
     };
     let channel = switch (Json.get(json, "channel")) {
       case (?#string(c)) { c };
-      case _ { return #err("Missing 'channel' in message event") };
+      case _ { return #err("Missing 'channel' in standard message") };
     };
     let eventTs = switch (Json.get(json, "event_ts")) {
-      case (?#string(t)) { ?t };
-      case _ { null };
+      case (?#string(t)) { t };
+      case _ { "" };
     };
     let threadTs = switch (Json.get(json, "thread_ts")) {
       case (?#string(t)) { ?t };
       case _ { null };
     };
-    let subtype = switch (Json.get(json, "subtype")) {
-      case (?#string(s)) { ?s };
-      case _ { null };
-    };
+
+    #ok(#standard({ user; text; ts; channel; eventTs; threadTs }));
+  };
+
+  /// Parse bot_message subtype
+  func parseBotMessage(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackMessageEvent;
+    #err : Text;
+  } {
     let botId = switch (Json.get(json, "bot_id")) {
-      case (?#string(b)) { ?b };
+      case (?#string(b)) { b };
+      case _ { return #err("Missing 'bot_id' in bot_message") };
+    };
+    let text = switch (Json.get(json, "text")) {
+      case (?#string(t)) { t };
+      case _ { "" }; // bot_message text can be empty
+    };
+    let ts = switch (Json.get(json, "ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'ts' in bot_message") };
+    };
+    let channel = switch (Json.get(json, "channel")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel' in bot_message") };
+    };
+    let username = switch (Json.get(json, "username")) {
+      case (?#string(u)) { ?u };
       case _ { null };
     };
 
-    #ok({
-      user;
-      text;
-      ts;
-      channel;
-      event_ts = eventTs;
-      thread_ts = threadTs;
-      subtype;
-      bot_id = botId;
-    });
+    #ok(#botMessage({ botId; text; ts; channel; username }));
+  };
+
+  /// Parse me_message subtype
+  func parseMeMessage(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackMessageEvent;
+    #err : Text;
+  } {
+    let user = switch (Json.get(json, "user")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user' in me_message") };
+    };
+    let text = switch (Json.get(json, "text")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'text' in me_message") };
+    };
+    let ts = switch (Json.get(json, "ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'ts' in me_message") };
+    };
+    let channel = switch (Json.get(json, "channel")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel' in me_message") };
+    };
+
+    #ok(#meMessage({ user; text; ts; channel }));
+  };
+
+  /// Parse thread_broadcast subtype
+  func parseThreadBroadcastMessage(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackMessageEvent;
+    #err : Text;
+  } {
+    let user = switch (Json.get(json, "user")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user' in thread_broadcast") };
+    };
+    let text = switch (Json.get(json, "text")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'text' in thread_broadcast") };
+    };
+    let ts = switch (Json.get(json, "ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'ts' in thread_broadcast") };
+    };
+    let channel = switch (Json.get(json, "channel")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel' in thread_broadcast") };
+    };
+    let threadTs = switch (Json.get(json, "thread_ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'thread_ts' in thread_broadcast") };
+    };
+    let eventTs = switch (Json.get(json, "event_ts")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+
+    #ok(#threadBroadcast({ user; text; ts; channel; threadTs; eventTs }));
+  };
+
+  /// Parse message_changed subtype
+  /// Also detects assistant_app_thread nested inside message_changed
+  func parseMessageChangedEvent(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackMessageEvent;
+    #err : Text;
+  } {
+    let channel = switch (Json.get(json, "channel")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel' in message_changed") };
+    };
+    let ts = switch (Json.get(json, "ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'ts' in message_changed") };
+    };
+
+    // Parse nested message object
+    let msgJson = switch (Json.get(json, "message")) {
+      case (?obj) { obj };
+      case _ { return #err("Missing 'message' object in message_changed") };
+    };
+
+    // Check if inner message is an assistant_app_thread
+    let innerSubtype = switch (Json.get(msgJson, "subtype")) {
+      case (?#string(s)) { ?s };
+      case _ { null };
+    };
+
+    switch (innerSubtype) {
+      case (?"assistant_app_thread") {
+        // Parse as assistant_app_thread
+        let user = switch (Json.get(msgJson, "user")) {
+          case (?#string(u)) { u };
+          case _ {
+            return #err("Missing 'user' in assistant_app_thread message");
+          };
+        };
+        let text = switch (Json.get(msgJson, "text")) {
+          case (?#string(t)) { t };
+          case _ { "" };
+        };
+        let innerTs = switch (Json.get(msgJson, "ts")) {
+          case (?#string(t)) { t };
+          case _ { return #err("Missing 'ts' in assistant_app_thread message") };
+        };
+        let threadTs = switch (Json.get(msgJson, "thread_ts")) {
+          case (?#string(t)) { t };
+          case _ {
+            return #err("Missing 'thread_ts' in assistant_app_thread message");
+          };
+        };
+        // Extract title from assistant_app_thread object
+        let title = switch (Json.get(msgJson, "assistant_app_thread")) {
+          case (?aatJson) {
+            switch (Json.get(aatJson, "title")) {
+              case (?#string(t)) { ?t };
+              case _ { null };
+            };
+          };
+          case _ { null };
+        };
+
+        #ok(#assistantAppThread({ user; text; ts = innerTs; channel; threadTs; title }));
+      };
+      case _ {
+        // Regular message_changed
+        let msgUser = switch (Json.get(msgJson, "user")) {
+          case (?#string(u)) { u };
+          case _ { return #err("Missing 'user' in message_changed message") };
+        };
+        let msgText = switch (Json.get(msgJson, "text")) {
+          case (?#string(t)) { t };
+          case _ { "" };
+        };
+        let msgTs = switch (Json.get(msgJson, "ts")) {
+          case (?#string(t)) { t };
+          case _ { return #err("Missing 'ts' in message_changed message") };
+        };
+        let edited = switch (Json.get(msgJson, "edited")) {
+          case (?editedJson) {
+            let editedUser = switch (Json.get(editedJson, "user")) {
+              case (?#string(u)) { u };
+              case _ { return #err("Missing 'user' in edited") };
+            };
+            let editedTs = switch (Json.get(editedJson, "ts")) {
+              case (?#string(t)) { t };
+              case _ { return #err("Missing 'ts' in edited") };
+            };
+            ?{ user = editedUser; ts = editedTs };
+          };
+          case _ { null };
+        };
+
+        #ok(#messageChanged({ channel; ts; message = { user = msgUser; text = msgText; ts = msgTs; edited } }));
+      };
+    };
+  };
+
+  /// Parse message_deleted subtype
+  func parseMessageDeletedEvent(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackMessageEvent;
+    #err : Text;
+  } {
+    let channel = switch (Json.get(json, "channel")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel' in message_deleted") };
+    };
+    let ts = switch (Json.get(json, "ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'ts' in message_deleted") };
+    };
+    let deletedTs = switch (Json.get(json, "deleted_ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'deleted_ts' in message_deleted") };
+    };
+
+    #ok(#messageDeleted({ channel; ts; deletedTs }));
   };
 
   // ============================================
@@ -338,52 +559,93 @@ module {
   /// Currently hardcodes workspaceId to 0 (will be mapped in the future)
   ///
   /// @param callback - Parsed Slack event callback
-  /// @returns Normalized event or error (e.g., unhandled event type, bot message)
+  /// @returns Normalized event or error (e.g., unhandled event type, skippable subtype)
   public func normalizeEvent(callback : SlackEventTypes.SlackEventCallback) : {
     #ok : NormalizedEventTypes.Event;
     #err : Text;
   } {
     let payload : NormalizedEventTypes.EventPayload = switch (callback.event) {
       case (#app_mention(mention)) {
-        #app_mention({
+        // app_mention normalizes to #message (same shape)
+        #message({
           user = mention.user;
           text = mention.text;
           channel = mention.channel;
           ts = mention.ts;
-          thread_ts = mention.thread_ts;
+          threadTs = mention.thread_ts;
         });
       };
       case (#message(msg)) {
-        // Skip bot messages and messages with subtypes (system messages)
-        switch (msg.bot_id) {
-          case (?_) {
-            return #err("Skipping bot message");
+        switch (msg) {
+          case (#standard(m)) {
+            #message({
+              user = m.user;
+              text = m.text;
+              channel = m.channel;
+              ts = m.ts;
+              threadTs = m.threadTs;
+            });
           };
-          case (null) {};
-        };
-        switch (msg.subtype) {
-          case (?_) {
-            return #err("Skipping message with subtype");
+          case (#meMessage(m)) {
+            #message({
+              user = m.user;
+              text = m.text;
+              channel = m.channel;
+              ts = m.ts;
+              threadTs = null;
+            });
           };
-          case (null) {};
+          case (#botMessage(m)) {
+            // TODO: Skip only our own bot (compare m.botId against app bot ID from config)
+            // For now, pass through all bot messages so we're aware of other bots
+            #botMessage({
+              botId = m.botId;
+              text = m.text;
+              channel = m.channel;
+              ts = m.ts;
+              username = m.username;
+            });
+          };
+          case (#threadBroadcast(m)) {
+            #threadEvent({
+              user = m.user;
+              text = m.text;
+              channel = m.channel;
+              ts = m.ts;
+              threadTs = m.threadTs;
+            });
+          };
+          case (#assistantAppThread(m)) {
+            #threadEvent({
+              user = m.user;
+              text = m.text;
+              channel = m.channel;
+              ts = m.ts;
+              threadTs = m.threadTs;
+            });
+          };
+          case (#messageChanged(m)) {
+            #messageEdited({
+              channel = m.channel;
+              messageTs = m.message.ts;
+              newText = m.message.text;
+              editedBy = switch (m.message.edited) {
+                case (?e) { ?e.user };
+                case (null) { null };
+              };
+            });
+          };
+          case (#messageDeleted(m)) {
+            #messageDeleted({
+              channel = m.channel;
+              deletedTs = m.deletedTs;
+            });
+          };
+          case (#other({ subtype })) {
+            Logger.log(#info, ?"SlackAdapter", "Skipping unhandled message subtype: " # subtype);
+            return #err("Skipping unhandled message subtype: " # subtype);
+          };
         };
-        // Skip messages without user or text
-        let user = switch (msg.user) {
-          case (?u) { u };
-          case (null) { return #err("Skipping message without user") };
-        };
-        let text = switch (msg.text) {
-          case (?t) { t };
-          case (null) { return #err("Skipping message without text") };
-        };
-
-        #message({
-          user;
-          text;
-          channel = msg.channel;
-          ts = msg.ts;
-          thread_ts = msg.thread_ts;
-        });
       };
       case (#unknown({ eventType })) {
         return #err("Unsupported event type: " # eventType);
@@ -397,11 +659,11 @@ module {
       eventId = NormalizedEventTypes.buildEventId(#slack, callback.event_id);
       timestamp = callback.event_time;
       payload;
-      enqueued_at = 0; // Set by EventStoreModel.enqueue
-      claimed_at = null;
-      processed_at = null;
-      failed_at = null;
-      failed_error = "";
+      enqueuedAt = 0; // Set by EventStoreModel.enqueue
+      claimedAt = null;
+      processedAt = null;
+      failedAt = null;
+      failedError = "";
     });
   };
 };

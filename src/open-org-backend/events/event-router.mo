@@ -25,7 +25,7 @@ module {
   /// @param state - The event store state
   /// @param eventId - The event ID to process
   public func processSingleEvent(state : EventStoreModel.EventStoreState, eventId : Text) {
-    // Claim the event (sets claimed_at)
+    // Claim the event (sets claimedAt)
     let event = switch (EventStoreModel.claim(state, eventId)) {
       case (null) {
         Logger.log(#warn, ?"EventRouter", "Event not found in unprocessed: " # eventId);
@@ -41,11 +41,20 @@ module {
     // must become async and wrap the routing in try/catch, using
     // EventStoreModel.markFailed on error.
     switch (event.payload) {
-      case (#app_mention(mention)) {
-        handleAppMention(event.workspaceId, mention);
-      };
       case (#message(msg)) {
         handleMessage(event.workspaceId, msg);
+      };
+      case (#threadEvent(thread)) {
+        handleThreadEvent(event.workspaceId, thread);
+      };
+      case (#botMessage(bot)) {
+        handleBotMessage(event.workspaceId, bot);
+      };
+      case (#messageEdited(edited)) {
+        handleMessageEdited(event.workspaceId, edited);
+      };
+      case (#messageDeleted(deleted)) {
+        handleMessageDeleted(event.workspaceId, deleted);
       };
     };
 
@@ -58,33 +67,7 @@ module {
   // Event Handlers (stubs — will be async in the future)
   // ============================================
 
-  /// Handle an app_mention event
-  /// TODO: Once SlackWrapper is implemented, post LLM response back to Slack via chat.postMessage
-  func handleAppMention(
-    workspaceId : Nat,
-    mention : {
-      user : Text;
-      text : Text;
-      channel : Text;
-      ts : Text;
-      thread_ts : ?Text;
-    },
-  ) {
-    Logger.log(
-      #info,
-      ?"EventRouter",
-      "app_mention in workspace " # debug_show (workspaceId) #
-      " | channel: " # mention.channel #
-      " | user: " # mention.user #
-      " | text: " # mention.text,
-    );
-
-    // TODO: Route to workspace admin talk or conversation orchestrator
-    // TODO: Post response back to Slack via SlackWrapper.postMessage
-    // For now, just log the event
-  };
-
-  /// Handle a message event
+  /// Handle a message event (standard user message, me_message, or app_mention)
   /// TODO: Once SlackWrapper is implemented, post LLM response back to Slack via chat.postMessage
   func handleMessage(
     workspaceId : Nat,
@@ -93,7 +76,7 @@ module {
       text : Text;
       channel : Text;
       ts : Text;
-      thread_ts : ?Text;
+      threadTs : ?Text;
     },
   ) {
     Logger.log(
@@ -108,6 +91,98 @@ module {
     // TODO: Check if message is in a tracked thread (where the bot was mentioned)
     // TODO: If in tracked thread, continue conversation
     // TODO: Post response back to Slack via SlackWrapper.postMessage
-    // For now, just log the event
+  };
+
+  /// Handle a thread event (thread_broadcast or assistant_app_thread)
+  func handleThreadEvent(
+    workspaceId : Nat,
+    thread : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : Text;
+    },
+  ) {
+    Logger.log(
+      #info,
+      ?"EventRouter",
+      "thread_event in workspace " # debug_show (workspaceId) #
+      " | channel: " # thread.channel #
+      " | user: " # thread.user #
+      " | threadTs: " # thread.threadTs #
+      " | text: " # thread.text,
+    );
+
+    // TODO: Track thread for conversation context
+  };
+
+  /// Handle a bot message from another integration
+  func handleBotMessage(
+    workspaceId : Nat,
+    bot : {
+      botId : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      username : ?Text;
+    },
+  ) {
+    let name = switch (bot.username) {
+      case (?u) { u };
+      case (null) { bot.botId };
+    };
+    Logger.log(
+      #info,
+      ?"EventRouter",
+      "bot_message in workspace " # debug_show (workspaceId) #
+      " | channel: " # bot.channel #
+      " | bot: " # name #
+      " | text: " # bot.text,
+    );
+
+    // TODO: Decide per-bot how to handle (e.g., respond to certain integrations)
+  };
+
+  /// Handle a message edit event
+  func handleMessageEdited(
+    workspaceId : Nat,
+    edited : {
+      channel : Text;
+      messageTs : Text;
+      newText : Text;
+      editedBy : ?Text;
+    },
+  ) {
+    Logger.log(
+      #info,
+      ?"EventRouter",
+      "message_edited in workspace " # debug_show (workspaceId) #
+      " | channel: " # edited.channel #
+      " | messageTs: " # edited.messageTs #
+      " | newText: " # edited.newText,
+    );
+
+    // TODO: If the edited message was a prompt, consider re-processing
+  };
+
+  /// Handle a message deletion event
+  func handleMessageDeleted(
+    workspaceId : Nat,
+    deleted : {
+      channel : Text;
+      deletedTs : Text;
+    },
+  ) {
+    Logger.log(
+      #info,
+      ?"EventRouter",
+      "message_deleted in workspace " # debug_show (workspaceId) #
+      " | channel: " # deleted.channel #
+      " | deletedTs: " # deleted.deletedTs,
+    );
+
+    // TODO: If the deleted message was a prompt, consider aborting in-flight response
+    // TODO: Clean up conversation history
   };
 };

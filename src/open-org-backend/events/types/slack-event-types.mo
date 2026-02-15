@@ -41,17 +41,95 @@ module {
     thread_ts : ?Text; // Thread timestamp if the mention is in a thread
   };
 
-  /// Slack message event fields
-  /// See: https://docs.slack.dev/reference/events/message/
+  /// Slack message event — variant by subtype
+  /// The message event is polymorphic: the fields change based on the subtype.
+  /// See: https://docs.slack.dev/reference/events/message/#subtypes
   public type SlackMessageEvent = {
-    user : ?Text; // User ID (null for bot messages / subtypes)
-    text : ?Text; // Message text (null for some subtypes)
-    ts : Text; // Message timestamp
-    channel : Text; // Channel ID
-    event_ts : ?Text; // Event timestamp
-    thread_ts : ?Text; // Thread timestamp (present if message is in a thread)
-    subtype : ?Text; // Message subtype (e.g., "channel_join", "bot_message")
-    bot_id : ?Text; // Bot ID if sent by a bot
+    #standard : SlackStandardMessage;
+    #botMessage : SlackBotMessage;
+    #meMessage : SlackMeMessage;
+    #threadBroadcast : SlackThreadBroadcastMessage;
+    #assistantAppThread : SlackAssistantAppThreadMessage;
+    #messageChanged : SlackMessageChangedEvent;
+    #messageDeleted : SlackMessageDeletedEvent;
+    #other : { subtype : Text; channel : Text; ts : Text };
+  };
+
+  /// Standard user message (no subtype)
+  /// See: https://docs.slack.dev/reference/events/message/
+  public type SlackStandardMessage = {
+    user : Text;
+    text : Text;
+    ts : Text;
+    channel : Text;
+    eventTs : Text;
+    threadTs : ?Text;
+  };
+
+  /// Bot message (subtype: "bot_message")
+  /// See: https://docs.slack.dev/reference/events/message/bot_message
+  public type SlackBotMessage = {
+    botId : Text;
+    text : Text;
+    ts : Text;
+    channel : Text;
+    username : ?Text;
+  };
+
+  /// /me message (subtype: "me_message")
+  /// See: https://docs.slack.dev/reference/events/message/me_message
+  public type SlackMeMessage = {
+    user : Text;
+    text : Text;
+    ts : Text;
+    channel : Text;
+  };
+
+  /// Thread reply broadcast to channel (subtype: "thread_broadcast")
+  /// See: https://docs.slack.dev/reference/events/message/thread_broadcast
+  public type SlackThreadBroadcastMessage = {
+    user : Text;
+    text : Text;
+    ts : Text;
+    channel : Text;
+    threadTs : Text;
+    eventTs : Text;
+  };
+
+  /// Assistant app thread root message (subtype: "assistant_app_thread")
+  /// Arrives wrapped inside a message_changed event.
+  /// See: https://docs.slack.dev/reference/events/message/assistant_app_thread
+  public type SlackAssistantAppThreadMessage = {
+    user : Text;
+    text : Text;
+    ts : Text;
+    channel : Text;
+    threadTs : Text;
+    title : ?Text; // From assistant_app_thread.title
+  };
+
+  /// Message changed (subtype: "message_changed", hidden: true)
+  /// See: https://docs.slack.dev/reference/events/message/message_changed
+  public type SlackMessageChangedEvent = {
+    channel : Text;
+    ts : Text; // Event timestamp
+    message : SlackChangedMessagePayload;
+  };
+
+  /// Inner message payload within a message_changed event
+  public type SlackChangedMessagePayload = {
+    user : Text;
+    text : Text;
+    ts : Text; // Original message timestamp (use for matching)
+    edited : ?{ user : Text; ts : Text };
+  };
+
+  /// Message deleted (subtype: "message_deleted", hidden: true)
+  /// See: https://docs.slack.dev/reference/events/message/message_deleted
+  public type SlackMessageDeletedEvent = {
+    channel : Text;
+    ts : Text; // Event timestamp
+    deletedTs : Text; // Timestamp of the deleted message
   };
 
   /// Slack URL verification challenge

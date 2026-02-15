@@ -49,7 +49,7 @@ module {
 
   /// Enqueue a new event, rejecting duplicates.
   /// Dedup checks all three maps (unprocessed, processed, failed).
-  /// Sets enqueued_at to current time. The caller is responsible for scheduling the timer.
+  /// Sets enqueuedAt to current time. The caller is responsible for scheduling the timer.
   ///
   /// @param state - The event store state
   /// @param event - The event to enqueue (must have eventId set)
@@ -65,10 +65,10 @@ module {
       return #duplicate;
     };
 
-    // Stamp enqueued_at and insert into unprocessed
+    // Stamp enqueuedAt and insert into unprocessed
     let stamped : NormalizedEventTypes.Event = {
       event with
-      enqueued_at = Time.now();
+      enqueuedAt = Time.now();
     };
     Map.add(state.unprocessed, Text.compare, eventId, stamped);
     #ok;
@@ -83,7 +83,7 @@ module {
   // Lifecycle Operations
   // ============================================
 
-  /// Claim an event for processing — sets claimed_at timestamp.
+  /// Claim an event for processing — sets claimedAt timestamp.
   /// Returns the event if found in unprocessed, null otherwise.
   ///
   /// @param state - The event store state
@@ -95,7 +95,7 @@ module {
       case (?event) {
         let claimed : NormalizedEventTypes.Event = {
           event with
-          claimed_at = ?Time.now();
+          claimedAt = ?Time.now();
         };
         Map.add(state.unprocessed, Text.compare, eventId, claimed);
         ?claimed;
@@ -104,7 +104,7 @@ module {
   };
 
   /// Mark an event as successfully processed.
-  /// Moves from unprocessed → processed with processed_at timestamp.
+  /// Moves from unprocessed → processed with processedAt timestamp.
   ///
   /// @param state - The event store state
   /// @param eventId - The event ID to mark as processed
@@ -114,7 +114,7 @@ module {
       case (?event) {
         let completed : NormalizedEventTypes.Event = {
           event with
-          processed_at = ?Time.now();
+          processedAt = ?Time.now();
         };
         Map.remove(state.unprocessed, Text.compare, eventId);
         Map.add(state.processed, Text.compare, eventId, completed);
@@ -123,7 +123,7 @@ module {
   };
 
   /// Mark an event as failed.
-  /// Moves from unprocessed → failed with failed_at timestamp and error message.
+  /// Moves from unprocessed → failed with failedAt timestamp and error message.
   ///
   /// @param state - The event store state
   /// @param eventId - The event ID to mark as failed
@@ -134,8 +134,8 @@ module {
       case (?event) {
         let errored : NormalizedEventTypes.Event = {
           event with
-          failed_at = ?Time.now();
-          failed_error = error;
+          failedAt = ?Time.now();
+          failedError = error;
         };
         Map.remove(state.unprocessed, Text.compare, eventId);
         Map.add(state.failed, Text.compare, eventId, errored);
@@ -219,7 +219,7 @@ module {
     // Collect keys to remove without modifying the map during iteration
     var keysToRemove = List.empty<Text>();
     for ((eventId, event) in Map.entries(state.processed)) {
-      switch (event.processed_at) {
+      switch (event.processedAt) {
         case (null) {};
         case (?processedTime) {
           if (now - processedTime > sevenDaysInNanos) {
