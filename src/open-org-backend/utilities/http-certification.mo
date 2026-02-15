@@ -71,16 +71,50 @@ module {
   ///
   /// Call this from `http_request` (query) and append the result to your response headers.
   /// Returns an empty array if the system certificate is unavailable
-  /// (e.g. called from an update context instead of a query).
+  /// (e.g. called from an update context instead of a query),
+  /// or if no certified path covers the requested URL.
+  ///
+  /// When falling back to the root wildcard for an uncertified URL, the witness
+  /// must prove **both** that the fallback path exists **and** that no more specific
+  /// path exists for the request URL. The HTTP Gateway spec requires:
+  ///   "The path must be the most specific path for the current request URL
+  ///    in the tree, i.e. a lookup of more specific paths must return Absent."
+  /// We achieve this by using `MerkleTree.reveals` to merge witnesses for the
+  /// fallback path and the (absent) URL-specific path, which exposes sibling
+  /// labels needed by `find_label` to return `Absent` instead of `Unknown`.
   public func getSkipCertificationHeaders(store : CertStore, url : Text) : [(Text, Text)] {
-    let textExprPath = buildTextExprPath(url);
-    let blobExprPath = Array.map<Text, Blob>(textExprPath, Text.encodeUtf8);
     let exprHash = SHA256.fromBlob(#sha256, Text.encodeUtf8(SKIP_CERT_EXPR));
+
+    // Find the appropriate certified expression path.
+    // Tries the exact URL path first, then falls back to the root wildcard.
+    let (textExprPath, isFallback) = switch (findCertifiedPath(store, url)) {
+      case (?(path, fb)) (path, fb);
+      case null return [];
+    };
+
+    let blobExprPath = Array.map<Text, Blob>(textExprPath, Text.encodeUtf8);
     let fullPath = appendBlobs(blobExprPath, [exprHash, "", ""]);
 
-    // Build witness proving this path exists in the tree
-    let witness = MerkleTree.reveal(store.tree, fullPath);
-    let encodedWitness = MerkleTree.encodeWitness(witness);
+    // Build the witness.
+    // When using a fallback path (root wildcard), we must also prove that the
+    // more-specific path for this URL is absent. We use `MerkleTree.reveals`
+    // to produce a merged witness covering both paths. The absent-path witness
+    // reveals neighbouring labels (e.g. "webhook" next to "<*>") so the HTTP
+    // Gateway's `find_label` returns `Absent` rather than `Unknown`.
+    let encodedWitness = if (isFallback) {
+      let exactTextPath = buildTextExprPath(url);
+      let exactBlobPath = Array.map<Text, Blob>(exactTextPath, Text.encodeUtf8);
+      let exactFullPath = appendBlobs(exactBlobPath, [exprHash, "", ""]);
+
+      let witness = MerkleTree.reveals(
+        store.tree,
+        [fullPath, exactFullPath].vals(),
+      );
+      MerkleTree.encodeWitness(witness);
+    } else {
+      let witness = MerkleTree.reveal(store.tree, fullPath);
+      MerkleTree.encodeWitness(witness);
+    };
 
     // System certificate — only available in query calls
     let certificate = switch (CertifiedData.getCertificate()) {
@@ -130,13 +164,52 @@ module {
   };
 
   // ============================================
+  // Internal — Fallback Path Resolution
+  // ============================================
+
+  /// Find the appropriate certified expression path for a URL.
+  ///
+  /// Resolution order:
+  ///   1. Exact URL path (e.g. ["http_expr", "webhook", "slack", "<*>"])
+  ///   2. Root wildcard (["http_expr", "<*>"])  — covers all paths
+  ///
+  /// Returns `null` if no certified path covers the URL.
+  /// The Bool indicates whether a fallback was used (true = fallback).
+  func findCertifiedPath(store : CertStore, url : Text) : ?([Text], Bool) {
+    let exprHash = SHA256.fromBlob(#sha256, Text.encodeUtf8(SKIP_CERT_EXPR));
+
+    // 1. Try the exact path for this URL
+    let exactTextPath = buildTextExprPath(url);
+    let exactBlobPath = Array.map<Text, Blob>(exactTextPath, Text.encodeUtf8);
+    let exactFullPath = appendBlobs(exactBlobPath, [exprHash, "", ""]);
+
+    switch (MerkleTree.lookup(store.tree, exactFullPath)) {
+      case (?_) { return ?(exactTextPath, false) };
+      case null {};
+    };
+
+    // 2. Fall back to root wildcard ["http_expr", "<*>"]
+    let rootTextPath : [Text] = ["http_expr", "<*>"];
+    let rootBlobPath = Array.map<Text, Blob>(rootTextPath, Text.encodeUtf8);
+    let rootFullPath = appendBlobs(rootBlobPath, [exprHash, "", ""]);
+
+    switch (MerkleTree.lookup(store.tree, rootFullPath)) {
+      case (?_) { ?(rootTextPath, true) };
+      case null { null };
+    };
+  };
+
+  // ============================================
   // Internal — Expression Path
   // ============================================
 
   /// Build the V2 text expression path for a URL (fallback variant).
   ///
+  /// The root path "/" produces a root-level wildcard that covers ALL paths.
+  /// Non-root paths produce a path-specific wildcard.
+  ///
   /// Examples:
-  ///   "/" → ["http_expr", "", "<*>"]
+  ///   "/" → ["http_expr", "<*>"]              (root-level wildcard, covers all paths)
   ///   "/health" → ["http_expr", "health", "<*>"]
   ///   "/api/status" → ["http_expr", "api", "status", "<*>"]
   func buildTextExprPath(url : Text) : [Text] {
@@ -146,13 +219,17 @@ module {
       case (null) { url };
     };
 
-    let segments : [Text] = if (pathOnly == "" or pathOnly == "/") {
-      [""];
-    } else {
-      let parts = Text.split(pathOnly, #char '/');
-      ignore parts.next(); // skip leading empty segment from "/"
-      Iter.toArray(parts);
+    // Root path → root-level wildcard that covers ALL paths.
+    // Using ["http_expr", "<*>"] (without an empty segment) ensures the wildcard
+    // sits directly under http_expr, making it a valid fallback for any child path
+    // (e.g. "/web", "/api/v1") — not just "/" itself.
+    if (pathOnly == "" or pathOnly == "/") {
+      return ["http_expr", "<*>"];
     };
+
+    let parts = Text.split(pathOnly, #char '/');
+    ignore parts.next(); // skip leading empty segment from "/"
+    let segments = Iter.toArray(parts);
 
     let size : Nat = segments.size() + 2; // "http_expr" + segments + "<*>"
     let lastIdx : Nat = size - 1 : Nat;
