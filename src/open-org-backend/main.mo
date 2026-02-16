@@ -1211,8 +1211,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   /// Handles Slack webhook payloads: verifies signature, parses events, enqueues for processing.
   /// Responds immediately (no awaits for LLM calls) to avoid Slack retries.
   public func http_request_update(req : Types.HttpUpdateRequest) : async Types.HttpResponse {
-    // Ensure this is a request to the Slack webhook endpoint
-    if (req.url != "/webhook/slack") {
+    // Ensure this is a request to the Slack webhook endpoint (accept query parameters)
+    if (not Text.startsWith(req.url, #text "/webhook/slack/")) {
       return respondWithText(400, "Unrecognized path");
     };
 
