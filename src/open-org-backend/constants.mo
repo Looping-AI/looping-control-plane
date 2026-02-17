@@ -14,7 +14,7 @@ module {
   // Log raw Slack event payloads for development/debugging
   // Set it to true for dev/staging to output raw JSON via `dfx canister logs`
   // Useful for creating new test stubs and debugging event parsing
-  public let LOG_SLACK_EVENTS : Bool = false;
+  public let LOG_SLACK_EVENTS : Bool = true;
 
   // Admin talk configuration
   public let ADMIN_TALK_PROVIDER : Types.LlmProvider = #groq;

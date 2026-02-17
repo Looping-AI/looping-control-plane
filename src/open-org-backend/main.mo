@@ -593,7 +593,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : [Types.SecretId];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         SecretModel.getWorkspaceSecrets(secrets, workspaceId);
