@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set environment to test
         run: sed -i 's/#local/#test/' src/open-org-backend/constants.mo
