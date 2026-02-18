@@ -145,7 +145,7 @@ describe("Secrets Management", () => {
       actor.setIdentity(userIdentity);
       const result = await actor.getWorkspaceSecrets(0n);
       expect(expectErr(result)).toEqual(
-        "Only workspace admins can perform this action.",
+        "Only org owner, org admins, workspace admins can perform this action.",
       );
     });
 
