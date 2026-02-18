@@ -28,7 +28,7 @@ describe("HTTP Requests", () => {
       });
 
       expect(response.status_code).toBe(200);
-      expect(response.upgrade).toEqual([false]); // Candid optional: [false] means Some(false)
+      expect(response.upgrade).toEqual([]); // Candid optional: [] means None (null)
 
       // Check that content-type header is present (along with certification headers)
       const contentTypeHeader = response.headers.find(
@@ -83,10 +83,13 @@ describe("HTTP Requests", () => {
 
   describe("http_request_update (update)", () => {
     it("should accept POST webhook and return success", async () => {
-      // Create a test payload
+      // Create a valid Slack url_verification payload (doesn't require signature)
       const encoder = new TextEncoder();
       const payload = encoder.encode(
-        JSON.stringify({ event: "test", data: "hello" }),
+        JSON.stringify({
+          type: "url_verification",
+          challenge: "test-challenge-12345",
+        }),
       );
 
       const response = await actor.http_request_update({
@@ -102,7 +105,8 @@ describe("HTTP Requests", () => {
 
       const decoder = new TextDecoder();
       const bodyText = decoder.decode(new Uint8Array(response.body));
-      expect(bodyText).toBe("Webhook received");
+      // url_verification responses return the challenge value
+      expect(bodyText).toBe("test-challenge-12345");
     });
 
     it("should handle empty POST body", async () => {
@@ -113,11 +117,12 @@ describe("HTTP Requests", () => {
         body: new Uint8Array([]),
       });
 
-      expect(response.status_code).toBe(200);
+      // Empty body should fail JSON parsing (empty string is not valid JSON)
+      expect(response.status_code).toBe(400);
 
       const decoder = new TextDecoder();
       const bodyText = decoder.decode(new Uint8Array(response.body));
-      expect(bodyText).toBe("Webhook received");
+      expect(bodyText).toStartWith("Invalid payload");
     });
   });
 });

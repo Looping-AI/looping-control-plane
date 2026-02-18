@@ -1,0 +1,107 @@
+/// Normalized Event Types
+/// Internal event types that are source-agnostic
+///
+/// These types represent the normalized form that the rest of the system works with.
+/// This separation from raw Slack types means adding a new integration later
+/// (email, GitHub webhooks, etc.) only requires a new adapter, not changes to
+/// the queue or router.
+
+module {
+
+  // ============================================
+  // Normalized Internal Event Types
+  // ============================================
+
+  /// Source integration that originated the event
+  public type EventSource = {
+    #slack;
+    // Future: #email, #github, etc.
+  };
+
+  // ============================================
+  // Processing Step — handler observability
+  // ============================================
+
+  /// A single step taken by a handler during event processing.
+  /// Provides observability into what actions were attempted and their outcomes.
+  public type ProcessingStep = {
+    action : Text; // e.g. "fetch_llm_response", "post_to_slack", "update_conversation"
+    result : { #ok; #err : Text }; // Did this step succeed?
+    timestamp : Int; // Time.now() when this step completed
+  };
+
+  /// Return type for all handlers — standardized contract between router and handlers.
+  /// #ok returns the processing steps taken (even if individual steps failed).
+  /// #err means a fatal/unrecoverable error that should mark the event as failed.
+  public type HandlerResult = {
+    #ok : [ProcessingStep];
+    #err : Text;
+  };
+
+  /// Normalized event payload — what the router/handlers work with
+  public type EventPayload = {
+    #message : {
+      user : Text; // Who sent the message
+      text : Text; // Message text
+      channel : Text; // Channel ID
+      ts : Text; // Message timestamp
+      threadTs : ?Text; // Thread timestamp
+    };
+    #threadEvent : {
+      user : Text; // Who sent the thread message
+      text : Text; // Message text
+      channel : Text; // Channel ID
+      ts : Text; // Message timestamp
+      threadTs : Text; // Thread timestamp (always present for thread events)
+    };
+    #botMessage : {
+      botId : Text; // Bot ID
+      text : Text; // Message text
+      channel : Text; // Channel ID
+      ts : Text; // Message timestamp
+      username : ?Text; // Bot username if available
+    };
+    #messageEdited : {
+      channel : Text; // Channel ID
+      messageTs : Text; // ts of the original message that was edited
+      newText : Text; // Current text after the edit
+      editedBy : ?Text; // Who edited (may differ from original author)
+    };
+    #messageDeleted : {
+      channel : Text; // Channel ID
+      deletedTs : Text; // ts of the message that was deleted
+    };
+  };
+
+  /// Normalized event — single type the queue and router use
+  public type Event = {
+    source : EventSource; // Which integration sent this
+    workspaceId : Nat; // Internal workspace ID
+    idempotencyKey : Text; // Unique key for deduplication (Slack's event_id)
+    eventId : Text; // Canonical ID: source prefix + idempotencyKey (e.g. "slack_Ev0123")
+    timestamp : Nat; // Unix timestamp of the event
+    payload : EventPayload; // The actual event data
+
+    // Lifecycle timestamps
+    enqueuedAt : Int; // Time.now() when enqueued
+    claimedAt : ?Int; // null = unclaimed, ?timestamp = processing started
+    processedAt : ?Int; // null = not done, ?timestamp = completed successfully
+    failedAt : ?Int; // null = not failed, ?timestamp = processing failed
+    failedError : Text; // empty string by default, error message on failure
+    processingLog : [ProcessingStep]; // Steps taken by the handler during processing
+  };
+
+  /// Convert an EventSource variant to its string prefix for eventId construction
+  public func sourcePrefix(source : EventSource) : Text {
+    switch (source) {
+      case (#slack) { "slack" };
+    };
+  };
+
+  /// Build a canonical eventId from source and idempotencyKey
+  /// Format: "{sourcePrefix}_{idempotencyKey}"
+  /// Example: "slack_Ev0123ABCDEF"
+  public func buildEventId(source : EventSource, idempotencyKey : Text) : Text {
+    sourcePrefix(source) # "_" # idempotencyKey;
+  };
+};

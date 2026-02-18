@@ -13,6 +13,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set environment to test
+        run: sed -i 's/#local/#test/' src/open-org-backend/constants.mo
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
@@ -56,15 +59,6 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/caffeinelabs/lintoko/releases/download/v0.7.0/lintoko-installer.sh | sh
           bun run lint
-
-      - name: Create test-env.mo
-        run: |
-          cd tests/unit-tests/open-org-backend
-          cat > test-env.mo << 'EOF'
-          module {
-            public let GROQ_TEST_KEY : Text = "${{ secrets.GROQ_TEST_KEY }}";
-          };
-          EOF
 
       - name: Test
         run: bun run test

@@ -14,9 +14,13 @@ module {
     #groq;
   };
 
-  /// LLM Provider
-  public type AdminLlmProvider = {
-    #groq;
+  /// Secret identifier for encrypted-at-rest secrets
+  /// Each variant represents a distinct secret that can be stored per workspace
+  public type SecretId = {
+    #groqApiKey;
+    #openaiApiKey;
+    #slackSigningSecret;
+    #slackBotToken;
   };
 
   // ============================================

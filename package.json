@@ -1,6 +1,8 @@
 {
   "type": "module",
   "scripts": {
+    "dev:start": "bun run scripts/dev-start.ts",
+    "dev:setup": "bun run scripts/dev-setup.ts",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "lint": "eslint . && lintoko -r .lintoko src tests",

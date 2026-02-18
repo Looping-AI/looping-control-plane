@@ -2,7 +2,7 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Types "../types";
-import ApiKeysModel "../models/api-keys-model";
+import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
 import ConversationModel "../models/conversation-model";
 import ValueStreamModel "../models/value-stream-model";
@@ -17,7 +17,7 @@ module {
   // Orchestrate the admin talk request after validation
   public func orchestrateAdminTalk(
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
-    apiKeys : Map.Map<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>,
+    apiKeys : Map.Map<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>,
     adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
@@ -33,7 +33,7 @@ module {
   } {
     // Get api key (requires deriving encryption key for the workspace)
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-    let apiKey = ApiKeysModel.getApiKey(apiKeys, encryptionKey, workspaceId, Constants.ADMIN_TALK_PROVIDER);
+    let apiKey = SecretModel.getSecret(apiKeys, encryptionKey, workspaceId, Constants.ADMIN_TALK_SECRET);
 
     // Delegate to provider-specific service based on configured provider
     switch (Constants.ADMIN_TALK_PROVIDER) {

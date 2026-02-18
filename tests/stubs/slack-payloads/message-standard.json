@@ -1,0 +1,49 @@
+{
+  "token": "8c7TifzO0tqc8zbNGyQar24F",
+  "team_id": "T0ADR0P92G2",
+  "context_team_id": "T0ADR0P92G2",
+  "context_enterprise_id": null,
+  "api_app_id": "A0ADJUKD8TV",
+  "event": {
+    "type": "message",
+    "user": "U0ADJJQMW4T",
+    "ts": "1771288260.033289",
+    "client_msg_id": "c270ab7e-e02e-4c2f-9d40-e5884de106a1",
+    "text": "Log this message.",
+    "team": "T0ADR0P92G2",
+    "thread_ts": "1770654557.033289",
+    "parent_user_id": "U0ADWN7P3DY",
+    "blocks": [
+      {
+        "type": "rich_text",
+        "block_id": "Ts17D",
+        "elements": [
+          {
+            "type": "rich_text_section",
+            "elements": [{ "type": "text", "text": "Log this message." }]
+          }
+        ]
+      }
+    ],
+    "channel": "D0ADT9S4S13",
+    "assistant_thread": {
+      "action_token": "10520166763718.10467023308546.f9ae85448a46468eab2ee79d8e700309"
+    },
+    "event_ts": "1771288260.033289",
+    "channel_type": "im"
+  },
+  "type": "event_callback",
+  "event_id": "Ev0AF8PJU4FP",
+  "event_time": 1771288260,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T0ADR0P92G2",
+      "user_id": "U0ADWN7P3DY",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ],
+  "is_ext_shared_channel": false,
+  "event_context": "4-eyJldCI6Im1lc3NhZ2UiLCJ0aWQiOiJUMEFEUjBQOTJHMiIsImFpZCI6IkEwQURKVUtEOFRWIiwiY2lkIjoiRDBBRFQ5UzRTMTMifQ"
+}

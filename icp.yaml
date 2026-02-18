@@ -1,7 +1,8 @@
-# yaml-language-server: $schema=https://github.com/dfinity/icp-cli/raw/refs/tags/v0.1.0-beta.3/docs/schemas/icp-yaml-schema.json
+# yaml-language-server: $schema=http://raw.githubusercontent.com/dfinity/icp-cli/refs/tags/v0.1.0/docs/schemas/icp-yaml-schema.json
 
 canisters:
   - name: open-org-backend
+    init_args: '(principal "aaaaa-aa")'
     recipe:
       type: "@dfinity/motoko"
       configuration:
@@ -15,8 +16,13 @@ canisters:
         main: tests/unit-tests/open-org-backend/test-canister.mo
         args: ""
 
+networks:
+  - name: local
+    mode: managed
+    ii: true
+
 environments:
-  - name: dev
+  - name: local
     network: local
     canisters: [open-org-backend]
 

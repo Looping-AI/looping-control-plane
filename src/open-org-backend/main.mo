@@ -8,13 +8,13 @@ import Timer "mo:core/Timer";
 import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
-import Json "mo:json";
+import Runtime "mo:core/Runtime";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
 import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
-import ApiKeysModel "./models/api-keys-model";
+import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
 import WorkspaceTalkService "./services/workspace-talk-service";
 import WorkspaceAdminOrchestrator "./orchestrators/workspace-admin-orchestrator";
@@ -25,6 +25,11 @@ import MetricModel "./models/metric-model";
 import ValueStreamModel "./models/value-stream-model";
 import ObjectiveModel "./models/objective-model";
 import HttpCertification "./utilities/http-certification";
+import EventStoreModel "./models/event-store-model";
+import EventRouter "./events/event-router";
+import NormalizedEventTypes "./events/types/normalized-event-types";
+import SlackAdapter "./events/slack-adapter";
+import Logger "./utilities/logger";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -35,7 +40,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var orgAdmins : [Principal] = [owner];
   var conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
   var adminConversations = Map.fromArray<Nat, List.List<ConversationModel.Message>>([(0, List.empty<ConversationModel.Message>())], Nat.compare);
-  var apiKeys = Map.empty<Nat, Map.Map<Types.LlmProvider, ApiKeysModel.EncryptedApiKey>>(); // Encrypted API keys per workspace
+  var secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>(); // Encrypted secrets per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
@@ -52,6 +57,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // HTTP certification state (skip-certification for query responses)
   var httpCertStore = HttpCertification.initStore();
+
+  // Event store state (Slack events, per-event timer dispatch)
+  var eventStore = EventStoreModel.empty();
+  var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
 
   // ============================================
   // Auth Helper
@@ -102,6 +111,45 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     HttpCertification.certifySkipFallbackPath(httpCertStore, "/");
   };
 
+  // Per-event timer callback factory — returns an async closure that processes one event by ID
+  private func makeEventProcessor(eventId : Text) : async () {
+    await EventRouter.processSingleEvent(eventStore, eventId);
+  };
+
+  // Processed Events Cleanup Timer
+  // Runs every 7 days to:
+  //   1. Detect unprocessed events stuck for > 1h and move them to failed
+  //   2. Purge old processed events (> 7 days)
+  //   3. Purge old failed events (> 30 days)
+  private func processedEventsCleanupTimer() : async () {
+    // 1. Detect and fail stale unprocessed events (enqueuedAt > 1 hour ago)
+    let staleIds = EventStoreModel.failStaleUnprocessed(eventStore);
+    if (staleIds.size() > 0) {
+      let idList = Array.foldLeft<Text, Text>(
+        staleIds,
+        "",
+        func(acc, id) {
+          if (acc == "") id else acc # ", " # id;
+        },
+      );
+      Logger.log(#warn, ?"EventStore", "Failed " # Nat.toText(staleIds.size()) # " stale unprocessed event(s): " # idList);
+    };
+
+    // 2. Purge old processed events (> 7 days)
+    ignore EventStoreModel.purgeProcessed(eventStore);
+
+    // 3. Purge old failed events (> 30 days)
+    ignore EventStoreModel.purgeOldFailed(eventStore);
+
+    lastProcessedCleanupTimestamp := Time.now();
+
+    // Reschedule for next interval
+    ignore Timer.recurringTimer<system>(
+      #nanoseconds(Constants.SEVEN_DAYS_NS),
+      processedEventsCleanupTimer,
+    );
+  };
+
   // ============================================
   // Canister Init and Postupgrade
   // ============================================
@@ -121,6 +169,13 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   let _retentionTimer = Timer.setTimer<system>(
     #nanoseconds(Constants.THIRTY_DAYS_NS),
     metricRetentionCleanupTimer,
+  );
+
+  // This logic runs only on the VERY FIRST installation (init)
+  // Subsequent upgrades will wipe this timer and it won't be replaced
+  let _processedCleanupTimer = Timer.setTimer<system>(
+    #nanoseconds(Constants.SEVEN_DAYS_NS),
+    processedEventsCleanupTimer,
   );
 
   // System hook called after every upgrade
@@ -144,6 +199,15 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       Nat.fromInt(Constants.THIRTY_DAYS_NS - retentionElapsed);
     };
     ignore Timer.setTimer<system>(#nanoseconds(retentionDelay), metricRetentionCleanupTimer);
+
+    // Restart processed events cleanup timer with remaining time
+    let cleanupElapsed = now - lastProcessedCleanupTimestamp;
+    let cleanupDelay : Nat = if (cleanupElapsed >= Constants.SEVEN_DAYS_NS) {
+      0;
+    } else {
+      Nat.fromInt(Constants.SEVEN_DAYS_NS - cleanupElapsed);
+    };
+    ignore Timer.setTimer<system>(#nanoseconds(cleanupDelay), processedEventsCleanupTimer);
 
     // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
@@ -461,7 +525,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Delegate to orchestrator for business logic
         await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
           mcpToolRegistry,
-          apiKeys,
+          secrets,
           adminConversations,
           workspaceValueStreamsState,
           workspaceValueStreams,
@@ -493,7 +557,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Delegate to service for business logic
         await WorkspaceTalkService.processWorkspaceTalk(
           workspaceAgents,
-          apiKeys,
+          secrets,
           conversations,
           workspaceId,
           agentId,
@@ -505,20 +569,29 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // API Key Management
+  // Secrets Management
   // ============================================
 
-  // Store an API key for a provider in a workspace (encrypted at rest)
-  // Only workspace admins can store API keys
-  public shared ({ caller }) func storeApiKey(workspaceId : Nat, provider : Types.LlmProvider, apiKey : Text) : async {
+  // Store a secret in a workspace (encrypted at rest)
+  // Workspace admins can store LLM API keys; org owner/admins can store integration secrets
+  public shared ({ caller }) func storeSecret(workspaceId : Nat, secretId : Types.SecretId, secret : Text) : async {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+    // Integration secrets (Slack) require org-level auth; LLM keys require workspace admin
+    let requiredRoles = switch (secretId) {
+      case (#slackSigningSecret or #slackBotToken) {
+        [#IsOrgOwner, #IsOrgAdmin];
+      };
+      case (#groqApiKey or #openaiApiKey) {
+        [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin];
+      };
+    };
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), requiredRoles)) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        if (Text.trim(apiKey, #char ' ') == "") {
-          return #err("API key cannot be empty.");
+        if (Text.trim(secret, #char ' ') == "") {
+          return #err("Secret cannot be empty.");
         };
         // Verify workspace exists
         switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
@@ -529,35 +602,43 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         // Derive encryption key for this workspace
         let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
 
-        ApiKeysModel.storeApiKey(apiKeys, encryptionKey, workspaceId, provider, apiKey);
+        SecretModel.storeSecret(secrets, encryptionKey, workspaceId, secretId, secret);
       };
     };
   };
 
-  // Get API keys for a workspace
-  // Only workspace admins can view API keys
-  public shared ({ caller }) func getWorkspaceApiKeys(workspaceId : Nat) : async {
-    #ok : [Types.LlmProvider];
+  // Get stored secret identifiers for a workspace (does not return the secret values)
+  // Only workspace admins can view stored secrets
+  public shared ({ caller }) func getWorkspaceSecrets(workspaceId : Nat) : async {
+    #ok : [Types.SecretId];
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ApiKeysModel.getWorkspaceApiKeys(apiKeys, workspaceId);
+        SecretModel.getWorkspaceSecrets(secrets, workspaceId);
       };
     };
   };
 
-  // Delete an API key for a specific provider in a workspace
-  // Only workspace admins can delete API keys
-  public shared ({ caller }) func deleteApiKey(workspaceId : Nat, provider : Types.LlmProvider) : async {
+  // Delete a secret for a specific secret ID in a workspace
+  // Workspace admins can delete LLM API keys; org owner/admins can delete integration secrets
+  public shared ({ caller }) func deleteSecret(workspaceId : Nat, secretId : Types.SecretId) : async {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
+    let requiredRoles = switch (secretId) {
+      case (#slackSigningSecret or #slackBotToken) {
+        [#IsOrgOwner, #IsOrgAdmin];
+      };
+      case (#groqApiKey or #openaiApiKey) {
+        [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin];
+      };
+    };
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), requiredRoles)) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ApiKeysModel.deleteApiKey(apiKeys, workspaceId, provider);
+        SecretModel.deleteSecret(secrets, workspaceId, secretId);
       };
     };
   };
@@ -1107,6 +1188,27 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // HTTP Incoming Requests (Webhooks)
   // ============================================
 
+  // Helper to construct a standard text response
+  private func respondWithText(statusCode : Nat16, message : Text) : Types.HttpResponse {
+    {
+      status_code = statusCode;
+      headers = [("content-type", "text/plain")];
+      body = Text.encodeUtf8(message);
+      upgrade = null;
+    };
+  };
+
+  // Helper to construct a text response with certification headers
+  private func respondWithTextAndCertificate(statusCode : Nat16, message : Text, url : Text) : Types.HttpResponse {
+    let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, url);
+    {
+      status_code = statusCode;
+      headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
+      body = Text.encodeUtf8(message);
+      upgrade = null;
+    };
+  };
+
   /// Query entry point for all incoming HTTP requests.
   /// POST requests are upgraded to update calls so they can mutate state.
   /// GET requests return a simple status message.
@@ -1119,52 +1221,170 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         upgrade = ?true;
       };
     } else if (req.method == "GET") {
-      let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, req.url);
-      {
-        status_code = 200;
-        headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
-        body = Text.encodeUtf8("Looping AI API Server");
-        upgrade = ?false;
-      };
+      respondWithTextAndCertificate(200, "Looping AI API Server", req.url);
     } else {
-      let certHeaders = HttpCertification.getSkipCertificationHeaders(httpCertStore, req.url);
-      {
-        status_code = 400;
-        headers = Array.concat<(Text, Text)>([("content-type", "text/plain")], certHeaders);
-        body = Text.encodeUtf8("Bad Request");
-        upgrade = null;
-      };
+      respondWithTextAndCertificate(400, "Bad Request", req.url);
     };
   };
 
   /// Update entry point called when http_request returns upgrade = ?true.
-  /// Handles POST webhook payloads and can safely mutate canister state.
+  /// Handles Slack webhook payloads: verifies signature, parses events, enqueues for processing.
+  /// Responds immediately (no awaits for LLM calls) to avoid Slack retries.
   public func http_request_update(req : Types.HttpUpdateRequest) : async Types.HttpResponse {
+    // Ensure this is a request to the Slack webhook endpoint (accept query parameters)
+    if (not (Text.startsWith(req.url, #text "/webhook/slack") or Text.startsWith(req.url, #text "/webhook/slack/"))) {
+      return respondWithText(400, "Unrecognized path");
+    };
+
     let bodyText = switch (Text.decodeUtf8(req.body)) {
       case (?text) { text };
-      case (null) { "" };
+      case (null) {
+        return respondWithText(400, "Invalid request body encoding");
+      };
     };
 
-    let challengeOpt : ?Text = switch (Json.parse(bodyText)) {
-      case (#ok(json)) {
-        switch (Json.get(json, "challenge")) {
-          case (?#string(challenge)) { ?challenge };
-          case _ { null };
+    // Parse the envelope to determine type
+    let envelope = switch (SlackAdapter.parseEnvelope(bodyText)) {
+      case (#err(e)) {
+        Logger.log(#error, ?"SlackWebhook", "Failed to parse envelope: " # e);
+        return respondWithText(400, "Invalid payload. Error: " # e);
+      };
+      case (#ok(env)) { env };
+    };
+
+    // Handle url_verification (challenge handshake) — no signature check needed
+    switch (envelope) {
+      case (#url_verification(verification)) {
+        return respondWithText(200, verification.challenge);
+      };
+      case _ {};
+    };
+
+    // For all other event types, verify the Slack signature
+    // Retrieve the signing secret from workspace
+    let workspaceId = 0; // TODO: Support multiple workspaces in the future
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
+    let signingSecret = SecretModel.getSecret(secrets, encryptionKey, workspaceId, #slackSigningSecret);
+
+    switch (signingSecret) {
+      case (null) {
+        Logger.log(#error, ?"SlackWebhook", "No signing secret configured for workspace " # Nat.toText(workspaceId));
+        return respondWithText(401, "Slack signing secret not configured");
+      };
+      case (?secret) {
+        let signature = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Signature")) {
+          case (null) {
+            return respondWithText(401, "Missing signature");
+          };
+          case (?sig) { sig };
+        };
+        let timestamp = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Request-Timestamp")) {
+          case (null) {
+            return respondWithText(401, "Missing timestamp");
+          };
+          case (?ts) { ts };
+        };
+
+        if (not SlackAdapter.verifySignature(secret, signature, timestamp, bodyText)) {
+          Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
+          return respondWithText(401, "Invalid signature");
         };
       };
-      case (#err(_)) { null };
     };
 
-    let responseText = switch (challengeOpt) {
-      case (?challenge) { challenge };
-      case (null) { "Webhook received" };
+    // Signature verified — process the envelope
+    switch (envelope) {
+      case (#url_verification(_)) {
+        Runtime.unreachable(); // handled before and returned
+      };
+      case (#event_callback(callback)) {
+        // Normalize and enqueue the event
+        switch (SlackAdapter.normalizeEvent(callback)) {
+          case (#err(reason)) {
+            Logger.log(#_debug, ?"SlackWebhook", "Skipping event: " # reason);
+            // Still return 200 so Slack doesn't retry
+            respondWithText(200, "ok");
+          };
+          case (#ok(event)) {
+            switch (EventStoreModel.enqueue(eventStore, event)) {
+              case (#duplicate) {
+                Logger.log(#_debug, ?"EventStore", "Duplicate event: " # event.eventId);
+              };
+              case (#ok) {
+                Logger.log(#_debug, ?"EventStore", "Enqueued event: " # event.eventId);
+                // Schedule a per-event timer to process immediately
+                let eid = event.eventId;
+                ignore Timer.setTimer<system>(
+                  #seconds 0,
+                  func() : async () {
+                    await makeEventProcessor(eid);
+                  },
+                );
+              };
+            };
+            respondWithText(200, "ok");
+          };
+        };
+      };
+      case (#app_rate_limited(rateLimited)) {
+        let minuteStr = Int.toText(rateLimited.minute_rate_limited);
+        let logMsg = "Rate-limiting events for team " # rateLimited.team_id # " at minute " # minuteStr;
+        Logger.log(#warn, ?"SlackWebhook", logMsg);
+        respondWithText(200, "ok");
+      };
+      case (#unknown(envelopeType)) {
+        Logger.log(#warn, ?"SlackWebhook", "Unknown envelope type: " # envelopeType);
+        respondWithText(200, "ok");
+      };
     };
+  };
 
-    {
-      status_code = 200;
-      headers = [("content-type", "text/plain")];
-      body = Text.encodeUtf8(responseText);
-      upgrade = null;
+  // ============================================
+  // Event Queue Stats & Management (Admin)
+  // ============================================
+
+  /// Get event queue statistics (admin only)
+  public shared ({ caller }) func getEventStoreStats() : async {
+    #ok : { unprocessedEvents : Nat; processedEvents : Nat; failedEvents : Nat };
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let stats = EventStoreModel.sizes(eventStore);
+        #ok({
+          unprocessedEvents = stats.unprocessed;
+          processedEvents = stats.processed;
+          failedEvents = stats.failed;
+        });
+      };
+    };
+  };
+
+  /// Get all failed events (admin only)
+  public shared ({ caller }) func getFailedEvents() : async {
+    #ok : [NormalizedEventTypes.Event];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        #ok(EventStoreModel.listFailed(eventStore));
+      };
+    };
+  };
+
+  /// Delete failed event(s) — null deletes all, ?id deletes specific
+  public shared ({ caller }) func deleteFailedEvents(eventId : ?Text) : async {
+    #ok : { deleted : Nat };
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        let deleted = EventStoreModel.deleteFailed(eventStore, eventId);
+        #ok({ deleted });
+      };
     };
   };
 };

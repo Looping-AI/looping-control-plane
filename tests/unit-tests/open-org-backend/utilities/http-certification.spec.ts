@@ -23,7 +23,7 @@ describe("HttpCertification Unit Tests", () => {
       expect("ok" in result1).toBe(true);
       if ("ok" in result1) {
         expect(result1.ok.exists).toBe(true);
-        expect(result1.ok.path).toEqual(["http_expr", "", "<*>"]);
+        expect(result1.ok.path).toEqual(["http_expr", "<*>"]);
       }
 
       await testCanister.httpCertCertifyPath("/health");
