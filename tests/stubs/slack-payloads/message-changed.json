@@ -1,13 +1,47 @@
 {
   "TODO": "Paste a real message_changed event_callback payload from Slack logs here. Trigger by editing a message in a channel the bot is subscribed to.",
-  "type": "event_callback",
   "token": "",
   "team_id": "",
   "api_app_id": "",
   "event": {
     "type": "message",
-    "subtype": "message_changed"
+    "subtype": "message_changed",
+    "message": {
+      "type": "message",
+      "user": "U0ADJJQMW4T",
+      "text": "This message was edited to say something different.",
+      "edited": {
+        "user": "U0ADJJQMW4T",
+        "ts": "1771288280.000000"
+      },
+      "ts": "1771288200.033289",
+      "client_msg_id": "c270ab7e-e02e-4c2f-9d40-e5884de106a1"
+    },
+    "previous_message": {
+      "type": "message",
+      "user": "U0ADJJQMW4T",
+      "text": "This message will be edited.",
+      "ts": "1771288200.033289",
+      "client_msg_id": "c270ab7e-e02e-4c2f-9d40-e5884de106a1"
+    },
+    "channel": "D0ADT9S4S13",
+    "hidden": true,
+    "ts": "1771288280.033389",
+    "event_ts": "1771288280.033389",
+    "channel_type": "im"
   },
-  "event_id": "",
-  "event_time": 0
+  "type": "event_callback",
+  "event_id": "Ev0AF8PJEDIT",
+  "event_time": 1771288280,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T0ADR0P92G2",
+      "user_id": "U0ADWN7P3DY",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ],
+  "is_ext_shared_channel": false,
+  "event_context": "4-eyJldCI6Im1lc3NhZ2UiLCJ0aWQiOiJUMEFEUjBQOTJHMiIsImFpZCI6IkEwQURKVUtEOFRWIiwiY2lkIjoiRDBBRFQ5UzRTMTMifQ"
 }

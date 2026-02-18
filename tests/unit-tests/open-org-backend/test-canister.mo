@@ -3,6 +3,12 @@ import Error "mo:core/Error";
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
 import HttpCertification "../../../src/open-org-backend/utilities/http-certification";
+import MessageHandler "../../../src/open-org-backend/events/handlers/message-handler";
+import BotMessageHandler "../../../src/open-org-backend/events/handlers/bot-message-handler";
+import MessageDeletedHandler "../../../src/open-org-backend/events/handlers/message-deleted-handler";
+import MessageEditedHandler "../../../src/open-org-backend/events/handlers/message-edited-handler";
+import ThreadEventHandler "../../../src/open-org-backend/events/handlers/thread-event-handler";
+import NormalizedEventTypes "../../../src/open-org-backend/events/types/normalized-event-types";
 
 // ============================================
 // Test Canister
@@ -105,5 +111,75 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     } catch (e) {
       #err("Failed to check path: " # Error.message(e));
     };
+  };
+
+  // ============================================
+  // Handler Test Methods
+  // ============================================
+
+  public shared ({ caller }) func testMessageHandler(
+    workspaceId : Nat,
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+    },
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageHandler.handle(workspaceId, msg);
+  };
+
+  public shared ({ caller }) func testBotMessageHandler(
+    workspaceId : Nat,
+    bot : {
+      botId : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      username : ?Text;
+    },
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await BotMessageHandler.handle(workspaceId, bot);
+  };
+
+  public shared ({ caller }) func testMessageDeletedHandler(
+    workspaceId : Nat,
+    deleted : {
+      channel : Text;
+      deletedTs : Text;
+    },
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageDeletedHandler.handle(workspaceId, deleted);
+  };
+
+  public shared ({ caller }) func testMessageEditedHandler(
+    workspaceId : Nat,
+    edited : {
+      channel : Text;
+      messageTs : Text;
+      newText : Text;
+      editedBy : ?Text;
+    },
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageEditedHandler.handle(workspaceId, edited);
+  };
+
+  public shared ({ caller }) func testThreadEventHandler(
+    workspaceId : Nat,
+    thread : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : Text;
+    },
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await ThreadEventHandler.handle(workspaceId, thread);
   };
 };
