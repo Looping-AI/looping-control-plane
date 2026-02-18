@@ -56,7 +56,7 @@ async function sendSignedEvent(actor: Actor<_SERVICE>, eventId: string) {
   const sig = computeSlackSignature(TEST_SIGNING_SECRET, TEST_TIMESTAMP, body);
   return actor.http_request_update({
     method: "POST",
-    url: "/webhook/slack/",
+    url: "/webhook/slack",
     headers: [
       ["content-type", "application/json"],
       ["x-slack-signature", sig],

@@ -43,7 +43,7 @@ async function sendSignedWebhook(
     signature ?? computeSlackSignature(TEST_SIGNING_SECRET, timestamp, body);
   return actor.http_request_update({
     method: "POST",
-    url: "/webhook/slack/",
+    url: "/webhook/slack",
     headers: [
       ["content-type", "application/json"],
       ["x-slack-signature", sig],
@@ -100,7 +100,7 @@ describe("Slack Webhook", () => {
 
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [["content-type", "application/json"]],
         body: encoder.encode(body),
       });
@@ -118,7 +118,7 @@ describe("Slack Webhook", () => {
 
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [],
         body: encoder.encode(body),
       });
@@ -152,7 +152,7 @@ describe("Slack Webhook", () => {
 
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [["content-type", "application/json"]],
         body: encoder.encode(body),
       });
@@ -180,7 +180,7 @@ describe("Slack Webhook", () => {
 
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [
           ["content-type", "application/json"],
           ["x-slack-signature", "v0=invalid"],
@@ -211,7 +211,7 @@ describe("Slack Webhook", () => {
 
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [
           ["content-type", "application/json"],
           ["x-slack-signature", "v0=deadbeefdeadbeef"],
@@ -440,7 +440,7 @@ describe("Slack Webhook", () => {
     it("should reject non-JSON body", async () => {
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [["content-type", "application/json"]],
         body: encoder.encode("not valid json {{{"),
       });
@@ -452,7 +452,7 @@ describe("Slack Webhook", () => {
     it("should reject JSON without type field", async () => {
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [["content-type", "application/json"]],
         body: encoder.encode(JSON.stringify({ foo: "bar" })),
       });

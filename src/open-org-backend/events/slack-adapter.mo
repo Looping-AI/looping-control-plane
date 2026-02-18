@@ -13,6 +13,7 @@
 import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Float "mo:core/Float";
+import Time "mo:core/Time";
 import Json "mo:json";
 import SlackEventTypes "./types/slack-event-types";
 import NormalizedEventTypes "./types/normalized-event-types";
@@ -40,26 +41,47 @@ module {
   // Signature Verification
   // ============================================
 
-  /// Verify Slack request signature using HMAC-SHA256
+  /// Validate that a Slack request timestamp is within the acceptable window.
   ///
-  /// Slack signs requests with: v0=HMAC-SHA256(signing_secret, "v0:{timestamp}:{body}")
-  /// See: https://api.slack.com/authentication/verifying-requests-from-slack
+  /// Rejects requests older than 5 minutes (300 seconds) or with a future timestamp
+  /// to prevent replay attacks.
+  ///
+  /// @param timestamp - Unix timestamp in seconds as text
+  /// @returns true if the timestamp is valid and within the acceptable window
+  public func verifyTimestamp(timestamp : Text) : Bool {
+    let timestampInt = switch (Int.fromText(timestamp)) {
+      case (?t) { t };
+      case (null) { return false }; // Invalid timestamp format
+    };
+
+    let currentTimeNanos = Time.now();
+    let currentTimeSeconds = currentTimeNanos / 1_000_000_000;
+
+    let timeDifference = currentTimeSeconds - timestampInt;
+    let maxAge = 300; // 5 minutes in seconds
+
+    // Reject if timestamp is in the future or older than 5 minutes
+    not (timeDifference < 0 or timeDifference > maxAge);
+  };
+
+  /// Verify a Slack HMAC-SHA256 signature against the expected value.
+  ///
+  /// Builds the base string "v0:{timestamp}:{body}", computes HMAC-SHA256 with the
+  /// signing secret, and compares using constant-time equality to prevent timing attacks.
   ///
   /// @param signingSecret - The Slack signing secret (from app settings)
   /// @param signature - The X-Slack-Signature header value
-  /// @param timestamp - The X-Slack-Request-Timestamp header value
+  /// @param timestamp - The X-Slack-Request-Timestamp header value (Unix timestamp in seconds as text)
   /// @param body - The raw request body
-  /// @returns true if the signature is valid
-  public func verifySignature(
+  /// @returns true if the signature matches
+  func verifyHmac(
     signingSecret : Text,
     signature : Text,
     timestamp : Text,
     body : Text,
   ) : Bool {
-    // Build the base string: "v0:{timestamp}:{body}"
     let baseString = "v0:" # timestamp # ":" # body;
 
-    // Compute HMAC-SHA256
     let msgBytes = Encryption.textToBytes(baseString);
     let secretBytes = Encryption.textToBytes(signingSecret);
     let hmacResult = Hmac.compute(secretBytes, msgBytes);
@@ -67,6 +89,36 @@ module {
 
     // Constant-time comparison to prevent timing attacks
     Text.equal(signature, expectedSignature);
+  };
+
+  /// Verify Slack request signature using HMAC-SHA256 and (outside of test) timestamp validation.
+  ///
+  /// Slack signs requests with: v0=HMAC-SHA256(signing_secret, "v0:{timestamp}:{body}")
+  /// See: https://api.slack.com/authentication/verifying-requests-from-slack
+  ///
+  /// In non-test environments this also validates the timestamp to prevent replay attacks
+  /// (requests older than 5 minutes are rejected). In #test the timestamp check is skipped
+  /// so that cassette-recorded requests with fixed timestamps remain verifiable.
+  ///
+  /// @param signingSecret - The Slack signing secret (from app settings)
+  /// @param signature - The X-Slack-Signature header value
+  /// @param timestamp - The X-Slack-Request-Timestamp header value (Unix timestamp in seconds as text)
+  /// @param body - The raw request body
+  /// @returns true if the signature (and, outside of #test, the timestamp) is valid
+  public func verifySignature(
+    signingSecret : Text,
+    signature : Text,
+    timestamp : Text,
+    body : Text,
+  ) : Bool {
+    let timestampValid = switch (Constants.ENVIRONMENT) {
+      case (#test) { true };
+      case (_) { verifyTimestamp(timestamp) };
+    };
+
+    if (not timestampValid) { return false };
+
+    verifyHmac(signingSecret, signature, timestamp, body);
   };
 
   /// Extract a header value by name (case-insensitive)

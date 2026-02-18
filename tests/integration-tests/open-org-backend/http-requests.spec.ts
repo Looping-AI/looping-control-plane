@@ -45,7 +45,7 @@ describe("HTTP Requests", () => {
     it("should return upgrade = true for POST requests", async () => {
       const response = await actor.http_request({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [["content-type", "application/json"]],
         body: new Uint8Array([]),
         certificate_version: [],
@@ -94,7 +94,7 @@ describe("HTTP Requests", () => {
 
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [["content-type", "application/json"]],
         body: payload,
       });
@@ -112,7 +112,7 @@ describe("HTTP Requests", () => {
     it("should handle empty POST body", async () => {
       const response = await actor.http_request_update({
         method: "POST",
-        url: "/webhook/slack/",
+        url: "/webhook/slack",
         headers: [],
         body: new Uint8Array([]),
       });

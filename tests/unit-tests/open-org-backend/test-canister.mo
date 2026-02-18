@@ -9,6 +9,7 @@ import MessageDeletedHandler "../../../src/open-org-backend/events/handlers/mess
 import MessageEditedHandler "../../../src/open-org-backend/events/handlers/message-edited-handler";
 import ThreadEventHandler "../../../src/open-org-backend/events/handlers/thread-event-handler";
 import NormalizedEventTypes "../../../src/open-org-backend/events/types/normalized-event-types";
+import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 
 // ============================================
 // Test Canister
@@ -181,5 +182,22 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     await ThreadEventHandler.handle(workspaceId, thread);
+  };
+
+  // ============================================
+  // Slack Adapter Test Methods
+  // ============================================
+
+  public query func testSlackSignatureVerification(
+    signingSecret : Text,
+    signature : Text,
+    timestamp : Text,
+    body : Text,
+  ) : async Bool {
+    SlackAdapter.verifySignature(signingSecret, signature, timestamp, body);
+  };
+
+  public query func testSlackTimestampVerification(timestamp : Text) : async Bool {
+    SlackAdapter.verifyTimestamp(timestamp);
   };
 };
