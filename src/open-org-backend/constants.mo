@@ -11,6 +11,10 @@ module {
   // Used for periodic cleanup of processed events map
   public let SEVEN_DAYS_NS : Nat = 604_800_000_000_000;
 
+  // 1 hour in nanoseconds (60 * 60 * 1_000_000_000)
+  // Used to detect unprocessed events that were never picked up
+  public let ONE_HOUR_NS : Nat = 3_600_000_000_000;
+
   // Log raw Slack event payloads for development/debugging
   // Set it to true for dev/staging to output raw JSON via `dfx canister logs`
   // Useful for creating new test stubs and debugging event parsing

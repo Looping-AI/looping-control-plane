@@ -672,3 +672,354 @@ suite(
     );
   },
 );
+
+suite(
+  "EventStoreModel - purgeProcessed",
+  func() {
+    test(
+      "does not purge events with processedAt within 7 days",
+      func() {
+        let state = EventStoreModel.empty();
+
+        // Enqueue, claim, and process — processedAt will be Time.now() (recent)
+        ignore EventStoreModel.enqueue(state, makeMessageEvent("EvPurge001"));
+        ignore EventStoreModel.claim(state, "slack_EvPurge001");
+        EventStoreModel.markProcessed(state, "slack_EvPurge001", makeTestSteps());
+
+        let purged = EventStoreModel.purgeProcessed(state);
+        expect.nat(purged).equal(0);
+
+        let sizes = EventStoreModel.sizes(state);
+        expect.nat(sizes.processed).equal(1);
+      },
+    );
+
+    test(
+      "does not purge events with processedAt = null",
+      func() {
+        // Manually insert a processed event without a processedAt timestamp
+        let state = EventStoreModel.empty();
+        ignore EventStoreModel.enqueue(state, makeMessageEvent("EvPurge002"));
+        ignore EventStoreModel.claim(state, "slack_EvPurge002");
+        // markProcessed sets processedAt, so just calling purge on fresh state is safe
+        EventStoreModel.markProcessed(state, "slack_EvPurge002", makeTestSteps());
+
+        // Recent event — should NOT be purged
+        let purged = EventStoreModel.purgeProcessed(state);
+        expect.nat(purged).equal(0);
+        expect.nat(EventStoreModel.sizes(state).processed).equal(1);
+      },
+    );
+
+    test(
+      "returns 0 when processed map is empty",
+      func() {
+        let state = EventStoreModel.empty();
+        let purged = EventStoreModel.purgeProcessed(state);
+        expect.nat(purged).equal(0);
+      },
+    );
+  },
+);
+
+suite(
+  "EventStoreModel - failStaleUnprocessed",
+  func() {
+    test(
+      "returns empty array when no events are stale",
+      func() {
+        let state = EventStoreModel.empty();
+        // Fresh event — enqueuedAt is Time.now(), well within 1 hour
+        ignore EventStoreModel.enqueue(state, makeMessageEvent("EvStale001"));
+
+        let staleIds = EventStoreModel.failStaleUnprocessed(state);
+        expect.nat(staleIds.size()).equal(0);
+
+        // Event should still be in unprocessed
+        let sizes = EventStoreModel.sizes(state);
+        expect.nat(sizes.unprocessed).equal(1);
+        expect.nat(sizes.failed).equal(0);
+      },
+    );
+
+    test(
+      "returns empty array when unprocessed map is empty",
+      func() {
+        let state = EventStoreModel.empty();
+        let staleIds = EventStoreModel.failStaleUnprocessed(state);
+        expect.nat(staleIds.size()).equal(0);
+      },
+    );
+
+    test(
+      "moves stale event to failed and returns its ID",
+      func() {
+        // In mops test env, Time.now() = 42
+        // To make an event stale (> 1h old), set enqueuedAt to a very negative number
+        // so that: now - enqueuedAt = 42 - (-huge) = 42 + huge > ONE_HOUR_NS
+        let staleEvent : NormalizedEventTypes.Event = {
+          source = #slack;
+          workspaceId = 0;
+          idempotencyKey = "EvStale002";
+          eventId = "slack_EvStale002";
+          timestamp = 1700000000;
+          payload = #message({
+            user = "U123";
+            text = "stale hello";
+            channel = "C456";
+            ts = "1700000000.000001";
+            threadTs = null;
+          });
+          // Set enqueuedAt to large negative Int so diff is > ONE_HOUR_NS
+          enqueuedAt = -9_999_999_999_999;
+          claimedAt = null;
+          processedAt = null;
+          failedAt = null;
+          failedError = "";
+          processingLog = [];
+        };
+
+        let state = EventStoreModel.empty();
+        Map.add(state.unprocessed, Text.compare, staleEvent.eventId, staleEvent);
+
+        let staleIds = EventStoreModel.failStaleUnprocessed(state);
+        expect.nat(staleIds.size()).equal(1);
+        expect.text(staleIds[0]).equal("slack_EvStale002");
+
+        // Should be removed from unprocessed and added to failed
+        let sizes = EventStoreModel.sizes(state);
+        expect.nat(sizes.unprocessed).equal(0);
+        expect.nat(sizes.failed).equal(1);
+      },
+    );
+
+    test(
+      "sets failedAt and correct failedError on moved event",
+      func() {
+        let staleEvent : NormalizedEventTypes.Event = {
+          source = #slack;
+          workspaceId = 0;
+          idempotencyKey = "EvStale003";
+          eventId = "slack_EvStale003";
+          timestamp = 1700000000;
+          payload = #message({
+            user = "U123";
+            text = "stale";
+            channel = "C456";
+            ts = "1700000000.000001";
+            threadTs = null;
+          });
+          enqueuedAt = -9_999_999_999_999; // Stale: far in the past
+          claimedAt = null;
+          processedAt = null;
+          failedAt = null;
+          failedError = "";
+          processingLog = [];
+        };
+
+        let state = EventStoreModel.empty();
+        Map.add(state.unprocessed, Text.compare, staleEvent.eventId, staleEvent);
+        ignore EventStoreModel.failStaleUnprocessed(state);
+
+        let failed = EventStoreModel.get(state, "slack_EvStale003");
+        switch (failed) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?e) {
+            switch (e.failedAt) {
+              case (null) { expect.bool(false).equal(true) };
+              case (?_) { expect.bool(true).equal(true) };
+            };
+            expect.text(e.failedError).equal("Event was not picked up within 1 hour of being enqueued.");
+          };
+        };
+      },
+    );
+
+    test(
+      "only moves stale events; fresh events stay in unprocessed",
+      func() {
+        let staleEvent : NormalizedEventTypes.Event = {
+          source = #slack;
+          workspaceId = 0;
+          idempotencyKey = "EvStale004";
+          eventId = "slack_EvStale004";
+          timestamp = 1700000000;
+          payload = #message({
+            user = "U123";
+            text = "stale";
+            channel = "C456";
+            ts = "1700000000.000001";
+            threadTs = null;
+          });
+          enqueuedAt = -9_999_999_999_999; // Stale: far in the past
+          claimedAt = null;
+          processedAt = null;
+          failedAt = null;
+          failedError = "";
+          processingLog = [];
+        };
+
+        let state = EventStoreModel.empty();
+        Map.add(state.unprocessed, Text.compare, staleEvent.eventId, staleEvent);
+        // Also enqueue a fresh event (enqueuedAt = Time.now())
+        ignore EventStoreModel.enqueue(state, makeMessageEvent("EvStale005"));
+
+        let staleIds = EventStoreModel.failStaleUnprocessed(state);
+        expect.nat(staleIds.size()).equal(1);
+        expect.text(staleIds[0]).equal("slack_EvStale004");
+
+        let sizes = EventStoreModel.sizes(state);
+        expect.nat(sizes.unprocessed).equal(1); // Fresh event remains
+        expect.nat(sizes.failed).equal(1); // Stale event moved to failed
+      },
+    );
+  },
+);
+
+suite(
+  "EventStoreModel - purgeOldFailed",
+  func() {
+    test(
+      "returns 0 when failed map is empty",
+      func() {
+        let state = EventStoreModel.empty();
+        let purged = EventStoreModel.purgeOldFailed(state);
+        expect.nat(purged).equal(0);
+      },
+    );
+
+    test(
+      "does not purge a recently failed event",
+      func() {
+        let state = EventStoreModel.empty();
+        ignore EventStoreModel.enqueue(state, makeMessageEvent("EvOldFail001"));
+        ignore EventStoreModel.claim(state, "slack_EvOldFail001");
+        // failedAt = Time.now() (recent)
+        EventStoreModel.markFailed(state, "slack_EvOldFail001", "recent error");
+
+        let purged = EventStoreModel.purgeOldFailed(state);
+        expect.nat(purged).equal(0);
+        expect.nat(EventStoreModel.sizes(state).failed).equal(1);
+      },
+    );
+
+    test(
+      "purges a failed event with failedAt far in the past",
+      func() {
+        // Manufacture an event already in the failed map with a very old failedAt
+        // In mops: Time.now() = 42, so set failedAt to a very negative number
+        // such that: now - failedAt > THIRTY_DAYS_NS
+        // 30 days in ns = 2_592_000_000_000_000
+        // So we need failedAt < 42 - 2_592_000_000_000_000 ≈ -2_591_999_999_999_958
+        let oldFailedEvent : NormalizedEventTypes.Event = {
+          source = #slack;
+          workspaceId = 0;
+          idempotencyKey = "EvOldFail002";
+          eventId = "slack_EvOldFail002";
+          timestamp = 1700000000;
+          payload = #message({
+            user = "U123";
+            text = "old failed";
+            channel = "C456";
+            ts = "1700000000.000001";
+            threadTs = null;
+          });
+          enqueuedAt = 1;
+          claimedAt = null;
+          processedAt = null;
+          failedAt = ?(-3_000_000_000_000_000); // Much larger negative to exceed 30 days
+          failedError = "ancient error";
+          processingLog = [];
+        };
+
+        let state = EventStoreModel.empty();
+        Map.add(state.failed, Text.compare, oldFailedEvent.eventId, oldFailedEvent);
+
+        let purged = EventStoreModel.purgeOldFailed(state);
+        expect.nat(purged).equal(1);
+        expect.nat(EventStoreModel.sizes(state).failed).equal(0);
+      },
+    );
+
+    test(
+      "keeps recent failures and removes old ones",
+      func() {
+        let oldFailedEvent : NormalizedEventTypes.Event = {
+          source = #slack;
+          workspaceId = 0;
+          idempotencyKey = "EvOldFail003";
+          eventId = "slack_EvOldFail003";
+          timestamp = 1700000000;
+          payload = #message({
+            user = "U123";
+            text = "old";
+            channel = "C456";
+            ts = "1700000000.000001";
+            threadTs = null;
+          });
+          enqueuedAt = 1;
+          claimedAt = null;
+          processedAt = null;
+          failedAt = ?(-3_000_000_000_000_000); // Very old — > 30 days
+          failedError = "old error";
+          processingLog = [];
+        };
+
+        let state = EventStoreModel.empty();
+        Map.add(state.failed, Text.compare, oldFailedEvent.eventId, oldFailedEvent);
+
+        // Also add a recent failure via the normal path
+        ignore EventStoreModel.enqueue(state, makeMessageEvent("EvOldFail004"));
+        ignore EventStoreModel.claim(state, "slack_EvOldFail004");
+        EventStoreModel.markFailed(state, "slack_EvOldFail004", "recent error");
+
+        let purged = EventStoreModel.purgeOldFailed(state);
+        expect.nat(purged).equal(1); // Only the old one removed
+
+        let sizes = EventStoreModel.sizes(state);
+        expect.nat(sizes.failed).equal(1); // Recent one remains
+
+        // Verify it's the recent one that remains
+        let remaining = EventStoreModel.get(state, "slack_EvOldFail004");
+        switch (remaining) {
+          case (?_) { expect.bool(true).equal(true) };
+          case (null) { expect.bool(false).equal(true) };
+        };
+      },
+    );
+
+    test(
+      "does not purge events with failedAt = null",
+      func() {
+        // Manufacture a failed event with failedAt = null (edge case)
+        let noTimestampFailed : NormalizedEventTypes.Event = {
+          source = #slack;
+          workspaceId = 0;
+          idempotencyKey = "EvOldFail005";
+          eventId = "slack_EvOldFail005";
+          timestamp = 1700000000;
+          payload = #message({
+            user = "U123";
+            text = "no timestamp";
+            channel = "C456";
+            ts = "1700000000.000001";
+            threadTs = null;
+          });
+          enqueuedAt = 42;
+          claimedAt = null;
+          processedAt = null;
+          failedAt = null; // No failedAt set
+          failedError = "unknown";
+          processingLog = [];
+        };
+
+        let state = EventStoreModel.empty();
+        Map.add(state.failed, Text.compare, noTimestampFailed.eventId, noTimestampFailed);
+
+        let purged = EventStoreModel.purgeOldFailed(state);
+        expect.nat(purged).equal(0);
+        expect.nat(EventStoreModel.sizes(state).failed).equal(1);
+      },
+    );
+  },
+);

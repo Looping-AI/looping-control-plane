@@ -117,10 +117,30 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // Processed Events Cleanup Timer
-  // Runs every 7 days to purge old processed events
+  // Runs every 7 days to:
+  //   1. Detect unprocessed events stuck for > 1h and move them to failed
+  //   2. Purge old processed events (> 7 days)
+  //   3. Purge old failed events (> 30 days)
   private func processedEventsCleanupTimer() : async () {
-    let purged = EventStoreModel.purgeProcessed(eventStore);
-    Logger.log(#_debug, ?"EventStore", "Purged " # debug_show (purged) # " processed events");
+    // 1. Detect and fail stale unprocessed events (enqueuedAt > 1 hour ago)
+    let staleIds = EventStoreModel.failStaleUnprocessed(eventStore);
+    if (staleIds.size() > 0) {
+      let idList = Array.foldLeft<Text, Text>(
+        staleIds,
+        "",
+        func(acc, id) {
+          if (acc == "") id else acc # ", " # id;
+        },
+      );
+      Logger.log(#warn, ?"EventStore", "Failed " # Nat.toText(staleIds.size()) # " stale unprocessed event(s): " # idList);
+    };
+
+    // 2. Purge old processed events (> 7 days)
+    ignore EventStoreModel.purgeProcessed(eventStore);
+
+    // 3. Purge old failed events (> 30 days)
+    ignore EventStoreModel.purgeOldFailed(eventStore);
+
     lastProcessedCleanupTimestamp := Time.now();
 
     // Reschedule for next interval

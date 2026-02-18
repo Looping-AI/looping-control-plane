@@ -241,4 +241,76 @@ module {
 
     List.size(keysToRemove);
   };
+
+  // ============================================
+  // Cleanup — Stale Unprocessed Events
+  // ============================================
+
+  /// Move unprocessed events that have been sitting for more than 1 hour to failed.
+  /// These are events whose timer was never triggered (e.g. due to a canister restart).
+  /// Returns the list of event IDs that were moved to failed.
+  public func failStaleUnprocessed(state : EventStoreState) : [Text] {
+    let oneHourInNanos = Int.fromNat(Constants.ONE_HOUR_NS);
+    let now = Time.now();
+
+    var staleIds = List.empty<Text>();
+    for ((eventId, event) in Map.entries(state.unprocessed)) {
+      if (now - event.enqueuedAt > oneHourInNanos) {
+        List.add(staleIds, eventId);
+      };
+    };
+
+    // Move each stale event from unprocessed → failed
+    List.forEach<Text>(
+      staleIds,
+      func(eventId) {
+        switch (Map.get(state.unprocessed, Text.compare, eventId)) {
+          case (null) {};
+          case (?event) {
+            let errored : NormalizedEventTypes.Event = {
+              event with
+              failedAt = ?now;
+              failedError = "Event was not picked up within 1 hour of being enqueued.";
+            };
+            Map.remove(state.unprocessed, Text.compare, eventId);
+            Map.add(state.failed, Text.compare, eventId, errored);
+          };
+        };
+      },
+    );
+
+    List.toArray(staleIds);
+  };
+
+  // ============================================
+  // Cleanup — Old Failed Events
+  // ============================================
+
+  /// Purge failed events whose failedAt timestamp is older than 30 days.
+  /// Returns the number of events deleted.
+  public func purgeOldFailed(state : EventStoreState) : Nat {
+    let thirtyDaysInNanos = Int.fromNat(Constants.THIRTY_DAYS_NS);
+    let now = Time.now();
+
+    var keysToRemove = List.empty<Text>();
+    for ((eventId, event) in Map.entries(state.failed)) {
+      switch (event.failedAt) {
+        case (null) {};
+        case (?failedTime) {
+          if (now - failedTime > thirtyDaysInNanos) {
+            List.add(keysToRemove, eventId);
+          };
+        };
+      };
+    };
+
+    List.forEach<Text>(
+      keysToRemove,
+      func(eventId) {
+        Map.remove(state.failed, Text.compare, eventId);
+      },
+    );
+
+    List.size(keysToRemove);
+  };
 };
