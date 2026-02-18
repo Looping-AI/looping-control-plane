@@ -1,6 +1,0 @@
-{
-  "TODO": "Paste a real url_verification payload from Slack logs here. Trigger by re-configuring the Events API URL in your Slack app settings.",
-  "type": "url_verification",
-  "challenge": "",
-  "token": ""
-}

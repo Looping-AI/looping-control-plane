@@ -1,6 +1,0 @@
-{
-  "TODO": "Paste a real app_rate_limited payload from Slack logs here. This is sent when your app is being rate-limited. Hard to trigger intentionally — may need to simulate high event volume.",
-  "type": "app_rate_limited",
-  "team_id": "",
-  "minute_rate_limited": 0
-}
