@@ -503,7 +503,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
 
   public shared ({ caller }) func workspaceAdminTalk(workspaceId : Nat, message : Text) : async {
-    #ok : [ConversationModel.Message];
+    #ok : {
+      messages : [ConversationModel.Message];
+      steps : [Types.ProcessingStep];
+    };
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
@@ -521,12 +524,23 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           case (null) { return #err("Workspace objectives not found.") };
           case (?objMap) { objMap };
         };
+        // Scope secrets and conversation history to the workspace
+        let workspaceSecrets = Map.get(secrets, Nat.compare, workspaceId);
+        let workspaceConversations = switch (Map.get(adminConversations, Nat.compare, workspaceId)) {
+          case (?list) { list };
+          case (null) {
+            // First message in this workspace — create the entry so mutations persist
+            let newList = List.empty<ConversationModel.Message>();
+            Map.add(adminConversations, Nat.compare, workspaceId, newList);
+            newList;
+          };
+        };
 
         // Delegate to orchestrator for business logic
-        await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
+        let orchestratorResult = await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
           mcpToolRegistry,
-          secrets,
-          adminConversations,
+          workspaceSecrets,
+          workspaceConversations,
           workspaceValueStreamsState,
           workspaceValueStreams,
           workspaceObjectivesMap,
@@ -536,6 +550,11 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           message,
           keyCache,
         );
+        // Return messages and steps to the caller
+        switch (orchestratorResult) {
+          case (#ok({ messages; steps })) { #ok({ messages; steps }) };
+          case (#err(e)) { #err(e) };
+        };
       };
     };
   };

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import type { PocketIc, Actor, DeferredActor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
 import {
@@ -95,7 +95,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 5, maxRounds: 10 }, // More rounds and ticks for multi-turn tool execution
       );
-      const response = expectOk(await result);
+      const { messages: response } = expectOk(await result);
       // The response should contain something about the echo result
       expect(response.length).toBeGreaterThan(0);
     },
@@ -123,7 +123,9 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 5, maxRounds: 3 },
       );
-      const confirmationResponse = expectOk(await confirmationResult);
+      const { messages: confirmationResponse } = expectOk(
+        await confirmationResult,
+      );
       // Extract the final agent response
       const agentMessage = confirmationResponse.find(
         (msg) => "agent" in msg.author,
@@ -153,7 +155,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 5, maxRounds: 6 }, // More rounds for tool execution
       );
-      const createResponse = expectOk(await createResult);
+      const { messages: createResponse } = expectOk(await createResult);
       expect(createResponse.length).toBeGreaterThan(0);
 
       // Verify the value stream was actually created
@@ -201,7 +203,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 5, maxRounds: 6 },
       );
-      const response = expectOk(await result);
+      const { messages: response } = expectOk(await result);
       expect(response.length).toBeGreaterThan(0);
 
       // Verify the value stream was updated and activated
@@ -237,7 +239,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 5, maxRounds: 6 },
       );
-      const echoResponse = expectOk(await echoResult);
+      const { messages: echoResponse } = expectOk(await echoResult);
       expect(echoResponse.length).toBeGreaterThan(0);
       // Extract the final agent response
       const echoAgentMessage = echoResponse.find(
@@ -262,7 +264,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 3, maxRounds: 5 },
       );
-      const createResponse = expectOk(await createResult);
+      const { messages: createResponse } = expectOk(await createResult);
       expect(createResponse.length).toBeGreaterThan(0);
       // Extract the final agent response
       const createAgentMessage = createResponse.find(
@@ -284,7 +286,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 5, maxRounds: 12 },
       );
-      const confirmResponse = expectOk(await confirmResult);
+      const { messages: confirmResponse } = expectOk(await confirmResult);
       expect(confirmResponse.length).toBeGreaterThan(0);
 
       // Verify the value stream was created
@@ -353,7 +355,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 3, maxRounds: 5 },
       );
-      const askResponse = expectOk(await askResult);
+      const { messages: askResponse } = expectOk(await askResult);
       expect(askResponse.length).toBeGreaterThan(0);
       // Extract the final agent response
       const askAgentMessage = askResponse.find((msg) => "agent" in msg.author);
@@ -381,7 +383,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 8, maxRounds: 15 }, // More rounds for research + planning
       );
-      const planResponse = expectOk(await planResult);
+      const { messages: planResponse } = expectOk(await planResult);
       expect(planResponse.length).toBeGreaterThan(0);
       // Extract the final agent response
       const planAgentMessage = planResponse.find(
@@ -408,7 +410,7 @@ describe("workspaceAdminTalk", () => {
           ),
         { ticks: 5, maxRounds: 8 },
       );
-      const confirmResponse = expectOk(await confirmResult);
+      const { messages: confirmResponse } = expectOk(await confirmResult);
       expect(confirmResponse.length).toBeGreaterThan(0);
 
       // Verify the plan was saved
@@ -457,7 +459,7 @@ describe("workspaceAdminTalk", () => {
             ),
           { ticks: 5, maxRounds: 6 },
         );
-        const response = expectOk(await result);
+        const { messages: response } = expectOk(await result);
         expect(response.length).toBeGreaterThan(0);
 
         // Verify the metric was created
@@ -508,7 +510,7 @@ describe("workspaceAdminTalk", () => {
             ),
           { ticks: 5, maxRounds: 6 },
         );
-        const response = expectOk(await result);
+        const { messages: response } = expectOk(await result);
         expect(response.length).toBeGreaterThan(0);
 
         // Verify the metric was updated
@@ -571,7 +573,7 @@ describe("workspaceAdminTalk", () => {
             ),
           { ticks: 5, maxRounds: 6 },
         );
-        const response = expectOk(await result);
+        const { messages: response } = expectOk(await result);
         expect(response.length).toBeGreaterThan(0);
 
         // Extract the final agent response
@@ -618,7 +620,7 @@ describe("workspaceAdminTalk", () => {
             ),
           { ticks: 5, maxRounds: 6 },
         );
-        const response = expectOk(await result);
+        const { messages: response } = expectOk(await result);
         expect(response.length).toBeGreaterThan(0);
 
         // Extract the final agent response
@@ -657,7 +659,7 @@ describe("workspaceAdminTalk", () => {
             ),
           { ticks: 5, maxRounds: 6 },
         );
-        const response = expectOk(await result);
+        const { messages: response } = expectOk(await result);
         expect(response.length).toBeGreaterThan(0);
 
         // Extract the final agent response
@@ -696,7 +698,7 @@ describe("workspaceAdminTalk", () => {
             ),
           { ticks: 5, maxRounds: 6 },
         );
-        const response = expectOk(await result);
+        const { messages: response } = expectOk(await result);
         expect(response.length).toBeGreaterThan(0);
 
         // Extract the final agent response

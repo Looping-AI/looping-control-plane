@@ -50,4 +50,18 @@ module {
     body : Blob;
     upgrade : ?Bool;
   };
+
+  // ============================================
+  // Processing Step — handler observability
+  // ============================================
+
+  /// A single step taken by a handler during event processing.
+  /// Provides observability into what actions were attempted and their outcomes.
+  /// Defined here (rather than in events/types/) so orchestrators and other
+  /// non-event modules can also emit and return steps without a cross-layer import.
+  public type ProcessingStep = {
+    action : Text; // e.g. "llm_call", "post_to_slack", "update_conversation"
+    result : { #ok; #err : Text };
+    timestamp : Int; // Time.now() when this step completed
+  };
 };

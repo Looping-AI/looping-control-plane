@@ -12,8 +12,7 @@
     "test": "bun run test:build && bun run test:unit && bun run test:integration"
   },
   "dependencies": {
-    "@dfinity/agent": "^3.4.3",
-    "@dfinity/principal": "^3.4.3"
+    "@icp-sdk/core": "^5.0.0"
   },
   "devDependencies": {
     "@dfinity/pic": "^0.18.0",

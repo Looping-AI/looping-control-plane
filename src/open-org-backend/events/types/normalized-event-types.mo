@@ -6,6 +6,8 @@
 /// (email, GitHub webhooks, etc.) only requires a new adapter, not changes to
 /// the queue or router.
 
+import Types "../../types";
+
 module {
 
   // ============================================
@@ -22,13 +24,10 @@ module {
   // Processing Step — handler observability
   // ============================================
 
-  /// A single step taken by a handler during event processing.
-  /// Provides observability into what actions were attempted and their outcomes.
-  public type ProcessingStep = {
-    action : Text; // e.g. "fetch_llm_response", "post_to_slack", "update_conversation"
-    result : { #ok; #err : Text }; // Did this step succeed?
-    timestamp : Int; // Time.now() when this step completed
-  };
+  /// Re-exported from Types so event handlers can use this alias directly.
+  /// The canonical definition lives in types.mo so orchestrators and other
+  /// non-event modules can also emit steps without a cross-layer import.
+  public type ProcessingStep = Types.ProcessingStep;
 
   /// Return type for all handlers — standardized contract between router and handlers.
   /// #ok returns the processing steps taken (even if individual steps failed).
