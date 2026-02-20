@@ -113,7 +113,17 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Per-event timer callback factory — returns an async closure that processes one event by ID
   private func makeEventProcessor(eventId : Text) : async () {
-    await EventRouter.processSingleEvent(eventStore, eventId);
+    let ctx : EventRouter.EventProcessingContext = {
+      secrets;
+      keyCache;
+      adminConversations;
+      mcpToolRegistry;
+      workspaceValueStreams;
+      workspaceObjectives;
+      metricsRegistry;
+      metricDatapoints;
+    };
+    await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
 
   // Processed Events Cleanup Timer
@@ -536,6 +546,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           };
         };
 
+        // Derive encryption key for this workspace (once, shared to orchestrator)
+        let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
+
         // Delegate to orchestrator for business logic
         let orchestratorResult = await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
           mcpToolRegistry,
@@ -548,7 +561,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           metricDatapoints,
           workspaceId,
           message,
-          keyCache,
+          encryptionKey,
         );
         // Return messages and steps to the caller
         switch (orchestratorResult) {

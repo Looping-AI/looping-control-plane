@@ -370,6 +370,14 @@ module {
     #ok : SlackEventTypes.SlackMessageEvent;
     #err : Text;
   } {
+    // A message can arrive without a subtype even when it's from a bot
+    // (e.g. postMessage calls from assistant threads). Detect this by
+    // checking for bot_id and dispatch to parseBotMessage instead.
+    switch (Json.get(json, "bot_id")) {
+      case (?#string(_)) { return parseBotMessage(json) };
+      case _ {};
+    };
+
     let user = switch (Json.get(json, "user")) {
       case (?#string(u)) { u };
       case _ { return #err("Missing 'user' in standard message") };
@@ -398,7 +406,7 @@ module {
     #ok(#standard({ user; text; ts; channel; eventTs; threadTs }));
   };
 
-  /// Parse bot_message subtype
+  /// Parse bot_message subtype (or standard message with bot_id present)
   func parseBotMessage(json : Json.Json) : {
     #ok : SlackEventTypes.SlackMessageEvent;
     #err : Text;
@@ -406,6 +414,10 @@ module {
     let botId = switch (Json.get(json, "bot_id")) {
       case (?#string(b)) { b };
       case _ { return #err("Missing 'bot_id' in bot_message") };
+    };
+    let appId = switch (Json.get(json, "app_id")) {
+      case (?#string(a)) { ?a };
+      case _ { null };
     };
     let text = switch (Json.get(json, "text")) {
       case (?#string(t)) { t };
@@ -424,7 +436,7 @@ module {
       case _ { null };
     };
 
-    #ok(#botMessage({ botId; text; ts; channel; username }));
+    #ok(#botMessage({ botId; appId; text; ts; channel; username }));
   };
 
   /// Parse me_message subtype
@@ -648,8 +660,19 @@ module {
             });
           };
           case (#botMessage(m)) {
-            // TODO: Skip only our own bot (compare m.botId against app bot ID from config)
-            // For now, pass through all bot messages so we're aware of other bots
+            // Skip messages from our own bot entirely — prevents the infinite
+            // loop where the bot's own replies re-trigger the message handler.
+            // We identify "our own bot" by comparing app_id in the event to
+            // api_app_id in the callback envelope (both come from the same app).
+            switch (m.appId) {
+              case (?aid) {
+                if (aid == callback.api_app_id) {
+                  Logger.log(#_debug, ?"SlackAdapter", "Skipping own bot message from app: " # aid);
+                  return #err("Skipping own bot message");
+                };
+              };
+              case (null) {};
+            };
             #botMessage({
               botId = m.botId;
               text = m.text;

@@ -8,6 +8,7 @@
 
 import Time "mo:core/Time";
 import NormalizedEventTypes "../types/normalized-event-types";
+import EventProcessingContextTypes "../types/event-processing-context";
 import Logger "../../utilities/logger";
 
 module {
@@ -21,6 +22,7 @@ module {
       ts : Text;
       threadTs : Text;
     },
+    _ctx : EventProcessingContextTypes.EventProcessingContext,
   ) : async NormalizedEventTypes.HandlerResult {
     Logger.log(
       #info,

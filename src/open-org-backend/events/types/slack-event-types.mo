@@ -66,10 +66,11 @@ module {
     threadTs : ?Text;
   };
 
-  /// Bot message (subtype: "bot_message")
+  /// Bot message (subtype: "bot_message", or no subtype when posted via postMessage API)
   /// See: https://docs.slack.dev/reference/events/message/bot_message
   public type SlackBotMessage = {
     botId : Text;
+    appId : ?Text; // Present when the bot belongs to a Slack app (matches api_app_id for our own bot)
     text : Text;
     ts : Text;
     channel : Text;

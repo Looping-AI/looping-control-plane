@@ -1,4 +1,7 @@
 import Error "mo:core/Error";
+import Map "mo:core/Map";
+import Nat "mo:core/Nat";
+import List "mo:core/List";
 
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
@@ -10,6 +13,14 @@ import MessageEditedHandler "../../../src/open-org-backend/events/handlers/messa
 import ThreadEventHandler "../../../src/open-org-backend/events/handlers/thread-event-handler";
 import NormalizedEventTypes "../../../src/open-org-backend/events/types/normalized-event-types";
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
+import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
+import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
+import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
+import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
+import MetricModel "../../../src/open-org-backend/models/metric-model";
+import ConversationModel "../../../src/open-org-backend/models/conversation-model";
+import SecretModel "../../../src/open-org-backend/models/secret-model";
+import Types "../../../src/open-org-backend/types";
 
 // ============================================
 // Test Canister
@@ -21,6 +32,71 @@ import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 shared ({ caller = parent }) persistent actor class TestCanister() {
   // Store for HTTP certification testing
   var certStore = HttpCertification.initStore();
+
+  // ============================================
+  // Test Helpers
+  // ============================================
+
+  /// Creates an empty EventProcessingContext suitable for unit tests.
+  /// All state is empty/default; secrets and conversations are not pre-populated,
+  /// so handlers that require them (e.g. MessageHandler) will return graceful
+  /// error steps rather than crashing.
+  ///
+  /// keyCache is pre-seeded with a dummy 32-byte key for common test workspace IDs
+  /// (0, 1, 42) to avoid live Schnorr threshold-key calls during unit tests.
+  private func emptyCtx() : EventProcessingContextTypes.EventProcessingContext {
+    // A deterministic dummy 32-byte key used for all workspaces in unit tests.
+    // Secrets aren't populated so the encryption key is never actually used for
+    // decryption — it just needs to exist so getOrDeriveKey returns immediately.
+    let dummyKey : [Nat8] = [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+    ];
+    let keyCache = Map.fromArray<Nat, [Nat8]>(
+      [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
+      Nat.compare,
+    );
+    {
+      secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+      keyCache;
+      adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
+      mcpToolRegistry = McpToolRegistry.empty();
+      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
+      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
+      metricsRegistry = MetricModel.emptyRegistry();
+      metricDatapoints = MetricModel.emptyDatapoints();
+    };
+  };
 
   public shared ({ caller }) func httpGet(url : Text, headers : [HttpWrapper.HttpHeader]) : async {
     #ok : (Nat, Text);
@@ -129,7 +205,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(workspaceId, msg);
+    await MessageHandler.handle(workspaceId, msg, emptyCtx());
   };
 
   public shared ({ caller }) func testBotMessageHandler(
@@ -143,7 +219,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await BotMessageHandler.handle(workspaceId, bot);
+    await BotMessageHandler.handle(workspaceId, bot, emptyCtx());
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
@@ -154,7 +230,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageDeletedHandler.handle(workspaceId, deleted);
+    await MessageDeletedHandler.handle(workspaceId, deleted, emptyCtx());
   };
 
   public shared ({ caller }) func testMessageEditedHandler(
@@ -167,7 +243,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageEditedHandler.handle(workspaceId, edited);
+    await MessageEditedHandler.handle(workspaceId, edited, emptyCtx());
   };
 
   public shared ({ caller }) func testThreadEventHandler(
@@ -181,7 +257,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await ThreadEventHandler.handle(workspaceId, thread);
+    await ThreadEventHandler.handle(workspaceId, thread, emptyCtx());
   };
 
   // ============================================

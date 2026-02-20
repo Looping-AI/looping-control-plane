@@ -4,7 +4,6 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Types "../types";
 import SecretModel "../models/secret-model";
-import KeyDerivationService "../services/key-derivation-service";
 import ConversationModel "../models/conversation-model";
 import ValueStreamModel "../models/value-stream-model";
 import ObjectiveModel "../models/objective-model";
@@ -32,7 +31,7 @@ module {
     metricDatapoints : MetricModel.MetricDatapointsStore,
     workspaceId : Nat,
     message : Text,
-    keyCache : KeyDerivationService.KeyCache,
+    encryptionKey : [Nat8],
   ) : async {
     #ok : {
       messages : [ConversationModel.Message];
@@ -40,8 +39,7 @@ module {
     };
     #err : Text;
   } {
-    // Derive encryption key for the workspace, then decrypt the LLM API key
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
+    // Decrypt the LLM API key using the provided encryption key
     let apiKey = SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, Constants.ADMIN_TALK_SECRET);
 
     // Delegate to provider-specific service based on configured provider

@@ -4,6 +4,11 @@ import { createHmac } from "node:crypto";
 import type { _SERVICE } from "../../setup.ts";
 import { createTestEnvironment } from "../../setup.ts";
 import { expectOk } from "../../helpers.ts";
+import standardMessagePayload from "../../stubs/slack-payloads/message-standard.json";
+import appMentionPayload from "../../stubs/slack-payloads/app-mention.json";
+import botOwnAppPayload from "../../stubs/slack-payloads/message-bot-own-app.json";
+import botOwnAppWithSubtypePayload from "../../stubs/slack-payloads/message-bot-own-app-with-subtype.json";
+import thirdPartyBotPayload from "../../stubs/slack-payloads/message-bot-third-party.json";
 
 // ============================================
 // Test Helpers
@@ -280,21 +285,7 @@ describe("Slack Webhook", () => {
 
   describe("event_callback", () => {
     it("should enqueue a standard message event", async () => {
-      const body = JSON.stringify({
-        type: "event_callback",
-        token: "tok",
-        team_id: "T123",
-        api_app_id: "A123",
-        event: {
-          type: "message",
-          user: "U_USER1",
-          text: "Hello from test",
-          ts: "1700000001.000001",
-          channel: "C_CHAN1",
-        },
-        event_id: "Ev100",
-        event_time: 1700000001,
-      });
+      const body = JSON.stringify(standardMessagePayload);
 
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
@@ -307,23 +298,9 @@ describe("Slack Webhook", () => {
     });
 
     it("should deduplicate events with the same event_id", async () => {
-      const body = JSON.stringify({
-        type: "event_callback",
-        token: "tok",
-        team_id: "T123",
-        api_app_id: "A123",
-        event: {
-          type: "message",
-          user: "U_USER2",
-          text: "Dedup test",
-          ts: "1700000002.000001",
-          channel: "C_CHAN2",
-        },
-        event_id: "Ev200",
-        event_time: 1700000002,
-      });
+      // Use the same stub twice — same event_id means the second must be dropped
+      const body = JSON.stringify(standardMessagePayload);
 
-      // Send the same event twice
       const response1 = await sendSignedWebhook(actor, body);
       expect(response1.status_code).toBe(200);
 
@@ -340,29 +317,69 @@ describe("Slack Webhook", () => {
       expect(totalEvents).toBe(1n);
     });
 
-    it("should enqueue an event with different type", async () => {
-      const body = JSON.stringify({
-        type: "event_callback",
-        token: "tok",
-        team_id: "T123",
-        api_app_id: "A123",
-        event: {
-          type: "app_mention",
-          user: "U_MENTION",
-          text: "<@U_BOT> hello!",
-          ts: "1700000003.000001",
-          channel: "C_CHAN3",
-          event_ts: "1700000003.000001",
-        },
-        event_id: "Ev300",
-        event_time: 1700000003,
-      });
+    it("should enqueue an app_mention event", async () => {
+      const body = JSON.stringify(appMentionPayload);
 
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
 
       // Verify the event was enqueued
+      const stats = await actor.getEventStoreStats();
+      const queueStats = expectOk(stats);
+      expect(queueStats.unprocessedEvents).toBe(1n);
+    });
+
+    // -----------------------------------------------------------------------
+    // Own-bot message filtering (infinite loop prevention)
+    // -----------------------------------------------------------------------
+    // When our bot posts a reply via postMessage, Slack re-delivers the event
+    // to our webhook. These events must be silently dropped (200 ok, no queue)
+    // to prevent the bot from responding to its own messages forever.
+    //
+    // The canonical signature of an own-bot event:
+    //   • event.app_id === envelope.api_app_id  (same Slack app)
+    //   • event.bot_id is present
+    //   • subtype may be absent (assistant DM threads) or "bot_message"
+    // -----------------------------------------------------------------------
+
+    it("should NOT enqueue own-bot message without subtype (assistant DM thread pattern)", async () => {
+      // Mirrors the exact payload shape from production logs: no subtype,
+      // bot_id + app_id present matching api_app_id.
+      const body = JSON.stringify(botOwnAppPayload);
+
+      const response = await sendSignedWebhook(actor, body);
+      expect(response.status_code).toBe(200);
+      expect(decodeBody(response)).toBe("ok");
+
+      // Must NOT be enqueued — this is the core regression check
+      const stats = await actor.getEventStoreStats();
+      const queueStats = expectOk(stats);
+      expect(queueStats.unprocessedEvents).toBe(0n);
+    });
+
+    it("should NOT enqueue own-bot message with bot_message subtype", async () => {
+      const body = JSON.stringify(botOwnAppWithSubtypePayload);
+
+      const response = await sendSignedWebhook(actor, body);
+      expect(response.status_code).toBe(200);
+      expect(decodeBody(response)).toBe("ok");
+
+      const stats = await actor.getEventStoreStats();
+      const queueStats = expectOk(stats);
+      expect(queueStats.unprocessedEvents).toBe(0n);
+    });
+
+    it("should still enqueue bot_message from a third-party bot (different app_id)", async () => {
+      // thirdPartyBotPayload has api_app_id: "A0ADJUKD8TV" (ours) but
+      // event.app_id: "A0GITHUB1234" (different) → must pass through
+      const body = JSON.stringify(thirdPartyBotPayload);
+
+      const response = await sendSignedWebhook(actor, body);
+      expect(response.status_code).toBe(200);
+      expect(decodeBody(response)).toBe("ok");
+
+      // Third-party bot messages ARE enqueued (handled by BotMessageHandler)
       const stats = await actor.getEventStoreStats();
       const queueStats = expectOk(stats);
       expect(queueStats.unprocessedEvents).toBe(1n);

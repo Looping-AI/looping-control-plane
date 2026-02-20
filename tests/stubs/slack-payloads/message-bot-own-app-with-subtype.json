@@ -1,0 +1,42 @@
+{
+  "token": "8c7TifzO0tqc8zbNGyQar24F",
+  "team_id": "T0ADR0P92G2",
+  "context_team_id": "T0ADR0P92G2",
+  "context_enterprise_id": null,
+  "api_app_id": "A0ADJUKD8TV",
+  "event": {
+    "type": "message",
+    "subtype": "bot_message",
+    "ts": "1771572095.368369",
+    "bot_id": "B0AE0AR1TLL",
+    "app_id": "A0ADJUKD8TV",
+    "text": "Your new Value Stream has been created!",
+    "team": "T0ADR0P92G2",
+    "bot_profile": {
+      "id": "B0AE0AR1TLL",
+      "deleted": false,
+      "name": "Looping AI",
+      "updated": 1770651646,
+      "app_id": "A0ADJUKD8TV",
+      "user_id": "U0ADWN7P3DY",
+      "team_id": "T0ADR0P92G2"
+    },
+    "channel": "C0ADPUBLIC01",
+    "event_ts": "1771572095.368369",
+    "channel_type": "channel"
+  },
+  "type": "event_callback",
+  "event_id": "Ev0AG22JRJ78",
+  "event_time": 1771572095,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T0ADR0P92G2",
+      "user_id": "U0ADWN7P3DY",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ],
+  "is_ext_shared_channel": false,
+  "event_context": "4-eyJldCI6Im1lc3NhZ2UiLCJ0aWQiOiJUMEFEUjBQOTJHMiIsImFpZCI6IkEwQURKVUtEOFRWIiwiY2lkIjoiQzBBRFBVQkxJQzAxIn0"
+}

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { createTestCanister, type TestCanisterService } from "../../../setup";
-import botMessageStub from "../../../stubs/slack-payloads/message-bot.json";
+import botMessageStub from "../../../stubs/slack-payloads/message-bot-third-party.json";
 
 describe("BotMessageHandler Unit Tests", () => {
   let pic: PocketIc;
