@@ -10,6 +10,7 @@ Browse through the sections below to find the Slack event type you need:
 
 - [App Mention](#app-mention)
 - [App Rate Limited](#app-rate-limited)
+- [Bot Message](#bot-message)
 - [Channel Join](#channel-join)
 - [Message Changed - Assistant App Thread](#message-changed-assistant-app-thread)
 - [Me Message](#me-message)
@@ -97,6 +98,42 @@ describe("My Test", () => {
   "type": "app_rate_limited",
   "team_id": "T00000000",
   "minute_rate_limited": 1234567890
+}
+```
+
+---
+
+### Bot Message
+
+> **Note: Legacy event — not received by new Slack apps.**
+>
+> The `bot_message` subtype belong to Slack's
+> legacy bot infrastructure. New apps using the current Events API only receive standard messages with a `bot_id`and `app_id`field, instead of a specific subtype.
+>
+> Because this app is a new app, `bot_message` events are not expected and we don't need to create logic for handling it.
+
+**Use Case**: N/A — not supported; kept here for documentation purposes
+
+#### Payload
+
+```json
+{
+  "type": "event_callback",
+  "token": "YOUR_TOKEN",
+  "team_id": "T00000000",
+  "api_app_id": "A00000000",
+  "event": {
+    "type": "message",
+    "subtype": "bot_message",
+    "bot_id": "B00000001",
+    "app_id": "A00000001",
+    "text": "Hello from a third-party bot",
+    "ts": "1234567890.123456",
+    "channel": "C00000001",
+    "username": "third-party-bot"
+  },
+  "event_id": "Ev00000001",
+  "event_time": 1234567890
 }
 ```
 

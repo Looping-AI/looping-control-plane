@@ -659,27 +659,11 @@ module {
               threadTs = null;
             });
           };
-          case (#botMessage(m)) {
-            // Skip messages from our own bot entirely — prevents the infinite
-            // loop where the bot's own replies re-trigger the message handler.
-            // We identify "our own bot" by comparing app_id in the event to
-            // api_app_id in the callback envelope (both come from the same app).
-            switch (m.appId) {
-              case (?aid) {
-                if (aid == callback.api_app_id) {
-                  Logger.log(#_debug, ?"SlackAdapter", "Skipping own bot message from app: " # aid);
-                  return #err("Skipping own bot message");
-                };
-              };
-              case (null) {};
-            };
-            #botMessage({
-              botId = m.botId;
-              text = m.text;
-              channel = m.channel;
-              ts = m.ts;
-              username = m.username;
-            });
+          case (#botMessage(_)) {
+            // bot_message is a legacy Slack event type that new apps do not receive.
+            // Silently discard — no queuing, no processing.
+            Logger.log(#warn, ?"SlackAdapter", "Skipping bot_message: legacy event not received by new apps");
+            return #err("Skipping bot_message: legacy event");
           };
           case (#threadBroadcast(m)) {
             #threadEvent({

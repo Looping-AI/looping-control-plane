@@ -53,13 +53,6 @@ module {
       ts : Text; // Message timestamp
       threadTs : Text; // Thread timestamp (always present for thread events)
     };
-    #botMessage : {
-      botId : Text; // Bot ID
-      text : Text; // Message text
-      channel : Text; // Channel ID
-      ts : Text; // Message timestamp
-      username : ?Text; // Bot username if available
-    };
     #messageEdited : {
       channel : Text; // Channel ID
       messageTs : Text; // ts of the original message that was edited

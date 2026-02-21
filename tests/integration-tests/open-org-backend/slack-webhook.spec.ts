@@ -370,19 +370,19 @@ describe("Slack Webhook", () => {
       expect(queueStats.unprocessedEvents).toBe(0n);
     });
 
-    it("should still enqueue bot_message from a third-party bot (different app_id)", async () => {
-      // thirdPartyBotPayload has api_app_id: "A0ADJUKD8TV" (ours) but
-      // event.app_id: "A0GITHUB1234" (different) → must pass through
+    it("should NOT enqueue bot_message from a third-party bot (legacy event, discarded)", async () => {
+      // bot_message is a legacy Slack event type that new apps do not receive.
+      // The normalisation layer discards all bot_message events regardless of app_id.
       const body = JSON.stringify(thirdPartyBotPayload);
 
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
 
-      // Third-party bot messages ARE enqueued (handled by BotMessageHandler)
+      // bot_message events are discarded and never enqueued
       const stats = await actor.getEventStoreStats();
       const queueStats = expectOk(stats);
-      expect(queueStats.unprocessedEvents).toBe(1n);
+      expect(queueStats.unprocessedEvents).toBe(0n);
     });
 
     it("should skip unhandled message subtypes gracefully", async () => {

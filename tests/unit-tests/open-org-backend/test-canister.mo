@@ -7,7 +7,6 @@ import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
 import HttpCertification "../../../src/open-org-backend/utilities/http-certification";
 import MessageHandler "../../../src/open-org-backend/events/handlers/message-handler";
-import BotMessageHandler "../../../src/open-org-backend/events/handlers/bot-message-handler";
 import MessageDeletedHandler "../../../src/open-org-backend/events/handlers/message-deleted-handler";
 import MessageEditedHandler "../../../src/open-org-backend/events/handlers/message-edited-handler";
 import ThreadEventHandler "../../../src/open-org-backend/events/handlers/thread-event-handler";
@@ -249,20 +248,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     await MessageHandler.handle(workspaceId, msg, ctxWithSecrets(botToken, groqApiKey));
-  };
-
-  public shared ({ caller }) func testBotMessageHandler(
-    workspaceId : Nat,
-    bot : {
-      botId : Text;
-      text : Text;
-      channel : Text;
-      ts : Text;
-      username : ?Text;
-    },
-  ) : async NormalizedEventTypes.HandlerResult {
-    assert caller == parent;
-    await BotMessageHandler.handle(workspaceId, bot, emptyCtx());
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(

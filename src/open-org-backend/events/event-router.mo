@@ -15,7 +15,6 @@ import NormalizedEventTypes "./types/normalized-event-types";
 import EventProcessingContextTypes "./types/event-processing-context";
 import MessageHandler "./handlers/message-handler";
 import ThreadEventHandler "./handlers/thread-event-handler";
-import BotMessageHandler "./handlers/bot-message-handler";
 import MessageEditedHandler "./handlers/message-edited-handler";
 import MessageDeletedHandler "./handlers/message-deleted-handler";
 import Logger "../utilities/logger";
@@ -57,9 +56,6 @@ module {
         };
         case (#threadEvent(thread)) {
           await ThreadEventHandler.handle(event.workspaceId, thread, ctx);
-        };
-        case (#botMessage(bot)) {
-          await BotMessageHandler.handle(event.workspaceId, bot, ctx);
         };
         case (#messageEdited(edited)) {
           await MessageEditedHandler.handle(event.workspaceId, edited, ctx);
