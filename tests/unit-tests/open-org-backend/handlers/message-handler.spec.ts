@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import type { PocketIc, Actor } from "@dfinity/pic";
-import { createTestCanister, type TestCanisterService } from "../../../setup";
+import type { PocketIc, DeferredActor } from "@dfinity/pic";
+import {
+  createDeferredTestCanister,
+  type TestCanisterService,
+} from "../../../setup";
+import { withCassette } from "../../../lib/cassette";
 import messageStandardStub from "../../../stubs/slack-payloads/message-standard.json";
 import messageThreadStub from "../../../stubs/slack-payloads/message-thread-broadcast.json";
 
@@ -11,19 +15,28 @@ import messageThreadStub from "../../../stubs/slack-payloads/message-thread-broa
 //   3. Calls the LLM orchestrator
 //   4. Posts the reply back to Slack
 //
-// The test-canister provides an empty EventProcessingContext (no secrets,
-// no conversations), so these unit tests verify the graceful-degradation
-// path: missing bot token → early-exit with a descriptive error step.
-// End-to-end happy-path (LLM reply + Slack post) is covered in the
-// integration tests (workspace-admin-talk.spec.ts + slack-webhook.spec.ts).
+// All tests use a deferred actor + cassette so that the Groq LLM call and
+// the Slack HTTP POST are recorded on first run and replayed on CI.
+//
+// Tokens are loaded from .env.test (SLACK_APP_BOT_TOKEN, GROQ_TEST_KEY).
+// All messages are directed to the "specs-only" Slack channel C0AG99QQAR4
+// which is dedicated to automated test traffic.
 // ============================================
+
+// The Slack channel created exclusively for automated test replies.
+const SPECS_CHANNEL = "C0AG99QQAR4";
+
+const BOT_TOKEN =
+  process.env["SLACK_APP_BOT_TOKEN"] ?? "not-needed-due-to-cassette";
+const GROQ_API_KEY =
+  process.env["GROQ_TEST_KEY"] ?? "not-needed-due-to-cassette";
 
 describe("MessageHandler Unit Tests", () => {
   let pic: PocketIc;
-  let testCanister: Actor<TestCanisterService>;
+  let testCanister: DeferredActor<TestCanisterService>;
 
   beforeEach(async () => {
-    const testEnv = await createTestCanister();
+    const testEnv = await createDeferredTestCanister();
     pic = testEnv.pic;
     testCanister = testEnv.actor;
   });
@@ -33,140 +46,198 @@ describe("MessageHandler Unit Tests", () => {
   });
 
   // ============================================
-  // Graceful degradation — no secrets configured
+  // Happy-path — bot token + Groq key configured
+  // The cassette records the Groq LLM call and the Slack POST on first run
+  // and replays them on subsequent runs (CI, offline, etc.).
   // ============================================
 
-  it("should return a post_to_slack error step when no bot token is configured", async () => {
+  it("should post a reply for a standard channel message", async () => {
     const event = messageStandardStub.event;
-    const workspaceId = 1n;
 
-    const messageInput = {
-      user: event.user,
-      text: event.text,
-      channel: event.channel,
-      ts: event.ts,
-      threadTs: event.thread_ts ? ([event.thread_ts] as [string]) : ([] as []),
-    };
-
-    const result = await testCanister.testMessageHandler(
-      workspaceId,
-      messageInput,
+    const { result } = await withCassette(
+      pic,
+      "unit-tests/open-org-backend/handlers/message-handler/standard-message-reply",
+      () =>
+        testCanister.testMessageHandlerWithSecrets(
+          1n,
+          {
+            user: event.user,
+            text: event.text,
+            channel: SPECS_CHANNEL,
+            ts: event.ts,
+            threadTs: event.thread_ts
+              ? ([event.thread_ts] as [string])
+              : ([] as []),
+          },
+          BOT_TOKEN,
+          GROQ_API_KEY,
+        ),
+      { ticks: 5, maxRounds: 5 },
     );
 
-    // Handler exits early with an error step — does NOT throw
-    expect("ok" in result).toBe(true);
-    if ("ok" in result) {
-      expect(result.ok.length).toBe(1);
-      expect(result.ok[0].action).toBe("post_to_slack");
-      expect("err" in result.ok[0].result).toBe(true);
-      if ("err" in result.ok[0].result) {
-        expect(result.ok[0].result.err).toContain("No Slack bot token");
-      }
-    }
-  });
-
-  it("should return a post_to_slack error step when message has no thread context", async () => {
-    const event = messageStandardStub.event;
-    const workspaceId = 1n;
-
-    const messageInput = {
-      user: event.user,
-      text: event.text,
-      channel: event.channel,
-      ts: event.ts,
-      threadTs: [] as [], // top-level message
-    };
-
-    const result = await testCanister.testMessageHandler(
-      workspaceId,
-      messageInput,
-    );
-
-    expect("ok" in result).toBe(true);
-    if ("ok" in result) {
-      expect(result.ok[0].action).toBe("post_to_slack");
-      expect("err" in result.ok[0].result).toBe(true);
-    }
-  });
-
-  it("should return a post_to_slack error step for thread reply messages", async () => {
-    // Thread replies (threadTs set) should follow the same path
-    const workspaceId = 1n;
-    const messageInput = {
-      user: "U_THREAD",
-      text: "This is a thread reply",
-      channel: "C_THREAD_CHAN",
-      ts: "1700000010.000001",
-      threadTs: ["1700000005.000000"] as [string],
-    };
-
-    const result = await testCanister.testMessageHandler(
-      workspaceId,
-      messageInput,
-    );
-
-    expect("ok" in result).toBe(true);
-    if ("ok" in result) {
-      expect(result.ok[0].action).toBe("post_to_slack");
-      expect("err" in result.ok[0].result).toBe(true);
-    }
-  });
-
-  it("should handle messages consistently across different workspace IDs", async () => {
-    const event = messageStandardStub.event;
-
-    for (const workspaceId of [0n, 1n, 42n]) {
-      const result = await testCanister.testMessageHandler(workspaceId, {
-        user: event.user,
-        text: event.text,
-        channel: event.channel,
-        ts: event.ts,
-        threadTs: [] as [],
-      });
-      expect("ok" in result).toBe(true);
-      if ("ok" in result) {
-        // Each workspace independently returns the same error-step shape
-        expect(result.ok[0].action).toBe("post_to_slack");
-        expect(result.ok[0].timestamp).toBeGreaterThan(0n);
-      }
-    }
-  });
-
-  it("should include a timestamp in every returned step", async () => {
-    const event = messageStandardStub.event;
-    const workspaceId = 0n;
-
-    const result = await testCanister.testMessageHandler(workspaceId, {
-      user: event.user,
-      text: event.text,
-      channel: event.channel,
-      ts: event.ts,
-      threadTs: [] as [],
-    });
-
-    expect("ok" in result).toBe(true);
-    if ("ok" in result) {
-      for (const step of result.ok) {
-        // Timestamp must be a positive nanosecond bigint
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      // The final step must be a successful Slack post
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+      expect("ok" in lastStep.result).toBe(true);
+      // Every step must carry a nanosecond timestamp
+      for (const step of response.ok) {
         expect(typeof step.timestamp).toBe("bigint");
         expect(step.timestamp).toBeGreaterThan(0n);
       }
     }
   });
 
-  it("should produce thread-broadcast stubs without errors", async () => {
-    // Verify the thread-broadcast stub parses and triggers the same path
+  it("should reply within an existing thread when threadTs is set", async () => {
+    const { result } = await withCassette(
+      pic,
+      "unit-tests/open-org-backend/handlers/message-handler/thread-reply",
+      () =>
+        testCanister.testMessageHandlerWithSecrets(
+          1n,
+          {
+            user: "U_THREAD",
+            text: "This is a thread reply",
+            channel: SPECS_CHANNEL,
+            ts: "1700000010.000001",
+            threadTs: ["1700000005.000000"] as [string],
+          },
+          BOT_TOKEN,
+          GROQ_API_KEY,
+        ),
+      { ticks: 5, maxRounds: 5 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+      expect("ok" in lastStep.result).toBe(true);
+    }
+  });
+
+  it("should post a top-level channel message when threadTs is absent", async () => {
+    const { result } = await withCassette(
+      pic,
+      "unit-tests/open-org-backend/handlers/message-handler/top-level-channel-post",
+      () =>
+        testCanister.testMessageHandlerWithSecrets(
+          1n,
+          {
+            user: "U_CHANNEL",
+            text: "Hello channel",
+            channel: SPECS_CHANNEL,
+            ts: "1700000010.000001",
+            threadTs: [] as [],
+          },
+          BOT_TOKEN,
+          GROQ_API_KEY,
+        ),
+      { ticks: 5, maxRounds: 5 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+      expect("ok" in lastStep.result).toBe(true);
+    }
+  });
+
+  it("should handle messages consistently across multiple workspace IDs", async () => {
+    for (const [wsId, label] of [
+      [0n, "ws0"],
+      [1n, "ws1"],
+      [42n, "ws42"],
+    ] as [bigint, string][]) {
+      const { result } = await withCassette(
+        pic,
+        `unit-tests/open-org-backend/handlers/message-handler/multi-workspace-${label}`,
+        () =>
+          testCanister.testMessageHandlerWithSecrets(
+            wsId,
+            {
+              user: "U_TEST",
+              text: `Hello from workspace ${label}`,
+              channel: SPECS_CHANNEL,
+              ts: "1700000010.000001",
+              threadTs: [] as [],
+            },
+            BOT_TOKEN,
+            GROQ_API_KEY,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        const lastStep = response.ok[response.ok.length - 1];
+        expect(lastStep.action).toBe("post_to_slack");
+        expect(lastStep.timestamp).toBeGreaterThan(0n);
+      }
+    }
+  }, 20000);
+
+  it("should include a positive nanosecond timestamp in every returned step", async () => {
+    const event = messageStandardStub.event;
+
+    const { result } = await withCassette(
+      pic,
+      "unit-tests/open-org-backend/handlers/message-handler/step-timestamps",
+      () =>
+        testCanister.testMessageHandlerWithSecrets(
+          0n,
+          {
+            user: event.user,
+            text: event.text,
+            channel: SPECS_CHANNEL,
+            ts: event.ts,
+            threadTs: [] as [],
+          },
+          BOT_TOKEN,
+          GROQ_API_KEY,
+        ),
+      { ticks: 5, maxRounds: 5 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      for (const step of response.ok) {
+        expect(typeof step.timestamp).toBe("bigint");
+        expect(step.timestamp).toBeGreaterThan(0n);
+      }
+    }
+  });
+
+  it("should handle thread-broadcast payloads without errors", async () => {
     const event = messageThreadStub.event;
-    const workspaceId = 1n;
 
-    const result = await testCanister.testMessageHandler(workspaceId, {
-      user: (event as { user?: string }).user ?? "U_UNKNOWN",
-      text: event.text,
-      channel: event.channel,
-      ts: event.ts,
-      threadTs: [] as [],
-    });
+    const { result } = await withCassette(
+      pic,
+      "unit-tests/open-org-backend/handlers/message-handler/thread-broadcast",
+      () =>
+        testCanister.testMessageHandlerWithSecrets(
+          1n,
+          {
+            user: (event as { user?: string }).user ?? "U_UNKNOWN",
+            text: event.text,
+            channel: SPECS_CHANNEL,
+            ts: event.ts,
+            threadTs: [] as [],
+          },
+          BOT_TOKEN,
+          GROQ_API_KEY,
+        ),
+      { ticks: 5, maxRounds: 5 },
+    );
 
-    expect("ok" in result).toBe(true);
+    const response = await result;
+    expect("ok" in response).toBe(true);
   });
 });

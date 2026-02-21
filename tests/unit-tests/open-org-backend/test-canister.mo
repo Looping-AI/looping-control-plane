@@ -37,57 +37,81 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Test Helpers
   // ============================================
 
+  /// The deterministic 32-byte all-zeros key used for every workspace in unit tests.
+  /// Seeding keyCache with this key avoids live Schnorr threshold-key calls.
+  private let testDummyKey : [Nat8] = [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  ];
+
   /// Creates an empty EventProcessingContext suitable for unit tests.
-  /// All state is empty/default; secrets and conversations are not pre-populated,
-  /// so handlers that require them (e.g. MessageHandler) will return graceful
+  /// Secrets are not populated so handlers that require them will return graceful
   /// error steps rather than crashing.
-  ///
-  /// keyCache is pre-seeded with a dummy 32-byte key for common test workspace IDs
-  /// (0, 1, 42) to avoid live Schnorr threshold-key calls during unit tests.
   private func emptyCtx() : EventProcessingContextTypes.EventProcessingContext {
-    // A deterministic dummy 32-byte key used for all workspaces in unit tests.
-    // Secrets aren't populated so the encryption key is never actually used for
-    // decryption — it just needs to exist so getOrDeriveKey returns immediately.
-    let dummyKey : [Nat8] = [
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-    ];
     let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
+      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
       Nat.compare,
     );
     {
       secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+      keyCache;
+      adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
+      mcpToolRegistry = McpToolRegistry.empty();
+      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
+      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
+      metricsRegistry = MetricModel.emptyRegistry();
+      metricDatapoints = MetricModel.emptyDatapoints();
+    };
+  };
+
+  /// Creates an EventProcessingContext pre-seeded with a Slack bot token and a Groq
+  /// API key, both encrypted with the deterministic dummy key used across unit tests.
+  /// This lets message-handler tests reach the Slack-posting code path without live
+  /// Schnorr key derivation or a real secret-store call.
+  ///
+  /// Secrets are stored for workspace IDs 0, 1, and 42.
+  private func ctxWithSecrets(botToken : Text, groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
+    let keyCache = Map.fromArray<Nat, [Nat8]>(
+      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
+      Nat.compare,
+    );
+    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+    for (wsId in [0, 1, 42].vals()) {
+      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
+      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
+    };
+    {
+      secrets;
       keyCache;
       adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
       mcpToolRegistry = McpToolRegistry.empty();
@@ -206,6 +230,25 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     await MessageHandler.handle(workspaceId, msg, emptyCtx());
+  };
+
+  /// Like testMessageHandler, but pre-seeds the context with a real Slack bot token
+  /// and Groq API key so the full happy-path (LLM call → Slack post) can be exercised
+  /// and captured with the cassette recording system.
+  public shared ({ caller }) func testMessageHandlerWithSecrets(
+    workspaceId : Nat,
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+    },
+    botToken : Text,
+    groqApiKey : Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageHandler.handle(workspaceId, msg, ctxWithSecrets(botToken, groqApiKey));
   };
 
   public shared ({ caller }) func testBotMessageHandler(

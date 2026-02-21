@@ -131,13 +131,11 @@ module {
       case (?text) { text };
     };
 
-    // --- 6. Post reply to Slack in a thread ---
-    // If already in a thread, reply there; otherwise start a thread from the original message
-    let threadTs = switch (msg.threadTs) {
-      case (?t) { t };
-      case (null) { msg.ts };
-    };
-    let slackResult = await SlackWrapper.postMessage(botToken, msg.channel, replyText, ?threadTs);
+    // --- 6. Post reply to Slack ---
+    // If the message is already inside a thread, reply within that thread.
+    // If it is a top-level channel message, post the reply as a new top-level
+    // channel message — do NOT open a thread from a non-threaded message.
+    let slackResult = await SlackWrapper.postMessage(botToken, msg.channel, replyText, msg.threadTs);
     let slackStep : Types.ProcessingStep = {
       action = "post_to_slack";
       result = switch (slackResult) {
