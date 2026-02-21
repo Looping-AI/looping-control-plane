@@ -5,6 +5,7 @@ import {
   type TestCanisterService,
 } from "../../../setup";
 import { withCassette } from "../../../lib/cassette";
+import { resolveSpecsChannel } from "../../../helpers";
 import messageStandardStub from "../../../stubs/slack-payloads/message-standard.json";
 import messageThreadStub from "../../../stubs/slack-payloads/message-thread-broadcast.json";
 
@@ -19,12 +20,9 @@ import messageThreadStub from "../../../stubs/slack-payloads/message-thread-broa
 // the Slack HTTP POST are recorded on first run and replayed on CI.
 //
 // Tokens are loaded from .env.test (SLACK_APP_BOT_TOKEN, GROQ_TEST_KEY).
-// All messages are directed to the "specs-only" Slack channel C0AG99QQAR4
+// All messages are directed to a "specs-only" Slack channel
 // which is dedicated to automated test traffic.
 // ============================================
-
-// The Slack channel created exclusively for automated test replies.
-const SPECS_CHANNEL = "C0AG99QQAR4";
 
 const BOT_TOKEN =
   process.env["SLACK_APP_BOT_TOKEN"] ?? "not-needed-due-to-cassette";
@@ -53,17 +51,20 @@ describe("MessageHandler Unit Tests", () => {
 
   it("should post a reply for a standard channel message", async () => {
     const event = messageStandardStub.event;
+    const cassetteName =
+      "unit-tests/open-org-backend/handlers/message-handler/standard-message-reply";
+    const channel = await resolveSpecsChannel(cassetteName);
 
     const { result } = await withCassette(
       pic,
-      "unit-tests/open-org-backend/handlers/message-handler/standard-message-reply",
+      cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
           1n,
           {
             user: event.user,
             text: event.text,
-            channel: SPECS_CHANNEL,
+            channel,
             ts: event.ts,
             threadTs: event.thread_ts
               ? ([event.thread_ts] as [string])
@@ -91,16 +92,19 @@ describe("MessageHandler Unit Tests", () => {
   });
 
   it("should reply within an existing thread when threadTs is set", async () => {
+    const cassetteName =
+      "unit-tests/open-org-backend/handlers/message-handler/thread-reply";
+    const channel = await resolveSpecsChannel(cassetteName);
     const { result } = await withCassette(
       pic,
-      "unit-tests/open-org-backend/handlers/message-handler/thread-reply",
+      cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
           1n,
           {
             user: "U_THREAD",
             text: "This is a thread reply",
-            channel: SPECS_CHANNEL,
+            channel,
             ts: "1700000010.000001",
             threadTs: ["1700000005.000000"] as [string],
           },
@@ -120,16 +124,19 @@ describe("MessageHandler Unit Tests", () => {
   });
 
   it("should post a top-level channel message when threadTs is absent", async () => {
+    const cassetteName =
+      "unit-tests/open-org-backend/handlers/message-handler/top-level-channel-post";
+    const channel = await resolveSpecsChannel(cassetteName);
     const { result } = await withCassette(
       pic,
-      "unit-tests/open-org-backend/handlers/message-handler/top-level-channel-post",
+      cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
           1n,
           {
             user: "U_CHANNEL",
             text: "Hello channel",
-            channel: SPECS_CHANNEL,
+            channel,
             ts: "1700000010.000001",
             threadTs: [] as [],
           },
@@ -154,16 +161,18 @@ describe("MessageHandler Unit Tests", () => {
       [1n, "ws1"],
       [42n, "ws42"],
     ] as [bigint, string][]) {
+      const cassetteName = `unit-tests/open-org-backend/handlers/message-handler/multi-workspace-${label}`;
+      const channel = await resolveSpecsChannel(cassetteName);
       const { result } = await withCassette(
         pic,
-        `unit-tests/open-org-backend/handlers/message-handler/multi-workspace-${label}`,
+        cassetteName,
         () =>
           testCanister.testMessageHandlerWithSecrets(
             wsId,
             {
               user: "U_TEST",
               text: `Hello from workspace ${label}`,
-              channel: SPECS_CHANNEL,
+              channel,
               ts: "1700000010.000001",
               threadTs: [] as [],
             },
@@ -185,17 +194,20 @@ describe("MessageHandler Unit Tests", () => {
 
   it("should include a positive nanosecond timestamp in every returned step", async () => {
     const event = messageStandardStub.event;
+    const cassetteName =
+      "unit-tests/open-org-backend/handlers/message-handler/step-timestamps";
+    const channel = await resolveSpecsChannel(cassetteName);
 
     const { result } = await withCassette(
       pic,
-      "unit-tests/open-org-backend/handlers/message-handler/step-timestamps",
+      cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
           0n,
           {
             user: event.user,
             text: event.text,
-            channel: SPECS_CHANNEL,
+            channel,
             ts: event.ts,
             threadTs: [] as [],
           },
@@ -217,17 +229,20 @@ describe("MessageHandler Unit Tests", () => {
 
   it("should handle thread-broadcast payloads without errors", async () => {
     const event = messageThreadStub.event;
+    const cassetteName =
+      "unit-tests/open-org-backend/handlers/message-handler/thread-broadcast";
+    const channel = await resolveSpecsChannel(cassetteName);
 
     const { result } = await withCassette(
       pic,
-      "unit-tests/open-org-backend/handlers/message-handler/thread-broadcast",
+      cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
           1n,
           {
             user: (event as { user?: string }).user ?? "U_UNKNOWN",
             text: event.text,
-            channel: SPECS_CHANNEL,
+            channel,
             ts: event.ts,
             threadTs: [] as [],
           },

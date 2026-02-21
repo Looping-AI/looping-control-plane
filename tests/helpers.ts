@@ -1,3 +1,63 @@
+import {
+  cassetteExists,
+  loadCassette,
+  resolveCassettePath,
+} from "./lib/cassette-storage";
+
+// =============================================================================
+// Slack channel resolution
+// =============================================================================
+
+/**
+ * Resolves the Slack channel ID to use in a test:
+ *
+ * - **Playback mode** (cassette already exists): extracts the channel from the
+ *   recorded `chat.postMessage` request body so the canister call uses exactly
+ *   the same channel that was captured, keeping the cassette matcher happy.
+ *
+ * - **Recording mode** (no cassette yet): reads `SLACK_SPECS_CHANNEL_ID` from
+ *   the environment (`.env.test`). Throws if the variable is absent, so a
+ *   missing configuration is surfaced immediately instead of silently producing
+ *   a broken cassette.
+ *
+ * Pass the same cassette name you hand to `withCassette`.
+ */
+export async function resolveSpecsChannel(
+  cassetteName: string,
+): Promise<string> {
+  const fullPath = resolveCassettePath(cassetteName);
+
+  if (await cassetteExists(fullPath)) {
+    const cassette = await loadCassette(fullPath);
+    for (const interaction of cassette.interactions) {
+      if (interaction.request.url.includes("slack.com/api/chat.postMessage")) {
+        try {
+          const body = JSON.parse(interaction.request.body) as {
+            channel?: string;
+          };
+          if (body.channel) return body.channel;
+        } catch {
+          // body is not JSON — skip
+        }
+      }
+    }
+  }
+
+  // Recording mode: env var must be configured
+  const envChannel = process.env["SLACK_SPECS_CHANNEL_ID"];
+  if (!envChannel) {
+    throw new Error(
+      "SLACK_SPECS_CHANNEL_ID is not set in .env.test. " +
+        "This is required when recording cassettes for the first time.",
+    );
+  }
+  return envChannel;
+}
+
+// =============================================================================
+// Result / Optional unwrap helpers
+// =============================================================================
+
 /**
  * Unwraps a Result<T, E> assuming it's an Ok variant
  * @param result - The result to unwrap
