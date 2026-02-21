@@ -10,6 +10,7 @@ Browse through the sections below to find the Slack event type you need:
 
 - [App Mention](#app-mention)
 - [App Rate Limited](#app-rate-limited)
+- [Channel Join](#channel-join)
 - [Message Changed - Assistant App Thread](#message-changed-assistant-app-thread)
 - [Me Message](#me-message)
 - [URL Verification](#url-verification)
@@ -96,6 +97,50 @@ describe("My Test", () => {
   "type": "app_rate_limited",
   "team_id": "T00000000",
   "minute_rate_limited": 1234567890
+}
+```
+
+---
+
+### Channel Join
+
+**Trigger Method**: User or Bot joins a channel  
+**Use Case**: Testing channel join notifications and member activity tracking
+
+#### Payload
+
+```json
+{
+  "token": "8c7TifzO0tqc8zbNGyQar24F",
+  "team_id": "T0ADR0P92G2",
+  "context_team_id": "T0ADR0P92G2",
+  "context_enterprise_id": null,
+  "api_app_id": "A0ADJUKD8TV",
+  "event": {
+    "type": "message",
+    "subtype": "channel_join",
+    "user": "U0ADWN7P3DY",
+    "text": "<@U0ADWN7P3DY> has joined the channel",
+    "inviter": "U0ADJJQMW4T",
+    "ts": "1771575931.715389",
+    "channel": "C0AFNSE98CX",
+    "event_ts": "1771575931.715389",
+    "channel_type": "group"
+  },
+  "type": "event_callback",
+  "event_id": "Ev0AG118UT0V",
+  "event_time": 1771575931,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T0ADR0P92G2",
+      "user_id": "U0ADWN7P3DY",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ],
+  "is_ext_shared_channel": false,
+  "event_context": "4-eyJldCI6Im1lc3NhZ2UiLCJ0aWQiOiJUMEFEUjBQOTJHMiIsImFpZCI6IkEwQURKVUtEOFRWIiwiY2lkIjoiQzBBRk5TRTk4Q1gifQ"
 }
 ```
 
