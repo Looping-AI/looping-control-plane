@@ -388,13 +388,6 @@ module {
     #ok : SlackEventTypes.SlackMessageEvent;
     #err : Text;
   } {
-    // A message with no subtype but with a bot_id is a bot-posted message.
-    // Treat it as a skip — same decision as explicit bot_message subtype.
-    switch (Json.get(json, "bot_id")) {
-      case (?#string(_)) { return #ok(#skip({ subtype = "bot_message" })) };
-      case _ {};
-    };
-
     let user = switch (Json.get(json, "user")) {
       case (?#string(u)) { u };
       case _ { return #err("Missing 'user' in standard message") };
