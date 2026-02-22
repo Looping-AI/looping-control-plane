@@ -67,6 +67,8 @@ module {
     channel : Text;
     eventTs : Text;
     threadTs : ?Text;
+    botId : ?Text; // Present when the message was posted by a bot
+    appId : ?Text; // Slack app ID of the sender (matches api_app_id for own-bot messages)
   };
 
   /// /me message (subtype: "me_message")

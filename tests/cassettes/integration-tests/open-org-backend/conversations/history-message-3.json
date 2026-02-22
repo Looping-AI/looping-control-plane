@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-3",
-  "recordedAt": "2026-02-06T09:33:14.993Z",
+  "recordedAt": "2026-02-22T19:02:03.509Z",
   "interactions": [
     {
       "request": {
@@ -23,24 +23,24 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c99a5197f7c2f61-LIS"],
+          ["cf-ray", "9d20bc510ffe3b82-LIS"],
           ["content-type", "application/json"],
-          ["date", "Fri, 06 Feb 2026 09:33:15 GMT"],
+          ["date", "Sun, 22 Feb 2026 19:02:03 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "500000"],
-          ["x-ratelimit-limit-tokens", "250000"],
+          ["x-ratelimit-limit-tokens", "[REDACTED]"],
           ["x-ratelimit-remaining-requests", "499999"],
-          ["x-ratelimit-remaining-tokens", "249920"],
+          ["x-ratelimit-remaining-tokens", "[REDACTED]"],
           ["x-ratelimit-reset-requests", "172ms"],
-          ["x-ratelimit-reset-tokens", "19ms"],
-          ["x-request-id", "req_01kgs4rv0aetd8qhfyvxx9q4yp"],
+          ["x-ratelimit-reset-tokens", "[REDACTED]"],
+          ["x-request-id", "req_01kj3bnvp4fkbrem54wmwg89c9"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-3dd86795-b817-472b-bad2-b9e0551c8c03\",\"object\":\"chat.completion\",\"created\":1770370395,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"8.\",\"reasoning\":\"User asks a simple arithmetic: 4+4 = 8. No policy issue. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.01802527,\"prompt_tokens\":79,\"prompt_time\":0.00309005,\"completion_tokens\":33,\"completion_time\":0.067821281,\"total_tokens\":112,\"total_time\":0.070911331,\"completion_tokens_details\":{\"reasoning_tokens\":22}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_178e424650\",\"x_groq\":{\"id\":\"req_01kgs4rv0aetd8qhfyvxx9q4yp\",\"seed\":1721021239},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-d2863206-b5d5-4f38-a8a7-26a2494f848b\",\"object\":\"chat.completion\",\"created\":1771786923,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"4 + 4 = 8.\",\"reasoning\":\"The user asks a simple math question. Answer: 8.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017016234,\"prompt_tokens\":79,\"prompt_time\":0.002986335,\"completion_tokens\":33,\"completion_time\":0.068727279,\"total_tokens\":112,\"total_time\":0.071713614,\"completion_tokens_details\":{\"reasoning_tokens\":14}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_e0f1c0e04a\",\"x_groq\":{\"id\":\"req_01kj3bnvp4fkbrem54wmwg89c9\",\"seed\":615919412},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

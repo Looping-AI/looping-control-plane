@@ -412,8 +412,16 @@ module {
       case (?#string(t)) { ?t };
       case _ { null };
     };
+    let botId = switch (Json.get(json, "bot_id")) {
+      case (?#string(b)) { ?b };
+      case _ { null };
+    };
+    let appId = switch (Json.get(json, "app_id")) {
+      case (?#string(a)) { ?a };
+      case _ { null };
+    };
 
-    #ok(#standard({ user; text; ts; channel; eventTs; threadTs }));
+    #ok(#standard({ user; text; ts; channel; eventTs; threadTs; botId; appId }));
   };
 
   /// Parse me_message subtype
@@ -690,6 +698,12 @@ module {
       case (#message(msg)) {
         switch (msg) {
           case (#standard(m)) {
+            // Skip own-bot messages (bot_id present and app_id matches api_app_id)
+            // to prevent infinite loops when the bot's own replies are re-delivered.
+            if (m.botId != null and m.appId == ?callback.api_app_id) {
+              Logger.log(#info, ?"SlackAdapter", "Skipping own-bot message (app_id=" # callback.api_app_id # ")");
+              return #err("Skipping own-bot message");
+            };
             #message({
               user = m.user;
               text = m.text;
