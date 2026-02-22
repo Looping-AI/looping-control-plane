@@ -48,11 +48,13 @@ module {
   /// See: https://docs.slack.dev/reference/events/message/#subtypes
   public type SlackMessageEvent = {
     #standard : SlackStandardMessage;
-    #botMessage : SlackBotMessage;
     #meMessage : SlackMeMessage;
     #assistantAppThread : SlackAssistantAppThreadMessage;
     #messageChanged : SlackMessageChangedEvent;
     #messageDeleted : SlackMessageDeletedEvent;
+    /// Known subtype we have explicitly decided to skip (e.g. bot_message, thread_broadcast).
+    /// Distinct from #other, which is for subtypes not yet encountered or decided.
+    #skip : { subtype : Text };
     #other : { subtype : Text; channel : Text; ts : Text };
   };
 
@@ -65,17 +67,6 @@ module {
     channel : Text;
     eventTs : Text;
     threadTs : ?Text;
-  };
-
-  /// Bot message (subtype: "bot_message", or no subtype when posted via postMessage API)
-  /// See: https://docs.slack.dev/reference/events/message/bot_message
-  public type SlackBotMessage = {
-    botId : Text;
-    appId : ?Text; // Present when the bot belongs to a Slack app (matches api_app_id for our own bot)
-    text : Text;
-    ts : Text;
-    channel : Text;
-    username : ?Text;
   };
 
   /// /me message (subtype: "me_message")

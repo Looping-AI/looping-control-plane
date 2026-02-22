@@ -7,7 +7,6 @@ import {
 import { withCassette } from "../../../lib/cassette";
 import { resolveSpecsChannel } from "../../../helpers";
 import messageStandardStub from "../../../stubs/slack-payloads/message-standard.json";
-import messageThreadStub from "../../../stubs/slack-payloads/message-thread-broadcast.json";
 
 // ============================================
 // MessageHandler is a full controller that:
@@ -225,34 +224,5 @@ describe("MessageHandler Unit Tests", () => {
         expect(step.timestamp).toBeGreaterThan(0n);
       }
     }
-  });
-
-  it("should handle thread-broadcast payloads without errors", async () => {
-    const event = messageThreadStub.event;
-    const cassetteName =
-      "unit-tests/open-org-backend/handlers/message-handler/thread-broadcast";
-    const channel = await resolveSpecsChannel(cassetteName);
-
-    const { result } = await withCassette(
-      pic,
-      cassetteName,
-      () =>
-        testCanister.testMessageHandlerWithSecrets(
-          1n,
-          {
-            user: (event as { user?: string }).user ?? "U_UNKNOWN",
-            text: event.text,
-            channel,
-            ts: event.ts,
-            threadTs: [] as [],
-          },
-          BOT_TOKEN,
-          GROQ_API_KEY,
-        ),
-      { ticks: 5, maxRounds: 5 },
-    );
-
-    const response = await result;
-    expect("ok" in response).toBe(true);
   });
 });

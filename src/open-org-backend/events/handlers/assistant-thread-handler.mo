@@ -43,7 +43,6 @@ module {
     // TODO: Handle #threadStarted — initialise conversation context
     // TODO: Handle #threadContextChanged — update conversation context with new channel
     // TODO: Handle #threadMetadataUpdated — update stored thread title/metadata
-    // TODO: Handle assistant_thread.action_token — process and respond to action requests
 
     #ok([
       {

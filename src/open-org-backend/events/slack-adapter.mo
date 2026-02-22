@@ -356,10 +356,17 @@ module {
 
     switch (subtype) {
       case (null) { parseStandardMessage(json) };
-      case (?"bot_message") { parseBotMessage(json) };
+      case (?"bot_message") {
+        // Legacy event — new Slack apps do not receive bot_message. Explicitly skip.
+        #ok(#skip({ subtype = "bot_message" }));
+      };
       case (?"me_message") { parseMeMessage(json) };
       case (?"message_changed") { parseMessageChangedEvent(json) };
       case (?"message_deleted") { parseMessageDeletedEvent(json) };
+      case (?"thread_broadcast") {
+        // Thread reply broadcast to channel. Intentionally skipped — we focus on dedicated thread conversations.
+        #ok(#skip({ subtype = "thread_broadcast" }));
+      };
       case (?other) {
         // Catch-all: log and capture minimal fields
         Logger.log(#info, ?"SlackAdapter", "Unhandled message subtype: " # other);
@@ -381,11 +388,10 @@ module {
     #ok : SlackEventTypes.SlackMessageEvent;
     #err : Text;
   } {
-    // A message can arrive without a subtype even when it's from a bot
-    // (e.g. postMessage calls from assistant threads). Detect this by
-    // checking for bot_id and dispatch to parseBotMessage instead.
+    // A message with no subtype but with a bot_id is a bot-posted message.
+    // Treat it as a skip — same decision as explicit bot_message subtype.
     switch (Json.get(json, "bot_id")) {
-      case (?#string(_)) { return parseBotMessage(json) };
+      case (?#string(_)) { return #ok(#skip({ subtype = "bot_message" })) };
       case _ {};
     };
 
@@ -415,39 +421,6 @@ module {
     };
 
     #ok(#standard({ user; text; ts; channel; eventTs; threadTs }));
-  };
-
-  /// Parse bot_message subtype (or standard message with bot_id present)
-  func parseBotMessage(json : Json.Json) : {
-    #ok : SlackEventTypes.SlackMessageEvent;
-    #err : Text;
-  } {
-    let botId = switch (Json.get(json, "bot_id")) {
-      case (?#string(b)) { b };
-      case _ { return #err("Missing 'bot_id' in bot_message") };
-    };
-    let appId = switch (Json.get(json, "app_id")) {
-      case (?#string(a)) { ?a };
-      case _ { null };
-    };
-    let text = switch (Json.get(json, "text")) {
-      case (?#string(t)) { t };
-      case _ { "" }; // bot_message text can be empty
-    };
-    let ts = switch (Json.get(json, "ts")) {
-      case (?#string(t)) { t };
-      case _ { return #err("Missing 'ts' in bot_message") };
-    };
-    let channel = switch (Json.get(json, "channel")) {
-      case (?#string(c)) { c };
-      case _ { return #err("Missing 'channel' in bot_message") };
-    };
-    let username = switch (Json.get(json, "username")) {
-      case (?#string(u)) { ?u };
-      case _ { null };
-    };
-
-    #ok(#botMessage({ botId; appId; text; ts; channel; username }));
   };
 
   /// Parse me_message subtype
@@ -741,12 +714,6 @@ module {
               threadTs = null;
             });
           };
-          case (#botMessage(_)) {
-            // bot_message is a legacy Slack event type that new apps do not receive.
-            // Silently discard — no queuing, no processing.
-            Logger.log(#warn, ?"SlackAdapter", "Skipping bot_message: legacy event not received by new apps");
-            return #err("Skipping bot_message: legacy event");
-          };
           case (#messageChanged(m)) {
             #messageEdited({
               channel = m.channel;
@@ -779,6 +746,11 @@ module {
                 text = m.text;
               });
             });
+          };
+          case (#skip({ subtype })) {
+            // Known subtype, explicitly decided to skip — no queuing, no processing.
+            Logger.log(#info, ?"SlackAdapter", "Skipping known subtype: " # subtype);
+            return #err("Skipping known subtype: " # subtype);
           };
           case (#other({ subtype })) {
             Logger.log(#info, ?"SlackAdapter", "Skipping unhandled message subtype: " # subtype);
