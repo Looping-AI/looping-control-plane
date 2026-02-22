@@ -14,7 +14,7 @@ module {
       },
       {
         id = "honesty";
-        content = "If you don’t know or can’t perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.";
+        content = "If you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.";
       },
       {
         id = "focus";
