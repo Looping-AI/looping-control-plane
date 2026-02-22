@@ -22,7 +22,8 @@
 
     // Some stricter flags
     "useUnknownInCatchVariables": true,
-    "noPropertyAccessFromIndexSignature": true
+    "noPropertyAccessFromIndexSignature": true,
+    "resolveJsonModule": true
   },
   "include": [
     "./src/**/*.ts",

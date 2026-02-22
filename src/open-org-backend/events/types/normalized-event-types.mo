@@ -6,6 +6,8 @@
 /// (email, GitHub webhooks, etc.) only requires a new adapter, not changes to
 /// the queue or router.
 
+import Types "../../types";
+
 module {
 
   // ============================================
@@ -22,12 +24,29 @@ module {
   // Processing Step — handler observability
   // ============================================
 
-  /// A single step taken by a handler during event processing.
-  /// Provides observability into what actions were attempted and their outcomes.
-  public type ProcessingStep = {
-    action : Text; // e.g. "fetch_llm_response", "post_to_slack", "update_conversation"
-    result : { #ok; #err : Text }; // Did this step succeed?
-    timestamp : Int; // Time.now() when this step completed
+  /// Re-exported from Types so event handlers can use this alias directly.
+  /// The canonical definition lives in types.mo so orchestrators and other
+  /// non-event modules can also emit steps without a cross-layer import.
+  public type ProcessingStep = Types.ProcessingStep;
+
+  /// Context payload for assistant thread events.
+  /// The shape differs by lifecycle event type:
+  ///   #started          — initial thread open; carries the force_search hint
+  ///   #contextChanged   — user navigated to a new channel while the thread was open
+  ///   #metadataUpdated  — Slack updated thread title/metadata after the first message
+  public type AssistantThreadContext = {
+    #started : {
+      forceSearch : Bool; // Slack hint: favour search results when true
+    };
+    #contextChanged : {
+      channelId : ?Text; // Channel the user is now viewing
+      teamId : ?Text; // Workspace of that channel
+      enterpriseId : ?Text; // Enterprise Grid org (null for standard workspaces)
+    };
+    #metadataUpdated : {
+      title : ?Text; // Updated thread title set by Slack
+      text : Text; // Current text content of the thread root message
+    };
   };
 
   /// Return type for all handlers — standardized contract between router and handlers.
@@ -47,19 +66,17 @@ module {
       ts : Text; // Message timestamp
       threadTs : ?Text; // Thread timestamp
     };
-    #threadEvent : {
-      user : Text; // Who sent the thread message
-      text : Text; // Message text
-      channel : Text; // Channel ID
-      ts : Text; // Message timestamp
-      threadTs : Text; // Thread timestamp (always present for thread events)
-    };
-    #botMessage : {
-      botId : Text; // Bot ID
-      text : Text; // Message text
-      channel : Text; // Channel ID
-      ts : Text; // Message timestamp
-      username : ?Text; // Bot username if available
+    #assistantThreadEvent : {
+      eventType : {
+        #threadStarted;
+        #threadContextChanged;
+        #threadMetadataUpdated;
+      }; // Which lifecycle event
+      userId : Text; // assistant_thread.user_id — the Slack user who owns the thread
+      channelId : Text; // assistant_thread.channel_id — the DM channel hosting the thread
+      threadTs : Text; // assistant_thread.thread_ts — uniquely identifies the thread
+      eventTs : Text; // event.event_ts
+      context : AssistantThreadContext; // Event-specific context data
     };
     #messageEdited : {
       channel : Text; // Channel ID

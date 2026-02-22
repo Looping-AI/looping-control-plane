@@ -75,6 +75,36 @@ module {
     };
   };
 
+  /// Get and decrypt a secret from an already workspace-scoped secrets map.
+  ///
+  /// Use this when the caller has already extracted the workspace's secrets via
+  /// `Map.get(secrets, Nat.compare, workspaceId)` — avoids passing the full
+  /// org-wide map into lower-level modules.
+  ///
+  /// @param workspaceSecrets - The workspace's own secrets map (or null if none stored)
+  /// @param encryptionKey - 32-byte encryption key for this workspace
+  /// @param secretId - The secret identifier
+  /// @returns Decrypted secret text, or null if not found or decryption fails
+  public func getSecretScoped(
+    workspaceSecrets : ?Map.Map<Types.SecretId, EncryptedSecret>,
+    encryptionKey : [Nat8],
+    secretId : Types.SecretId,
+  ) : ?Text {
+    switch (workspaceSecrets) {
+      case (null) { null };
+      case (?wsSecrets) {
+        switch (Map.get(wsSecrets, compareSecretId, secretId)) {
+          case (null) { null };
+          case (?encryptedBlob) {
+            let encryptedBytes = Blob.toArray(encryptedBlob);
+            let decryptedBytes = Encryption.decrypt(encryptionKey, encryptedBytes);
+            Encryption.bytesToText(decryptedBytes);
+          };
+        };
+      };
+    };
+  };
+
   /// Encrypt and store a secret for a workspace
   ///
   /// @param secrets - The encrypted secrets map

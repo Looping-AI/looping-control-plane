@@ -50,9 +50,9 @@ suite(
             );
 
             // Should contain identity block from constitution
-            expect.bool(Text.contains(result, #text("AI assistant"))).isTrue();
+            expect.bool(Text.contains(result, #text("Looping AI"))).isTrue();
             // Should contain honesty block
-            expect.bool(Text.contains(result, #text("If you don't know something"))).isTrue();
+            expect.bool(Text.contains(result, #text("If you don't know or can't perform a task"))).isTrue();
           },
         );
 
@@ -183,7 +183,7 @@ suite(
             );
 
             // Should still have constitution and role layers
-            expect.bool(Text.contains(result, #text("AI assistant"))).isTrue();
+            expect.bool(Text.contains(result, #text("Looping AI"))).isTrue();
             expect.bool(Text.contains(result, #text("workspace member"))).isTrue();
           },
         );

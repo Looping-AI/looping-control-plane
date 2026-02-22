@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import {
   createTestEnvironment,
   generateTestPrincipal,

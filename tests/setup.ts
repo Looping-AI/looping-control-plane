@@ -6,8 +6,8 @@ import {
   type Actor,
   type DeferredActor,
 } from "@dfinity/pic";
-import { Principal } from "@dfinity/principal";
-import { IDL } from "@dfinity/candid";
+import { Principal } from "@icp-sdk/core/principal";
+import { IDL } from "@icp-sdk/core/candid";
 import type { _SERVICE } from "./builds/open-org-backend.did.d.ts";
 import { idlFactory } from "./builds/open-org-backend.did.js";
 import type { _SERVICE as TestCanisterService } from "./builds/test-canister.did.d.ts";
@@ -70,7 +70,7 @@ export const TEST_CANISTER_WASM_PATH = resolve(
 export async function createTestEnvironment(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
-  canisterId: import("@dfinity/principal").Principal;
+  canisterId: import("@icp-sdk/core/principal").Principal;
   ownerIdentity: ReturnType<typeof generateRandomIdentity>;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "", {
@@ -111,7 +111,7 @@ export async function createTestEnvironment(): Promise<{
 export async function createDeferredTestCanister(): Promise<{
   pic: PocketIc;
   actor: DeferredActor<TestCanisterService>;
-  canisterId: import("@dfinity/principal").Principal;
+  canisterId: import("@icp-sdk/core/principal").Principal;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "");
 
@@ -137,7 +137,7 @@ export async function createDeferredTestCanister(): Promise<{
 export async function createTestCanister(): Promise<{
   pic: PocketIc;
   actor: Actor<TestCanisterService>;
-  canisterId: import("@dfinity/principal").Principal;
+  canisterId: import("@icp-sdk/core/principal").Principal;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "");
 

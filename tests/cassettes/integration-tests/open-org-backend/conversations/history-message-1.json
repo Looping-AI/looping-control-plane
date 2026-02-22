@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "history-message-1",
-  "recordedAt": "2026-02-06T09:33:14.330Z",
+  "recordedAt": "2026-02-22T19:02:02.643Z",
   "interactions": [
     {
       "request": {
@@ -23,24 +23,24 @@
             "private, max-age=0, no-store, no-cache, must-revalidate"
           ],
           ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c99a5156a692f61-LIS"],
+          ["cf-ray", "9d20bc4ba9b23b82-LIS"],
           ["content-type", "application/json"],
-          ["date", "Fri, 06 Feb 2026 09:33:14 GMT"],
+          ["date", "Sun, 22 Feb 2026 19:02:02 GMT"],
           ["server", "cloudflare"],
           ["strict-transport-security", "max-age=15552000"],
           ["vary", "Origin"],
           ["via", "1.1 google"],
           ["x-groq-region", "fra"],
           ["x-ratelimit-limit-requests", "500000"],
-          ["x-ratelimit-limit-tokens", "250000"],
+          ["x-ratelimit-limit-tokens", "[REDACTED]"],
           ["x-ratelimit-remaining-requests", "499999"],
-          ["x-ratelimit-remaining-tokens", "249920"],
+          ["x-ratelimit-remaining-tokens", "[REDACTED]"],
           ["x-ratelimit-reset-requests", "172ms"],
-          ["x-ratelimit-reset-tokens", "19ms"],
-          ["x-request-id", "req_01kgs4rtc2ez3tyrrzjttc1j5n"],
+          ["x-ratelimit-reset-tokens", "[REDACTED]"],
+          ["x-request-id", "req_01kj3bntvafk9bppcfmny5jn57"],
           ["set-cookie", "[REDACTED]"]
         ],
-        "body": "{\"id\":\"chatcmpl-c7b34138-f041-4b7d-af69-46dca768d093\",\"object\":\"chat.completion\",\"created\":1770370394,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"The user asks a simple math question. It's allowed. Provide answer: 4.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017301692,\"prompt_tokens\":79,\"prompt_time\":0.003551294,\"completion_tokens\":37,\"completion_time\":0.077773143,\"total_tokens\":116,\"total_time\":0.081324437,\"completion_tokens_details\":{\"reasoning_tokens\":18}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_7ee00986fe\",\"x_groq\":{\"id\":\"req_01kgs4rtc2ez3tyrrzjttc1j5n\",\"seed\":1154180631},\"service_tier\":\"on_demand\"}\n",
+        "body": "{\"id\":\"chatcmpl-03e8c2ab-187c-442d-a9b5-1db42ba21a2b\",\"object\":\"chat.completion\",\"created\":1771786922,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2 + 2 = 4.\",\"reasoning\":\"The user asks a simple math question. The answer is 4. No policy violation. Provide answer.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017045101,\"prompt_tokens\":79,\"prompt_time\":0.003235923,\"completion_tokens\":41,\"completion_time\":0.084144641,\"total_tokens\":120,\"total_time\":0.087380564,\"completion_tokens_details\":{\"reasoning_tokens\":22}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_e0f1c0e04a\",\"x_groq\":{\"id\":\"req_01kj3bntvafk9bppcfmny5jn57\",\"seed\":177043527},\"service_tier\":\"on_demand\"}\n",
         "bodyEncoding": "text"
       }
     }

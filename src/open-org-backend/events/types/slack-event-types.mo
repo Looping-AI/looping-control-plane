@@ -27,6 +27,8 @@ module {
   public type SlackInnerEvent = {
     #app_mention : SlackAppMentionEvent;
     #message : SlackMessageEvent;
+    #assistant_thread_started : SlackAssistantThreadStartedEvent;
+    #assistant_thread_context_changed : SlackAssistantThreadContextChangedEvent;
     #unknown : { eventType : Text }; // Catch-all for unrecognized event types
   };
 
@@ -46,12 +48,13 @@ module {
   /// See: https://docs.slack.dev/reference/events/message/#subtypes
   public type SlackMessageEvent = {
     #standard : SlackStandardMessage;
-    #botMessage : SlackBotMessage;
     #meMessage : SlackMeMessage;
-    #threadBroadcast : SlackThreadBroadcastMessage;
     #assistantAppThread : SlackAssistantAppThreadMessage;
     #messageChanged : SlackMessageChangedEvent;
     #messageDeleted : SlackMessageDeletedEvent;
+    /// Known subtype we have explicitly decided to skip (e.g. bot_message, thread_broadcast).
+    /// Distinct from #other, which is for subtypes not yet encountered or decided.
+    #skip : { subtype : Text };
     #other : { subtype : Text; channel : Text; ts : Text };
   };
 
@@ -64,16 +67,8 @@ module {
     channel : Text;
     eventTs : Text;
     threadTs : ?Text;
-  };
-
-  /// Bot message (subtype: "bot_message")
-  /// See: https://docs.slack.dev/reference/events/message/bot_message
-  public type SlackBotMessage = {
-    botId : Text;
-    text : Text;
-    ts : Text;
-    channel : Text;
-    username : ?Text;
+    botId : ?Text; // Present when the message was posted by a bot
+    appId : ?Text; // Slack app ID of the sender (matches api_app_id for own-bot messages)
   };
 
   /// /me message (subtype: "me_message")
@@ -83,17 +78,6 @@ module {
     text : Text;
     ts : Text;
     channel : Text;
-  };
-
-  /// Thread reply broadcast to channel (subtype: "thread_broadcast")
-  /// See: https://docs.slack.dev/reference/events/message/thread_broadcast
-  public type SlackThreadBroadcastMessage = {
-    user : Text;
-    text : Text;
-    ts : Text;
-    channel : Text;
-    threadTs : Text;
-    eventTs : Text;
   };
 
   /// Assistant app thread root message (subtype: "assistant_app_thread")
@@ -130,6 +114,37 @@ module {
     channel : Text;
     ts : Text; // Event timestamp
     deletedTs : Text; // Timestamp of the deleted message
+  };
+
+  /// assistant_thread_started event — fired when a user opens an assistant thread
+  /// See: https://docs.slack.dev/reference/events/assistant_thread_started
+  public type SlackAssistantThreadStartedEvent = {
+    assistant_thread : {
+      user_id : Text; // Slack user ID who opened the thread
+      context : {
+        force_search : Bool; // Whether Slack is hinting the AI should favour search results
+      };
+      channel_id : Text; // The DM channel hosting the assistant thread
+      thread_ts : Text; // Timestamp that identifies the thread
+    };
+    event_ts : Text;
+  };
+
+  /// assistant_thread_context_changed event — fired when the user navigates to a different
+  /// channel or conversation while the assistant thread is open, giving the AI new context.
+  /// See: https://docs.slack.dev/reference/events/assistant_thread_context_changed
+  public type SlackAssistantThreadContextChangedEvent = {
+    assistant_thread : {
+      user_id : Text; // Slack user ID whose context changed
+      context : {
+        channel_id : ?Text; // Channel the user is now viewing
+        team_id : ?Text; // Workspace of that channel
+        enterprise_id : ?Text; // Enterprise Grid org (null for standard workspaces)
+      };
+      channel_id : Text; // The DM channel hosting the assistant thread
+      thread_ts : Text; // Timestamp that identifies the thread
+    };
+    event_ts : Text;
   };
 
   /// Slack URL verification challenge

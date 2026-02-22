@@ -29,7 +29,7 @@ module {
   // Execute admin talk using Groq LLM with multi-turn tool support
   public func executeAdminTalk(
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
-    adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
+    workspaceConversations : List.List<ConversationModel.Message>,
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
@@ -80,9 +80,8 @@ module {
     var newMessages = List.empty<ConversationModel.Message>();
 
     // Store user message in conversation history
-    ConversationModel.addMessageToAdminConversation(
-      adminConversations,
-      workspaceId,
+    List.add(
+      workspaceConversations,
       {
         author = #user;
         content = message;
@@ -91,7 +90,7 @@ module {
     );
 
     // Load conversation history (bounded to last 30 messages) and convert to input format
-    let inputMessages = loadConversationHistory(adminConversations, workspaceId);
+    let inputMessages = loadConversationHistory(workspaceConversations);
     var iteration = 0;
 
     loop {
@@ -112,11 +111,7 @@ module {
             content = response;
             timestamp = Time.now();
           };
-          ConversationModel.addMessageToAdminConversation(
-            adminConversations,
-            workspaceId,
-            agentMessage,
-          );
+          List.add(workspaceConversations, agentMessage);
           List.add(newMessages, agentMessage);
 
           return #ok(List.toArray(newMessages));
@@ -147,11 +142,7 @@ module {
             content = toolCallContent;
             timestamp = Time.now();
           };
-          ConversationModel.addMessageToAdminConversation(
-            adminConversations,
-            workspaceId,
-            toolCallMessage,
-          );
+          List.add(workspaceConversations, toolCallMessage);
           List.add(newMessages, toolCallMessage);
 
           // Execute tool calls
@@ -167,11 +158,7 @@ module {
             content = formattedResults;
             timestamp = Time.now();
           };
-          ConversationModel.addMessageToAdminConversation(
-            adminConversations,
-            workspaceId,
-            toolResponseMessage,
-          );
+          List.add(workspaceConversations, toolResponseMessage);
           List.add(newMessages, toolResponseMessage);
 
           iteration += 1;
@@ -191,17 +178,10 @@ module {
   // Load conversation history and convert to input messages format
   // Bounds to MAX_CONVERSATION_HISTORY most recent messages
   private func loadConversationHistory(
-    adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>,
-    workspaceId : Nat,
+    workspaceConversations : List.List<ConversationModel.Message>
   ) : List.List<GroqWrapper.ResponseInputMessage> {
-    // Load existing conversation history for this workspace
-    let existingConversation = switch (Map.get(adminConversations, Nat.compare, workspaceId)) {
-      case (null) { List.empty<ConversationModel.Message>() };
-      case (?conv) { conv };
-    };
-
     // Convert to array and determine starting index for bounded history
-    let conversationArray = List.toArray(existingConversation);
+    let conversationArray = List.toArray(workspaceConversations);
     let historyStartIndex = if (conversationArray.size() > MAX_CONVERSATION_HISTORY) {
       Nat.sub(conversationArray.size(), MAX_CONVERSATION_HISTORY);
     } else {

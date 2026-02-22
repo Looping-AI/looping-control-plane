@@ -10,6 +10,8 @@ Browse through the sections below to find the Slack event type you need:
 
 - [App Mention](#app-mention)
 - [App Rate Limited](#app-rate-limited)
+- [Bot Message](#bot-message)
+- [Channel Join](#channel-join)
 - [Message Changed - Assistant App Thread](#message-changed-assistant-app-thread)
 - [Me Message](#me-message)
 - [URL Verification](#url-verification)
@@ -101,6 +103,86 @@ describe("My Test", () => {
 
 ---
 
+### Bot Message
+
+> **Note: Legacy event — not received by new Slack apps.**
+>
+> The `bot_message` subtype belong to Slack's
+> legacy bot infrastructure. New apps using the current Events API only receive standard messages with a `bot_id`and `app_id`field, instead of a specific subtype.
+>
+> Because this app is a new app, `bot_message` events are not expected and we don't need to create logic for handling it.
+
+**Use Case**: N/A — not supported; kept here for documentation purposes
+
+#### Payload
+
+```json
+{
+  "type": "event_callback",
+  "token": "YOUR_TOKEN",
+  "team_id": "T00000000",
+  "api_app_id": "A00000000",
+  "event": {
+    "type": "message",
+    "subtype": "bot_message",
+    "bot_id": "B00000001",
+    "app_id": "A00000001",
+    "text": "Hello from a third-party bot",
+    "ts": "1234567890.123456",
+    "channel": "C00000001",
+    "username": "third-party-bot"
+  },
+  "event_id": "Ev00000001",
+  "event_time": 1234567890
+}
+```
+
+---
+
+### Channel Join
+
+**Trigger Method**: User or Bot joins a channel  
+**Use Case**: Testing channel join notifications and member activity tracking
+
+#### Payload
+
+```json
+{
+  "token": "8c7TifzO0tqc8zbNGyQar24F",
+  "team_id": "T0ADR0P92G2",
+  "context_team_id": "T0ADR0P92G2",
+  "context_enterprise_id": null,
+  "api_app_id": "A0ADJUKD8TV",
+  "event": {
+    "type": "message",
+    "subtype": "channel_join",
+    "user": "U0ADWN7P3DY",
+    "text": "<@U0ADWN7P3DY> has joined the channel",
+    "inviter": "U0ADJJQMW4T",
+    "ts": "1771575931.715389",
+    "channel": "C0AFNSE98CX",
+    "event_ts": "1771575931.715389",
+    "channel_type": "group"
+  },
+  "type": "event_callback",
+  "event_id": "Ev0AG118UT0V",
+  "event_time": 1771575931,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T0ADR0P92G2",
+      "user_id": "U0ADWN7P3DY",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ],
+  "is_ext_shared_channel": false,
+  "event_context": "4-eyJldCI6Im1lc3NhZ2UiLCJ0aWQiOiJUMEFEUjBQOTJHMiIsImFpZCI6IkEwQURKVUtEOFRWIiwiY2lkIjoiQzBBRk5TRTk4Q1gifQ"
+}
+```
+
+---
+
 ### Message Changed - Assistant App Thread
 
 **Trigger Method**: Have an assistant app thread created (Slack's AI assistant feature)  
@@ -185,6 +267,41 @@ describe("My Test", () => {
   "type": "url_verification",
   "challenge": "3eZbrw1aBrO2OwwZuRckYRpG0E8iBd9qS1234567890",
   "token": "Jhj5dajhtbSuc0DYvJ5d1234567890"
+}
+```
+
+---
+
+### Thread Broadcast
+
+**Status**: UNUSED - Not expected to be used by this application
+
+**Trigger Method**: Reply in a thread and check "Also send to channel"
+
+**Use Case**: Testing thread replies that are also broadcast to the channel. Intentionally skipped as we focus on dedicated thread conversations.
+
+**Slack Reference**: https://docs.slack.dev/reference/events/message/thread_broadcast
+
+#### Payload
+
+```json
+{
+  "TODO": "Paste a real thread_broadcast event_callback payload from Slack logs here. Trigger by replying in a thread and checking 'Also send to channel'.",
+  "token": "",
+  "team_id": "",
+  "api_app_id": "",
+  "event": {
+    "type": "message",
+    "subtype": "thread_broadcast",
+    "user": "U0ADJJQMW4T",
+    "text": "This is a thread reply that's also broadcast to the channel.",
+    "ts": "1771288320.033489",
+    "thread_ts": "1770654557.033289",
+    "client_msg_id": "d370ab7e-e02e-4c2f-9d40-e5884de106b2",
+    "channel": "C0ADU87KHBX"
+  },
+  "event_id": "Ev00000001",
+  "event_time": 1234567890
 }
 ```
 
