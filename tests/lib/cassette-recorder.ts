@@ -335,6 +335,7 @@ function encodeBodyForStorage(
 
 /**
  * Redact sensitive headers.
+ * Headers are redacted if they match exactly or contain any redaction keyword.
  */
 function redactHeaders(
   headers: HttpHeader[],
@@ -346,7 +347,12 @@ function redactHeaders(
   ]);
 
   return headers.map(([name, value]) => {
-    if (redactSet.has(name.toLowerCase())) {
+    const lowerName = name.toLowerCase();
+    // Check both exact match and keyword containment
+    const shouldRedact = Array.from(redactSet).some(
+      (keyword) => lowerName === keyword || lowerName.includes(keyword),
+    );
+    if (shouldRedact) {
       return [name, "[REDACTED]"];
     }
     return [name, value];

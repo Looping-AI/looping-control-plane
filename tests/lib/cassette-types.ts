@@ -364,6 +364,8 @@ export const DEFAULT_REDACT_HEADERS = [
   "bearer",
   "cookie",
   "set-cookie",
+  "token",
+  "secret",
 ] as const;
 
 /** Default stale warning threshold in days */
