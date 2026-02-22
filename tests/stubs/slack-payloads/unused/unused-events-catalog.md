@@ -271,3 +271,38 @@ describe("My Test", () => {
 ```
 
 ---
+
+### Thread Broadcast
+
+**Status**: UNUSED - Not expected to be used by this application
+
+**Trigger Method**: Reply in a thread and check "Also send to channel"
+
+**Use Case**: Testing thread replies that are also broadcast to the channel. Intentionally skipped as we focus on dedicated thread conversations.
+
+**Slack Reference**: https://docs.slack.dev/reference/events/message/thread_broadcast
+
+#### Payload
+
+```json
+{
+  "TODO": "Paste a real thread_broadcast event_callback payload from Slack logs here. Trigger by replying in a thread and checking 'Also send to channel'.",
+  "token": "",
+  "team_id": "",
+  "api_app_id": "",
+  "event": {
+    "type": "message",
+    "subtype": "thread_broadcast",
+    "user": "U0ADJJQMW4T",
+    "text": "This is a thread reply that's also broadcast to the channel.",
+    "ts": "1771288320.033489",
+    "thread_ts": "1770654557.033289",
+    "client_msg_id": "d370ab7e-e02e-4c2f-9d40-e5884de106b2",
+    "channel": "C0ADU87KHBX"
+  },
+  "event_id": "Ev00000001",
+  "event_time": 1234567890
+}
+```
+
+---

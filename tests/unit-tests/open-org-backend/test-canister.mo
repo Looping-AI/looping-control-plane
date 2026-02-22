@@ -9,7 +9,7 @@ import HttpCertification "../../../src/open-org-backend/utilities/http-certifica
 import MessageHandler "../../../src/open-org-backend/events/handlers/message-handler";
 import MessageDeletedHandler "../../../src/open-org-backend/events/handlers/message-deleted-handler";
 import MessageEditedHandler "../../../src/open-org-backend/events/handlers/message-edited-handler";
-import ThreadEventHandler "../../../src/open-org-backend/events/handlers/thread-event-handler";
+import AssistantThreadHandler "../../../src/open-org-backend/events/handlers/assistant-thread-handler";
 import NormalizedEventTypes "../../../src/open-org-backend/events/types/normalized-event-types";
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
@@ -274,18 +274,19 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     await MessageEditedHandler.handle(workspaceId, edited, emptyCtx());
   };
 
-  public shared ({ caller }) func testThreadEventHandler(
+  public shared ({ caller }) func testAssistantThreadEventHandler(
     workspaceId : Nat,
     thread : {
-      user : Text;
-      text : Text;
-      channel : Text;
-      ts : Text;
+      eventType : { #threadStarted; #threadContextChanged };
+      userId : Text;
+      channelId : Text;
       threadTs : Text;
+      eventTs : Text;
+      context : NormalizedEventTypes.AssistantThreadContext;
     },
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await ThreadEventHandler.handle(workspaceId, thread, emptyCtx());
+    await AssistantThreadHandler.handle(workspaceId, thread, emptyCtx());
   };
 
   // ============================================

@@ -292,6 +292,18 @@ module {
           case (#err(msg)) { #err(msg) };
         };
       };
+      case ("assistant_thread_started") {
+        switch (parseAssistantThreadStartedEvent(json)) {
+          case (#ok(e)) { #ok(#assistant_thread_started(e)) };
+          case (#err(msg)) { #err(msg) };
+        };
+      };
+      case ("assistant_thread_context_changed") {
+        switch (parseAssistantThreadContextChangedEvent(json)) {
+          case (#ok(e)) { #ok(#assistant_thread_context_changed(e)) };
+          case (#err(msg)) { #err(msg) };
+        };
+      };
       case (other) {
         Logger.log(#warn, ?"SlackAdapter", "Unknown inner event type: " # other);
         #ok(#unknown({ eventType = other }));
@@ -346,7 +358,6 @@ module {
       case (null) { parseStandardMessage(json) };
       case (?"bot_message") { parseBotMessage(json) };
       case (?"me_message") { parseMeMessage(json) };
-      case (?"thread_broadcast") { parseThreadBroadcastMessage(json) };
       case (?"message_changed") { parseMessageChangedEvent(json) };
       case (?"message_deleted") { parseMessageDeletedEvent(json) };
       case (?other) {
@@ -462,39 +473,6 @@ module {
     };
 
     #ok(#meMessage({ user; text; ts; channel }));
-  };
-
-  /// Parse thread_broadcast subtype
-  func parseThreadBroadcastMessage(json : Json.Json) : {
-    #ok : SlackEventTypes.SlackMessageEvent;
-    #err : Text;
-  } {
-    let user = switch (Json.get(json, "user")) {
-      case (?#string(u)) { u };
-      case _ { return #err("Missing 'user' in thread_broadcast") };
-    };
-    let text = switch (Json.get(json, "text")) {
-      case (?#string(t)) { t };
-      case _ { return #err("Missing 'text' in thread_broadcast") };
-    };
-    let ts = switch (Json.get(json, "ts")) {
-      case (?#string(t)) { t };
-      case _ { return #err("Missing 'ts' in thread_broadcast") };
-    };
-    let channel = switch (Json.get(json, "channel")) {
-      case (?#string(c)) { c };
-      case _ { return #err("Missing 'channel' in thread_broadcast") };
-    };
-    let threadTs = switch (Json.get(json, "thread_ts")) {
-      case (?#string(t)) { t };
-      case _ { return #err("Missing 'thread_ts' in thread_broadcast") };
-    };
-    let eventTs = switch (Json.get(json, "event_ts")) {
-      case (?#string(t)) { t };
-      case _ { "" };
-    };
-
-    #ok(#threadBroadcast({ user; text; ts; channel; threadTs; eventTs }));
   };
 
   /// Parse message_changed subtype
@@ -615,6 +593,110 @@ module {
     #ok(#messageDeleted({ channel; ts; deletedTs }));
   };
 
+  /// Parse assistant_thread_started event
+  func parseAssistantThreadStartedEvent(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackAssistantThreadStartedEvent;
+    #err : Text;
+  } {
+    let atJson = switch (Json.get(json, "assistant_thread")) {
+      case (?obj) { obj };
+      case _ {
+        return #err("Missing 'assistant_thread' in assistant_thread_started");
+      };
+    };
+    let userId = switch (Json.get(atJson, "user_id")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user_id' in assistant_thread") };
+    };
+    let channelId = switch (Json.get(atJson, "channel_id")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel_id' in assistant_thread") };
+    };
+    let threadTs = switch (Json.get(atJson, "thread_ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'thread_ts' in assistant_thread") };
+    };
+    let contextJson = switch (Json.get(atJson, "context")) {
+      case (?obj) { obj };
+      case _ { return #err("Missing 'context' in assistant_thread") };
+    };
+    let forceSearch = switch (Json.get(contextJson, "force_search")) {
+      case (?#bool(b)) { b };
+      case _ { false }; // default false when not present
+    };
+    let eventTs = switch (Json.get(json, "event_ts")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    #ok({
+      assistant_thread = {
+        user_id = userId;
+        context = { force_search = forceSearch };
+        channel_id = channelId;
+        thread_ts = threadTs;
+      };
+      event_ts = eventTs;
+    });
+  };
+
+  /// Parse assistant_thread_context_changed event
+  func parseAssistantThreadContextChangedEvent(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackAssistantThreadContextChangedEvent;
+    #err : Text;
+  } {
+    let atJson = switch (Json.get(json, "assistant_thread")) {
+      case (?obj) { obj };
+      case _ {
+        return #err("Missing 'assistant_thread' in assistant_thread_context_changed");
+      };
+    };
+    let userId = switch (Json.get(atJson, "user_id")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user_id' in assistant_thread") };
+    };
+    let channelId = switch (Json.get(atJson, "channel_id")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel_id' in assistant_thread") };
+    };
+    let threadTs = switch (Json.get(atJson, "thread_ts")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'thread_ts' in assistant_thread") };
+    };
+    let contextJson = switch (Json.get(atJson, "context")) {
+      case (?obj) { obj };
+      case _ { return #err("Missing 'context' in assistant_thread") };
+    };
+    let ctxChannelId = switch (Json.get(contextJson, "channel_id")) {
+      case (?#string(c)) { ?c };
+      case _ { null };
+    };
+    let ctxTeamId = switch (Json.get(contextJson, "team_id")) {
+      case (?#string(t)) { ?t };
+      case _ { null };
+    };
+    let ctxEnterpriseId = switch (Json.get(contextJson, "enterprise_id")) {
+      case (?#string(e)) { ?e };
+      case _ { null };
+    };
+    let eventTs = switch (Json.get(json, "event_ts")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    #ok({
+      assistant_thread = {
+        user_id = userId;
+        context = {
+          channel_id = ctxChannelId;
+          team_id = ctxTeamId;
+          enterprise_id = ctxEnterpriseId;
+        };
+        channel_id = channelId;
+        thread_ts = threadTs;
+      };
+      event_ts = eventTs;
+    });
+  };
+
   // ============================================
   // Normalization: Slack → Internal Event
   // ============================================
@@ -665,24 +747,6 @@ module {
             Logger.log(#warn, ?"SlackAdapter", "Skipping bot_message: legacy event not received by new apps");
             return #err("Skipping bot_message: legacy event");
           };
-          case (#threadBroadcast(m)) {
-            #threadEvent({
-              user = m.user;
-              text = m.text;
-              channel = m.channel;
-              ts = m.ts;
-              threadTs = m.threadTs;
-            });
-          };
-          case (#assistantAppThread(m)) {
-            #threadEvent({
-              user = m.user;
-              text = m.text;
-              channel = m.channel;
-              ts = m.ts;
-              threadTs = m.threadTs;
-            });
-          };
           case (#messageChanged(m)) {
             #messageEdited({
               channel = m.channel;
@@ -700,11 +764,53 @@ module {
               deletedTs = m.deletedTs;
             });
           };
+          case (#assistantAppThread(m)) {
+            // assistant_app_thread is a hidden=true system event where Slack updates the
+            // thread's title and metadata after the first message is posted.
+            // Route as #assistantThreadEvent so the handler can track metadata changes.
+            #assistantThreadEvent({
+              eventType = #threadMetadataUpdated;
+              userId = m.user;
+              channelId = m.channel;
+              threadTs = m.threadTs;
+              eventTs = m.ts;
+              context = #metadataUpdated({
+                title = m.title;
+                text = m.text;
+              });
+            });
+          };
           case (#other({ subtype })) {
             Logger.log(#info, ?"SlackAdapter", "Skipping unhandled message subtype: " # subtype);
             return #err("Skipping unhandled message subtype: " # subtype);
           };
         };
+      };
+      case (#assistant_thread_started(e)) {
+        #assistantThreadEvent({
+          eventType = #threadStarted;
+          userId = e.assistant_thread.user_id;
+          channelId = e.assistant_thread.channel_id;
+          threadTs = e.assistant_thread.thread_ts;
+          eventTs = e.event_ts;
+          context = #started({
+            forceSearch = e.assistant_thread.context.force_search;
+          });
+        });
+      };
+      case (#assistant_thread_context_changed(e)) {
+        #assistantThreadEvent({
+          eventType = #threadContextChanged;
+          userId = e.assistant_thread.user_id;
+          channelId = e.assistant_thread.channel_id;
+          threadTs = e.assistant_thread.thread_ts;
+          eventTs = e.event_ts;
+          context = #contextChanged({
+            channelId = e.assistant_thread.context.channel_id;
+            teamId = e.assistant_thread.context.team_id;
+            enterpriseId = e.assistant_thread.context.enterprise_id;
+          });
+        });
       };
       case (#unknown({ eventType })) {
         return #err("Unsupported event type: " # eventType);
