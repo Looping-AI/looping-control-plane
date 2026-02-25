@@ -185,7 +185,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 ### Agent-to-agent delegation (planned)
 
 1. User sends `@looping ::accounting deliver me a report on last financials`.
-2. Event router resolves `::accounting` from the agent registry, builds `userAuthContext` from the Slack user cache.
+2. Event router resolves `::accounting` from the agent registry, builds `userAuthContext` from `SlackUserModel` (the Slack user cache).
 3. `::accounting` agent service processes the request, determines it needs data from `::tech`.
 4. `::accounting` posts a Slack message referencing `::tech` (architectural invariant: never call another agent service directly).
 5. That message triggers a new Slack event → event router picks it up.
@@ -199,7 +199,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 1. User sends a DM to the bot requesting access (e.g., a command or prompted text).
 2. Bot resolves user's `userAuthContext` from the Slack user cache.
-3. Bot generates a resource-based, read-only token inside the canister. Stores `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry: now + 1h }`.
+3. Bot generates a resource-based, read-only token inside the canister using the resolved `SlackUserEntry`. Stores `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry: now + 1h }`.
 4. Bot replies in the DM with the token (or a link containing it).
 5. External client (frontend) uses the token to call query methods.
 6. Frontend may provide an easy-to-copy Slack prompt so users can request new tokens when they expire.
@@ -244,7 +244,7 @@ See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 ### Target persistent state
 
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId, memberChannelId }`.
-- **Slack user cache**: `Map<SlackUserId, UserCacheEntry>` where `UserCacheEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`.
+- **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`. Backed by `SlackUserModel`.
 - **Org admin channel**: `{ channelId, channelName }` (the anchor for `#looping-ai-org-admins`).
 - **Agent registry**: `Map<agentName, AgentRecord>` where `AgentRecord = { name, category, llmModel, toolsAllowed, toolsState, sources }`.
 - **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.

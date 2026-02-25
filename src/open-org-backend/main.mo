@@ -14,6 +14,7 @@ import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
 import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
+import SlackUserModel "./models/slack-user-model";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
 import WorkspaceTalkService "./services/workspace-talk-service";
@@ -48,6 +49,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   var workspaceAgents = Map.fromArray<Nat, AgentModel.WorkspaceAgentsState>([(0, AgentModel.emptyWorkspaceState())], Nat.compare);
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
+
+  // Slack user cache (Slack user ID → SlackUserEntry with org roles and workspace memberships)
+  var slackUsers = SlackUserModel.empty();
 
   // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
   var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
