@@ -5,6 +5,7 @@ import List "mo:core/List";
 
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
+import SlackWrapper "../../../src/open-org-backend/wrappers/slack-wrapper";
 import HttpCertification "../../../src/open-org-backend/utilities/http-certification";
 import MessageHandler "../../../src/open-org-backend/events/handlers/message-handler";
 import MessageDeletedHandler "../../../src/open-org-backend/events/handlers/message-deleted-handler";
@@ -120,6 +121,38 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       metricDatapoints = MetricModel.emptyDatapoints();
     };
   };
+
+  // ============================================
+  // Slack Wrapper Test Methods
+  // ============================================
+
+  public shared ({ caller }) func slackGetOrganizationMembers(token : Text) : async {
+    #ok : [SlackWrapper.SlackUser];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.getOrganizationMembers(token);
+  };
+
+  public shared ({ caller }) func slackListChannels(token : Text, types : ?Text) : async {
+    #ok : [SlackWrapper.SlackChannel];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.listChannels(token, types);
+  };
+
+  public shared ({ caller }) func slackGetChannelMembers(token : Text, channel : Text) : async {
+    #ok : [Text];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.getChannelMembers(token, channel);
+  };
+
+  // ============================================
+  // HTTP Wrapper Test Methods
+  // ============================================
 
   public shared ({ caller }) func httpGet(url : Text, headers : [HttpWrapper.HttpHeader]) : async {
     #ok : (Nat, Text);

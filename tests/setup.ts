@@ -21,6 +21,8 @@ export type { _SERVICE, TestCanisterService };
 export const TEST_API_KEY =
   process.env["GROQ_TEST_KEY"] || "not-needed-due-to-cassette";
 export const TEST_MODEL = "openai/gpt-oss-120b";
+export const SLACK_TEST_TOKEN =
+  process.env["SLACK_APP_BOT_TOKEN"] || "not-needed-due-to-cassette";
 
 // Load environment variables from .env.test
 const envFile = resolve(import.meta.dir, "..", "..", ".env.test");

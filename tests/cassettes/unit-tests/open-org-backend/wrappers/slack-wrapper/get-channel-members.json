@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "name": "get-channel-members",
+  "recordedAt": "2026-02-25T16:21:06.357Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://slack.com/api/conversations.members?channel=C0AD9H06LHM&limit=200",
+        "method": "GET",
+        "headers": [["Authorization", "[REDACTED]"]],
+        "body": "",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "access-control-allow-headers",
+            "slack-route, x-slack-version-ts, x-b3-traceid, x-b3-spanid, x-b3-parentspanid, x-b3-sampled, x-b3-flags"
+          ],
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "x-slack-req-id, retry-after"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
+          ],
+          ["cache-control", "private, no-cache, no-store, must-revalidate"],
+          ["content-length", "71"],
+          ["content-type", "application/json; charset=utf-8"],
+          ["date", "Wed, 25 Feb 2026 16:21:06 GMT"],
+          ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
+          ["pragma", "no-cache"],
+          ["referrer-policy", "no-referrer"],
+          ["server", "Apache"],
+          [
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains; preload"
+          ],
+          ["timing-allow-origin", "*"],
+          ["vary", "Accept-Encoding"],
+          [
+            "via",
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-hvpytdpb,envoy-edge-lhr-csdzxsip"
+          ],
+          [
+            "x-accepted-oauth-scopes",
+            "channels:read,groups:read,mpim:read,im:read,read"
+          ],
+          ["x-backend", "api_normal"],
+          ["x-content-type-options", "nosniff"],
+          ["x-edge-backend", "envoy-www"],
+          ["x-envoy-attempt-count", "1"],
+          ["x-envoy-upstream-service-time", "177"],
+          [
+            "x-oauth-scopes",
+            "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
+          ],
+          ["x-server", "slack-www-hhvm-api-iad-o9467xzu2us6"],
+          ["x-slack-backend", "r"],
+          ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-req-id", "1119b413d56da38171f010a63ad52f56"],
+          ["x-slack-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-unique-id", "aZ8hcoHJmw4IZ9wzWyjI3AAAEC4"],
+          ["x-xss-protection", "0"]
+        ],
+        "body": "{\"ok\":true,\"members\":[\"U0ADJJQMW4T\"],\"response_metadata\":{\"next_cursor\":\"\"}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}
