@@ -1,9 +1,16 @@
 /// Member Left Channel Handler
 /// Handles member_left_channel events — fired when a user leaves a channel.
 ///
-/// Resolves the Slack channel ID against workspace channel anchors. If the channel
-/// is an admin or member channel for a known workspace, the user's workspace
-/// membership is removed from the SlackUserCache.
+/// Resolves the Slack channel ID against workspace channel anchors.  When a
+/// channel is an anchor for a workspace the handler updates the user's scope
+/// in the SlackUserCache rather than unconditionally removing the membership:
+///
+///   - Leaving the admin channel while still in the member channel
+///     → scope downgrades from #admin to #member.
+///   - Leaving the member channel while still in the admin channel
+///     → scope stays #admin (no change).
+///   - Leaving the only channel the user was in
+///     → workspace membership is removed entirely.
 ///
 /// No-ops (with a warning log) when:
 ///   - the channel is not anchored to any workspace
@@ -62,15 +69,15 @@ module {
         Logger.log(
           #info,
           ?"MemberLeftChannelHandler",
-          "Channel is admin channel for workspace " # debug_show (wsId) # ", removing membership for user: " # event.userId,
+          "Channel is admin channel for workspace " # debug_show (wsId) # ", clearing admin-channel flag for user: " # event.userId,
         );
-        switch (SlackUserModel.removeWorkspaceMembership(ctx.slackUsers, event.userId, wsId)) {
+        switch (SlackUserModel.leaveAdminChannel(ctx.slackUsers, event.userId, wsId)) {
           case (#ok(_)) {};
           case (#err(msg)) {
             Logger.log(
               #warn,
               ?"MemberLeftChannelHandler",
-              "Could not remove workspace membership: " # msg,
+              "Could not update workspace membership on admin-channel leave: " # msg,
             );
           };
         };
@@ -79,15 +86,15 @@ module {
         Logger.log(
           #info,
           ?"MemberLeftChannelHandler",
-          "Channel is member channel for workspace " # debug_show (wsId) # ", removing membership for user: " # event.userId,
+          "Channel is member channel for workspace " # debug_show (wsId) # ", clearing member-channel flag for user: " # event.userId,
         );
-        switch (SlackUserModel.removeWorkspaceMembership(ctx.slackUsers, event.userId, wsId)) {
+        switch (SlackUserModel.leaveMemberChannel(ctx.slackUsers, event.userId, wsId)) {
           case (#ok(_)) {};
           case (#err(msg)) {
             Logger.log(
               #warn,
               ?"MemberLeftChannelHandler",
-              "Could not remove workspace membership: " # msg,
+              "Could not update workspace membership on member-channel leave: " # msg,
             );
           };
         };

@@ -3,7 +3,6 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import List "mo:core/List";
 import Array "mo:core/Array";
-import Iter "mo:core/Iter";
 
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
@@ -421,9 +420,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     Array.map<SlackUserModel.SlackUserEntry, SlackUserInfo>(
       entries,
       func(entry : SlackUserModel.SlackUserEntry) : SlackUserInfo {
-        let memberships = Iter.toArray(
-          Map.entries(entry.workspaceMemberships)
-        );
+        let memberships = SlackUserModel.getWorkspaceMemberships(entry);
         {
           slackUserId = entry.slackUserId;
           displayName = entry.displayName;
@@ -440,9 +437,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     switch (SlackUserModel.lookupUser(slackUserCache, slackUserId)) {
       case (null) { null };
       case (?entry) {
-        let memberships = Iter.toArray(
-          Map.entries(entry.workspaceMemberships)
-        );
+        let memberships = SlackUserModel.getWorkspaceMemberships(entry);
         ?({
           slackUserId = entry.slackUserId;
           displayName = entry.displayName;

@@ -73,7 +73,7 @@ module {
           slackUserId = entry.slackUserId;
           isPrimaryOwner = entry.isPrimaryOwner;
           isOrgAdmin = entry.isOrgAdmin;
-          workspaceScopes = entry.workspaceMemberships;
+          workspaceScopes = SlackUserModel.buildWorkspaceScopeMap(entry);
           roundCount = 0;
           forceTerminated = false;
         };

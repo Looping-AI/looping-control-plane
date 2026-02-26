@@ -49,23 +49,23 @@ func buildTestCache() : SlackUserModel.SlackUserCache {
   let orgAdmin2Entry = SlackUserModel.newEntry(orgAdmin2, "Carol (Org Admin)", false, true);
   SlackUserModel.upsertUser(cache, orgAdmin2Entry);
 
-  // Workspace Admins: memberships with #admin scope
+  // Workspace Admins: joined the admin-channel anchor
   var wsAdmin1Entry = SlackUserModel.newEntry(workspaceAdmin1, "Dave (WS Admin)", false, false);
   SlackUserModel.upsertUser(cache, wsAdmin1Entry);
-  ignore SlackUserModel.updateWorkspaceMembership(cache, workspaceAdmin1, 0, #admin);
+  ignore SlackUserModel.joinAdminChannel(cache, workspaceAdmin1, 0);
 
   var wsAdmin2Entry = SlackUserModel.newEntry(workspaceAdmin2, "Eve (WS Admin)", false, false);
   SlackUserModel.upsertUser(cache, wsAdmin2Entry);
-  ignore SlackUserModel.updateWorkspaceMembership(cache, workspaceAdmin2, 1, #admin);
+  ignore SlackUserModel.joinAdminChannel(cache, workspaceAdmin2, 1);
 
-  // Workspace Members: memberships with #member scope
+  // Workspace Members: joined the member-channel anchor
   var wsMember1Entry = SlackUserModel.newEntry(workspaceMember1, "Frank (Member)", false, false);
   SlackUserModel.upsertUser(cache, wsMember1Entry);
-  ignore SlackUserModel.updateWorkspaceMembership(cache, workspaceMember1, 0, #member);
+  ignore SlackUserModel.joinMemberChannel(cache, workspaceMember1, 0);
 
   var wsMember2Entry = SlackUserModel.newEntry(workspaceMember2, "Grace (Member)", false, false);
   SlackUserModel.upsertUser(cache, wsMember2Entry);
-  ignore SlackUserModel.updateWorkspaceMembership(cache, workspaceMember2, 1, #member);
+  ignore SlackUserModel.joinMemberChannel(cache, workspaceMember2, 1);
 
   cache;
 };

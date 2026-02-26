@@ -239,4 +239,175 @@ describe("MemberLeftChannelHandler", () => {
     const user = unwrapOpt(await testCanister.getSlackUser("U_GHOST_USER"));
     expect(user).toBeNull();
   });
+
+  // =====================================================================
+  // Edge-case: user is in BOTH admin and member channel for a workspace
+  // =====================================================================
+
+  it("should downgrade scope to #member when leaving admin channel while still in member channel", async () => {
+    const userId = "U_DUAL_LEAVE_ADMIN";
+
+    // Create the user
+    await testCanister.testTeamJoinHandler(1n, {
+      userId,
+      displayName: "dual_leave_admin",
+      realName: ["Dual Leave Admin"],
+      isPrimaryOwner: false,
+      isOrgAdmin: false,
+      eventTs: "1700000020.000000",
+    });
+
+    // Join both admin and member channels for workspace 1
+    await testCanister.testMemberJoinedChannelHandler(1n, {
+      userId,
+      channelId: "C_ADMIN_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000021.000000",
+    });
+    await testCanister.testMemberJoinedChannelHandler(1n, {
+      userId,
+      channelId: "C_MEMBER_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000022.000000",
+    });
+
+    // Verify scope is #admin (admin channel takes precedence)
+    let user = unwrapOpt(await testCanister.getSlackUser(userId));
+    expect(user?.workspaceMemberships.length).toBe(1);
+    const adminMembership = user?.workspaceMemberships.find(
+      ([wsId]: [bigint, unknown]) => wsId === 1n,
+    );
+    expect(adminMembership?.[1]).toEqual({ admin: null });
+
+    // Leave admin channel — user is still in member channel
+    const leaveResult = await testCanister.testMemberLeftChannelHandler(1n, {
+      userId,
+      channelId: "C_ADMIN_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000023.000000",
+    });
+    expect("ok" in leaveResult).toBe(true);
+
+    // Scope should downgrade to #member, not be removed
+    user = unwrapOpt(await testCanister.getSlackUser(userId));
+    expect(user?.workspaceMemberships.length).toBe(1);
+    const memberMembership = user?.workspaceMemberships.find(
+      ([wsId]: [bigint, unknown]) => wsId === 1n,
+    );
+    expect(memberMembership?.[1]).toEqual({ member: null });
+  });
+
+  it("should retain #admin scope when leaving member channel while still in admin channel", async () => {
+    const userId = "U_DUAL_LEAVE_MEM";
+
+    // Create the user
+    await testCanister.testTeamJoinHandler(1n, {
+      userId,
+      displayName: "dual_leave_mem",
+      realName: ["Dual Leave Mem"],
+      isPrimaryOwner: false,
+      isOrgAdmin: false,
+      eventTs: "1700000024.000000",
+    });
+
+    // Join both admin and member channels for workspace 1
+    await testCanister.testMemberJoinedChannelHandler(1n, {
+      userId,
+      channelId: "C_ADMIN_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000025.000000",
+    });
+    await testCanister.testMemberJoinedChannelHandler(1n, {
+      userId,
+      channelId: "C_MEMBER_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000026.000000",
+    });
+
+    // Verify scope is #admin before leaving
+    let user = unwrapOpt(await testCanister.getSlackUser(userId));
+    expect(user?.workspaceMemberships.length).toBe(1);
+    const beforeMembership = user?.workspaceMemberships.find(
+      ([wsId]: [bigint, unknown]) => wsId === 1n,
+    );
+    expect(beforeMembership?.[1]).toEqual({ admin: null });
+
+    // Leave member channel — user is still in admin channel
+    const leaveResult = await testCanister.testMemberLeftChannelHandler(1n, {
+      userId,
+      channelId: "C_MEMBER_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000027.000000",
+    });
+    expect("ok" in leaveResult).toBe(true);
+
+    // Scope should remain #admin
+    user = unwrapOpt(await testCanister.getSlackUser(userId));
+    expect(user?.workspaceMemberships.length).toBe(1);
+    const afterMembership = user?.workspaceMemberships.find(
+      ([wsId]: [bigint, unknown]) => wsId === 1n,
+    );
+    expect(afterMembership?.[1]).toEqual({ admin: null });
+  });
+
+  it("should remove membership entirely after leaving both admin and member channels", async () => {
+    const userId = "U_DUAL_LEAVE_BOTH";
+
+    // Create the user
+    await testCanister.testTeamJoinHandler(1n, {
+      userId,
+      displayName: "dual_leave_both",
+      realName: ["Dual Leave Both"],
+      isPrimaryOwner: false,
+      isOrgAdmin: false,
+      eventTs: "1700000028.000000",
+    });
+
+    // Join both channels
+    await testCanister.testMemberJoinedChannelHandler(1n, {
+      userId,
+      channelId: "C_ADMIN_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000029.000000",
+    });
+    await testCanister.testMemberJoinedChannelHandler(1n, {
+      userId,
+      channelId: "C_MEMBER_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000030.000000",
+    });
+
+    // Leave admin channel (scope downgrades to #member)
+    await testCanister.testMemberLeftChannelHandler(1n, {
+      userId,
+      channelId: "C_ADMIN_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000031.000000",
+    });
+
+    let user = unwrapOpt(await testCanister.getSlackUser(userId));
+    expect(user?.workspaceMemberships.length).toBe(1);
+
+    // Leave member channel too (should remove membership entirely)
+    const leaveResult = await testCanister.testMemberLeftChannelHandler(1n, {
+      userId,
+      channelId: "C_MEMBER_CHANNEL",
+      channelType: "public_channel",
+      teamId: "T_TEST_TEAM",
+      eventTs: "1700000032.000000",
+    });
+    expect("ok" in leaveResult).toBe(true);
+
+    user = unwrapOpt(await testCanister.getSlackUser(userId));
+    expect(user?.workspaceMemberships.length).toBe(0);
+  });
 });
