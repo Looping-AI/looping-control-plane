@@ -160,7 +160,7 @@ module {
 
   /// A Slack workspace member, derived from users.list.
   public type SlackUser = {
-    id : Text; // Slack user ID (e.g. WXXXXXXXX)
+    id : Text; // Slack user ID (e.g. U0ADJJQMW4T)
     name : Text; // Username / display name
     isAdmin : Bool; // True if user is a workspace admin
     isOwner : Bool; // True if user is a workspace owner
