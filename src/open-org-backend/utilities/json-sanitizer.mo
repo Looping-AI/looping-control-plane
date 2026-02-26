@@ -23,6 +23,21 @@ module {
     else { null };
   };
 
+  /// Count consecutive backslashes immediately before `pos` in `chars`.
+  /// Used to determine whether the backslash at `pos` is a real JSON escape
+  /// character (even number of preceding backslashes) or is itself escaped
+  /// (odd number of preceding backslashes).
+  private func countPrecedingBackslashes(chars : [Char], pos : Nat) : Nat {
+    var count = 0;
+    var j = pos;
+    var stop = false;
+    while (not stop and j > 0) {
+      j -= 1;
+      if (chars[j] == '\\') { count += 1 } else { stop := true };
+    };
+    count;
+  };
+
   /// Parse exactly 4 hex characters from an array starting at `offset`.
   /// Returns the 16-bit value as Nat32, or null if any character is invalid.
   private func parseHex4(chars : [Char], offset : Nat) : ?Nat32 {
@@ -52,8 +67,11 @@ module {
     var out = "";
 
     while (i < len) {
-      // Look for a backslash-u sequence
-      if (i + 5 < len and chars[i] == '\\' and chars[i + 1] == 'u') {
+      // Look for a backslash-u sequence, but only when the backslash is not
+      // itself escaped (i.e., preceded by an even number of backslashes).
+      // A sequence like \\uD83C in raw JSON text means a literal backslash
+      // followed by the characters uD83C — it must not be treated as \uXXXX.
+      if (i + 5 < len and chars[i] == '\\' and chars[i + 1] == 'u' and countPrecedingBackslashes(chars, i) % 2 == 0) {
         switch (parseHex4(chars, i + 2)) {
           case (?cp) {
             // Is this a high surrogate? (0xD800–0xDBFF)
