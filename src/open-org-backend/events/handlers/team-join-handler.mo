@@ -57,12 +57,12 @@ module {
     Logger.log(
       #info,
       ?"TeamJoinHandler",
-      "Upserted user in cache: " # event.userId,
+      "Upserted slack user in cache: " # event.userId,
     );
 
     #ok([
       {
-        action = "upsert_user_cache";
+        action = "upsert_slack_user";
         result = #ok;
         timestamp = Time.now();
       },

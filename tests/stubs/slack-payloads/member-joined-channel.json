@@ -1,0 +1,31 @@
+{
+  "TODO": "Replace with a real member_joined_channel event_callback payload from Slack logs. Trigger by adding a user to a channel where the bot is subscribed.",
+  "token": "sometoken",
+  "team_id": "T_TEST_TEAM",
+  "context_team_id": "T_TEST_TEAM",
+  "context_enterprise_id": null,
+  "api_app_id": "A_TEST_APP",
+  "event": {
+    "type": "member_joined_channel",
+    "user": "U_NEW_MEMBER",
+    "channel": "C_MEMBER_CHAN",
+    "channel_type": "C",
+    "team": "T_TEST_TEAM",
+    "inviter": "U_INVITER",
+    "event_ts": "1700000200.000001"
+  },
+  "type": "event_callback",
+  "event_id": "Ev_MEM_JOIN_01",
+  "event_time": 1700000200,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T_TEST_TEAM",
+      "user_id": "U_BOT_USER",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ],
+  "is_ext_shared_channel": false,
+  "event_context": "4-eyJ0eXBlIjoibWVtYmVyX2pvaW5lZF9jaGFubmVsIn0"
+}

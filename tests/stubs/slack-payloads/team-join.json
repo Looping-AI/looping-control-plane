@@ -1,0 +1,40 @@
+{
+  "TODO": "Replace with a real team_join event_callback payload from Slack logs. Trigger by inviting a brand-new user to the Slack workspace.",
+  "token": "sometoken",
+  "team_id": "T_TEST_TEAM",
+  "context_team_id": "T_TEST_TEAM",
+  "context_enterprise_id": null,
+  "api_app_id": "A_TEST_APP",
+  "event": {
+    "type": "team_join",
+    "user": {
+      "id": "U_NEW_MEMBER",
+      "name": "newmember",
+      "real_name": "New Member",
+      "display_name": "newmember",
+      "email": "newmember@example.com",
+      "is_bot": false,
+      "is_admin": false,
+      "is_owner": false,
+      "is_primary_owner": false,
+      "is_restricted": false,
+      "is_ultra_restricted": false,
+      "team_id": "T_TEST_TEAM"
+    },
+    "event_ts": "1700000100.000001"
+  },
+  "type": "event_callback",
+  "event_id": "Ev_TEAM_JOIN_01",
+  "event_time": 1700000100,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T_TEST_TEAM",
+      "user_id": "U_BOT_USER",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ],
+  "is_ext_shared_channel": false,
+  "event_context": "4-eyJ0eXBlIjoidGVhbV9qb2luIn0"
+}

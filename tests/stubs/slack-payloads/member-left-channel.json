@@ -1,0 +1,30 @@
+{
+  "TODO": "Replace with a real member_left_channel event_callback payload from Slack logs. Trigger by removing a user from a channel where the bot is subscribed.",
+  "token": "sometoken",
+  "team_id": "T_TEST_TEAM",
+  "context_team_id": "T_TEST_TEAM",
+  "context_enterprise_id": null,
+  "api_app_id": "A_TEST_APP",
+  "event": {
+    "type": "member_left_channel",
+    "user": "U_NEW_MEMBER",
+    "channel": "C_MEMBER_CHAN",
+    "channel_type": "C",
+    "team": "T_TEST_TEAM",
+    "event_ts": "1700000300.000001"
+  },
+  "type": "event_callback",
+  "event_id": "Ev_MEM_LEFT_01",
+  "event_time": 1700000300,
+  "authorizations": [
+    {
+      "enterprise_id": null,
+      "team_id": "T_TEST_TEAM",
+      "user_id": "U_BOT_USER",
+      "is_bot": true,
+      "is_enterprise_install": false
+    }
+  ],
+  "is_ext_shared_channel": false,
+  "event_context": "4-eyJ0eXBlIjoibWVtYmVyX2xlZnRfY2hhbm5lbCJ9"
+}
