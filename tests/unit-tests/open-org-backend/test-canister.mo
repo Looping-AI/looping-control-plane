@@ -20,6 +20,8 @@ import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
 import MetricModel "../../../src/open-org-backend/models/metric-model";
 import ConversationModel "../../../src/open-org-backend/models/conversation-model";
 import SecretModel "../../../src/open-org-backend/models/secret-model";
+import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
+import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
 import Types "../../../src/open-org-backend/types";
 
 // ============================================
@@ -91,6 +93,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
       metricsRegistry = MetricModel.emptyRegistry();
       metricDatapoints = MetricModel.emptyDatapoints();
+      slackUsers = SlackUserModel.empty();
+      workspaces = WorkspaceModel.emptyState();
     };
   };
 
@@ -119,6 +123,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
       metricsRegistry = MetricModel.emptyRegistry();
       metricDatapoints = MetricModel.emptyDatapoints();
+      slackUsers = SlackUserModel.empty();
+      workspaces = WorkspaceModel.emptyState();
     };
   };
 

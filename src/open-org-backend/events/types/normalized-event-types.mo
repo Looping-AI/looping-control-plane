@@ -88,6 +88,28 @@ module {
       channel : Text; // Channel ID
       deletedTs : Text; // ts of the message that was deleted
     };
+    #memberJoinedChannel : {
+      userId : Text; // Slack user ID who joined
+      channelId : Text; // Channel ID
+      channelType : Text; // e.g. "C" for public channel
+      teamId : Text; // Workspace team ID
+      eventTs : Text;
+    };
+    #memberLeftChannel : {
+      userId : Text; // Slack user ID who left
+      channelId : Text; // Channel ID
+      channelType : Text; // e.g. "C" for public channel
+      teamId : Text; // Workspace team ID
+      eventTs : Text;
+    };
+    #teamJoin : {
+      userId : Text; // Slack user ID of the new member
+      displayName : Text; // Username / handle
+      realName : ?Text; // Real / display name from profile (may be absent)
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      eventTs : Text;
+    };
   };
 
   /// Normalized event — single type the queue and router use

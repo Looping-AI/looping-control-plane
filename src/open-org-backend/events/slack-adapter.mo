@@ -304,6 +304,24 @@ module {
           case (#err(msg)) { #err(msg) };
         };
       };
+      case ("member_joined_channel") {
+        switch (parseMemberJoinedChannelEvent(json)) {
+          case (#ok(e)) { #ok(#member_joined_channel(e)) };
+          case (#err(msg)) { #err(msg) };
+        };
+      };
+      case ("member_left_channel") {
+        switch (parseMemberLeftChannelEvent(json)) {
+          case (#ok(e)) { #ok(#member_left_channel(e)) };
+          case (#err(msg)) { #err(msg) };
+        };
+      };
+      case ("team_join") {
+        switch (parseTeamJoinEvent(json)) {
+          case (#ok(e)) { #ok(#team_join(e)) };
+          case (#err(msg)) { #err(msg) };
+        };
+      };
       case (other) {
         Logger.log(#warn, ?"SlackAdapter", "Unknown inner event type: " # other);
         #ok(#unknown({ eventType = other }));
@@ -675,6 +693,107 @@ module {
   // Normalization: Slack → Internal Event
   // ============================================
 
+  /// Parse member_joined_channel event
+  func parseMemberJoinedChannelEvent(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackMemberJoinedChannelEvent;
+    #err : Text;
+  } {
+    let user = switch (Json.get(json, "user")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user' in member_joined_channel") };
+    };
+    let channel = switch (Json.get(json, "channel")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel' in member_joined_channel") };
+    };
+    let channelType = switch (Json.get(json, "channel_type")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    let team = switch (Json.get(json, "team")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    let eventTs = switch (Json.get(json, "event_ts")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    #ok({ user; channel; channel_type = channelType; team; event_ts = eventTs });
+  };
+
+  /// Parse member_left_channel event
+  func parseMemberLeftChannelEvent(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackMemberLeftChannelEvent;
+    #err : Text;
+  } {
+    let user = switch (Json.get(json, "user")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user' in member_left_channel") };
+    };
+    let channel = switch (Json.get(json, "channel")) {
+      case (?#string(c)) { c };
+      case _ { return #err("Missing 'channel' in member_left_channel") };
+    };
+    let channelType = switch (Json.get(json, "channel_type")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    let team = switch (Json.get(json, "team")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    let eventTs = switch (Json.get(json, "event_ts")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    #ok({ user; channel; channel_type = channelType; team; event_ts = eventTs });
+  };
+
+  /// Parse team_join event (new workspace member)
+  func parseTeamJoinEvent(json : Json.Json) : {
+    #ok : SlackEventTypes.SlackTeamJoinEvent;
+    #err : Text;
+  } {
+    let userJson = switch (Json.get(json, "user")) {
+      case (?obj) { obj };
+      case _ { return #err("Missing 'user' object in team_join") };
+    };
+    let userId = switch (Json.get(userJson, "id")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user.id' in team_join") };
+    };
+    let name = switch (Json.get(userJson, "name")) {
+      case (?#string(n)) { n };
+      case _ { return #err("Missing 'user.name' in team_join") };
+    };
+    let realName = switch (Json.get(userJson, "real_name")) {
+      case (?#string(r)) { ?r };
+      case _ { null };
+    };
+    let isPrimaryOwner = switch (Json.get(userJson, "is_primary_owner")) {
+      case (?#bool(b)) { b };
+      case _ { false };
+    };
+    let isAdmin = switch (Json.get(userJson, "is_admin")) {
+      case (?#bool(b)) { b };
+      case _ { false };
+    };
+    let eventTs = switch (Json.get(json, "event_ts")) {
+      case (?#string(t)) { t };
+      case _ { "" };
+    };
+    #ok({
+      user = {
+        id = userId;
+        name;
+        real_name = realName;
+        is_primary_owner = isPrimaryOwner;
+        is_admin = isAdmin;
+      };
+      event_ts = eventTs;
+    });
+  };
+
   /// Convert a parsed SlackEventCallback into a normalized Event
   /// Currently hardcodes workspaceId to 0 (will be mapped in the future)
   ///
@@ -793,6 +912,34 @@ module {
       };
       case (#unknown({ eventType })) {
         return #err("Unsupported event type: " # eventType);
+      };
+      case (#member_joined_channel(e)) {
+        #memberJoinedChannel({
+          userId = e.user;
+          channelId = e.channel;
+          channelType = e.channel_type;
+          teamId = e.team;
+          eventTs = e.event_ts;
+        });
+      };
+      case (#member_left_channel(e)) {
+        #memberLeftChannel({
+          userId = e.user;
+          channelId = e.channel;
+          channelType = e.channel_type;
+          teamId = e.team;
+          eventTs = e.event_ts;
+        });
+      };
+      case (#team_join(e)) {
+        #teamJoin({
+          userId = e.user.id;
+          displayName = e.user.name;
+          realName = e.user.real_name;
+          isPrimaryOwner = e.user.is_primary_owner;
+          isOrgAdmin = e.user.is_admin;
+          eventTs = e.event_ts;
+        });
       };
     };
 

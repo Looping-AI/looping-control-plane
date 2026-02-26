@@ -20,6 +20,8 @@ import McpToolRegistry "../../tools/mcp-tool-registry";
 import ValueStreamModel "../../models/value-stream-model";
 import ObjectiveModel "../../models/objective-model";
 import MetricModel "../../models/metric-model";
+import SlackUserModel "../../models/slack-user-model";
+import WorkspaceModel "../../models/workspace-model";
 
 module {
 
@@ -48,5 +50,9 @@ module {
     metricsRegistry : MetricModel.MetricsRegistryState;
     /// Org-level metric datapoints store
     metricDatapoints : MetricModel.MetricDatapointsStore;
+    /// Slack user cache — handlers for membership events mutate this directly
+    slackUsers : SlackUserModel.SlackUserCache;
+    /// Workspace channel anchors — used to resolve channel IDs to workspace scopes
+    workspaces : WorkspaceModel.WorkspacesState;
   };
 };

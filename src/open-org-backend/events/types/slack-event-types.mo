@@ -29,6 +29,9 @@ module {
     #message : SlackMessageEvent;
     #assistant_thread_started : SlackAssistantThreadStartedEvent;
     #assistant_thread_context_changed : SlackAssistantThreadContextChangedEvent;
+    #member_joined_channel : SlackMemberJoinedChannelEvent;
+    #member_left_channel : SlackMemberLeftChannelEvent;
+    #team_join : SlackTeamJoinEvent;
     #unknown : { eventType : Text }; // Catch-all for unrecognized event types
   };
 
@@ -168,5 +171,41 @@ module {
     #event_callback : SlackEventCallback;
     #app_rate_limited : SlackAppRateLimitedEvent;
     #unknown : Text; // Unrecognized envelope type
+  };
+
+  /// member_joined_channel event — fired when a user joins a channel
+  /// See: https://api.slack.com/events/member_joined_channel
+  public type SlackMemberJoinedChannelEvent = {
+    user : Text; // Slack user ID of the member who joined
+    channel : Text; // Channel ID
+    channel_type : Text; // e.g. "C" for public channel
+    team : Text; // Workspace team ID
+    event_ts : Text;
+  };
+
+  /// member_left_channel event — fired when a user leaves a channel
+  /// See: https://api.slack.com/events/member_left_channel
+  public type SlackMemberLeftChannelEvent = {
+    user : Text; // Slack user ID of the member who left
+    channel : Text; // Channel ID
+    channel_type : Text; // e.g. "C" for public channel
+    team : Text; // Workspace team ID
+    event_ts : Text;
+  };
+
+  /// Minimal user object nested inside team_join event
+  public type SlackTeamJoinUser = {
+    id : Text; // Slack user ID
+    name : Text; // Username / handle
+    real_name : ?Text; // Display name (may be absent)
+    is_primary_owner : Bool;
+    is_admin : Bool;
+  };
+
+  /// team_join event — fired when a new user joins the Slack workspace
+  /// See: https://api.slack.com/events/team_join
+  public type SlackTeamJoinEvent = {
+    user : SlackTeamJoinUser;
+    event_ts : Text;
   };
 };
