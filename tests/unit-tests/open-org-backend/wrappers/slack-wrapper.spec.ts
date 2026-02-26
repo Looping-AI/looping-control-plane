@@ -307,4 +307,168 @@ describe("Slack Wrapper Unit Tests", () => {
       }
     });
   });
+
+  // ===========================================================================
+  // Cursor URL encoding
+  //
+  // Slack pagination cursors are base64-encoded and contain characters that
+  // are not URL-safe: +, /, and = (e.g. "dXNlcjpVMEc5V0ZYTlo="). These must
+  // be percent-encoded before being appended to a URL query string. The tests
+  // below drive a two-page pagination sequence and assert that the second
+  // request URL contains the properly encoded cursor.
+  // ===========================================================================
+
+  describe("cursor URL-encoding in pagination", () => {
+    // The canonical Slack example cursor that ends with an = character.
+    // When used as a URL query parameter it must appear as %3D.
+    const RAW_CURSOR = "dXNlcjpVMEc5V0ZYTlo=";
+    const ENCODED_CURSOR = "dXNlcjpVMEc5V0ZYTlo%3D";
+
+    /**
+     * Drive a two-page mock interaction:
+     * 1. Tick until the canister makes its first HTTP request.
+     * 2. Respond with firstPageBody (which contains a next_cursor).
+     * 3. Tick again so the canister processes the response and issues the
+     *    second request.
+     * 4. Inspect the second request URL and optionally run assertions on it.
+     * 5. Respond with secondPageBody (no cursor → pagination ends).
+     * 6. Resolve the deferred call and return the final result.
+     */
+    async function mockTwoPages(
+      call: () => Promise<unknown>,
+      firstPageBody: object,
+      secondPageBody: object,
+      onSecondUrl?: (url: string) => void,
+    ): Promise<unknown> {
+      // --- First request ---
+      await pic.tick(5);
+      const pending1 = await pic.getPendingHttpsOutcalls();
+      if (pending1.length === 0)
+        throw new Error("Expected first pending HTTPS outcall");
+
+      await pic.mockPendingHttpsOutcall({
+        requestId: pending1[0].requestId,
+        subnetId: pending1[0].subnetId,
+        response: {
+          type: "success",
+          statusCode: 200,
+          headers: [],
+          body: new TextEncoder().encode(JSON.stringify(firstPageBody)),
+        },
+      });
+
+      // --- Second request (canister has the cursor now) ---
+      await pic.tick(10);
+      const pending2 = await pic.getPendingHttpsOutcalls();
+      if (pending2.length === 0)
+        throw new Error(
+          "Expected second pending HTTPS outcall — cursor pagination did not trigger",
+        );
+
+      onSecondUrl?.(pending2[0].url);
+
+      await pic.mockPendingHttpsOutcall({
+        requestId: pending2[0].requestId,
+        subnetId: pending2[0].subnetId,
+        response: {
+          type: "success",
+          statusCode: 200,
+          headers: [],
+          body: new TextEncoder().encode(JSON.stringify(secondPageBody)),
+        },
+      });
+
+      return call();
+    }
+
+    it("getOrganizationMembers — cursor with = is percent-encoded in users.list URL", async () => {
+      const call =
+        await testCanister.slackGetOrganizationMembers(SLACK_TEST_TOKEN);
+
+      const firstPage = {
+        ok: true,
+        members: [
+          {
+            id: "U001",
+            name: "alice",
+            is_admin: false,
+            is_owner: false,
+            is_primary_owner: true,
+            deleted: false,
+          },
+        ],
+        response_metadata: { next_cursor: RAW_CURSOR },
+      };
+      const lastPage = {
+        ok: true,
+        members: [],
+        response_metadata: { next_cursor: "" },
+      };
+
+      let capturedUrl = "";
+      const response = await mockTwoPages(call, firstPage, lastPage, (url) => {
+        capturedUrl = url;
+      });
+
+      // The raw = must appear as %3D in the query string
+      expect(capturedUrl).toContain(`cursor=${ENCODED_CURSOR}`);
+      // The raw unencoded = must NOT appear as a bare query character
+      expect(capturedUrl).not.toContain(`cursor=${RAW_CURSOR}`);
+
+      expect("ok" in (response as object)).toBe(true);
+    });
+
+    it("listChannels — cursor with = is percent-encoded in conversations.list URL", async () => {
+      const call = await testCanister.slackListChannels(SLACK_TEST_TOKEN, []);
+
+      const firstPage = {
+        ok: true,
+        channels: [{ id: "C001", name: "general" }],
+        response_metadata: { next_cursor: RAW_CURSOR },
+      };
+      const lastPage = {
+        ok: true,
+        channels: [],
+        response_metadata: { next_cursor: "" },
+      };
+
+      let capturedUrl = "";
+      const response = await mockTwoPages(call, firstPage, lastPage, (url) => {
+        capturedUrl = url;
+      });
+
+      expect(capturedUrl).toContain(`cursor=${ENCODED_CURSOR}`);
+      expect(capturedUrl).not.toContain(`cursor=${RAW_CURSOR}`);
+
+      expect("ok" in (response as object)).toBe(true);
+    });
+
+    it("getChannelMembers — cursor with = is percent-encoded in conversations.members URL", async () => {
+      const call = await testCanister.slackGetChannelMembers(
+        SLACK_TEST_TOKEN,
+        "C001",
+      );
+
+      const firstPage = {
+        ok: true,
+        members: ["U001", "U002"],
+        response_metadata: { next_cursor: RAW_CURSOR },
+      };
+      const lastPage = {
+        ok: true,
+        members: [],
+        response_metadata: { next_cursor: "" },
+      };
+
+      let capturedUrl = "";
+      const response = await mockTwoPages(call, firstPage, lastPage, (url) => {
+        capturedUrl = url;
+      });
+
+      expect(capturedUrl).toContain(`cursor=${ENCODED_CURSOR}`);
+      expect(capturedUrl).not.toContain(`cursor=${RAW_CURSOR}`);
+
+      expect("ok" in (response as object)).toBe(true);
+    });
+  });
 });

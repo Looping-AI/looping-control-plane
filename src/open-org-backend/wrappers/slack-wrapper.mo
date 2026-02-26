@@ -16,6 +16,7 @@ import Json "mo:json";
 import { str; obj } "mo:json";
 import HttpWrapper "./http-wrapper";
 import JsonSanitizer "../utilities/json-sanitizer";
+import UrlEncoding "../utilities/url-encoding";
 
 module {
 
@@ -207,7 +208,7 @@ module {
 
     switch (cursor) {
       case (?c) {
-        url #= sep # "cursor=" # c;
+        url #= sep # "cursor=" # UrlEncoding.encodeQueryValue(c);
       };
       case (null) {};
     };
@@ -347,7 +348,7 @@ module {
 
     switch (cursor) {
       case (?c) {
-        url #= sep # "cursor=" # c;
+        url #= sep # "cursor=" # UrlEncoding.encodeQueryValue(c);
       };
       case (null) {};
     };
@@ -462,7 +463,7 @@ module {
     };
 
     switch (cursor) {
-      case (?c) { url #= "&cursor=" # c };
+      case (?c) { url #= "&cursor=" # UrlEncoding.encodeQueryValue(c) };
       case (null) {};
     };
 
