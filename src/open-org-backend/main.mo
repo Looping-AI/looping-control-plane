@@ -14,6 +14,8 @@ import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
 import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
+import SlackUserModel "./models/slack-user-model";
+import WorkspaceModel "./models/workspace-model";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
 import WorkspaceTalkService "./services/workspace-talk-service";
@@ -48,6 +50,15 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   var workspaceAgents = Map.fromArray<Nat, AgentModel.WorkspaceAgentsState>([(0, AgentModel.emptyWorkspaceState())], Nat.compare);
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
+
+  // Slack user cache (Slack user ID → SlackUserEntry with org roles and workspace memberships)
+  var slackUsers = SlackUserModel.empty();
+
+  // Workspace channel anchors (workspace ID → WorkspaceRecord with admin/member Slack channel IDs)
+  var workspaces = WorkspaceModel.emptyState();
+
+  // Org-admin channel anchor (Slack channel whose members are org-level admins)
+  var orgAdminChannel : ?WorkspaceModel.OrgAdminChannelAnchor = null;
 
   // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
   var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
@@ -122,6 +133,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       workspaceObjectives;
       metricsRegistry;
       metricDatapoints;
+      slackUsers;
+      workspaces;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
@@ -336,6 +349,111 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (null) { false };
       case (?members) { AdminModel.isMember(caller, members) };
     };
+  };
+
+  // ============================================
+  // Workspace Channel-Anchor Management (Phase 0.5)
+  // ============================================
+
+  // Create a new workspace (org admin or org owner only).
+  // Initialises all per-workspace maps so the workspace is immediately usable.
+  public shared ({ caller }) func createWorkspace(name : Text) : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        switch (WorkspaceModel.createWorkspace(workspaces, name)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(wsId)) {
+            // Seed all per-workspace maps so existing guards ("workspace not found") pass.
+            // The caller is seeded as the initial workspace admin.
+            Map.add(workspaceAdmins, Nat.compare, wsId, [caller]);
+            Map.add(workspaceMembers, Nat.compare, wsId, []);
+            Map.add(workspaceAgents, Nat.compare, wsId, AgentModel.emptyWorkspaceState());
+            Map.add(workspaceValueStreams, Nat.compare, wsId, ValueStreamModel.emptyWorkspaceState());
+            Map.add(workspaceObjectives, Nat.compare, wsId, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>());
+            Map.add(adminConversations, Nat.compare, wsId, List.empty<ConversationModel.Message>());
+            #ok(wsId);
+          };
+        };
+      };
+    };
+  };
+
+  // Get a workspace record by ID (any authenticated caller).
+  public shared ({ caller }) func getWorkspace(workspaceId : Nat) : async {
+    #ok : ?WorkspaceModel.WorkspaceRecord;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        #ok(WorkspaceModel.getWorkspace(workspaces, workspaceId));
+      };
+    };
+  };
+
+  // List all workspace records (org admin or org owner).
+  public shared ({ caller }) func listWorkspaces() : async {
+    #ok : [WorkspaceModel.WorkspaceRecord];
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        #ok(WorkspaceModel.listWorkspaces(workspaces));
+      };
+    };
+  };
+
+  // Set the admin channel anchor for a workspace.
+  // Members of this Slack channel will be granted workspace admin scope.
+  public shared ({ caller }) func setWorkspaceAdminChannel(workspaceId : Nat, channelId : Text) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        WorkspaceModel.setAdminChannel(workspaces, workspaceId, channelId);
+      };
+    };
+  };
+
+  // Set the member channel anchor for a workspace.
+  // Members of this Slack channel will be granted workspace member scope.
+  public shared ({ caller }) func setWorkspaceMemberChannel(workspaceId : Nat, channelId : Text) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        WorkspaceModel.setMemberChannel(workspaces, workspaceId, channelId);
+      };
+    };
+  };
+
+  // Set the org-admin channel anchor (org owner only).
+  // Members of this channel are treated as org-level admins.
+  public shared ({ caller }) func setOrgAdminChannel(channelId : Text, channelName : Text) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        orgAdminChannel := ?{ channelId; channelName };
+        #ok(());
+      };
+    };
+  };
+
+  // Get the current org-admin channel anchor (public query — channel IDs are not secret).
+  public query func getOrgAdminChannel() : async ?WorkspaceModel.OrgAdminChannelAnchor {
+    orgAdminChannel;
   };
 
   // ============================================

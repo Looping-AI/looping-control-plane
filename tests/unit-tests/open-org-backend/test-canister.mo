@@ -2,14 +2,19 @@ import Error "mo:core/Error";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import List "mo:core/List";
+import Array "mo:core/Array";
 
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
+import SlackWrapper "../../../src/open-org-backend/wrappers/slack-wrapper";
 import HttpCertification "../../../src/open-org-backend/utilities/http-certification";
 import MessageHandler "../../../src/open-org-backend/events/handlers/message-handler";
 import MessageDeletedHandler "../../../src/open-org-backend/events/handlers/message-deleted-handler";
 import MessageEditedHandler "../../../src/open-org-backend/events/handlers/message-edited-handler";
 import AssistantThreadHandler "../../../src/open-org-backend/events/handlers/assistant-thread-handler";
+import TeamJoinHandler "../../../src/open-org-backend/events/handlers/team-join-handler";
+import MemberJoinedChannelHandler "../../../src/open-org-backend/events/handlers/member-joined-channel-handler";
+import MemberLeftChannelHandler "../../../src/open-org-backend/events/handlers/member-left-channel-handler";
 import NormalizedEventTypes "../../../src/open-org-backend/events/types/normalized-event-types";
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
@@ -19,6 +24,8 @@ import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
 import MetricModel "../../../src/open-org-backend/models/metric-model";
 import ConversationModel "../../../src/open-org-backend/models/conversation-model";
 import SecretModel "../../../src/open-org-backend/models/secret-model";
+import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
+import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
 import Types "../../../src/open-org-backend/types";
 
 // ============================================
@@ -31,6 +38,25 @@ import Types "../../../src/open-org-backend/types";
 shared ({ caller = parent }) persistent actor class TestCanister() {
   // Store for HTTP certification testing
   var certStore = HttpCertification.initStore();
+
+  // Persistent Slack user cache for tests
+  // This allows us to verify state changes across multiple handler calls
+  var slackUserCache = SlackUserModel.empty();
+
+  // Pre-seeded workspace state with channel anchors for handler tests.
+  //   Workspace 0: Default (no channel anchors) — from emptyState()
+  //   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
+  //   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
+  let testWorkspacesState : WorkspaceModel.WorkspacesState = do {
+    let s = WorkspaceModel.emptyState();
+    ignore WorkspaceModel.createWorkspace(s, "Test Workspace 1"); // id = 1
+    ignore WorkspaceModel.setAdminChannel(s, 1, "C_ADMIN_CHANNEL");
+    ignore WorkspaceModel.setMemberChannel(s, 1, "C_MEMBER_CHANNEL");
+    ignore WorkspaceModel.createWorkspace(s, "Test Workspace 2"); // id = 2
+    ignore WorkspaceModel.setAdminChannel(s, 2, "C_ROUND_TRIP_ADMIN");
+    ignore WorkspaceModel.setMemberChannel(s, 2, "C_ROUND_TRIP_MEMBER");
+    s;
+  };
 
   // ============================================
   // Test Helpers
@@ -76,6 +102,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   /// Creates an empty EventProcessingContext suitable for unit tests.
   /// Secrets are not populated so handlers that require them will return graceful
   /// error steps rather than crashing.
+  /// Uses the persistent slackUserCache so state changes persist across handler calls.
   private func emptyCtx() : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
@@ -90,6 +117,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
       metricsRegistry = MetricModel.emptyRegistry();
       metricDatapoints = MetricModel.emptyDatapoints();
+      slackUsers = slackUserCache;
+      workspaces = testWorkspacesState;
     };
   };
 
@@ -99,6 +128,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   /// Schnorr key derivation or a real secret-store call.
   ///
   /// Secrets are stored for workspace IDs 0, 1, and 42.
+  /// Uses the persistent slackUserCache so state changes persist across handler calls.
   private func ctxWithSecrets(botToken : Text, groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
@@ -118,8 +148,42 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
       metricsRegistry = MetricModel.emptyRegistry();
       metricDatapoints = MetricModel.emptyDatapoints();
+      slackUsers = slackUserCache;
+      workspaces = testWorkspacesState;
     };
   };
+
+  // ============================================
+  // Slack Wrapper Test Methods
+  // ============================================
+
+  public shared ({ caller }) func slackGetOrganizationMembers(token : Text) : async {
+    #ok : [SlackWrapper.SlackUser];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.getOrganizationMembers(token);
+  };
+
+  public shared ({ caller }) func slackListChannels(token : Text, types : ?Text) : async {
+    #ok : [SlackWrapper.SlackChannel];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.listChannels(token, types);
+  };
+
+  public shared ({ caller }) func slackGetChannelMembers(token : Text, channel : Text) : async {
+    #ok : [Text];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.getChannelMembers(token, channel);
+  };
+
+  // ============================================
+  // HTTP Wrapper Test Methods
+  // ============================================
 
   public shared ({ caller }) func httpGet(url : Text, headers : [HttpWrapper.HttpHeader]) : async {
     #ok : (Nat, Text);
@@ -287,6 +351,102 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     await AssistantThreadHandler.handle(workspaceId, thread, emptyCtx());
+  };
+
+  public shared ({ caller }) func testTeamJoinHandler(
+    workspaceId : Nat,
+    event : {
+      userId : Text;
+      displayName : Text;
+      realName : ?Text;
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      eventTs : Text;
+    },
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await TeamJoinHandler.handle(workspaceId, event, emptyCtx());
+  };
+
+  public shared ({ caller }) func testMemberJoinedChannelHandler(
+    workspaceId : Nat,
+    event : {
+      userId : Text;
+      channelId : Text;
+      channelType : Text;
+      teamId : Text;
+      eventTs : Text;
+    },
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MemberJoinedChannelHandler.handle(workspaceId, event, emptyCtx());
+  };
+
+  public shared ({ caller }) func testMemberLeftChannelHandler(
+    workspaceId : Nat,
+    event : {
+      userId : Text;
+      channelId : Text;
+      channelType : Text;
+      teamId : Text;
+      eventTs : Text;
+    },
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MemberLeftChannelHandler.handle(workspaceId, event, emptyCtx());
+  };
+
+  // ============================================
+  // Slack User Cache Query Methods
+  // ============================================
+
+  /// Serializable version of SlackUserEntry for Candid response
+  public type SlackUserInfo = {
+    slackUserId : Text;
+    displayName : Text;
+    isPrimaryOwner : Bool;
+    isOrgAdmin : Bool;
+    workspaceMemberships : [(Nat, { #admin; #member })];
+  };
+
+  /// Reset the Slack user cache (useful for test isolation between tests)
+  public func resetSlackUserCache() : async () {
+    slackUserCache := SlackUserModel.empty();
+  };
+
+  /// Get all Slack users currently in the cache
+  public query func getSlackUsers() : async [SlackUserInfo] {
+    let entries = SlackUserModel.listUsers(slackUserCache);
+    Array.map<SlackUserModel.SlackUserEntry, SlackUserInfo>(
+      entries,
+      func(entry : SlackUserModel.SlackUserEntry) : SlackUserInfo {
+        let memberships = SlackUserModel.getWorkspaceMemberships(entry);
+        {
+          slackUserId = entry.slackUserId;
+          displayName = entry.displayName;
+          isPrimaryOwner = entry.isPrimaryOwner;
+          isOrgAdmin = entry.isOrgAdmin;
+          workspaceMemberships = memberships;
+        };
+      },
+    );
+  };
+
+  /// Look up a specific Slack user by ID
+  public query func getSlackUser(slackUserId : Text) : async ?SlackUserInfo {
+    switch (SlackUserModel.lookupUser(slackUserCache, slackUserId)) {
+      case (null) { null };
+      case (?entry) {
+        let memberships = SlackUserModel.getWorkspaceMemberships(entry);
+        ?({
+          slackUserId = entry.slackUserId;
+          displayName = entry.displayName;
+          isPrimaryOwner = entry.isPrimaryOwner;
+          isOrgAdmin = entry.isOrgAdmin;
+          workspaceMemberships = memberships;
+        });
+      };
+    };
   };
 
   // ============================================

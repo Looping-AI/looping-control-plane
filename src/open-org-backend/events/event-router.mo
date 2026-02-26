@@ -17,6 +17,9 @@ import MessageHandler "./handlers/message-handler";
 import AssistantThreadHandler "./handlers/assistant-thread-handler";
 import MessageEditedHandler "./handlers/message-edited-handler";
 import MessageDeletedHandler "./handlers/message-deleted-handler";
+import MemberJoinedChannelHandler "./handlers/member-joined-channel-handler";
+import MemberLeftChannelHandler "./handlers/member-left-channel-handler";
+import TeamJoinHandler "./handlers/team-join-handler";
 import Logger "../utilities/logger";
 
 module {
@@ -62,6 +65,15 @@ module {
         };
         case (#messageDeleted(deleted)) {
           await MessageDeletedHandler.handle(event.workspaceId, deleted, ctx);
+        };
+        case (#memberJoinedChannel(joined)) {
+          await MemberJoinedChannelHandler.handle(event.workspaceId, joined, ctx);
+        };
+        case (#memberLeftChannel(left)) {
+          await MemberLeftChannelHandler.handle(event.workspaceId, left, ctx);
+        };
+        case (#teamJoin(joined)) {
+          await TeamJoinHandler.handle(event.workspaceId, joined, ctx);
         };
       };
     } catch (e) {
