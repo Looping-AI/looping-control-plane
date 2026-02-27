@@ -3,10 +3,11 @@
 ///
 /// Full sweep (three parts):
 ///
-/// 1. **User refresh** — calls `users.list` and upserts every org member into the
-///    SlackUserState, preserving existing `isOrgAdmin` and `workspaceMemberships`
-///    flags while refreshing `displayName`, `isPrimaryOwner`, `isBot`, etc.
-///    After the upsert loop, any users still in the cache but **absent** from the
+/// 1. **User refresh** — calls `users.list` and compares each org member against the
+///    cache. Only new users or users with profile changes (displayName, isPrimaryOwner,
+///    isBot) are upserted. Existing `isOrgAdmin` and `workspaceMemberships` flags are
+///    preserved and not touched here (those are reconciled by the channel sync steps).
+///    After the comparison loop, any users still in the cache but **absent** from the
 ///    fresh `users.list` are removed as stale (deleted/deactivated in Slack).
 ///
 /// 2. **Org admin channel sync** — fetches the live member list of the org admin
@@ -65,7 +66,7 @@ module {
 
   /// Summary returned after a reconciliation run — useful for logging, tests, and auditing.
   public type ReconciliationSummary = {
-    usersRefreshed : Nat;
+    usersUpdated : Nat; // Users that were newly added or had profile changes (displayName / isPrimaryOwner / isBot)
     orgAdminChannelOk : Bool;
     workspacesChecked : Nat;
     goneChannels : [Text];
@@ -300,7 +301,7 @@ module {
   /// @param slackUsers     Slack user state (mutated in-place; changes are auto-logged)
   /// @param workspaces     Workspace registry (read-only during reconciliation)
   /// @param orgAdminChannel  Org-admin channel anchor (may be null if not yet configured)
-  /// @returns Summary of what was refreshed/synced and any errors encountered
+  /// @returns Summary of user updates, channel syncs, and any errors encountered
   public func run(
     token : Text,
     slackUsers : SlackUserModel.SlackUserState,
@@ -308,13 +309,11 @@ module {
     orgAdminChannel : ?WorkspaceModel.OrgAdminChannelAnchor,
   ) : async ReconciliationSummary {
     let runStartTime = Time.now();
-    var usersRefreshed : Nat = 0;
+    var usersUpdated : Nat = 0;
     var orgAdminChannelOk : Bool = true;
     var workspacesChecked : Nat = 0;
     let goneChannels = List.empty<Text>();
     let errors = List.empty<Text>();
-
-    Logger.log(#info, ?"WeeklyReconciliation", "Starting weekly reconciliation...");
 
     // ---- Step 1: Refresh all org users from users.list ----
     switch (await SlackWrapper.getOrganizationMembers(token)) {
@@ -322,7 +321,7 @@ module {
         let msg = "Failed to fetch org users from Slack — aborting reconciliation: " # e;
         Logger.log(#error, ?"WeeklyReconciliation", msg);
         return {
-          usersRefreshed = 0;
+          usersUpdated = 0;
           orgAdminChannelOk = false;
           workspacesChecked = 0;
           goneChannels = [];
@@ -347,27 +346,32 @@ module {
 
         for (user in allUsers.vals()) {
           // Preserve existing isOrgAdmin and workspaceMemberships — only refresh top-level fields.
-          let (isOrgAdmin, workspaceMemberships) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
+          // Skip the upsert entirely when nothing has changed to avoid unnecessary log entries.
+          let (isOrgAdmin, workspaceMemberships, needsUpdate) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
             case (null) {
-              (false, Map.empty<Nat, SlackUserModel.WorkspaceChannelFlags>());
+              // New user — always write
+              (false, Map.empty<Nat, SlackUserModel.WorkspaceChannelFlags>(), true);
             };
             case (?existing) {
-              (existing.isOrgAdmin, existing.workspaceMemberships);
+              let changed = existing.displayName != user.name or existing.isPrimaryOwner != user.isPrimaryOwner or existing.isBot != user.isBot;
+              (existing.isOrgAdmin, existing.workspaceMemberships, changed);
             };
           };
-          SlackUserModel.upsertUser(
-            slackUsers,
-            {
-              slackUserId = user.id;
-              displayName = user.name;
-              isPrimaryOwner = user.isPrimaryOwner;
-              isOrgAdmin;
-              isBot = user.isBot;
-              workspaceMemberships;
-            },
-            #reconciliation,
-          );
-          usersRefreshed += 1;
+          if (needsUpdate) {
+            SlackUserModel.upsertUser(
+              slackUsers,
+              {
+                slackUserId = user.id;
+                displayName = user.name;
+                isPrimaryOwner = user.isPrimaryOwner;
+                isOrgAdmin;
+                isBot = user.isBot;
+                workspaceMemberships;
+              },
+              #reconciliation,
+            );
+            usersUpdated += 1;
+          };
         };
 
         // Prune stale users: anyone in cache but absent from users.list
@@ -381,20 +385,6 @@ module {
         for (id in List.values(staleIds)) {
           ignore SlackUserModel.removeUser(slackUsers, id, #reconciliation);
         };
-        let staleCount = List.size(staleIds);
-        if (staleCount > 0) {
-          Logger.log(
-            #info,
-            ?"WeeklyReconciliation",
-            "Removed " # Nat.toText(staleCount) # " stale user(s) from cache.",
-          );
-        };
-
-        Logger.log(
-          #info,
-          ?"WeeklyReconciliation",
-          "Refreshed " # Nat.toText(usersRefreshed) # " org users.",
-        );
       };
     };
 
@@ -455,11 +445,6 @@ module {
           };
           case (#ok(freshMembers)) {
             syncOrgAdminMembership(slackUsers, freshMembers);
-            Logger.log(
-              #info,
-              ?"WeeklyReconciliation",
-              "Synced org admin channel: " # Nat.toText(freshMembers.size()) # " members.",
-            );
           };
         };
       };
@@ -618,14 +603,14 @@ module {
       #info,
       ?"WeeklyReconciliation",
       "Weekly reconciliation complete: " #
-      Nat.toText(usersRefreshed) # " users refreshed, " #
+      Nat.toText(usersUpdated) # " user(s) updated, " #
       Nat.toText(workspacesChecked) # " workspaces checked, " #
       Nat.toText(List.size(goneChannels)) # " gone channel(s), " #
       Nat.toText(audit.staleUsersRemoved.size()) # " stale user(s) removed.",
     );
 
     {
-      usersRefreshed;
+      usersUpdated;
       orgAdminChannelOk;
       workspacesChecked;
       goneChannels = List.toArray(goneChannels);

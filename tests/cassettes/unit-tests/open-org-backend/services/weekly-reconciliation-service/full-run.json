@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "full-run",
-  "recordedAt": "2026-02-27T00:02:51.077Z",
+  "recordedAt": "2026-02-27T15:09:27.947Z",
   "interactions": [
     {
       "request": {
@@ -25,9 +25,9 @@
             "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
           ],
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
-          ["content-length", "936"],
+          ["content-length", "934"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Fri, 27 Feb 2026 00:02:51 GMT"],
+          ["date", "Fri, 27 Feb 2026 15:09:28 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -40,27 +40,27 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-ispxnjhb,envoy-edge-lhr-xitpjayc"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-mdbmusba,envoy-edge-lhr-nykrotnu"
           ],
           ["x-accepted-oauth-scopes", "users:read"],
           ["x-backend", "api_normal"],
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "110"],
+          ["x-envoy-upstream-service-time", "176"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-7u2byarf536v"],
+          ["x-server", "slack-www-hhvm-api-iad-kt2odn6yeew1"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-req-id", "7bb20e5432b9ade488f6776dc47b8bd0"],
+          ["x-slack-req-id", "2ab3939d9792ef19a1b7e78aad7da9d1"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aaDfK3gNcrYiOD7s5t29XAAAIBo"],
+          ["x-slack-unique-id", "aaGzqBJ6VIgcAXpYscmbtQAAACE"],
           ["x-xss-protection", "0"]
         ],
-        "body": "{\"ok\":true,\"members\":[{\"id\":\"USLACKBOT\",\"name\":\"slackbot\",\"is_bot\":false,\"updated\":0,\"is_app_user\":false,\"team_id\":\"T0ADR0P92G2\",\"deleted\":false,\"color\":\"757575\",\"is_email_confirmed\":false,\"real_name\":\"Slackbot\",\"tz\":\"America\\/Los_Angeles\",\"tz_label\":\"Pacific Standard Time\",\"tz_offset\":-28800,\"is_admin\":false,\"is_owner\":false,\"is_primary_owner\":false,\"is_restricted\":false,\"is_ultra_restricted\":false,\"who_can_share_contact_card\":\"EVERYONE\",\"profile\":{\"real_name\":\"Slackbot\",\"display_name\":\"Slackbot\",\"avatar_hash\":\"sv41d8cd98f0\",\"real_name_normalized\":\"Slackbot\",\"display_name_normalized\":\"Slackbot\",\"image_24\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_24.png\",\"image_32\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_32.png\",\"image_48\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_48.png\",\"image_72\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_72.png\",\"image_192\":\"https:\\/\\/a.slack-edge.com\\/80588\\/marketing\\/img\\/avatars\\/slackbot\\/avatar-slackbot.png\",\"image_512\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_512.png\",\"first_name\":\"slackbot\",\"last_name\":\"\",\"team\":\"T0ADR0P92G2\",\"title\":\"\",\"phone\":\"\",\"skype\":\"\",\"fields\":{},\"status_text\":\"\",\"status_text_canonical\":\"\",\"status_emoji\":\"\",\"status_emoji_display_info\":[],\"status_expiration\":0,\"always_active\":true}},{\"id\":\"U0ADJJQMW4T\",\"name\":\"tiago\",\"is_bot\":false,\"updated\":1772125325,\"is_app_user\":false,\"team_id\":\"T0ADR0P92G2\",\"deleted\":false,\"color\":\"7d414c\",\"is_email_confirmed\":true,\"real_name\":\"Tiago\",\"tz\":\"Europe\\/London\",\"tz_label\":\"Greenwich Mean Time\",\"tz_offset\":0,\"is_admin\":true,\"is_owner\":true,\"is_primary_owner\":true,\"is_restricted\":false,\"is_ultra_restricted\":false,\"who_can_share_contact_card\":\"EVERYONE\",\"profile\":{\"real_name\":\"Tiago\",\"display_name\":\"\",\"avatar_hash\":\"d8f4b095031a\",\"real_name_normalized\":\"Tiago\",\"display_name_normalized\":\"\",\"image_24\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_24.png\",\"image_32\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_32.png\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_48.png\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_72.png\",\"image_192\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_192.png\",\"image_512\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_512.png\",\"image_1024\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_1024.png\",\"image_original\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_original.png\",\"is_custom_image\":true,\"first_name\":\"Tiago\",\"last_name\":\"\",\"team\":\"T0ADR0P92G2\",\"title\":\"\",\"phone\":\"\",\"skype\":\"\",\"status_text\":\"\",\"status_text_canonical\":\"\",\"status_emoji\":\"\",\"status_emoji_display_info\":[],\"status_expiration\":0,\"huddle_state\":\"default_unset\"}},{\"id\":\"U0ADWN7P3DY\",\"name\":\"looping\",\"is_bot\":true,\"updated\":1770651650,\"is_app_user\":false,\"team_id\":\"T0ADR0P92G2\",\"deleted\":false,\"color\":\"df3dc0\",\"is_email_confirmed\":false,\"real_name\":\"Looping AI\",\"tz\":\"America\\/Los_Angeles\",\"tz_label\":\"Pacific Standard Time\",\"tz_offset\":-28800,\"is_admin\":false,\"is_owner\":false,\"is_primary_owner\":false,\"is_restricted\":false,\"is_ultra_restricted\":false,\"who_can_share_contact_card\":\"EVERYONE\",\"profile\":{\"real_name\":\"Looping AI\",\"display_name\":\"\",\"avatar_hash\":\"18c56af4d8fb\",\"real_name_normalized\":\"Looping AI\",\"display_name_normalized\":\"\",\"image_24\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_24.jpg\",\"image_32\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_32.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_72.jpg\",\"image_192\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_192.jpg\",\"image_512\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_512.jpg\",\"image_1024\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_1024.jpg\",\"image_original\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_original.jpg\",\"is_custom_image\":true,\"first_name\":\"Looping\",\"last_name\":\"AI\",\"team\":\"T0ADR0P92G2\",\"title\":\"\",\"phone\":\"\",\"skype\":\"\",\"status_text\":\"\",\"status_text_canonical\":\"\",\"status_emoji\":\"\",\"status_emoji_display_info\":[],\"status_expiration\":0,\"bot_id\":\"B0AE0AR1TLL\",\"api_app_id\":\"A0ADJUKD8TV\",\"always_active\":true}}],\"cache_ts\":1772150571,\"response_metadata\":{\"next_cursor\":\"\"}}",
+        "body": "{\"ok\":true,\"members\":[{\"id\":\"USLACKBOT\",\"name\":\"slackbot\",\"is_bot\":false,\"updated\":0,\"is_app_user\":false,\"team_id\":\"T0ADR0P92G2\",\"deleted\":false,\"color\":\"757575\",\"is_email_confirmed\":false,\"real_name\":\"Slackbot\",\"tz\":\"America\\/Los_Angeles\",\"tz_label\":\"Pacific Standard Time\",\"tz_offset\":-28800,\"is_admin\":false,\"is_owner\":false,\"is_primary_owner\":false,\"is_restricted\":false,\"is_ultra_restricted\":false,\"who_can_share_contact_card\":\"EVERYONE\",\"profile\":{\"real_name\":\"Slackbot\",\"display_name\":\"Slackbot\",\"avatar_hash\":\"sv41d8cd98f0\",\"real_name_normalized\":\"Slackbot\",\"display_name_normalized\":\"Slackbot\",\"image_24\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_24.png\",\"image_32\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_32.png\",\"image_48\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_48.png\",\"image_72\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_72.png\",\"image_192\":\"https:\\/\\/a.slack-edge.com\\/80588\\/marketing\\/img\\/avatars\\/slackbot\\/avatar-slackbot.png\",\"image_512\":\"https:\\/\\/a.slack-edge.com\\/80588\\/img\\/slackbot_512.png\",\"first_name\":\"slackbot\",\"last_name\":\"\",\"team\":\"T0ADR0P92G2\",\"title\":\"\",\"phone\":\"\",\"skype\":\"\",\"fields\":{},\"status_text\":\"\",\"status_text_canonical\":\"\",\"status_emoji\":\"\",\"status_emoji_display_info\":[],\"status_expiration\":0,\"always_active\":true}},{\"id\":\"U0ADJJQMW4T\",\"name\":\"tiago\",\"is_bot\":false,\"updated\":1772125325,\"is_app_user\":false,\"team_id\":\"T0ADR0P92G2\",\"deleted\":false,\"color\":\"7d414c\",\"is_email_confirmed\":true,\"real_name\":\"Tiago\",\"tz\":\"Europe\\/London\",\"tz_label\":\"Greenwich Mean Time\",\"tz_offset\":0,\"is_admin\":true,\"is_owner\":true,\"is_primary_owner\":true,\"is_restricted\":false,\"is_ultra_restricted\":false,\"who_can_share_contact_card\":\"EVERYONE\",\"profile\":{\"real_name\":\"Tiago\",\"display_name\":\"\",\"avatar_hash\":\"d8f4b095031a\",\"real_name_normalized\":\"Tiago\",\"display_name_normalized\":\"\",\"image_24\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_24.png\",\"image_32\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_32.png\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_48.png\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_72.png\",\"image_192\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_192.png\",\"image_512\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_512.png\",\"image_1024\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_1024.png\",\"image_original\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10495316808096_d8f4b095031ad01d9bf6_original.png\",\"is_custom_image\":true,\"first_name\":\"Tiago\",\"last_name\":\"\",\"team\":\"T0ADR0P92G2\",\"title\":\"\",\"phone\":\"\",\"skype\":\"\",\"status_text\":\"\",\"status_text_canonical\":\"\",\"status_emoji\":\"\",\"status_emoji_display_info\":[],\"status_expiration\":0,\"huddle_state\":\"default_unset\"}},{\"id\":\"U0ADWN7P3DY\",\"name\":\"looping\",\"is_bot\":true,\"updated\":1770651650,\"is_app_user\":false,\"team_id\":\"T0ADR0P92G2\",\"deleted\":false,\"color\":\"df3dc0\",\"is_email_confirmed\":false,\"real_name\":\"Looping AI\",\"tz\":\"America\\/Los_Angeles\",\"tz_label\":\"Pacific Standard Time\",\"tz_offset\":-28800,\"is_admin\":false,\"is_owner\":false,\"is_primary_owner\":false,\"is_restricted\":false,\"is_ultra_restricted\":false,\"who_can_share_contact_card\":\"EVERYONE\",\"profile\":{\"real_name\":\"Looping AI\",\"display_name\":\"\",\"avatar_hash\":\"18c56af4d8fb\",\"real_name_normalized\":\"Looping AI\",\"display_name_normalized\":\"\",\"image_24\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_24.jpg\",\"image_32\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_32.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_72.jpg\",\"image_192\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_192.jpg\",\"image_512\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_512.jpg\",\"image_1024\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_1024.jpg\",\"image_original\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-09\\/10476398239332_18c56af4d8fb4edb1bc8_original.jpg\",\"is_custom_image\":true,\"first_name\":\"Looping\",\"last_name\":\"AI\",\"team\":\"T0ADR0P92G2\",\"title\":\"\",\"phone\":\"\",\"skype\":\"\",\"status_text\":\"\",\"status_text_canonical\":\"\",\"status_emoji\":\"\",\"status_emoji_display_info\":[],\"status_expiration\":0,\"bot_id\":\"B0AE0AR1TLL\",\"api_app_id\":\"A0ADJUKD8TV\",\"always_active\":true}}],\"cache_ts\":1772204968,\"response_metadata\":{\"next_cursor\":\"\"}}",
         "bodyEncoding": "text"
       }
     },
@@ -88,7 +88,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "40"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Fri, 27 Feb 2026 00:02:51 GMT"],
+          ["date", "Fri, 27 Feb 2026 15:09:28 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -101,7 +101,7 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-jdkbauhs,envoy-edge-lhr-xitpjayc"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-uwdclcio,envoy-edge-lhr-nykrotnu"
           ],
           [
             "x-accepted-oauth-scopes",
@@ -111,18 +111,18 @@
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "99"],
+          ["x-envoy-upstream-service-time", "175"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-itau1lwh4np3"],
+          ["x-server", "slack-www-hhvm-api-iad-ng9clb4uvduj"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
           ["x-slack-failure", "channel_not_found"],
-          ["x-slack-req-id", "335655f205d6e9c854aae445dd7f885d"],
+          ["x-slack-req-id", "5191db9c56e209f54d870ce02b312392"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aaDfK1JfZuRmc9QSeH1lEQAAACg"],
+          ["x-slack-unique-id", "aaGzqLPrRXvFOhMs2Y1FpQAAEA8"],
           ["x-xss-protection", "0"]
         ],
         "body": "{\"ok\":false,\"error\":\"channel_not_found\"}",
@@ -153,7 +153,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "40"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Fri, 27 Feb 2026 00:02:51 GMT"],
+          ["date", "Fri, 27 Feb 2026 15:09:29 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -166,7 +166,7 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-ykkfgeth,envoy-edge-lhr-xitpjayc"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-tqijpaku,envoy-edge-lhr-nykrotnu"
           ],
           [
             "x-accepted-oauth-scopes",
@@ -176,18 +176,18 @@
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "96"],
+          ["x-envoy-upstream-service-time", "172"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-1rb4v6hn0rkw"],
+          ["x-server", "slack-www-hhvm-api-iad-r5gep81jxkc4"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
           ["x-slack-failure", "channel_not_found"],
-          ["x-slack-req-id", "a3f3931ce5527dd39f452265c18aeb86"],
+          ["x-slack-req-id", "9f9760c9372320c9d2986d346820915d"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aaDfKzekyUjz68B1KUi8-QAAADo"],
+          ["x-slack-unique-id", "aaGzqSufLuT5eopo-aQGkQAAADQ"],
           ["x-xss-protection", "0"]
         ],
         "body": "{\"ok\":false,\"error\":\"channel_not_found\"}",
@@ -221,7 +221,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "77"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Fri, 27 Feb 2026 00:02:52 GMT"],
+          ["date", "Fri, 27 Feb 2026 15:09:29 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -234,25 +234,25 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-cftucqsa,envoy-edge-lhr-xitpjayc"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-vtubytay,envoy-edge-lhr-nykrotnu"
           ],
           ["x-accepted-oauth-scopes", "chat:write"],
           ["x-backend", "api_normal"],
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "93"],
+          ["x-envoy-upstream-service-time", "170"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-wgq61xut0b86"],
+          ["x-server", "slack-www-hhvm-api-iad-yagc22sodcgk"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
           ["x-slack-failure", "channel_not_found"],
-          ["x-slack-req-id", "8b3d1042f2bf2b98af5bf3efd21831de"],
+          ["x-slack-req-id", "8dd56cdbfee1666c1ee198d136e66a06"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aaDfLJSzSwcXrGr6kBceBgAAEBU"],
+          ["x-slack-unique-id", "aaGzqZJxNjphsMlCMUJOOQAAECI"],
           ["x-xss-protection", "0"]
         ],
         "body": "{\"ok\":false,\"error\":\"channel_not_found\",\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
@@ -283,7 +283,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "40"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Fri, 27 Feb 2026 00:02:52 GMT"],
+          ["date", "Fri, 27 Feb 2026 15:09:29 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -296,7 +296,7 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-keagyduf,envoy-edge-lhr-xitpjayc"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-uadorksm,envoy-edge-lhr-nykrotnu"
           ],
           [
             "x-accepted-oauth-scopes",
@@ -306,18 +306,18 @@
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "97"],
+          ["x-envoy-upstream-service-time", "168"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-bnv47ud0zb4x"],
+          ["x-server", "slack-www-hhvm-api-iad-mw6oxguxxwpa"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
           ["x-slack-failure", "channel_not_found"],
-          ["x-slack-req-id", "f609e36d4971e5fa485bfc01936c1fcd"],
+          ["x-slack-req-id", "b5a7600c566373073c755af8cbf6fb90"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aaDfLJOF5RJrkhcR4BY3hAAAEB4"],
+          ["x-slack-unique-id", "aaGzqeQQGo-PiPwODm4E6QAAEAs"],
           ["x-xss-protection", "0"]
         ],
         "body": "{\"ok\":false,\"error\":\"channel_not_found\"}",
@@ -348,7 +348,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "40"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Fri, 27 Feb 2026 00:02:52 GMT"],
+          ["date", "Fri, 27 Feb 2026 15:09:30 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -361,7 +361,7 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-eqmncomo,envoy-edge-lhr-xitpjayc"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-upfutvzm,envoy-edge-lhr-nykrotnu"
           ],
           [
             "x-accepted-oauth-scopes",
@@ -371,18 +371,18 @@
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "99"],
+          ["x-envoy-upstream-service-time", "177"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-sendrhqpndr7"],
+          ["x-server", "slack-www-hhvm-api-iad-789guxncffvu"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
           ["x-slack-failure", "channel_not_found"],
-          ["x-slack-req-id", "e7ebd1f94de847ff1fa53ee58219f10d"],
+          ["x-slack-req-id", "959a0dfba1450b83f92f3eda8f2d78a6"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aaDfLH6jJM1Urj_NwtvJGAAAACc"],
+          ["x-slack-unique-id", "aaGzqfYOOrVL31RKTqVgyQAAED4"],
           ["x-xss-protection", "0"]
         ],
         "body": "{\"ok\":false,\"error\":\"channel_not_found\"}",
@@ -416,7 +416,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "77"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Fri, 27 Feb 2026 00:02:52 GMT"],
+          ["date", "Fri, 27 Feb 2026 15:09:30 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -429,25 +429,25 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-fhltibxq,envoy-edge-lhr-xitpjayc"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-vlgicrcj,envoy-edge-lhr-nykrotnu"
           ],
           ["x-accepted-oauth-scopes", "chat:write"],
           ["x-backend", "api_normal"],
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "92"],
+          ["x-envoy-upstream-service-time", "167"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-41tm9oypf5nu"],
+          ["x-server", "slack-www-hhvm-api-iad-ad50mbpysj6k"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
           ["x-slack-failure", "channel_not_found"],
-          ["x-slack-req-id", "3911cf7d39144fee0616bad061a4d704"],
+          ["x-slack-req-id", "a04c8b2b36ac0026f8f760c014483f94"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aaDfLJMvWTYCTQg4TC1jwgAAABE"],
+          ["x-slack-unique-id", "aaGzqtE_90tij1PwJ4ga-QAAEBE"],
           ["x-xss-protection", "0"]
         ],
         "body": "{\"ok\":false,\"error\":\"channel_not_found\",\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",

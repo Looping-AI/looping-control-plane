@@ -40,9 +40,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Store for HTTP certification testing
   var certStore = HttpCertification.initStore();
 
-  // Persistent Slack user cache for tests
-  // This allows us to verify state changes across multiple handler calls
-  var slackUserCache = SlackUserModel.empty();
+  // Persistent Slack user state for tests (cache + access change log).
+  // This allows us to verify state changes and audit log entries across handler calls.
+  var slackUsers = SlackUserModel.emptyState();
 
   // Pre-seeded workspace state with channel anchors for handler tests.
   //   Workspace 0: Default (no channel anchors) — from emptyState()
@@ -118,7 +118,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
       metricsRegistry = MetricModel.emptyRegistry();
       metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers = slackUserCache;
+      slackUsers;
       workspaces = testWorkspacesState;
     };
   };
@@ -149,7 +149,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
       metricsRegistry = MetricModel.emptyRegistry();
       metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers = slackUserCache;
+      slackUsers;
       workspaces = testWorkspacesState;
     };
   };
@@ -407,17 +407,29 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     displayName : Text;
     isPrimaryOwner : Bool;
     isOrgAdmin : Bool;
+    isBot : Bool;
     workspaceMemberships : [(Nat, { #admin; #member })];
   };
 
-  /// Reset the Slack user cache (useful for test isolation between tests)
+  /// Serializable version of AccessChangeEntry for Candid response.
+  /// `source` is encoded as a plain string: "reconciliation", "manual", or "slackEvent:<eventId>".
+  /// `changeType` is encoded as the variant name (e.g. "orgAdminGranted").
+  /// `workspaceId` is populated only for workspace-scoped change types.
+  public type ChangeLogEntryInfo = {
+    slackUserId : Text;
+    changeType : Text;
+    source : Text;
+    workspaceId : ?Nat;
+  };
+
+  /// Reset the Slack user state (cache + change log) for test isolation.
   public func resetSlackUserCache() : async () {
-    slackUserCache := SlackUserModel.empty();
+    slackUsers := SlackUserModel.emptyState();
   };
 
   /// Get all Slack users currently in the cache
   public query func getSlackUsers() : async [SlackUserInfo] {
-    let entries = SlackUserModel.listUsers(slackUserCache);
+    let entries = SlackUserModel.listUsers(slackUsers.cache);
     Array.map<SlackUserModel.SlackUserEntry, SlackUserInfo>(
       entries,
       func(entry : SlackUserModel.SlackUserEntry) : SlackUserInfo {
@@ -427,6 +439,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
           displayName = entry.displayName;
           isPrimaryOwner = entry.isPrimaryOwner;
           isOrgAdmin = entry.isOrgAdmin;
+          isBot = entry.isBot;
           workspaceMemberships = memberships;
         };
       },
@@ -435,7 +448,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   /// Look up a specific Slack user by ID
   public query func getSlackUser(slackUserId : Text) : async ?SlackUserInfo {
-    switch (SlackUserModel.lookupUser(slackUserCache, slackUserId)) {
+    switch (SlackUserModel.lookupUser(slackUsers.cache, slackUserId)) {
       case (null) { null };
       case (?entry) {
         let memberships = SlackUserModel.getWorkspaceMemberships(entry);
@@ -444,34 +457,97 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
           displayName = entry.displayName;
           isPrimaryOwner = entry.isPrimaryOwner;
           isOrgAdmin = entry.isOrgAdmin;
+          isBot = entry.isBot;
           workspaceMemberships = memberships;
         });
       };
     };
   };
 
+  /// Return all access change log entries recorded in the current state.
+  /// Entries are in chronological order (oldest first).
+  public query func getChangeLog() : async [ChangeLogEntryInfo] {
+    let entries = SlackUserModel.getLogsSince(slackUsers, 0);
+    Array.map<SlackUserModel.AccessChangeEntry, ChangeLogEntryInfo>(
+      entries,
+      func(e : SlackUserModel.AccessChangeEntry) : ChangeLogEntryInfo {
+        let changeTypeText = switch (e.changeType) {
+          case (#userAdded) { "userAdded" };
+          case (#userRemoved) { "userRemoved" };
+          case (#orgAdminGranted) { "orgAdminGranted" };
+          case (#orgAdminRevoked) { "orgAdminRevoked" };
+          case (#primaryOwnerGranted) { "primaryOwnerGranted" };
+          case (#primaryOwnerRevoked) { "primaryOwnerRevoked" };
+          case (#workspaceAdminGranted(_)) { "workspaceAdminGranted" };
+          case (#workspaceAdminRevoked(_)) { "workspaceAdminRevoked" };
+          case (#workspaceMemberGranted(_)) { "workspaceMemberGranted" };
+          case (#workspaceMemberRevoked(_)) { "workspaceMemberRevoked" };
+        };
+        let wsIdOpt : ?Nat = switch (e.changeType) {
+          case (#workspaceAdminGranted(wsId)) { ?wsId };
+          case (#workspaceAdminRevoked(wsId)) { ?wsId };
+          case (#workspaceMemberGranted(wsId)) { ?wsId };
+          case (#workspaceMemberRevoked(wsId)) { ?wsId };
+          case (_) { null };
+        };
+        let sourceText = switch (e.source) {
+          case (#reconciliation) { "reconciliation" };
+          case (#slackEvent(eventId)) { "slackEvent:" # eventId };
+          case (#manual) { "manual" };
+        };
+        {
+          slackUserId = e.slackUserId;
+          changeType = changeTypeText;
+          source = sourceText;
+          workspaceId = wsIdOpt;
+        };
+      },
+    );
+  };
+
   // ============================================
   // Weekly Reconciliation Service Test Methods
   // ============================================
 
-  /// Seed a single Slack user into the persistent cache for reconciliation tests.
+  /// Seed a single Slack user into the persistent state for reconciliation tests.
   public shared ({ caller }) func seedSlackUser(
     slackUserId : Text,
     displayName : Text,
     isPrimaryOwner : Bool,
     isOrgAdmin : Bool,
+    isBot : Bool,
   ) : async () {
     assert caller == parent;
     SlackUserModel.upsertUser(
-      slackUserCache,
+      slackUsers,
       {
         slackUserId;
         displayName;
         isPrimaryOwner;
         isOrgAdmin;
+        isBot;
         workspaceMemberships = Map.empty<Nat, SlackUserModel.WorkspaceChannelFlags>();
       },
+      #manual,
     );
+  };
+
+  /// Seed a workspace channel membership for a user in the persistent state.
+  /// The user must already exist in the cache (seed via seedSlackUser first).
+  public shared ({ caller }) func seedWorkspaceMembership(
+    slackUserId : Text,
+    workspaceId : Nat,
+    slot : { #admin; #member },
+  ) : async () {
+    assert caller == parent;
+    switch (slot) {
+      case (#admin) {
+        ignore SlackUserModel.joinAdminChannel(slackUsers, slackUserId, workspaceId, #manual);
+      };
+      case (#member) {
+        ignore SlackUserModel.joinMemberChannel(slackUsers, slackUserId, workspaceId, #manual);
+      };
+    };
   };
 
   /// Run the weekly reconciliation service against the shared test cache and
@@ -495,7 +571,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     };
     await WeeklyReconciliationService.run(
       token,
-      slackUserCache,
+      slackUsers,
       testWorkspacesState,
       orgAdminChannel,
     );
