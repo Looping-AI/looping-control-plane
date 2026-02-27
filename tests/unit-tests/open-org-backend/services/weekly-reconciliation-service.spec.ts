@@ -113,7 +113,7 @@ async function mockSequentialResponses(
 ): Promise<unknown> {
   await pic.tick(5);
 
-  for (const body of responses) {
+  for (let i = 0; i < responses.length; i++) {
     const pending = await pic.getPendingHttpsOutcalls();
     if (pending.length === 0) break;
 
@@ -125,10 +125,20 @@ async function mockSequentialResponses(
         type: "success",
         statusCode: 200,
         headers: [],
-        body: new TextEncoder().encode(JSON.stringify(body)),
+        body: new TextEncoder().encode(JSON.stringify(responses[i])),
       },
     });
     await pic.tick(5);
+  }
+
+  // Assert that the canister has no remaining outcalls after all mocked
+  // responses have been consumed, to catch cases where it makes more calls
+  // than the test expects.
+  const remaining = await pic.getPendingHttpsOutcalls();
+  if (remaining.length > 0) {
+    throw new Error(
+      `mockSequentialResponses: ${remaining.length} unexpected pending HTTPS outcall(s) remain after consuming all ${responses.length} mocked responses.`,
+    );
   }
 
   return call();
