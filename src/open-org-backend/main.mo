@@ -96,27 +96,27 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Clear Cache Timer function
   private func clearKeyCacheTimer() : async () {
-    keyCache := KeyDerivationService.clearCache();
-    lastClearTimestamp := Time.now();
-
-    // Start the regular recurring timer for future intervals
-    ignore Timer.recurringTimer<system>(
+    // Reschedule before doing work so the timer survives a trap
+    ignore Timer.setTimer<system>(
       #nanoseconds(Constants.THIRTY_DAYS_NS),
       clearKeyCacheTimer,
     );
+
+    keyCache := KeyDerivationService.clearCache();
+    lastClearTimestamp := Time.now();
   };
 
   // Metric Datapoints Retention Cleanup Timer
   // Runs monthly to purge datapoints older than their metric's retention period
   private func metricRetentionCleanupTimer() : async () {
-    ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
-    lastRetentionCleanupTimestamp := Time.now();
-
-    // Start the regular recurring timer for future intervals
-    ignore Timer.recurringTimer<system>(
+    // Reschedule before doing work so the timer survives a trap
+    ignore Timer.setTimer<system>(
       #nanoseconds(Constants.THIRTY_DAYS_NS),
       metricRetentionCleanupTimer,
     );
+
+    ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
+    lastRetentionCleanupTimestamp := Time.now();
   };
 
   // Register HTTP paths that skip response verification
@@ -147,6 +147,12 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   //   2. Purge old processed events (> 7 days)
   //   3. Purge old failed events (> 30 days)
   private func processedEventsCleanupTimer() : async () {
+    // Reschedule before doing work so the timer survives a trap
+    ignore Timer.setTimer<system>(
+      #nanoseconds(Constants.SEVEN_DAYS_NS),
+      processedEventsCleanupTimer,
+    );
+
     // 1. Detect and fail stale unprocessed events (enqueuedAt > 1 hour ago)
     let staleIds = EventStoreModel.failStaleUnprocessed(eventStore);
     if (staleIds.size() > 0) {
@@ -167,12 +173,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     ignore EventStoreModel.purgeOldFailed(eventStore);
 
     lastProcessedCleanupTimestamp := Time.now();
-
-    // Reschedule for next interval
-    ignore Timer.recurringTimer<system>(
-      #nanoseconds(Constants.SEVEN_DAYS_NS),
-      processedEventsCleanupTimer,
-    );
   };
 
   // Weekly Reconciliation Timer
@@ -181,6 +181,12 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // channel anchors. Notifies admins / the Primary Owner about any channels that have
   // gone missing since the last run.
   private func weeklyReconciliationTimer() : async () {
+    // Reschedule before doing work so the timer survives a trap
+    ignore Timer.setTimer<system>(
+      #nanoseconds(Constants.SEVEN_DAYS_NS),
+      weeklyReconciliationTimer,
+    );
+
     // Resolve the bot token from workspace 0 secrets (global Slack integration secret).
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
     let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
@@ -193,43 +199,17 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         );
       };
       case (?token) {
-        let summary = await WeeklyReconciliationService.run(
+        // Ignore summary since service already has logging
+        ignore await WeeklyReconciliationService.run(
           token,
           slackUsers,
           workspaces,
           orgAdminChannel,
         );
-        if (summary.errors.size() > 0) {
-          Logger.log(
-            #warn,
-            ?"WeeklyReconciliation",
-            "Reconciliation finished with " # Nat.toText(summary.errors.size()) # " error(s).",
-          );
-        };
-        if (summary.staleUsersRemoved.size() > 0) {
-          Logger.log(
-            #info,
-            ?"WeeklyReconciliation",
-            "Stale users removed: " # Nat.toText(summary.staleUsersRemoved.size()),
-          );
-        };
-        if (summary.logsPurged > 0) {
-          Logger.log(
-            #info,
-            ?"WeeklyReconciliation",
-            "Access log entries purged: " # Nat.toText(summary.logsPurged),
-          );
-        };
       };
     };
 
     lastWeeklyReconciliationTimestamp := Time.now();
-
-    // Reschedule for next interval
-    ignore Timer.recurringTimer<system>(
-      #nanoseconds(Constants.SEVEN_DAYS_NS),
-      weeklyReconciliationTimer,
-    );
   };
 
   // ============================================
