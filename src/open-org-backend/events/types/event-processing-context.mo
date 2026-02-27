@@ -50,8 +50,8 @@ module {
     metricsRegistry : MetricModel.MetricsRegistryState;
     /// Org-level metric datapoints store
     metricDatapoints : MetricModel.MetricDatapointsStore;
-    /// Slack user cache — handlers for membership events mutate this directly
-    slackUsers : SlackUserModel.SlackUserCache;
+    /// Slack user state (cache + access change log) — handlers for membership events mutate this directly
+    slackUsers : SlackUserModel.SlackUserState;
     /// Workspace channel anchors — used to resolve channel IDs to workspace scopes
     workspaces : WorkspaceModel.WorkspacesState;
   };

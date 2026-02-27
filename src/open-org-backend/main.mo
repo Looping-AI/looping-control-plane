@@ -52,8 +52,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var workspaceAgents = Map.fromArray<Nat, AgentModel.WorkspaceAgentsState>([(0, AgentModel.emptyWorkspaceState())], Nat.compare);
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
-  // Slack user cache (Slack user ID → SlackUserEntry with org roles and workspace memberships)
-  var slackUsers = SlackUserModel.empty();
+  // Slack user state (cache: Slack user ID → SlackUserEntry; changeLog: audit trail)
+  var slackUsers = SlackUserModel.emptyState();
 
   // Workspace channel anchors (workspace ID → WorkspaceRecord with admin/member Slack channel IDs)
   var workspaces = WorkspaceModel.emptyState();

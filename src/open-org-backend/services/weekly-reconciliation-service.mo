@@ -72,13 +72,13 @@ module {
   /// - Users in `freshMemberIds` → `isOrgAdmin = true`.
   /// - Cached users with `isOrgAdmin = true` that are NOT in `freshMemberIds` → cleared.
   private func syncOrgAdminMembership(
-    slackUsers : SlackUserModel.SlackUserCache,
+    slackUsers : SlackUserModel.SlackUserState,
     freshMemberIds : [Text],
   ) {
     let freshSet = makeIdSet(freshMemberIds);
 
     // Clear isOrgAdmin for users no longer in the channel
-    for (entry in Map.values(slackUsers)) {
+    for (entry in Map.values(slackUsers.cache)) {
       if (entry.isOrgAdmin) {
         if (Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
           SlackUserModel.upsertUser(
@@ -88,8 +88,10 @@ module {
               displayName = entry.displayName;
               isPrimaryOwner = entry.isPrimaryOwner;
               isOrgAdmin = false;
+              isBot = entry.isBot;
               workspaceMemberships = entry.workspaceMemberships;
             },
+            #reconciliation,
           );
         };
       };
@@ -97,7 +99,7 @@ module {
 
     // Grant isOrgAdmin for current channel members
     for (memberId in freshMemberIds.vals()) {
-      switch (SlackUserModel.lookupUser(slackUsers, memberId)) {
+      switch (SlackUserModel.lookupUser(slackUsers.cache, memberId)) {
         case (null) {
           // User not yet in cache — will be added by users.list sync or next team_join event.
           Logger.log(
@@ -115,8 +117,10 @@ module {
                 displayName = entry.displayName;
                 isPrimaryOwner = entry.isPrimaryOwner;
                 isOrgAdmin = true;
+                isBot = entry.isBot;
                 workspaceMemberships = entry.workspaceMemberships;
               },
+              #reconciliation,
             );
           };
         };
@@ -130,7 +134,7 @@ module {
   /// - Cached users with the flag set but absent from `freshMemberIds` → flag cleared.
   /// - IDs in `freshMemberIds` that are in the cache → flag set.
   private func syncWorkspaceChannelMembership(
-    slackUsers : SlackUserModel.SlackUserCache,
+    slackUsers : SlackUserModel.SlackUserState,
     workspaceId : Nat,
     freshMemberIds : [Text],
     slot : { #admin; #member },
@@ -138,7 +142,7 @@ module {
     let freshSet = makeIdSet(freshMemberIds);
 
     // Clear the flag for users no longer in this channel
-    for (entry in Map.values(slackUsers)) {
+    for (entry in Map.values(slackUsers.cache)) {
       switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
         case (null) {};
         case (?flags) {
@@ -149,10 +153,10 @@ module {
           if (hasFlag and Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
             switch (slot) {
               case (#admin) {
-                ignore SlackUserModel.leaveAdminChannel(slackUsers, entry.slackUserId, workspaceId);
+                ignore SlackUserModel.leaveAdminChannel(slackUsers, entry.slackUserId, workspaceId, #reconciliation);
               };
               case (#member) {
-                ignore SlackUserModel.leaveMemberChannel(slackUsers, entry.slackUserId, workspaceId);
+                ignore SlackUserModel.leaveMemberChannel(slackUsers, entry.slackUserId, workspaceId, #reconciliation);
               };
             };
           };
@@ -162,7 +166,7 @@ module {
 
     // Grant the flag for fresh members that are already in the cache
     for (memberId in freshMemberIds.vals()) {
-      switch (SlackUserModel.lookupUser(slackUsers, memberId)) {
+      switch (SlackUserModel.lookupUser(slackUsers.cache, memberId)) {
         case (null) {
           Logger.log(
             #warn,
@@ -173,10 +177,10 @@ module {
         case (?_) {
           switch (slot) {
             case (#admin) {
-              ignore SlackUserModel.joinAdminChannel(slackUsers, memberId, workspaceId);
+              ignore SlackUserModel.joinAdminChannel(slackUsers, memberId, workspaceId, #reconciliation);
             };
             case (#member) {
-              ignore SlackUserModel.joinMemberChannel(slackUsers, memberId, workspaceId);
+              ignore SlackUserModel.joinMemberChannel(slackUsers, memberId, workspaceId, #reconciliation);
             };
           };
         };
@@ -191,13 +195,13 @@ module {
   /// Run the full weekly reconciliation.
   ///
   /// @param token          Decrypted Slack bot token (xoxb-...)
-  /// @param slackUsers     Slack user cache (mutated in-place)
+  /// @param slackUsers     Slack user state (mutated in-place; changes are auto-logged)
   /// @param workspaces     Workspace registry (read-only during reconciliation)
   /// @param orgAdminChannel  Org-admin channel anchor (may be null if not yet configured)
   /// @returns Summary of what was refreshed/synced and any errors encountered
   public func run(
     token : Text,
-    slackUsers : SlackUserModel.SlackUserCache,
+    slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
     orgAdminChannel : ?WorkspaceModel.OrgAdminChannelAnchor,
   ) : async ReconciliationSummary {
@@ -225,7 +229,7 @@ module {
       case (#ok(allUsers)) {
         for (user in allUsers.vals()) {
           // Preserve existing isOrgAdmin and workspaceMemberships — only refresh top-level fields.
-          let (isOrgAdmin, workspaceMemberships) = switch (SlackUserModel.lookupUser(slackUsers, user.id)) {
+          let (isOrgAdmin, workspaceMemberships) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
             case (null) {
               (false, Map.empty<Nat, SlackUserModel.WorkspaceChannelFlags>());
             };
@@ -240,8 +244,10 @@ module {
               displayName = user.name;
               isPrimaryOwner = user.isPrimaryOwner;
               isOrgAdmin;
+              isBot = false; // Will be populated from Slack wrapper in Phase 3
               workspaceMemberships;
             },
+            #reconciliation,
           );
           usersRefreshed += 1;
         };
@@ -279,7 +285,7 @@ module {
             //       Primary Owner through re-anchoring the org admin channel via
             //       an interactive Slack flow (Phase 6). The DM below is the
             //       interim notification until that infrastructure exists.
-            switch (findPrimaryOwner(slackUsers)) {
+            switch (findPrimaryOwner(slackUsers.cache)) {
               case (null) {
                 let msg = "Org admin channel gone and Primary Owner not found in cache — cannot send recovery DM.";
                 Logger.log(#warn, ?"WeeklyReconciliation", msg);
