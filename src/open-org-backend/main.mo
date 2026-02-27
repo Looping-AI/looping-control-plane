@@ -206,6 +206,20 @@ persistent actor class OpenOrgBackend(owner : Principal) {
             "Reconciliation finished with " # Nat.toText(summary.errors.size()) # " error(s).",
           );
         };
+        if (summary.staleUsersRemoved.size() > 0) {
+          Logger.log(
+            #info,
+            ?"WeeklyReconciliation",
+            "Stale users removed: " # Nat.toText(summary.staleUsersRemoved.size()),
+          );
+        };
+        if (summary.logsPurged > 0) {
+          Logger.log(
+            #info,
+            ?"WeeklyReconciliation",
+            "Access log entries purged: " # Nat.toText(summary.logsPurged),
+          );
+        };
       };
     };
 

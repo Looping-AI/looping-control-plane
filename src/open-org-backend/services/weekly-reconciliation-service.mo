@@ -1,15 +1,20 @@
 /// Weekly Reconciliation Service
 /// Runs on Sundays to sync the Slack user cache and verify all tracked channel anchors.
 ///
-/// Full sweep (two parts):
+/// Full sweep (three parts):
 ///
 /// 1. **User refresh** — calls `users.list` and upserts every org member into the
-///    SlackUserCache, preserving existing `isOrgAdmin` and `workspaceMemberships`
-///    flags while refreshing `displayName`, `isPrimaryOwner`, etc.
+///    SlackUserState, preserving existing `isOrgAdmin` and `workspaceMemberships`
+///    flags while refreshing `displayName`, `isPrimaryOwner`, `isBot`, etc.
+///    After the upsert loop, any users still in the cache but **absent** from the
+///    fresh `users.list` are removed as stale (deleted/deactivated in Slack).
 ///
-/// 2. **Channel sync** — for every tracked channel anchor (org admin, workspace admin,
+/// 2. **Org admin channel sync** — fetches the live member list of the org admin
+///    channel and reconciles the `isOrgAdmin` flag.
+///
+/// 3. **Workspace channel sync** — for every tracked channel anchor (workspace admin,
 ///    workspace member), fetches the live member list from Slack and reconciles the
-///    corresponding flags in the SlackUserCache:
+///    corresponding flags in the SlackUserState:
 ///      - Users still in the channel keep (or gain) the flag.
 ///      - Users who have left the channel lose the flag (guard against missed events).
 ///
@@ -18,14 +23,23 @@
 ///       TODO: When the Task system is implemented (Phase 2+), replace the DM with a
 ///             Task of type #orgAdminChannelRecovery that guides the Primary Owner
 ///             through re-anchoring. The postMessage here is the interim workaround.
-///   - **Workspace admin channel gone**: notify `#looping-ai-org-admins`.
+///   - **Workspace admin channel gone**: notify `#looping-ai-org-admins` (only if
+///       the org admin channel is still accessible).
 ///   - **Workspace member channel gone**: notify the workspace's admin channel
-///     (or fall back to the org admin channel if no admin channel is configured).
+///     (or fall back to the org admin channel if no admin channel is configured,
+///      and only if the target channel is still accessible).
+///
+/// At the end, access change log entries older than the retention period are purged.
+/// The reconciliation summary includes audit-oriented fields derived from the change
+/// log entries produced during this run (source == #reconciliation).
 
 import Text "mo:core/Text";
-import Array "mo:core/Array";
+import Iter "mo:core/Iter";
+import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Time "mo:core/Time";
+import Constants "../constants";
 import SlackUserModel "../models/slack-user-model";
 import WorkspaceModel "../models/workspace-model";
 import SlackWrapper "../wrappers/slack-wrapper";
@@ -37,13 +51,31 @@ module {
   // Types
   // ============================================
 
-  /// Summary returned after a reconciliation run — useful for logging and tests.
+  /// A workspace-scoped access change entry for the reconciliation summary.
+  public type WorkspaceScopeChange = {
+    slackUserId : Text;
+    workspaceId : Nat;
+    changeType : {
+      #adminGranted;
+      #adminRevoked;
+      #memberGranted;
+      #memberRevoked;
+    };
+  };
+
+  /// Summary returned after a reconciliation run — useful for logging, tests, and auditing.
   public type ReconciliationSummary = {
     usersRefreshed : Nat;
     orgAdminChannelOk : Bool;
     workspacesChecked : Nat;
-    goneChannels : [Text]; // Channel IDs that could not be read from Slack
-    errors : [Text]; // Non-fatal errors (e.g. failed DMs)
+    goneChannels : [Text];
+    errors : [Text];
+    // Audit fields — derived from access change log entries produced during this run
+    orgAdminsGranted : [Text];
+    orgAdminsRevoked : [Text];
+    workspaceScopeChanges : [WorkspaceScopeChange];
+    staleUsersRemoved : [Text];
+    logsPurged : Nat;
   };
 
   // ============================================
@@ -51,8 +83,8 @@ module {
   // ============================================
 
   /// Find the Primary Owner's Slack user ID from the cache.
-  private func findPrimaryOwner(slackUsers : SlackUserModel.SlackUserCache) : ?Text {
-    for (entry in Map.values(slackUsers)) {
+  private func findPrimaryOwner(cache : SlackUserModel.SlackUserCache) : ?Text {
+    for (entry in Map.values(cache)) {
       if (entry.isPrimaryOwner) { return ?entry.slackUserId };
     };
     null;
@@ -69,18 +101,30 @@ module {
 
   /// Reconcile the `isOrgAdmin` flag for all cached users against a fresh member list.
   ///
-  /// - Users in `freshMemberIds` → `isOrgAdmin = true`.
+  /// Uses collect-then-apply to avoid mutating the cache during iteration.
   /// - Cached users with `isOrgAdmin = true` that are NOT in `freshMemberIds` → cleared.
+  /// - Users in `freshMemberIds` → `isOrgAdmin = true`.
   private func syncOrgAdminMembership(
     slackUsers : SlackUserModel.SlackUserState,
     freshMemberIds : [Text],
   ) {
     let freshSet = makeIdSet(freshMemberIds);
 
-    // Clear isOrgAdmin for users no longer in the channel
+    // Phase 1: Collect IDs whose isOrgAdmin must be cleared
+    let toRevoke = List.empty<Text>();
     for (entry in Map.values(slackUsers.cache)) {
       if (entry.isOrgAdmin) {
         if (Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
+          List.add(toRevoke, entry.slackUserId);
+        };
+      };
+    };
+
+    // Phase 2: Apply revocations
+    for (userId in List.values(toRevoke)) {
+      switch (SlackUserModel.lookupUser(slackUsers.cache, userId)) {
+        case (null) {};
+        case (?entry) {
           SlackUserModel.upsertUser(
             slackUsers,
             {
@@ -97,11 +141,10 @@ module {
       };
     };
 
-    // Grant isOrgAdmin for current channel members
+    // Phase 3: Grant isOrgAdmin for current channel members
     for (memberId in freshMemberIds.vals()) {
       switch (SlackUserModel.lookupUser(slackUsers.cache, memberId)) {
         case (null) {
-          // User not yet in cache — will be added by users.list sync or next team_join event.
           Logger.log(
             #warn,
             ?"WeeklyReconciliation",
@@ -131,6 +174,7 @@ module {
   /// Reconcile the `inAdminChannel` or `inMemberChannel` flag for a specific workspace
   /// against a fresh member list obtained from Slack.
   ///
+  /// Uses collect-then-apply to avoid mutating the cache during iteration.
   /// - Cached users with the flag set but absent from `freshMemberIds` → flag cleared.
   /// - IDs in `freshMemberIds` that are in the cache → flag set.
   private func syncWorkspaceChannelMembership(
@@ -141,7 +185,8 @@ module {
   ) {
     let freshSet = makeIdSet(freshMemberIds);
 
-    // Clear the flag for users no longer in this channel
+    // Phase 1: Collect IDs whose channel flag must be cleared
+    let toRevoke = List.empty<Text>();
     for (entry in Map.values(slackUsers.cache)) {
       switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
         case (null) {};
@@ -151,20 +196,25 @@ module {
             case (#member) { flags.inMemberChannel };
           };
           if (hasFlag and Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
-            switch (slot) {
-              case (#admin) {
-                ignore SlackUserModel.leaveAdminChannel(slackUsers, entry.slackUserId, workspaceId, #reconciliation);
-              };
-              case (#member) {
-                ignore SlackUserModel.leaveMemberChannel(slackUsers, entry.slackUserId, workspaceId, #reconciliation);
-              };
-            };
+            List.add(toRevoke, entry.slackUserId);
           };
         };
       };
     };
 
-    // Grant the flag for fresh members that are already in the cache
+    // Phase 2: Apply revocations
+    for (userId in List.values(toRevoke)) {
+      switch (slot) {
+        case (#admin) {
+          ignore SlackUserModel.leaveAdminChannel(slackUsers, userId, workspaceId, #reconciliation);
+        };
+        case (#member) {
+          ignore SlackUserModel.leaveMemberChannel(slackUsers, userId, workspaceId, #reconciliation);
+        };
+      };
+    };
+
+    // Phase 3: Grant the flag for fresh members that are already in the cache
     for (memberId in freshMemberIds.vals()) {
       switch (SlackUserModel.lookupUser(slackUsers.cache, memberId)) {
         case (null) {
@@ -188,6 +238,58 @@ module {
     };
   };
 
+  /// Build audit-oriented summary fields from access change log entries produced
+  /// during this run (source == #reconciliation, timestamp >= runStartTime).
+  private func buildAuditSummary(
+    slackUsers : SlackUserModel.SlackUserState,
+    runStartTime : Int,
+  ) : {
+    orgAdminsGranted : [Text];
+    orgAdminsRevoked : [Text];
+    workspaceScopeChanges : [WorkspaceScopeChange];
+    staleUsersRemoved : [Text];
+  } {
+    let orgGranted = List.empty<Text>();
+    let orgRevoked = List.empty<Text>();
+    let scopeChanges = List.empty<WorkspaceScopeChange>();
+    let staleRemoved = List.empty<Text>();
+
+    let entries = SlackUserModel.getLogsSince(slackUsers, runStartTime);
+    for (entry in entries.vals()) {
+      // Only include entries from this reconciliation run
+      switch (entry.source) {
+        case (#reconciliation) {
+          switch (entry.changeType) {
+            case (#orgAdminGranted) { List.add(orgGranted, entry.slackUserId) };
+            case (#orgAdminRevoked) { List.add(orgRevoked, entry.slackUserId) };
+            case (#userRemoved) { List.add(staleRemoved, entry.slackUserId) };
+            case (#workspaceAdminGranted(wsId)) {
+              List.add(scopeChanges, { slackUserId = entry.slackUserId; workspaceId = wsId; changeType = #adminGranted });
+            };
+            case (#workspaceAdminRevoked(wsId)) {
+              List.add(scopeChanges, { slackUserId = entry.slackUserId; workspaceId = wsId; changeType = #adminRevoked });
+            };
+            case (#workspaceMemberGranted(wsId)) {
+              List.add(scopeChanges, { slackUserId = entry.slackUserId; workspaceId = wsId; changeType = #memberGranted });
+            };
+            case (#workspaceMemberRevoked(wsId)) {
+              List.add(scopeChanges, { slackUserId = entry.slackUserId; workspaceId = wsId; changeType = #memberRevoked });
+            };
+            case (_) {}; // #userAdded, #primaryOwnerGranted/Revoked — not included in these summary fields
+          };
+        };
+        case (_) {}; // ignore non-reconciliation entries
+      };
+    };
+
+    {
+      orgAdminsGranted = List.toArray(orgGranted);
+      orgAdminsRevoked = List.toArray(orgRevoked);
+      workspaceScopeChanges = List.toArray(scopeChanges);
+      staleUsersRemoved = List.toArray(staleRemoved);
+    };
+  };
+
   // ============================================
   // Public — Main Entry Point
   // ============================================
@@ -205,11 +307,12 @@ module {
     workspaces : WorkspaceModel.WorkspacesState,
     orgAdminChannel : ?WorkspaceModel.OrgAdminChannelAnchor,
   ) : async ReconciliationSummary {
+    let runStartTime = Time.now();
     var usersRefreshed : Nat = 0;
     var orgAdminChannelOk : Bool = true;
     var workspacesChecked : Nat = 0;
-    var goneChannels : [Text] = [];
-    var errors : [Text] = [];
+    let goneChannels = List.empty<Text>();
+    let errors = List.empty<Text>();
 
     Logger.log(#info, ?"WeeklyReconciliation", "Starting weekly reconciliation...");
 
@@ -224,9 +327,24 @@ module {
           workspacesChecked = 0;
           goneChannels = [];
           errors = [msg];
+          orgAdminsGranted = [];
+          orgAdminsRevoked = [];
+          workspaceScopeChanges = [];
+          staleUsersRemoved = [];
+          logsPurged = 0;
         };
       };
       case (#ok(allUsers)) {
+        // Build a set of all IDs from users.list for stale user pruning later
+        let freshUserIds = makeIdSet(
+          Iter.toArray(
+            Iter.map<SlackWrapper.SlackUser, Text>(
+              allUsers.vals(),
+              func(u) { u.id },
+            )
+          )
+        );
+
         for (user in allUsers.vals()) {
           // Preserve existing isOrgAdmin and workspaceMemberships — only refresh top-level fields.
           let (isOrgAdmin, workspaceMemberships) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
@@ -244,13 +362,34 @@ module {
               displayName = user.name;
               isPrimaryOwner = user.isPrimaryOwner;
               isOrgAdmin;
-              isBot = false; // Will be populated from Slack wrapper in Phase 3
+              isBot = user.isBot;
               workspaceMemberships;
             },
             #reconciliation,
           );
           usersRefreshed += 1;
         };
+
+        // Prune stale users: anyone in cache but absent from users.list
+        // Collect first to avoid mutation-during-iteration.
+        let staleIds = List.empty<Text>();
+        for (entry in Map.values(slackUsers.cache)) {
+          if (Map.get(freshUserIds, Text.compare, entry.slackUserId) == null) {
+            List.add(staleIds, entry.slackUserId);
+          };
+        };
+        for (id in List.values(staleIds)) {
+          ignore SlackUserModel.removeUser(slackUsers, id, #reconciliation);
+        };
+        let staleCount = List.size(staleIds);
+        if (staleCount > 0) {
+          Logger.log(
+            #info,
+            ?"WeeklyReconciliation",
+            "Removed " # Nat.toText(staleCount) # " stale user(s) from cache.",
+          );
+        };
+
         Logger.log(
           #info,
           ?"WeeklyReconciliation",
@@ -272,7 +411,7 @@ module {
         switch (await SlackWrapper.getChannelMembers(token, anchor.channelId)) {
           case (#err(e)) {
             orgAdminChannelOk := false;
-            goneChannels := Array.concat(goneChannels, [anchor.channelId]);
+            List.add(goneChannels, anchor.channelId);
             Logger.log(
               #error,
               ?"WeeklyReconciliation",
@@ -289,7 +428,7 @@ module {
               case (null) {
                 let msg = "Org admin channel gone and Primary Owner not found in cache — cannot send recovery DM.";
                 Logger.log(#warn, ?"WeeklyReconciliation", msg);
-                errors := Array.concat(errors, [msg]);
+                List.add(errors, msg);
               };
               case (?ownerId) {
                 let dmText = ":warning: *Looping AI — Org Admin Channel Issue*\n\n" #
@@ -301,7 +440,7 @@ module {
                   case (#err(e2)) {
                     let msg = "Failed to DM Primary Owner about org admin channel issue: " # e2;
                     Logger.log(#error, ?"WeeklyReconciliation", msg);
-                    errors := Array.concat(errors, [msg]);
+                    List.add(errors, msg);
                   };
                   case (#ok(_)) {
                     Logger.log(
@@ -337,37 +476,46 @@ module {
         case (?adminChanId) {
           switch (await SlackWrapper.getChannelMembers(token, adminChanId)) {
             case (#err(e)) {
-              goneChannels := Array.concat(goneChannels, [adminChanId]);
+              List.add(goneChannels, adminChanId);
               Logger.log(
                 #error,
                 ?"WeeklyReconciliation",
                 "Workspace " # Nat.toText(ws.id) # " (" # ws.name # ") admin channel gone " #
                 "(channelId: " # adminChanId # "): " # e,
               );
-              // Notify org admin channel
-              switch (orgAdminChannel) {
-                case (null) {
-                  Logger.log(
-                    #warn,
-                    ?"WeeklyReconciliation",
-                    "No org admin channel configured to notify about gone admin channel " #
-                    "for workspace " # Nat.toText(ws.id) # " (" # ws.name # ").",
-                  );
-                };
-                case (?anchor) {
-                  let notifyText = ":warning: *Looping AI — Workspace Admin Channel Issue*\n\n" #
-                  "The admin channel for workspace *" # ws.name # "* " #
-                  "(ID: `" # adminChanId # "`) is no longer accessible.\n\n" #
-                  "Please assign a new admin channel for this workspace, or request workspace deletion.";
-                  switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null)) {
-                    case (#err(e2)) {
-                      let msg = "Failed to notify org admin channel about gone workspace admin channel: " # e2;
-                      Logger.log(#error, ?"WeeklyReconciliation", msg);
-                      errors := Array.concat(errors, [msg]);
+              // Notify org admin channel only if it's still accessible
+              if (orgAdminChannelOk) {
+                switch (orgAdminChannel) {
+                  case (null) {
+                    Logger.log(
+                      #warn,
+                      ?"WeeklyReconciliation",
+                      "No org admin channel configured to notify about gone admin channel " #
+                      "for workspace " # Nat.toText(ws.id) # " (" # ws.name # ").",
+                    );
+                  };
+                  case (?anchor) {
+                    let notifyText = ":warning: *Looping AI — Workspace Admin Channel Issue*\n\n" #
+                    "The admin channel for workspace *" # ws.name # "* " #
+                    "(ID: `" # adminChanId # "`) is no longer accessible.\n\n" #
+                    "Please assign a new admin channel for this workspace, or request workspace deletion.";
+                    switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null)) {
+                      case (#err(e2)) {
+                        let msg = "Failed to notify org admin channel about gone workspace admin channel: " # e2;
+                        Logger.log(#error, ?"WeeklyReconciliation", msg);
+                        List.add(errors, msg);
+                      };
+                      case (#ok(_)) {};
                     };
-                    case (#ok(_)) {};
                   };
                 };
+              } else {
+                Logger.log(
+                  #warn,
+                  ?"WeeklyReconciliation",
+                  "Skipping notification for gone admin channel (workspace " # Nat.toText(ws.id) #
+                  ") — org admin channel is also inaccessible.",
+                );
               };
             };
             case (#ok(freshMembers)) {
@@ -383,7 +531,7 @@ module {
         case (?memberChanId) {
           switch (await SlackWrapper.getChannelMembers(token, memberChanId)) {
             case (#err(e)) {
-              goneChannels := Array.concat(goneChannels, [memberChanId]);
+              List.add(goneChannels, memberChanId);
               Logger.log(
                 #error,
                 ?"WeeklyReconciliation",
@@ -401,37 +549,46 @@ module {
                     case (#err(e2)) {
                       let msg = "Failed to notify workspace admin channel about gone member channel: " # e2;
                       Logger.log(#error, ?"WeeklyReconciliation", msg);
-                      errors := Array.concat(errors, [msg]);
+                      List.add(errors, msg);
                     };
                     case (#ok(_)) {};
                   };
                 };
                 case (null) {
-                  // No workspace admin channel — fall back to org admin channel
-                  switch (orgAdminChannel) {
-                    case (null) {
-                      Logger.log(
-                        #warn,
-                        ?"WeeklyReconciliation",
-                        "Neither workspace admin channel nor org admin channel available to notify " #
-                        "about gone member channel for workspace " # Nat.toText(ws.id) # " (" # ws.name # ").",
-                      );
-                    };
-                    case (?anchor) {
-                      let notifyText = ":warning: *Looping AI — Workspace Member Channel Issue*\n\n" #
-                      "The member channel for workspace *" # ws.name # "* " #
-                      "(ID: `" # memberChanId # "`) is no longer accessible, " #
-                      "and no admin channel is configured for this workspace.\n\n" #
-                      "Please assign a new member channel or admin channel for workspace *" # ws.name # "*.";
-                      switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null)) {
-                        case (#err(e2)) {
-                          let msg = "Failed to notify org admin channel about gone member channel: " # e2;
-                          Logger.log(#error, ?"WeeklyReconciliation", msg);
-                          errors := Array.concat(errors, [msg]);
+                  // No workspace admin channel — fall back to org admin channel (only if accessible)
+                  if (orgAdminChannelOk) {
+                    switch (orgAdminChannel) {
+                      case (null) {
+                        Logger.log(
+                          #warn,
+                          ?"WeeklyReconciliation",
+                          "Neither workspace admin channel nor org admin channel available to notify " #
+                          "about gone member channel for workspace " # Nat.toText(ws.id) # " (" # ws.name # ").",
+                        );
+                      };
+                      case (?anchor) {
+                        let notifyText = ":warning: *Looping AI — Workspace Member Channel Issue*\n\n" #
+                        "The member channel for workspace *" # ws.name # "* " #
+                        "(ID: `" # memberChanId # "`) is no longer accessible, " #
+                        "and no admin channel is configured for this workspace.\n\n" #
+                        "Please assign a new member channel or admin channel for workspace *" # ws.name # "*.";
+                        switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null)) {
+                          case (#err(e2)) {
+                            let msg = "Failed to notify org admin channel about gone member channel: " # e2;
+                            Logger.log(#error, ?"WeeklyReconciliation", msg);
+                            List.add(errors, msg);
+                          };
+                          case (#ok(_)) {};
                         };
-                        case (#ok(_)) {};
                       };
                     };
+                  } else {
+                    Logger.log(
+                      #warn,
+                      ?"WeeklyReconciliation",
+                      "Skipping notification for gone member channel (workspace " # Nat.toText(ws.id) #
+                      ") — org admin channel is also inaccessible.",
+                    );
                   };
                 };
               };
@@ -444,21 +601,40 @@ module {
       };
     };
 
+    // ---- Step 4: Purge old access change log entries ----
+    let logsPurged = SlackUserModel.purgeOldLogs(slackUsers, Constants.ACCESS_LOG_RETENTION_NS);
+    if (logsPurged > 0) {
+      Logger.log(
+        #info,
+        ?"WeeklyReconciliation",
+        "Purged " # Nat.toText(logsPurged) # " old access change log entries.",
+      );
+    };
+
+    // ---- Build audit summary from log entries produced during this run ----
+    let audit = buildAuditSummary(slackUsers, runStartTime);
+
     Logger.log(
       #info,
       ?"WeeklyReconciliation",
       "Weekly reconciliation complete: " #
       Nat.toText(usersRefreshed) # " users refreshed, " #
       Nat.toText(workspacesChecked) # " workspaces checked, " #
-      Nat.toText(goneChannels.size()) # " gone channel(s).",
+      Nat.toText(List.size(goneChannels)) # " gone channel(s), " #
+      Nat.toText(audit.staleUsersRemoved.size()) # " stale user(s) removed.",
     );
 
     {
       usersRefreshed;
       orgAdminChannelOk;
       workspacesChecked;
-      goneChannels;
-      errors;
+      goneChannels = List.toArray(goneChannels);
+      errors = List.toArray(errors);
+      orgAdminsGranted = audit.orgAdminsGranted;
+      orgAdminsRevoked = audit.orgAdminsRevoked;
+      workspaceScopeChanges = audit.workspaceScopeChanges;
+      staleUsersRemoved = audit.staleUsersRemoved;
+      logsPurged;
     };
   };
 };
