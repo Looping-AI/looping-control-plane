@@ -32,6 +32,7 @@ import EventRouter "./events/event-router";
 import NormalizedEventTypes "./events/types/normalized-event-types";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
+import WeeklyReconciliationService "./services/weekly-reconciliation-service";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -72,6 +73,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Event store state (Slack events, per-event timer dispatch)
   var eventStore = EventStoreModel.empty();
   var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
+  var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
 
   // ============================================
   // Auth Helper
@@ -173,6 +175,49 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     );
   };
 
+  // Weekly Reconciliation Timer
+  // Runs every 7 days (aligned with Sunday if the first deployment happens on a Sunday).
+  // Performs a full users.list + conversations.members sweep and verifies all tracked
+  // channel anchors. Notifies admins / the Primary Owner about any channels that have
+  // gone missing since the last run.
+  private func weeklyReconciliationTimer() : async () {
+    // Resolve the bot token from workspace 0 secrets (global Slack integration secret).
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
+    switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
+      case (null) {
+        Logger.log(
+          #warn,
+          ?"WeeklyReconciliation",
+          "No Slack bot token found for workspace 0 — skipping weekly reconciliation.",
+        );
+      };
+      case (?token) {
+        let summary = await WeeklyReconciliationService.run(
+          token,
+          slackUsers,
+          workspaces,
+          orgAdminChannel,
+        );
+        if (summary.errors.size() > 0) {
+          Logger.log(
+            #warn,
+            ?"WeeklyReconciliation",
+            "Reconciliation finished with " # Nat.toText(summary.errors.size()) # " error(s).",
+          );
+        };
+      };
+    };
+
+    lastWeeklyReconciliationTimestamp := Time.now();
+
+    // Reschedule for next interval
+    ignore Timer.recurringTimer<system>(
+      #nanoseconds(Constants.SEVEN_DAYS_NS),
+      weeklyReconciliationTimer,
+    );
+  };
+
   // ============================================
   // Canister Init and Postupgrade
   // ============================================
@@ -199,6 +244,13 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   let _processedCleanupTimer = Timer.setTimer<system>(
     #nanoseconds(Constants.SEVEN_DAYS_NS),
     processedEventsCleanupTimer,
+  );
+
+  // This logic runs only on the VERY FIRST installation (init)
+  // Subsequent upgrades will wipe this timer and it won't be replaced
+  let _weeklyReconciliationTimer = Timer.setTimer<system>(
+    #nanoseconds(Constants.SEVEN_DAYS_NS),
+    weeklyReconciliationTimer,
   );
 
   // System hook called after every upgrade
@@ -231,6 +283,15 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       Nat.fromInt(Constants.SEVEN_DAYS_NS - cleanupElapsed);
     };
     ignore Timer.setTimer<system>(#nanoseconds(cleanupDelay), processedEventsCleanupTimer);
+
+    // Restart weekly reconciliation timer with remaining time
+    let reconciliationElapsed = now - lastWeeklyReconciliationTimestamp;
+    let reconciliationDelay : Nat = if (reconciliationElapsed >= Constants.SEVEN_DAYS_NS) {
+      0;
+    } else {
+      Nat.fromInt(Constants.SEVEN_DAYS_NS - reconciliationElapsed);
+    };
+    ignore Timer.setTimer<system>(#nanoseconds(reconciliationDelay), weeklyReconciliationTimer);
 
     // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()

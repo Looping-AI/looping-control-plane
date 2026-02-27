@@ -19,6 +19,7 @@ import NormalizedEventTypes "../../../src/open-org-backend/events/types/normaliz
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
 import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
+import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
 import MetricModel "../../../src/open-org-backend/models/metric-model";
@@ -447,6 +448,57 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         });
       };
     };
+  };
+
+  // ============================================
+  // Weekly Reconciliation Service Test Methods
+  // ============================================
+
+  /// Seed a single Slack user into the persistent cache for reconciliation tests.
+  public shared ({ caller }) func seedSlackUser(
+    slackUserId : Text,
+    displayName : Text,
+    isPrimaryOwner : Bool,
+    isOrgAdmin : Bool,
+  ) : async () {
+    assert caller == parent;
+    SlackUserModel.upsertUser(
+      slackUserCache,
+      {
+        slackUserId;
+        displayName;
+        isPrimaryOwner;
+        isOrgAdmin;
+        workspaceMemberships = Map.empty<Nat, SlackUserModel.WorkspaceChannelFlags>();
+      },
+    );
+  };
+
+  /// Run the weekly reconciliation service against the shared test cache and
+  /// the pre-seeded test workspace state.
+  ///
+  /// @param token               Decrypted Slack bot token (or mock value)
+  /// @param orgAdminChannelId   Optional org-admin channel ID
+  /// @param orgAdminChannelName Optional org-admin channel display name (required when ID is provided)
+  public shared ({ caller }) func testWeeklyReconciliation(
+    token : Text,
+    orgAdminChannelId : ?Text,
+    orgAdminChannelName : ?Text,
+  ) : async WeeklyReconciliationService.ReconciliationSummary {
+    assert caller == parent;
+    let orgAdminChannel : ?WorkspaceModel.OrgAdminChannelAnchor = switch (
+      orgAdminChannelId,
+      orgAdminChannelName,
+    ) {
+      case (?id, ?name) { ?{ channelId = id; channelName = name } };
+      case _ { null };
+    };
+    await WeeklyReconciliationService.run(
+      token,
+      slackUserCache,
+      testWorkspacesState,
+      orgAdminChannel,
+    );
   };
 
   // ============================================

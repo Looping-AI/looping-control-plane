@@ -61,7 +61,17 @@ async function compileToWasm(target: keyof typeof BUILD_TARGETS) {
 
     console.log(`Building ${config.name}...`);
     await $`${args}`.env({ ...process.env });
-    console.log(`✅ ${config.name} build completed successfully`);
+
+    // Gzip-compress the WASM in place. ICP natively accepts gzip-compressed
+    // WASMs, and this keeps the file well under PocketIC's 2 MB ingress limit.
+    const gzipped = new Uint8Array(
+      await $`gzip -c ${outputFile}`.arrayBuffer(),
+    );
+    await Bun.write(outputFile, gzipped);
+
+    console.log(
+      `✅ ${config.name} build completed successfully (gzip-compressed)`,
+    );
   } catch (error) {
     console.error(`❌ Failed to build ${BUILD_TARGETS[target].name}:`);
     console.error(error);
