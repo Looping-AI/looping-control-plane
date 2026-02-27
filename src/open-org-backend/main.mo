@@ -94,6 +94,39 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Timer Management
   // ============================================
 
+  // Timer registry — each entry defines a recurring timer with its interval,
+  // last-run timestamp reader, and callback. To add a new timer, append an
+  // entry here and create the corresponding callback + timestamp variable.
+  // Init and postupgrade iterate this list automatically.
+  private func timerRegistry() : [{
+    interval : Nat;
+    getLastRun : () -> Int;
+    callback : () -> async ();
+  }] {
+    [
+      {
+        interval = Constants.THIRTY_DAYS_NS;
+        getLastRun = func() : Int { lastClearTimestamp };
+        callback = clearKeyCacheTimer;
+      },
+      {
+        interval = Constants.THIRTY_DAYS_NS;
+        getLastRun = func() : Int { lastRetentionCleanupTimestamp };
+        callback = metricRetentionCleanupTimer;
+      },
+      {
+        interval = Constants.SEVEN_DAYS_NS;
+        getLastRun = func() : Int { lastProcessedCleanupTimestamp };
+        callback = processedEventsCleanupTimer;
+      },
+      {
+        interval = Constants.SEVEN_DAYS_NS;
+        getLastRun = func() : Int { lastWeeklyReconciliationTimestamp };
+        callback = weeklyReconciliationTimer;
+      },
+    ];
+  };
+
   // Clear Cache Timer function
   private func clearKeyCacheTimer() : async () {
     // Reschedule before doing work so the timer survives a trap
@@ -219,73 +252,24 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Certify HTTP endpoints on first install
   certifyHttpEndpoints();
 
-  // This logic runs only on the VERY FIRST installation (init)
-  // Subsequent upgrades will wipe this timer and it won't be replaced
-  let _initTimer = Timer.setTimer<system>(
-    #nanoseconds(Constants.THIRTY_DAYS_NS),
-    clearKeyCacheTimer,
-  );
-
-  // This logic runs only on the VERY FIRST installation (init)
-  // Subsequent upgrades will wipe this timer and it won't be replaced
-  let _retentionTimer = Timer.setTimer<system>(
-    #nanoseconds(Constants.THIRTY_DAYS_NS),
-    metricRetentionCleanupTimer,
-  );
-
-  // This logic runs only on the VERY FIRST installation (init)
-  // Subsequent upgrades will wipe this timer and it won't be replaced
-  let _processedCleanupTimer = Timer.setTimer<system>(
-    #nanoseconds(Constants.SEVEN_DAYS_NS),
-    processedEventsCleanupTimer,
-  );
-
-  // This logic runs only on the VERY FIRST installation (init)
-  // Subsequent upgrades will wipe this timer and it won't be replaced
-  let _weeklyReconciliationTimer = Timer.setTimer<system>(
-    #nanoseconds(Constants.SEVEN_DAYS_NS),
-    weeklyReconciliationTimer,
-  );
+  // Schedule all recurring timers on first install.
+  // Subsequent upgrades will wipe these timers; postupgrade re-creates them.
+  for (config in timerRegistry().vals()) {
+    ignore Timer.setTimer<system>(#nanoseconds(config.interval), config.callback);
+  };
 
   // System hook called after every upgrade
   system func postupgrade() {
     let now = Time.now();
 
-    // Restart cache clearing timer with remaining time
-    let cacheElapsed = now - lastClearTimestamp;
-    let cacheDelay : Nat = if (cacheElapsed >= Constants.THIRTY_DAYS_NS) {
-      0;
-    } else {
-      Nat.fromInt(Constants.THIRTY_DAYS_NS - cacheElapsed);
+    // Restart each recurring timer with its remaining time
+    for (config in timerRegistry().vals()) {
+      let elapsed = now - config.getLastRun();
+      let delay : Nat = if (elapsed >= config.interval) { 0 } else {
+        Nat.fromInt(config.interval - elapsed);
+      };
+      ignore Timer.setTimer<system>(#nanoseconds(delay), config.callback);
     };
-    ignore Timer.setTimer<system>(#nanoseconds(cacheDelay), clearKeyCacheTimer);
-
-    // Restart retention cleanup timer with remaining time
-    let retentionElapsed = now - lastRetentionCleanupTimestamp;
-    let retentionDelay : Nat = if (retentionElapsed >= Constants.THIRTY_DAYS_NS) {
-      0;
-    } else {
-      Nat.fromInt(Constants.THIRTY_DAYS_NS - retentionElapsed);
-    };
-    ignore Timer.setTimer<system>(#nanoseconds(retentionDelay), metricRetentionCleanupTimer);
-
-    // Restart processed events cleanup timer with remaining time
-    let cleanupElapsed = now - lastProcessedCleanupTimestamp;
-    let cleanupDelay : Nat = if (cleanupElapsed >= Constants.SEVEN_DAYS_NS) {
-      0;
-    } else {
-      Nat.fromInt(Constants.SEVEN_DAYS_NS - cleanupElapsed);
-    };
-    ignore Timer.setTimer<system>(#nanoseconds(cleanupDelay), processedEventsCleanupTimer);
-
-    // Restart weekly reconciliation timer with remaining time
-    let reconciliationElapsed = now - lastWeeklyReconciliationTimestamp;
-    let reconciliationDelay : Nat = if (reconciliationElapsed >= Constants.SEVEN_DAYS_NS) {
-      0;
-    } else {
-      Nat.fromInt(Constants.SEVEN_DAYS_NS - reconciliationElapsed);
-    };
-    ignore Timer.setTimer<system>(#nanoseconds(reconciliationDelay), weeklyReconciliationTimer);
 
     // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
