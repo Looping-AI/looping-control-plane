@@ -51,8 +51,9 @@ module {
       displayName,
       event.isPrimaryOwner,
       event.isOrgAdmin,
+      false, // isBot — will be populated via users.list in Phase 3
     );
-    SlackUserModel.upsertUser(ctx.slackUsers, entry);
+    SlackUserModel.upsertUser(ctx.slackUsers, entry, #slackEvent(event.eventTs));
 
     Logger.log(
       #info,

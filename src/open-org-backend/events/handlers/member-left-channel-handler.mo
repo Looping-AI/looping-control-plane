@@ -71,7 +71,7 @@ module {
           ?"MemberLeftChannelHandler",
           "Channel is admin channel for workspace " # debug_show (wsId) # ", clearing admin-channel flag for user: " # event.userId,
         );
-        switch (SlackUserModel.leaveAdminChannel(ctx.slackUsers, event.userId, wsId)) {
+        switch (SlackUserModel.leaveAdminChannel(ctx.slackUsers, event.userId, wsId, #slackEvent(event.eventTs))) {
           case (#ok(_)) {};
           case (#err(msg)) {
             Logger.log(
@@ -88,7 +88,7 @@ module {
           ?"MemberLeftChannelHandler",
           "Channel is member channel for workspace " # debug_show (wsId) # ", clearing member-channel flag for user: " # event.userId,
         );
-        switch (SlackUserModel.leaveMemberChannel(ctx.slackUsers, event.userId, wsId)) {
+        switch (SlackUserModel.leaveMemberChannel(ctx.slackUsers, event.userId, wsId, #slackEvent(event.eventTs))) {
           case (#ok(_)) {};
           case (#err(msg)) {
             Logger.log(

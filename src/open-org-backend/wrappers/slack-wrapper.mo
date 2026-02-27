@@ -159,12 +159,14 @@ module {
   // ============================================
 
   /// A Slack workspace member, derived from users.list.
+  /// Deleted users are filtered out during parsing and never appear here.
   public type SlackUser = {
     id : Text; // Slack user ID (e.g. U0ADJJQMW4T)
     name : Text; // Username / display name
     isAdmin : Bool; // True if user is a workspace admin
     isOwner : Bool; // True if user is a workspace owner
     isPrimaryOwner : Bool; // True if user is the primary owner
+    isBot : Bool; // True if this is a bot user (is_bot or is_app_user)
   };
 
   /// A Slack channel/conversation, derived from conversations.list.
@@ -266,6 +268,13 @@ module {
     let users : [SlackUser] = Array.filterMap<Json.Json, SlackUser>(
       membersJson,
       func(memberJson : Json.Json) : ?SlackUser {
+        // Skip deleted users — they must not enter the cache
+        let deleted = switch (Json.get(memberJson, "deleted")) {
+          case (?#bool(b)) { b };
+          case _ { false };
+        };
+        if (deleted) { return null };
+
         let id = switch (Json.get(memberJson, "id")) {
           case (?#string(s)) { s };
           case _ { return null };
@@ -286,7 +295,17 @@ module {
           case (?#bool(b)) { b };
           case _ { false };
         };
-        ?{ id; name; isAdmin; isOwner; isPrimaryOwner };
+        // is_bot covers integration bots; is_app_user covers Slack app users
+        let isBotField = switch (Json.get(memberJson, "is_bot")) {
+          case (?#bool(b)) { b };
+          case _ { false };
+        };
+        let isAppUser = switch (Json.get(memberJson, "is_app_user")) {
+          case (?#bool(b)) { b };
+          case _ { false };
+        };
+        let isBot = isBotField or isAppUser;
+        ?{ id; name; isAdmin; isOwner; isPrimaryOwner; isBot };
       },
     );
 

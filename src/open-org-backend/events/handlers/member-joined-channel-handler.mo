@@ -60,7 +60,7 @@ module {
           ?"MemberJoinedChannelHandler",
           "Channel is admin channel for workspace " # debug_show (wsId) # ", granting #admin scope to user: " # event.userId,
         );
-        switch (SlackUserModel.joinAdminChannel(ctx.slackUsers, event.userId, wsId)) {
+        switch (SlackUserModel.joinAdminChannel(ctx.slackUsers, event.userId, wsId, #slackEvent(event.eventTs))) {
           case (#ok(())) {};
           case (#err(msg)) {
             Logger.log(
@@ -77,7 +77,7 @@ module {
           ?"MemberJoinedChannelHandler",
           "Channel is member channel for workspace " # debug_show (wsId) # ", granting #member scope to user: " # event.userId,
         );
-        switch (SlackUserModel.joinMemberChannel(ctx.slackUsers, event.userId, wsId)) {
+        switch (SlackUserModel.joinMemberChannel(ctx.slackUsers, event.userId, wsId, #slackEvent(event.eventTs))) {
           case (#ok(())) {};
           case (#err(msg)) {
             Logger.log(

@@ -20,6 +20,10 @@ module {
   // Useful for creating new test stubs and debugging event parsing
   public let LOG_SLACK_EVENTS : Bool = true;
 
+  // 1 year in nanoseconds (365 * 24 * 60 * 60 * 1_000_000_000)
+  // Retention period for the access change log in SlackUserModel
+  public let ACCESS_LOG_RETENTION_NS : Nat = 31_536_000_000_000_000;
+
   // Admin talk configuration
   public let ADMIN_TALK_PROVIDER : Types.LlmProvider = #groq;
   public let ADMIN_TALK_SECRET : Types.SecretId = #groqApiKey;
