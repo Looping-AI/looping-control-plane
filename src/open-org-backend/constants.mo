@@ -28,4 +28,13 @@ module {
   public let ADMIN_TALK_PROVIDER : Types.LlmProvider = #groq;
   public let ADMIN_TALK_SECRET : Types.SecretId = #groqApiKey;
   public let ADMIN_TALK_MODEL : Text = "openai/gpt-oss-120b";
+
+  // Agent routing round control (Phase 1)
+  // Absolute ceiling on the number of LLM rounds any session may run.
+  public let MAX_AGENT_ROUNDS : Nat = 100;
+
+  // Round at which the progressive cost classifier activates.
+  // From this round onward each successive response is evaluated against
+  // increasingly strict similarity / cost thresholds.
+  public let ROUND_CLASSIFIER_THRESHOLD : Nat = 10;
 };

@@ -13,6 +13,7 @@ import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
 import AgentModel "./models/agent-model";
+import AgentRegistryModel "./models/agent-registry-model";
 import ConversationModel "./models/conversation-model";
 import SlackUserModel "./models/slack-user-model";
 import WorkspaceModel "./models/workspace-model";
@@ -50,6 +51,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   var workspaceAgents = Map.fromArray<Nat, AgentModel.WorkspaceAgentsState>([(0, AgentModel.emptyWorkspaceState())], Nat.compare);
+  var agentRegistry = AgentRegistryModel.emptyState(); // Global agent registry state (ID → AgentRecord, name lookup)
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
   // Slack user state (cache: Slack user ID → SlackUserEntry; changeLog: audit trail)
@@ -583,6 +585,101 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         };
       };
     };
+  };
+
+  // ============================================
+  // Agent Registry
+  // ============================================
+
+  // Register a new agent in the global registry.
+  public shared ({ caller }) func registerAgent(
+    name : Text,
+    category : AgentRegistryModel.AgentCategory,
+    llmModel : AgentRegistryModel.LlmModel,
+    toolsAllowed : [Text],
+    sources : [Text],
+  ) : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        AgentRegistryModel.register(
+          name,
+          category,
+          llmModel,
+          toolsAllowed,
+          Map.empty<Text, AgentRegistryModel.ToolState>(),
+          sources,
+          agentRegistry,
+        );
+      };
+    };
+  };
+
+  // Look up a registered agent by name (case-insensitive).
+  public query func getRegisteredAgent(name : Text) : async ?AgentRegistryModel.AgentRecordView {
+    switch (AgentRegistryModel.lookupByName(name, agentRegistry)) {
+      case (null) { null };
+      case (?record) { ?AgentRegistryModel.toView(record) };
+    };
+  };
+
+  // Update an agent's configuration in the registry.
+  public shared ({ caller }) func updateRegisteredAgent(
+    id : Nat,
+    newName : ?Text,
+    newCategory : ?AgentRegistryModel.AgentCategory,
+    newLlmModel : ?AgentRegistryModel.LlmModel,
+    newToolsAllowed : ?[Text],
+    newSources : ?[Text],
+  ) : async {
+    #ok : Bool;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        AgentRegistryModel.updateById(
+          id,
+          newName,
+          newCategory,
+          newLlmModel,
+          newToolsAllowed,
+          null,
+          newSources,
+          agentRegistry,
+        );
+      };
+    };
+  };
+
+  // Unregister an agent.
+  public shared ({ caller }) func unregisterAgent(id : Nat) : async {
+    #ok : Bool;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        AgentRegistryModel.unregisterById(id, agentRegistry);
+      };
+    };
+  };
+
+  // Get a registered agent by ID.
+  public query func getRegisteredAgentById(id : Nat) : async ?AgentRegistryModel.AgentRecordView {
+    switch (AgentRegistryModel.lookupById(id, agentRegistry)) {
+      case (null) { null };
+      case (?record) { ?AgentRegistryModel.toView(record) };
+    };
+  };
+
+  // List all registered agents.
+  public query func listRegisteredAgents() : async [AgentRegistryModel.AgentRecordView] {
+    let records = AgentRegistryModel.listAgents(agentRegistry);
+    Array.map<AgentRegistryModel.AgentRecord, AgentRegistryModel.AgentRecordView>(records, AgentRegistryModel.toView);
   };
 
   // ============================================
