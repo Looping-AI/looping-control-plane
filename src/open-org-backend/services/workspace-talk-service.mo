@@ -3,7 +3,7 @@ import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Types "../types";
-import AgentRegistryModel "../models/agent-registry-model";
+import AgentModel "../models/agent-model";
 import SecretModel "../models/secret-model";
 import KeyDerivationService "./key-derivation-service";
 import ConversationModel "../models/conversation-model";
@@ -16,7 +16,7 @@ module {
   // Resolves the agent by ID from the global registry and uses its
   // llmModel and secretsAllowed to authenticate and dispatch the request.
   public func processWorkspaceTalk(
-    agentRegistry : AgentRegistryModel.AgentRegistryState,
+    agentRegistry : AgentModel.AgentRegistryState,
     apiKeys : Map.Map<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>,
     conversations : Map.Map<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>,
     workspaceId : Nat,
@@ -28,17 +28,17 @@ module {
     #err : Text;
   } {
     // Look up the agent by ID in the registry
-    let agent = switch (AgentRegistryModel.lookupById(agentId, agentRegistry)) {
+    let agent = switch (AgentModel.lookupById(agentId, agentRegistry)) {
       case (null) { return #err("Agent not found.") };
       case (?a) { a };
     };
 
     // Derive secretId and model string from the agent's llmModel
-    let secretId = AgentRegistryModel.llmModelToSecretId(agent.llmModel);
-    let modelText = AgentRegistryModel.llmModelToText(agent.llmModel);
+    let secretId = AgentModel.llmModelToSecretId(agent.llmModel);
+    let modelText = AgentModel.llmModelToText(agent.llmModel);
 
     // Guard: ensure this agent is allowed to access the secret for this workspace
-    if (not AgentRegistryModel.isSecretAllowed(agent, workspaceId, secretId)) {
+    if (not AgentModel.isSecretAllowed(agent, workspaceId, secretId)) {
       return #err(
         "Agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(workspaceId) # "."
       );

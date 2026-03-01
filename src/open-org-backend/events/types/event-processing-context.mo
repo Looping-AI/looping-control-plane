@@ -17,7 +17,7 @@ import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ConversationModel "../../models/conversation-model";
 import McpToolRegistry "../../tools/mcp-tool-registry";
-import AgentRegistryModel "../../models/agent-registry-model";
+import AgentModel "../../models/agent-model";
 import ValueStreamModel "../../models/value-stream-model";
 import ObjectiveModel "../../models/objective-model";
 import MetricModel "../../models/metric-model";
@@ -44,7 +44,7 @@ module {
     /// MCP tool registry (org-wide)
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState;
     /// Global agent registry — used to resolve the active agent for a given category
-    agentRegistry : AgentRegistryModel.AgentRegistryState;
+    agentRegistry : AgentModel.AgentRegistryState;
     /// Value stream state per workspace — scope to workspaceId before use
     workspaceValueStreams : Map.Map<Nat, ValueStreamModel.WorkspaceValueStreamsState>;
     /// Objectives per workspace — scope to workspaceId before use

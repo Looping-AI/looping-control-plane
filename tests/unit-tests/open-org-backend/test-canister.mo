@@ -19,7 +19,7 @@ import NormalizedEventTypes "../../../src/open-org-backend/events/types/normaliz
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
 import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
-import AgentRegistryModel "../../../src/open-org-backend/models/agent-registry-model";
+import AgentModel "../../../src/open-org-backend/models/agent-model";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
@@ -115,7 +115,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       keyCache;
       adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
       mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = AgentRegistryModel.emptyState();
+      agentRegistry = AgentModel.emptyState();
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
       workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
       metricsRegistry = MetricModel.emptyRegistry();
@@ -143,14 +143,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
     };
     // Register an admin agent permitted to access groqApiKey for workspaces 0, 1, and 42
-    let registry = AgentRegistryModel.emptyState();
-    ignore AgentRegistryModel.register(
+    let registry = AgentModel.emptyState();
+    ignore AgentModel.register(
       "unit-test-admin",
       #admin,
       #groq(#gpt_oss_120b),
       [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
       [],
-      Map.empty<Text, AgentRegistryModel.ToolState>(),
+      Map.empty<Text, AgentModel.ToolState>(),
       [],
       registry,
     );

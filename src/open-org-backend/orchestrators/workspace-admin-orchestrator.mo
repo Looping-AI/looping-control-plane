@@ -8,7 +8,7 @@ import ConversationModel "../models/conversation-model";
 import ValueStreamModel "../models/value-stream-model";
 import ObjectiveModel "../models/objective-model";
 import MetricModel "../models/metric-model";
-import AgentRegistryModel "../models/agent-registry-model";
+import AgentModel "../models/agent-model";
 import GroqWorkspaceAdminService "../services/groq-workspace-admin-service";
 import McpToolRegistry "../tools/mcp-tool-registry";
 
@@ -24,7 +24,7 @@ module {
   //   - workspaceConversations: result of Map.get(adminConversations, Nat.compare, workspaceId)
   //     (must be the live List reference from the map so mutations persist)
   public func orchestrateAdminTalk(
-    agentRegistry : AgentRegistryModel.AgentRegistryState,
+    agentRegistry : AgentModel.AgentRegistryState,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
     workspaceConversations : List.List<ConversationModel.Message>,
@@ -44,7 +44,7 @@ module {
     #err : Text;
   } {
     // Resolve the first #admin agent from the registry
-    let agent = switch (AgentRegistryModel.getFirstByCategory(#admin, agentRegistry)) {
+    let agent = switch (AgentModel.getFirstByCategory(#admin, agentRegistry)) {
       case (null) {
         return #err("No admin agent registered. Please register an admin agent first.");
       };
@@ -52,11 +52,11 @@ module {
     };
 
     // Derive the secretId and model string from the agent's llmModel
-    let secretId = AgentRegistryModel.llmModelToSecretId(agent.llmModel);
-    let modelText = AgentRegistryModel.llmModelToText(agent.llmModel);
+    let secretId = AgentModel.llmModelToSecretId(agent.llmModel);
+    let modelText = AgentModel.llmModelToText(agent.llmModel);
 
     // Guard: ensure this agent is allowed to access the secret for this workspace
-    if (not AgentRegistryModel.isSecretAllowed(agent, workspaceId, secretId)) {
+    if (not AgentModel.isSecretAllowed(agent, workspaceId, secretId)) {
       return #err(
         "Admin agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(workspaceId) # "."
       );

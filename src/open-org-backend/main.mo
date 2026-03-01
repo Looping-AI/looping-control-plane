@@ -12,7 +12,7 @@ import Runtime "mo:core/Runtime";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
-import AgentRegistryModel "./models/agent-registry-model";
+import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
 import SlackUserModel "./models/slack-user-model";
 import WorkspaceModel "./models/workspace-model";
@@ -49,7 +49,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
-  var agentRegistry = AgentRegistryModel.emptyState(); // Global agent registry state (ID → AgentRecord, name lookup)
+  var agentRegistry = AgentModel.emptyState(); // Global agent registry state (ID → AgentRecord, name lookup)
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
   // Slack user state (cache: Slack user ID → SlackUserEntry; changeLog: audit trail)
@@ -502,8 +502,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Register a new agent in the global registry.
   public shared ({ caller }) func registerAgent(
     name : Text,
-    category : AgentRegistryModel.AgentCategory,
-    llmModel : AgentRegistryModel.LlmModel,
+    category : AgentModel.AgentCategory,
+    llmModel : AgentModel.LlmModel,
     secretsAllowed : [(Nat, Types.SecretId)],
     toolsAllowed : [Text],
     sources : [Text],
@@ -514,13 +514,13 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        AgentRegistryModel.register(
+        AgentModel.register(
           name,
           category,
           llmModel,
           secretsAllowed,
           toolsAllowed,
-          Map.empty<Text, AgentRegistryModel.ToolState>(),
+          Map.empty<Text, AgentModel.ToolState>(),
           sources,
           agentRegistry,
         );
@@ -529,10 +529,10 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // Look up a registered agent by name (case-insensitive).
-  public query func getRegisteredAgent(name : Text) : async ?AgentRegistryModel.AgentRecordView {
-    switch (AgentRegistryModel.lookupByName(name, agentRegistry)) {
+  public query func getRegisteredAgent(name : Text) : async ?AgentModel.AgentRecordView {
+    switch (AgentModel.lookupByName(name, agentRegistry)) {
       case (null) { null };
-      case (?record) { ?AgentRegistryModel.toView(record) };
+      case (?record) { ?AgentModel.toView(record) };
     };
   };
 
@@ -540,8 +540,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   public shared ({ caller }) func updateRegisteredAgent(
     id : Nat,
     newName : ?Text,
-    newCategory : ?AgentRegistryModel.AgentCategory,
-    newLlmModel : ?AgentRegistryModel.LlmModel,
+    newCategory : ?AgentModel.AgentCategory,
+    newLlmModel : ?AgentModel.LlmModel,
     newSecretsAllowed : ?[(Nat, Types.SecretId)],
     newToolsAllowed : ?[Text],
     newSources : ?[Text],
@@ -552,7 +552,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        AgentRegistryModel.updateById(
+        AgentModel.updateById(
           id,
           newName,
           newCategory,
@@ -575,23 +575,23 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        AgentRegistryModel.unregisterById(id, agentRegistry);
+        AgentModel.unregisterById(id, agentRegistry);
       };
     };
   };
 
   // Get a registered agent by ID.
-  public query func getRegisteredAgentById(id : Nat) : async ?AgentRegistryModel.AgentRecordView {
-    switch (AgentRegistryModel.lookupById(id, agentRegistry)) {
+  public query func getRegisteredAgentById(id : Nat) : async ?AgentModel.AgentRecordView {
+    switch (AgentModel.lookupById(id, agentRegistry)) {
       case (null) { null };
-      case (?record) { ?AgentRegistryModel.toView(record) };
+      case (?record) { ?AgentModel.toView(record) };
     };
   };
 
   // List all registered agents.
-  public query func listRegisteredAgents() : async [AgentRegistryModel.AgentRecordView] {
-    let records = AgentRegistryModel.listAgents(agentRegistry);
-    Array.map<AgentRegistryModel.AgentRecord, AgentRegistryModel.AgentRecordView>(records, AgentRegistryModel.toView);
+  public query func listRegisteredAgents() : async [AgentModel.AgentRecordView] {
+    let records = AgentModel.listAgents(agentRegistry);
+    Array.map<AgentModel.AgentRecord, AgentModel.AgentRecordView>(records, AgentModel.toView);
   };
 
   // Grant (or replace) the full secretsAllowed whitelist for an agent.
@@ -603,7 +603,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        AgentRegistryModel.updateById(agentId, null, null, null, ?secretsAllowed, null, null, null, agentRegistry);
+        AgentModel.updateById(agentId, null, null, null, ?secretsAllowed, null, null, null, agentRegistry);
       };
     };
   };
