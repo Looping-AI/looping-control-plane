@@ -47,6 +47,7 @@ func registerSimple(state : AgentRegistryModel.AgentRegistryState, name : Text, 
     category,
     #groq(#gpt_oss_120b),
     [],
+    [],
     Map.empty<Text, AgentRegistryModel.ToolState>(),
     [],
     state,
@@ -183,6 +184,7 @@ suite(
           "info-bot",
           #research,
           #groq(#gpt_oss_120b),
+          [],
           ["web-search"],
           Map.empty<Text, AgentRegistryModel.ToolState>(),
           ["https://docs.example.com"],
@@ -289,6 +291,7 @@ suite(
           null,
           null,
           null,
+          null,
           state,
         );
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
@@ -314,7 +317,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentRegistryModel.updateById(id, null, ?#research, null, null, null, null, state);
+        ignore AgentRegistryModel.updateById(id, null, ?#research, null, null, null, null, null, state);
 
         switch (AgentRegistryModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
@@ -333,7 +336,7 @@ suite(
         };
 
         // Update name to new-bot
-        let result = AgentRegistryModel.updateById(id, ?"new-bot", null, null, null, null, null, state);
+        let result = AgentRegistryModel.updateById(id, ?"new-bot", null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Old name should no longer resolve
@@ -364,7 +367,7 @@ suite(
         ignore registerSimple(state, "bot-two", #research);
 
         // Try to rename bot-one to bot-two (which already exists)
-        let result = AgentRegistryModel.updateById(id1, ?"bot-two", null, null, null, null, null, state);
+        let result = AgentRegistryModel.updateById(id1, ?"bot-two", null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // bot-one should still have its original name
@@ -385,7 +388,7 @@ suite(
         };
 
         // Update with the same name (case variation)
-        let result = AgentRegistryModel.updateById(id, ?"BOT", null, null, null, null, null, state);
+        let result = AgentRegistryModel.updateById(id, ?"BOT", null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Lookup should still work
@@ -403,7 +406,7 @@ suite(
         };
 
         // Try to update with invalid name (starting with digit)
-        let result = AgentRegistryModel.updateById(id, ?"1invalid", null, null, null, null, null, state);
+        let result = AgentRegistryModel.updateById(id, ?"1invalid", null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // Original name should still be intact
@@ -418,7 +421,7 @@ suite(
       "returns error for non-existent agent",
       func() {
         let state = AgentRegistryModel.emptyState();
-        let result = AgentRegistryModel.updateById(999, null, null, null, null, null, null, state);
+        let result = AgentRegistryModel.updateById(999, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
       },
     );
@@ -475,6 +478,103 @@ suite(
           state,
         );
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
+      },
+    );
+  },
+);
+
+// ============================================
+// Suite: secretsAllowed
+// ============================================
+
+suite(
+  "AgentRegistryModel - secretsAllowed",
+  func() {
+
+    test(
+      "registers with empty secretsAllowed by default",
+      func() {
+        let state = AgentRegistryModel.emptyState();
+        ignore registerSimple(state, "bot", #admin);
+
+        switch (AgentRegistryModel.lookupByName("bot", state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(r.secretsAllowed.size()).equal(0);
+          };
+        };
+      },
+    );
+
+    test(
+      "registers with explicit secretsAllowed entries",
+      func() {
+        let state = AgentRegistryModel.emptyState();
+        ignore AgentRegistryModel.register(
+          "secure-bot",
+          #admin,
+          #groq(#gpt_oss_120b),
+          [(1, #groqApiKey), (2, #openaiApiKey)],
+          [],
+          Map.empty<Text, AgentRegistryModel.ToolState>(),
+          [],
+          state,
+        );
+
+        switch (AgentRegistryModel.lookupByName("secure-bot", state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(r.secretsAllowed.size()).equal(2);
+          };
+        };
+      },
+    );
+
+    test(
+      "updateById replaces secretsAllowed",
+      func() {
+        let state = AgentRegistryModel.emptyState();
+        let id = switch (registerSimple(state, "bot", #admin)) {
+          case (#ok n) n;
+          case (#err _) { expect.bool(false).equal(true); 0 };
+        };
+
+        let result = AgentRegistryModel.updateById(id, null, null, null, ?[(0, #groqApiKey)], null, null, null, state);
+        expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
+
+        switch (AgentRegistryModel.lookupById(id, state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(r.secretsAllowed.size()).equal(1);
+          };
+        };
+      },
+    );
+
+    test(
+      "updateById clears secretsAllowed when passed empty array",
+      func() {
+        let state = AgentRegistryModel.emptyState();
+        ignore AgentRegistryModel.register(
+          "bot",
+          #admin,
+          #groq(#gpt_oss_120b),
+          [(1, #groqApiKey)],
+          [],
+          Map.empty<Text, AgentRegistryModel.ToolState>(),
+          [],
+          state,
+        );
+        let id = 0;
+
+        ignore AgentRegistryModel.updateById(id, null, null, null, ?[], null, null, null, state);
+
+        switch (AgentRegistryModel.lookupById(id, state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(r.secretsAllowed.size()).equal(0);
+          };
+        };
       },
     );
   },

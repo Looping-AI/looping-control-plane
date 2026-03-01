@@ -3,6 +3,7 @@ import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
+import Types "../types";
 
 module {
   // ============================================
@@ -38,18 +39,20 @@ module {
   /// A registered agent and all configuration required to execute it.
   ///
   /// Fields:
-  ///   id            — stable unique identifier (assigned by the registry).
-  ///   name          — kebab-case identifier, must be unique and match the `::name` syntax.
-  ///   category      — determines the available tool catalogue and prompt strategy.
-  ///   llmModel      — provider and model variant (e.g. #groq(#gpt_oss_120b)).
-  ///   toolsAllowed  — subset of category tools this agent may invoke.
-  ///   toolsState    — per-tool runtime state (usageCount + knowHow text).
-  ///   sources       — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
+  ///   id              — stable unique identifier (assigned by the registry).
+  ///   name            — kebab-case identifier, must be unique and match the `::name` syntax.
+  ///   category        — determines the available tool catalogue and prompt strategy.
+  ///   llmModel        — provider and model variant (e.g. #groq(#gpt_oss_120b)).
+  ///   secretsAllowed  — explicit whitelist of (workspaceId, SecretId) pairs this agent may access.
+  ///   toolsAllowed    — subset of category tools this agent may invoke.
+  ///   toolsState      — per-tool runtime state (usageCount + knowHow text).
+  ///   sources         — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
   public type AgentRecord = {
     id : Nat;
     name : Text;
     category : AgentCategory;
     llmModel : LlmModel;
+    secretsAllowed : [(Nat, Types.SecretId)];
     toolsAllowed : [Text];
     toolsState : Map.Map<Text, ToolState>;
     sources : [Text];
@@ -164,6 +167,7 @@ module {
     name : Text,
     category : AgentCategory,
     llmModel : LlmModel,
+    secretsAllowed : [(Nat, Types.SecretId)],
     toolsAllowed : [Text],
     toolsState : Map.Map<Text, ToolState>,
     sources : [Text],
@@ -185,6 +189,7 @@ module {
       name = normalized;
       category;
       llmModel;
+      secretsAllowed;
       toolsAllowed;
       toolsState;
       sources;
@@ -220,6 +225,7 @@ module {
     newName : ?Text,
     newCategory : ?AgentCategory,
     newLlmModel : ?LlmModel,
+    newSecretsAllowed : ?[(Nat, Types.SecretId)],
     newToolsAllowed : ?[Text],
     newToolsState : ?Map.Map<Text, ToolState>,
     newSources : ?[Text],
@@ -258,6 +264,10 @@ module {
           llmModel = switch (newLlmModel) {
             case (null) { existing.llmModel };
             case (?m) { m };
+          };
+          secretsAllowed = switch (newSecretsAllowed) {
+            case (null) { existing.secretsAllowed };
+            case (?s) { s };
           };
           toolsAllowed = switch (newToolsAllowed) {
             case (null) { existing.toolsAllowed };
@@ -341,6 +351,7 @@ module {
     name : Text;
     category : AgentCategory;
     llmModel : LlmModel;
+    secretsAllowed : [(Nat, Types.SecretId)];
     toolsAllowed : [Text];
     toolsState : [(Text, ToolState)];
     sources : [Text];
@@ -353,6 +364,7 @@ module {
       name = record.name;
       category = record.category;
       llmModel = record.llmModel;
+      secretsAllowed = record.secretsAllowed;
       toolsAllowed = record.toolsAllowed;
       toolsState = Iter.toArray(Map.entries(record.toolsState));
       sources = record.sources;

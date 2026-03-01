@@ -609,6 +609,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           name,
           category,
           llmModel,
+          [],
           toolsAllowed,
           Map.empty<Text, AgentRegistryModel.ToolState>(),
           sources,
@@ -646,6 +647,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           newName,
           newCategory,
           newLlmModel,
+          null,
           newToolsAllowed,
           null,
           newSources,
@@ -680,6 +682,20 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   public query func listRegisteredAgents() : async [AgentRegistryModel.AgentRecordView] {
     let records = AgentRegistryModel.listAgents(agentRegistry);
     Array.map<AgentRegistryModel.AgentRecord, AgentRegistryModel.AgentRecordView>(records, AgentRegistryModel.toView);
+  };
+
+  // Grant (or replace) the full secretsAllowed whitelist for an agent.
+  // Each tuple is (workspaceId, secretId). Passing [] revokes all secret access.
+  public shared ({ caller }) func setAgentWorkspaceSecrets(agentId : Nat, secretsAllowed : [(Nat, Types.SecretId)]) : async {
+    #ok : Bool;
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        AgentRegistryModel.updateById(agentId, null, null, null, ?secretsAllowed, null, null, null, agentRegistry);
+      };
+    };
   };
 
   // ============================================
