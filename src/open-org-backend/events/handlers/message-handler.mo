@@ -89,6 +89,7 @@ module {
 
     // --- 4. Call the orchestrator with the scoped workspace data ---
     let orchestratorResult = await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
+      ctx.agentRegistry,
       ctx.mcpToolRegistry,
       workspaceSecrets,
       workspaceConversations,

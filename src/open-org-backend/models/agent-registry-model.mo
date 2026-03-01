@@ -339,6 +339,41 @@ module {
     Iter.toArray(Map.values(state.agentsById));
   };
 
+  /// Return the first registered agent with the given category, or null if none found.
+  /// Iteration order follows insertion order of the underlying map.
+  public func getFirstByCategory(category : AgentCategory, state : AgentRegistryState) : ?AgentRecord {
+    for (record in Map.values(state.agentsById)) {
+      if (record.category == category) {
+        return ?record;
+      };
+    };
+    null;
+  };
+
+  /// Map an LlmModel to the provider-specific model string used in API calls.
+  public func llmModelToText(model : LlmModel) : Text {
+    switch (model) {
+      case (#groq(#gpt_oss_120b)) { "openai/gpt-oss-120b" };
+    };
+  };
+
+  /// Map an LlmModel to the SecretId that holds the corresponding API key.
+  public func llmModelToSecretId(model : LlmModel) : Types.SecretId {
+    switch (model) {
+      case (#groq(_)) { #groqApiKey };
+    };
+  };
+
+  /// Return true if the agent has a secretsAllowed entry for (workspaceId, secretId).
+  public func isSecretAllowed(agent : AgentRecord, workspaceId : Nat, secretId : Types.SecretId) : Bool {
+    for ((wsId, sId) in agent.secretsAllowed.vals()) {
+      if (wsId == workspaceId and sId == secretId) {
+        return true;
+      };
+    };
+    false;
+  };
+
   // ============================================
   // Shareable view (crossing the shared boundary)
   // ============================================

@@ -166,6 +166,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       keyCache;
       adminConversations;
       mcpToolRegistry;
+      agentRegistry;
       workspaceValueStreams;
       workspaceObjectives;
       metricsRegistry;
@@ -596,6 +597,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     name : Text,
     category : AgentRegistryModel.AgentCategory,
     llmModel : AgentRegistryModel.LlmModel,
+    secretsAllowed : [(Nat, Types.SecretId)],
     toolsAllowed : [Text],
     sources : [Text],
   ) : async {
@@ -609,7 +611,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           name,
           category,
           llmModel,
-          [],
+          secretsAllowed,
           toolsAllowed,
           Map.empty<Text, AgentRegistryModel.ToolState>(),
           sources,
@@ -633,6 +635,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     newName : ?Text,
     newCategory : ?AgentRegistryModel.AgentCategory,
     newLlmModel : ?AgentRegistryModel.LlmModel,
+    newSecretsAllowed : ?[(Nat, Types.SecretId)],
     newToolsAllowed : ?[Text],
     newSources : ?[Text],
   ) : async {
@@ -647,7 +650,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           newName,
           newCategory,
           newLlmModel,
-          null,
+          newSecretsAllowed,
           newToolsAllowed,
           null,
           newSources,
@@ -821,6 +824,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
         // Delegate to orchestrator for business logic
         let orchestratorResult = await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
+          agentRegistry,
           mcpToolRegistry,
           workspaceSecrets,
           workspaceConversations,
@@ -858,7 +862,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         };
         // Delegate to service for business logic
         await WorkspaceTalkService.processWorkspaceTalk(
-          workspaceAgents,
+          agentRegistry,
           secrets,
           conversations,
           workspaceId,

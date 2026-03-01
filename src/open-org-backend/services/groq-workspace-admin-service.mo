@@ -10,7 +10,6 @@ import ValueStreamModel "../models/value-stream-model";
 import ObjectiveModel "../models/objective-model";
 import MetricModel "../models/metric-model";
 import GroqWrapper "../wrappers/groq-wrapper";
-import Constants "../constants";
 import InstructionComposer "../instructions/instruction-composer";
 import InstructionTypes "../instructions/instruction-types";
 import FunctionToolRegistry "../tools/function-tool-registry";
@@ -38,6 +37,7 @@ module {
     workspaceId : Nat,
     message : Text,
     apiKey : Text,
+    model : Text,
   ) : async {
     #ok : [ConversationModel.Message];
     #err : Text;
@@ -97,7 +97,7 @@ module {
       let groqResult = await GroqWrapper.reason(
         apiKey,
         List.toArray(inputMessages),
-        Constants.ADMIN_TALK_MODEL,
+        model,
         #workspace(workspaceId),
         ?instructions,
         null,

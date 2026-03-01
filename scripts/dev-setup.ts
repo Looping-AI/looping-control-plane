@@ -230,10 +230,58 @@ async function seedSecrets(envVars: Record<string, string>): Promise<void> {
 }
 
 /**
+ * Register the default admin agent in the registry
+ */
+async function registerAdminAgent(): Promise<void> {
+  logStep(5, "Registering admin agent...");
+
+  const tools = [
+    "save_value_stream",
+    "save_plan",
+    "web_search",
+    "create_metric",
+    "update_metric",
+    "get_metric_datapoints",
+    "create_objective",
+    "update_objective",
+    "archive_objective",
+    "record_objective_datapoint",
+    "add_impact_review",
+  ];
+  const toolsVec = `vec { ${tools.map((t) => `"${t}"`).join("; ")} }`;
+
+  const secretsAllowed = `vec {
+    record { 0 : nat; variant { groqApiKey } };
+    record { 0 : nat; variant { slackBotToken } }
+  }`;
+
+  const output = await execCommand("dfx", [
+    "canister",
+    "call",
+    "open-org-backend",
+    "registerAgent",
+    `("workspace-admin", variant { admin }, variant { groq = variant { gpt_oss_120b } }, ${secretsAllowed}, ${toolsVec}, vec {})`,
+  ]);
+
+  const trimmedOutput = output.trim();
+  if (/variant\s*\{\s*err/s.test(trimmedOutput)) {
+    const errorMatch = trimmedOutput.match(/err\s*=\s*"([^"]*)"/s);
+    const errorMessage = errorMatch ? errorMatch[1] : trimmedOutput;
+    // If agent already exists (e.g. re-running setup), treat as non-fatal
+    if (errorMessage.includes("already registered")) {
+      logWarning(`Admin agent already registered, skipping: ${errorMessage}`);
+      return;
+    }
+    throw new Error(`Failed to register admin agent: ${errorMessage}`);
+  }
+  logSuccess('Admin agent "workspace-admin" registered (groq / gpt_oss_120b)');
+}
+
+/**
  * Get canister IDs and construct Candid UI link
  */
 async function printCandidUILink(): Promise<void> {
-  logStep(5, "Retrieving canister IDs...");
+  logStep(6, "Retrieving canister IDs...");
 
   try {
     const backendId = (
@@ -255,7 +303,7 @@ async function printCandidUILink(): Promise<void> {
       candidUiId = "bd3sg-teaaa-aaaaa-qaaba-cai";
     }
 
-    logStep(6, "Setup complete!");
+    logStep(7, "Setup complete!");
 
     log("\n" + "=".repeat(80), colors.bright);
     log("Candid UI Links:", colors.bright + colors.green);
@@ -325,6 +373,9 @@ async function main() {
 
     // Seed secrets
     await seedSecrets(envVars);
+
+    // Register admin agent
+    await registerAdminAgent();
 
     // Print Candid UI link
     await printCandidUILink();

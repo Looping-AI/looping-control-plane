@@ -186,42 +186,57 @@ export async function setupRegularUser(actor: Actor<_SERVICE>): Promise<{
 }
 
 /**
- * Creates a test agent with the given parameters
- * Note: Caller must be admin before calling this function
+ * Creates a test agent via the global agent registry.
+ * Note: Caller must be admin before calling this function.
  * @param actor - The canister actor
  * @param name - Agent name
- * @param provider - LLM provider
- * @param model - Model name
- * @returns Agent ID if successful
+ * @param category - Agent category
+ * @param secretsAllowed - List of (workspaceId, secretId) pairs this agent may access
+ * @returns Registry agent ID if successful
  * @throws Error if creation fails
  */
 export async function createTestAgent(
   actor: Actor<_SERVICE>,
   name: string,
-  provider: { openai: null } | { groq: null },
-  model: string,
+  category: { admin: null } | { research: null } | { communication: null },
+  secretsAllowed: Array<
+    [
+      bigint,
+      (
+        | { groqApiKey: null }
+        | { openaiApiKey: null }
+        | { slackSigningSecret: null }
+        | { slackBotToken: null }
+      ),
+    ]
+  >,
 ): Promise<bigint> {
-  const result = await actor.createAgent(0n, name, provider, model);
+  const result = await actor.registerAgent(
+    name,
+    category,
+    { groq: { gpt_oss_120b: null } },
+    secretsAllowed,
+    [],
+    [],
+  );
   if ("err" in result) {
-    throw new Error(`Failed to create agent: ${result.err}`);
+    throw new Error(`Failed to register agent: ${result.err}`);
   }
   return result.ok;
 }
 
 /**
- * Creates a Groq agent with the API key fetched from .env.test
- * Internally switches to admin identity to create the agent and store the API key
- * The API key is stored at workspace level (not per-user)
+ * Creates a Groq admin agent in the registry with the API key fetched from .env.test
+ * Internally switches to admin identity to register the agent and store the API key.
+ * The API key is stored at workspace level (not per-user).
  * @param actor - The canister actor
  * @param adminIdentity - Admin identity for creating the agent and storing API key
- * @param model - Groq model name (default: "llama-3.1-8b-instant")
- * @returns Agent ID if successful
+ * @returns Registry agent ID
  * @throws Error if creation fails or GROQ_TEST_KEY is not set
  */
 export async function createGroqAgent(
   actor: Actor<_SERVICE>,
   adminIdentity: ReturnType<typeof generateRandomIdentity>,
-  model: string = TEST_MODEL,
 ): Promise<bigint> {
   const apiKey = TEST_API_KEY;
 
@@ -234,13 +249,13 @@ export async function createGroqAgent(
     }
   }
 
-  // Switch to admin identity to create the agent
+  // Switch to admin identity to register the agent
   actor.setIdentity(adminIdentity);
   const agentId = await createTestAgent(
     actor,
-    "Groq Agent",
-    { groq: null },
-    model,
+    "workspace-admin",
+    { admin: null },
+    [[0n, { groqApiKey: null }]],
   );
 
   // Store API key at workspace level

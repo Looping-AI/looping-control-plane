@@ -8,19 +8,23 @@ import ConversationModel "../models/conversation-model";
 import ValueStreamModel "../models/value-stream-model";
 import ObjectiveModel "../models/objective-model";
 import MetricModel "../models/metric-model";
+import AgentRegistryModel "../models/agent-registry-model";
 import GroqWorkspaceAdminService "../services/groq-workspace-admin-service";
 import McpToolRegistry "../tools/mcp-tool-registry";
-import Constants "../constants";
 
 module {
 
   // Orchestrate the admin talk request after validation.
+  //
+  // Resolves the first #admin agent from the registry and uses its
+  // llmModel and secretsAllowed to authenticate and dispatch the request.
   //
   // Expects workspace-scoped inputs:
   //   - workspaceSecrets: result of Map.get(secrets, Nat.compare, workspaceId)
   //   - workspaceConversations: result of Map.get(adminConversations, Nat.compare, workspaceId)
   //     (must be the live List reference from the map so mutations persist)
   public func orchestrateAdminTalk(
+    agentRegistry : AgentRegistryModel.AgentRegistryState,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
     workspaceConversations : List.List<ConversationModel.Message>,
@@ -39,12 +43,31 @@ module {
     };
     #err : Text;
   } {
-    // Decrypt the LLM API key using the provided encryption key
-    let apiKey = SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, Constants.ADMIN_TALK_SECRET);
+    // Resolve the first #admin agent from the registry
+    let agent = switch (AgentRegistryModel.getFirstByCategory(#admin, agentRegistry)) {
+      case (null) {
+        return #err("No admin agent registered. Please register an admin agent first.");
+      };
+      case (?a) { a };
+    };
 
-    // Delegate to provider-specific service based on configured provider
-    switch (Constants.ADMIN_TALK_PROVIDER) {
-      case (#groq) {
+    // Derive the secretId and model string from the agent's llmModel
+    let secretId = AgentRegistryModel.llmModelToSecretId(agent.llmModel);
+    let modelText = AgentRegistryModel.llmModelToText(agent.llmModel);
+
+    // Guard: ensure this agent is allowed to access the secret for this workspace
+    if (not AgentRegistryModel.isSecretAllowed(agent, workspaceId, secretId)) {
+      return #err(
+        "Admin agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(workspaceId) # "."
+      );
+    };
+
+    // Decrypt the LLM API key using the provided encryption key
+    let apiKey = SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, secretId);
+
+    // Dispatch to provider-specific service based on the agent's llmModel
+    switch (agent.llmModel) {
+      case (#groq(_)) {
         switch (apiKey) {
           case (null) {
             #err("No Groq API key found for admin talk. Please store the API key first.");
@@ -61,6 +84,7 @@ module {
               workspaceId,
               message,
               key,
+              modelText,
             );
             // Emit an observability step for the LLM call result
             let step : Types.ProcessingStep = {
@@ -77,9 +101,6 @@ module {
             };
           };
         };
-      };
-      case (#openai) {
-        #err("OpenAI integration not yet implemented.");
       };
     };
   };
