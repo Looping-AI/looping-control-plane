@@ -221,14 +221,6 @@ describe("Workspace Channel Anchors (Phase 0.5)", () => {
   // ---------------------------------------------------------------------------
 
   describe("createWorkspace seeds all per-workspace maps", () => {
-    it("agents endpoint works on freshly created workspace", async () => {
-      const wsId = expectOk(await actor.createWorkspace("Engineering"));
-
-      // Should be able to list agents for new workspace (not return workspace-not-found)
-      const listResult = await actor.listAgents(wsId);
-      expect(expectOk(listResult)).toEqual([]);
-    });
-
     it("getWorkspaceMembers works on freshly created workspace", async () => {
       const wsId = expectOk(await actor.createWorkspace("Engineering"));
       const result = await actor.getWorkspaceMembers(wsId);

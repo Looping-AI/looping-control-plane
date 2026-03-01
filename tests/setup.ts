@@ -227,16 +227,21 @@ export async function createTestAgent(
 
 /**
  * Creates a Groq admin agent in the registry with the API key fetched from .env.test
- * Internally switches to admin identity to register the agent and store the API key.
+ * Registration requires OrgAdmin rights; API key storage requires WorkspaceAdmin rights.
  * The API key is stored at workspace level (not per-user).
  * @param actor - The canister actor
- * @param adminIdentity - Admin identity for creating the agent and storing API key
+ * @param orgAdminIdentity - OrgAdmin (owner) identity used to register the agent
+ * @param workspaceAdminIdentity - WorkspaceAdmin identity used to store the API key.
+ *   Defaults to orgAdminIdentity when omitted (e.g. when the owner is also a workspace admin).
  * @returns Registry agent ID
  * @throws Error if creation fails or GROQ_TEST_KEY is not set
  */
 export async function createGroqAgent(
   actor: Actor<_SERVICE>,
-  adminIdentity: ReturnType<typeof generateRandomIdentity>,
+  orgAdminIdentity: ReturnType<typeof generateRandomIdentity>,
+  workspaceAdminIdentity: ReturnType<
+    typeof generateRandomIdentity
+  > = orgAdminIdentity,
 ): Promise<bigint> {
   const apiKey = TEST_API_KEY;
 
@@ -249,8 +254,8 @@ export async function createGroqAgent(
     }
   }
 
-  // Switch to admin identity to register the agent
-  actor.setIdentity(adminIdentity);
+  // Register the agent as org admin (registerAgent requires #IsOrgAdmin)
+  actor.setIdentity(orgAdminIdentity);
   const agentId = await createTestAgent(
     actor,
     "workspace-admin",
@@ -258,7 +263,8 @@ export async function createGroqAgent(
     [[0n, { groqApiKey: null }]],
   );
 
-  // Store API key at workspace level
+  // Store API key at workspace level as workspace admin
+  actor.setIdentity(workspaceAdminIdentity);
   await actor.storeSecret(0n, { groqApiKey: null }, apiKey);
 
   return agentId;

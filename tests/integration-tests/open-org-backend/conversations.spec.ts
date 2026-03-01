@@ -18,6 +18,7 @@ describe("Conversation Management", () => {
   let actor: Actor<_SERVICE>;
   let deferredActor: DeferredActor<_SERVICE>;
   let canisterId: Principal;
+  let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
   let adminIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
   let agentId: bigint;
@@ -27,6 +28,7 @@ describe("Conversation Management", () => {
     pic = testEnv.pic;
     actor = testEnv.actor;
     canisterId = testEnv.canisterId;
+    ownerIdentity = testEnv.ownerIdentity;
     deferredActor = pic.createDeferredActor(idlFactory, canisterId);
 
     // Set up an admin
@@ -34,7 +36,7 @@ describe("Conversation Management", () => {
 
     // Create a Groq agent with real API key for HTTP outcall tests
     ({ userIdentity } = await setupRegularUser(actor));
-    agentId = await createGroqAgent(actor, adminIdentity);
+    agentId = await createGroqAgent(actor, ownerIdentity, adminIdentity);
   });
 
   afterEach(async () => {
@@ -111,7 +113,11 @@ describe("Conversation Management", () => {
     it("should isolate conversations between different agents", async () => {
       // Create another Groq agent
       const user2 = await setupRegularUser(actor);
-      const agentId2 = await createGroqAgent(actor, adminIdentity);
+      const agentId2 = await createGroqAgent(
+        actor,
+        ownerIdentity,
+        adminIdentity,
+      );
 
       const message1 = "What is the capital of France?";
       const message2 = "What is the capital of Spain?";

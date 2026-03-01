@@ -19,19 +19,21 @@ describe("workspaceAdminTalk", () => {
   let canisterId: Principal;
   let adminIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
+  let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
 
   beforeEach(async () => {
     const testEnv = await createTestEnvironment();
     pic = testEnv.pic;
     actor = testEnv.actor;
     canisterId = testEnv.canisterId;
+    ownerIdentity = testEnv.ownerIdentity;
 
     // Set up an admin
     ({ adminIdentity } = await setupAdminUser(actor));
 
     // Create a Groq agent with real API key for HTTP outcall tests
     ({ userIdentity } = await setupRegularUser(actor));
-    await createGroqAgent(actor, adminIdentity);
+    await createGroqAgent(actor, ownerIdentity, adminIdentity);
   });
 
   afterEach(async () => {

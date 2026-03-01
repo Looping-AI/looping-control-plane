@@ -4,7 +4,6 @@ import type { PocketIc, Actor, DeferredActor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
 import {
   createTestEnvironment,
-  setupAdminUser,
   setupRegularUser,
   createGroqAgent,
   idlFactory,
@@ -17,7 +16,7 @@ describe("workspaceTalk", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
   let canisterId: Principal;
-  let adminIdentity: ReturnType<typeof generateRandomIdentity>;
+  let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
   let agentId: bigint;
 
@@ -26,13 +25,11 @@ describe("workspaceTalk", () => {
     pic = testEnv.pic;
     actor = testEnv.actor;
     canisterId = testEnv.canisterId;
-
-    // Set up an admin
-    ({ adminIdentity } = await setupAdminUser(actor));
+    ownerIdentity = testEnv.ownerIdentity;
 
     // Create a Groq agent with real API key for HTTP outcall tests
     ({ userIdentity } = await setupRegularUser(actor));
-    agentId = await createGroqAgent(actor, adminIdentity);
+    agentId = await createGroqAgent(actor, ownerIdentity);
   });
 
   afterEach(async () => {

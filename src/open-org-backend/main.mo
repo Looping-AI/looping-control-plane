@@ -12,7 +12,6 @@ import Runtime "mo:core/Runtime";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
 import AdminModel "./models/admin-model";
-import AgentModel "./models/agent-model";
 import AgentRegistryModel "./models/agent-registry-model";
 import ConversationModel "./models/conversation-model";
 import SlackUserModel "./models/slack-user-model";
@@ -50,7 +49,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
   var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
   var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
-  var workspaceAgents = Map.fromArray<Nat, AgentModel.WorkspaceAgentsState>([(0, AgentModel.emptyWorkspaceState())], Nat.compare);
   var agentRegistry = AgentRegistryModel.emptyState(); // Global agent registry state (ID → AgentRecord, name lookup)
   var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
@@ -413,7 +411,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
             // The caller is seeded as the initial workspace admin.
             Map.add(workspaceAdmins, Nat.compare, wsId, [caller]);
             Map.add(workspaceMembers, Nat.compare, wsId, []);
-            Map.add(workspaceAgents, Nat.compare, wsId, AgentModel.emptyWorkspaceState());
             Map.add(workspaceValueStreams, Nat.compare, wsId, ValueStreamModel.emptyWorkspaceState());
             Map.add(workspaceObjectives, Nat.compare, wsId, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>());
             Map.add(adminConversations, Nat.compare, wsId, List.empty<ConversationModel.Message>());
@@ -496,96 +493,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Get the current org-admin channel anchor (public query — channel IDs are not secret).
   public query func getOrgAdminChannel() : async ?WorkspaceModel.OrgAdminChannelAnchor {
     orgAdminChannel;
-  };
-
-  // ============================================
-  // Agent Management
-  // ============================================
-
-  // Create a new agent
-  public shared ({ caller }) func createAgent(workspaceId : Nat, name : Text, provider : Types.LlmProvider, model : Text) : async {
-    #ok : Nat;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?workspaceState) {
-            AgentModel.createAgent(name, provider, model, workspaceState);
-          };
-        };
-      };
-    };
-  };
-
-  // Read/Get an agent
-  public shared ({ caller }) func getAgent(workspaceId : Nat, id : Nat) : async {
-    #ok : ?AgentModel.Agent;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?workspaceState) {
-            #ok(AgentModel.getAgent(id, workspaceState));
-          };
-        };
-      };
-    };
-  };
-
-  // Update an agent
-  public shared ({ caller }) func updateAgent(workspaceId : Nat, id : Nat, newName : ?Text, newProvider : ?Types.LlmProvider, newModel : ?Text) : async {
-    #ok : Bool;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?workspaceState) {
-            AgentModel.updateAgent(id, newName, newProvider, newModel, workspaceState);
-          };
-        };
-      };
-    };
-  };
-
-  // Delete an agent
-  public shared ({ caller }) func deleteAgent(workspaceId : Nat, id : Nat) : async {
-    #ok : Bool;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?workspaceState) { AgentModel.deleteAgent(id, workspaceState) };
-        };
-      };
-    };
-  };
-
-  // List all agents
-  public shared ({ caller }) func listAgents(workspaceId : Nat) : async {
-    #ok : [AgentModel.Agent];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?workspaceState) { #ok(AgentModel.listAgents(workspaceState)) };
-        };
-      };
-    };
   };
 
   // ============================================
@@ -900,7 +807,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           return #err("Secret cannot be empty.");
         };
         // Verify workspace exists
-        switch (Map.get(workspaceAgents, Nat.compare, workspaceId)) {
+        switch (Map.get(workspaces.workspaces, Nat.compare, workspaceId)) {
           case (null) { return #err("Workspace not found.") };
           case (?_) {};
         };
