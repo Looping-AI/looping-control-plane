@@ -20,6 +20,54 @@ import { spawn, spawnSync } from "child_process";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
+// ============================================
+// Agent Template Types
+// ============================================
+
+interface AgentTemplate {
+  name: string;
+  category: "admin" | "research" | "communication";
+  model: {
+    provider: "groq";
+    variant: string;
+  };
+  secretsAllowed: Array<{ workspaceId: number; secret: string }>;
+  tools: string[];
+  sources: string[];
+}
+
+function loadAgentTemplate(templateName: string): AgentTemplate {
+  const templatePath = resolve(
+    process.cwd(),
+    "templates",
+    "agents",
+    `${templateName}.json`,
+  );
+  const content = readFileSync(templatePath, "utf-8");
+  return JSON.parse(content) as AgentTemplate;
+}
+
+function buildRegisterAgentArgs(template: AgentTemplate): string {
+  const modelCandid = `variant { ${template.model.provider} = variant { ${template.model.variant} } }`;
+
+  const secretsCandid =
+    template.secretsAllowed.length === 0
+      ? "vec {}"
+      : `vec { ${template.secretsAllowed.map((s) => `record { ${s.workspaceId} : nat; variant { ${s.secret} } }`).join("; ")} }`;
+
+  const toolsCandid =
+    template.tools.length === 0
+      ? "vec {}"
+      : `vec { ${template.tools.map((t) => `"${t}"`).join("; ")} }`;
+
+  const sourcesCandid =
+    template.sources.length === 0
+      ? "vec {}"
+      : `vec { ${template.sources.map((s) => `"${s}"`).join("; ")} }`;
+
+  return `("${template.name}", variant { ${template.category} }, ${modelCandid}, ${secretsCandid}, ${toolsCandid}, ${sourcesCandid})`;
+}
+
 // ANSI color codes for terminal output
 const colors = {
   reset: "\x1b[0m",
@@ -235,32 +283,15 @@ async function seedSecrets(envVars: Record<string, string>): Promise<void> {
 async function registerAdminAgent(): Promise<void> {
   logStep(5, "Registering admin agent...");
 
-  const tools = [
-    "save_value_stream",
-    "save_plan",
-    "web_search",
-    "create_metric",
-    "update_metric",
-    "get_metric_datapoints",
-    "create_objective",
-    "update_objective",
-    "archive_objective",
-    "record_objective_datapoint",
-    "add_impact_review",
-  ];
-  const toolsVec = `vec { ${tools.map((t) => `"${t}"`).join("; ")} }`;
-
-  const secretsAllowed = `vec {
-    record { 0 : nat; variant { groqApiKey } };
-    record { 0 : nat; variant { slackBotToken } }
-  }`;
+  const template = loadAgentTemplate("orgAdmin");
+  const candid = buildRegisterAgentArgs(template);
 
   const output = await execCommand("dfx", [
     "canister",
     "call",
     "open-org-backend",
     "registerAgent",
-    `("workspace-admin", variant { admin }, variant { groq = variant { gpt_oss_120b } }, ${secretsAllowed}, ${toolsVec}, vec {})`,
+    candid,
   ]);
 
   const trimmedOutput = output.trim();
@@ -274,7 +305,9 @@ async function registerAdminAgent(): Promise<void> {
     }
     throw new Error(`Failed to register admin agent: ${errorMessage}`);
   }
-  logSuccess('Admin agent "workspace-admin" registered (groq / gpt_oss_120b)');
+  logSuccess(
+    `Admin agent "${template.name}" registered (${template.model.provider} / ${template.model.variant})`,
+  );
 }
 
 /**
