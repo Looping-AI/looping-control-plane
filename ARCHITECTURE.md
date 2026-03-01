@@ -246,7 +246,7 @@ See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId, memberChannelId }`.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`. Backed by `SlackUserModel`.
 - **Org admin channel**: `{ channelId, channelName }` (the anchor for `#looping-ai-org-admins`).
-- **Agent registry**: `Map<agentName, AgentRecord>` where `AgentRecord = { name, category, llmModel, toolsAllowed, toolsState, sources }`.
+- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, llmModel, secretsAllowed: [(workspaceId, SecretId)], toolsAllowed, toolsState: Map<Text, ToolState>, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/open-org-backend/models/agent-model.mo](src/open-org-backend/models/agent-model.mo).
 - **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace (existing, retained).
@@ -327,13 +327,15 @@ The access level is always determined by the **user** who wrote the original mes
 
 ### Agent registry
 
-Agents are stored in a persistent registry keyed by name. Each agent has:
+Agents are stored in a persistent registry with dual indexes (`agentsById: Map<Nat, AgentRecord>`, `agentsByName: Map<Text, Nat>`) for O(1) lookup by ID or name. Each agent record (`AgentRecord`) has:
 
-- `name`: unique identifier, used in `::` references.
-- `category`: which agent category/service handles this agent (e.g., `#admin`, `#research`, `#communication`, `#coding`).
-- `llmModel`: the LLM provider and model to use.
+- `id`: stable unique numeric identifier, assigned by the registry on registration.
+- `name`: kebab-case identifier, must be unique and match the `::name` syntax. Stored lower-cased; lookups are case-insensitive.
+- `category`: which agent category/service handles this agent (e.g., `#admin`, `#research`, `#communication`).
+- `llmModel`: the LLM provider and model to use (e.g., `#groq(#gpt_oss_120b)`).
+- `secretsAllowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent is permitted to access. The agent service must check this list before decrypting any secret.
 - `toolsAllowed`: subset of the category's `category_tools` that this agent is permitted to use.
-- `toolsState`: per-tool runtime state:
+- `toolsState`: per-tool runtime state (`Map<Text, ToolState>`):
   - `usageCount`: how many times this tool has been invoked by this agent.
   - `knowHow`: a Text field containing tool-specific operational knowledge — configuration state, secret key references (how to find them in Secrets), good/bad practices, documentation links, and other relevant context. This field is also used when duplicating an agent as a template: the know-how can be copied and adapted.
 - `sources`: knowledge sources and context configuration.
