@@ -29,6 +29,11 @@ module {
   public let ADMIN_TALK_SECRET : Types.SecretId = #groqApiKey;
   public let ADMIN_TALK_MODEL : Text = "openai/gpt-oss-120b";
 
+  // Conversation retention
+  // Messages/groups older than this are dropped by the Sunday prune timer.
+  // 30 days in seconds (30 * 24 * 3600)
+  public let CONVERSATION_RETENTION_SECS : Nat = 2_592_000;
+
   // Agent routing round control (Phase 1)
   // Absolute ceiling on the number of LLM rounds any session may run.
   public let MAX_AGENT_ROUNDS : Nat = 100;

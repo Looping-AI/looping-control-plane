@@ -64,7 +64,7 @@ module {
           await MessageEditedHandler.handle(event.workspaceId, edited, ctx);
         };
         case (#messageDeleted(deleted)) {
-          await MessageDeletedHandler.handle(event.workspaceId, deleted, ctx);
+          await MessageDeletedHandler.handle(deleted, ctx);
         };
         case (#memberJoinedChannel(joined)) {
           await MemberJoinedChannelHandler.handle(event.workspaceId, joined, ctx);

@@ -544,6 +544,10 @@ module {
           case (?#string(t)) { t };
           case _ { return #err("Missing 'ts' in message_changed message") };
         };
+        let msgThreadTs = switch (Json.get(msgJson, "thread_ts")) {
+          case (?#string(t)) { ?t };
+          case _ { null };
+        };
         let edited = switch (Json.get(msgJson, "edited")) {
           case (?editedJson) {
             let editedUser = switch (Json.get(editedJson, "user")) {
@@ -559,7 +563,7 @@ module {
           case _ { null };
         };
 
-        #ok(#messageChanged({ channel; ts; message = { user = msgUser; text = msgText; ts = msgTs; edited } }));
+        #ok(#messageChanged({ channel; ts; message = { user = msgUser; text = msgText; ts = msgTs; threadTs = msgThreadTs; edited } }));
       };
     };
   };
@@ -858,6 +862,7 @@ module {
             #messageEdited({
               channel = m.channel;
               messageTs = m.message.ts;
+              threadTs = m.message.threadTs;
               newText = m.message.text;
               editedBy = switch (m.message.edited) {
                 case (?e) { ?e.user };

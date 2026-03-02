@@ -108,6 +108,7 @@ module {
     user : Text;
     text : Text;
     ts : Text; // Original message timestamp (use for matching)
+    threadTs : ?Text; // Present when the message is part of a thread
     edited : ?{ user : Text; ts : Text };
   };
 

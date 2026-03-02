@@ -231,9 +231,10 @@ This design aligns with security best practices: short-lived tokens, server-side
 See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 
 - `orgOwner` / `orgAdmins`: Principal-based ownership (to be replaced by Slack-derived identity).
-- `workspaceAdmins` / `workspaceMembers`: per-workspace Principal arrays (to be replaced).
-- `workspaceAgents`: per-workspace agent configuration.
-- `conversations` / `adminConversations`: message history.
+- `workspaceAdmins` / `workspaceMembers`: per-workspace Principal arrays (to be replaced by Slack-derived role membership in Phase 0).
+- `agentRegistry`: global agent registry with dual index by ID and name (Phase 1.1, implemented).
+- `conversationStore`: channel-keyed, timeline-structured message history with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps.
+- `roundContextStore`: session/round tracking for agent routing (Phase 1.3, implemented).
 - `secrets`: encrypted secrets per workspace.
 - `mcpToolRegistry`: dynamic MCP tool registry.
 - `metricsRegistry` / `metricDatapoints`: org-level metrics.
@@ -250,7 +251,7 @@ See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 - **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace (existing, retained).
-- **Conversations**: per-workspace message history (existing, retained).
+- **Conversations**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/open-org-backend/models/conversation-model.mo](src/open-org-backend/models/conversation-model.mo) for the `ConversationStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
 - **Event store**: event lifecycle with timer dispatch (existing, retained).
 - **Metrics / Value Streams / Objectives**: existing models retained.
 - **Tool registries**: function tool registry (static) and MCP tool registry (dynamic), with new per-agent `toolsAllowed` and `toolsState`.

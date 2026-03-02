@@ -1,7 +1,6 @@
 import Error "mo:core/Error";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
-import List "mo:core/List";
 import Array "mo:core/Array";
 
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
@@ -114,7 +113,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     {
       secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
       keyCache;
-      adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
+      conversationStore = ConversationModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = AgentModel.emptyState();
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
@@ -159,7 +158,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     {
       secrets;
       keyCache;
-      adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
+      conversationStore = ConversationModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
@@ -336,14 +335,13 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
-    workspaceId : Nat,
     deleted : {
       channel : Text;
       deletedTs : Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageDeletedHandler.handle(workspaceId, deleted, emptyCtx());
+    await MessageDeletedHandler.handle(deleted, emptyCtx());
   };
 
   public shared ({ caller }) func testMessageEditedHandler(
@@ -351,6 +349,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     edited : {
       channel : Text;
       messageTs : Text;
+      threadTs : ?Text;
       newText : Text;
       editedBy : ?Text;
     },

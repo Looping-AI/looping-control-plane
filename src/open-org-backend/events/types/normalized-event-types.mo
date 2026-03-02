@@ -82,6 +82,7 @@ module {
     #messageEdited : {
       channel : Text; // Channel ID
       messageTs : Text; // ts of the original message that was edited
+      threadTs : ?Text; // thread_ts if the message is in a thread; null for top-level
       newText : Text; // Current text after the edit
       editedBy : ?Text; // Who edited (may differ from original author)
     };

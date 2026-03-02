@@ -6,14 +6,15 @@
 ///      - User message  → build a fresh UserAuthContext and store it for the thread.
 ///      - Bot message   → inherit the thread's stored UserAuthContext, apply
 ///                         pre-condition guards, then increment roundCount.
-///   2. Scope workspace data from EventProcessingContext.
-///   3. Derive the workspace encryption key (once).
-///   4. Call WorkspaceAdminOrchestrator for LLM reply.
-///   5. Post the reply back to Slack via SlackWrapper.
+///   2. Persist the incoming message to the conversation store (Phase 1.4).
+///   3. Scope workspace data from EventProcessingContext.
+///   4. Derive the workspace encryption key (once).
+///   5. Call WorkspaceAdminOrchestrator for LLM reply.
+///   6. Persist the agent’s response to the conversation store (Phase 1.4).
+///   7. Post the reply back to Slack via SlackWrapper.
 
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
-import List "mo:core/List";
 import Array "mo:core/Array";
 import Time "mo:core/Time";
 import NormalizedEventTypes "../types/normalized-event-types";
@@ -184,14 +185,6 @@ module {
 
     // --- 1. Scope workspace data ---
     let workspaceSecrets = Map.get(ctx.secrets, Nat.compare, workspaceId);
-    let workspaceConversations = switch (Map.get(ctx.adminConversations, Nat.compare, workspaceId)) {
-      case (?list) { list };
-      case (null) {
-        let newList = List.empty<ConversationModel.Message>();
-        Map.add(ctx.adminConversations, Nat.compare, workspaceId, newList);
-        newList;
-      };
-    };
     let workspaceValueStreamsState = switch (Map.get(ctx.workspaceValueStreams, Nat.compare, workspaceId)) {
       case (?state) { state };
       case (null) { ValueStreamModel.emptyWorkspaceState() };
@@ -203,10 +196,20 @@ module {
       };
     };
 
-    // --- 2. Derive encryption key once for this event ---
+    // --- 2. Resolve conversation context (Phase 1.4) ---
+    // rootTs is the thread root ts; equals msg.ts for top-level messages.
+    let rootTs = switch (msg.threadTs) {
+      case (?ts) { ts };
+      case (null) { msg.ts };
+    };
+    // Fetch existing timeline entry for LLM context.
+    // We fetch BEFORE storing the incoming message so the service doesn't see it twice.
+    let conversationEntry = ConversationModel.getEntry(ctx.conversationStore, msg.channel, rootTs);
+
+    // --- 3. Derive encryption key once for this event ---
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
 
-    // --- 3. Decrypt the Slack bot token ---
+    // --- 4. Decrypt the Slack bot token ---
     let botToken = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
       case (null) {
         Logger.log(
@@ -223,12 +226,12 @@ module {
       case (?token) { token };
     };
 
-    // --- 4. Call the orchestrator with the scoped workspace data ---
+    // --- 5. Call the orchestrator with conversation context ---
     let orchestratorResult = await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
       ctx.agentRegistry,
       ctx.mcpToolRegistry,
       workspaceSecrets,
-      workspaceConversations,
+      conversationEntry,
       workspaceValueStreamsState,
       ctx.workspaceValueStreams,
       workspaceObjectivesMap,
@@ -239,20 +242,13 @@ module {
       encryptionKey,
     );
 
-    // --- 5. Extract the LLM steps and last assistant reply ---
+    // --- 6. Extract the LLM steps and reply text ---
     let (llmSteps, replyTextOpt) : ([Types.ProcessingStep], ?Text) = switch (orchestratorResult) {
       case (#err(e)) {
         ([{ action = "llm_call"; result = #err(e); timestamp = Time.now() }], null);
       };
-      case (#ok({ messages; steps })) {
-        var lastAssistant : ?Text = null;
-        for (m in messages.vals()) {
-          switch (m.author) {
-            case (#agent) { lastAssistant := ?m.content };
-            case (_) {};
-          };
-        };
-        (steps, lastAssistant);
+      case (#ok({ response; steps })) {
+        (steps, ?response);
       };
     };
 
@@ -268,7 +264,29 @@ module {
       case (?text) { text };
     };
 
-    // --- 6. Post reply to Slack ---
+    // --- 7. Persist messages to conversation store (Phase 1.4) ---
+    // Store the incoming message (user or bot) only on successful LLM response.
+    if (not msg.isBotMessage) {
+      // User message: derive userAuthContext for role mapping
+      let userCtxOpt = SlackAuthMiddleware.buildFromCache(msg.user, ctx.slackUsers.cache);
+      ConversationModel.addMessage(
+        ctx.conversationStore,
+        msg.channel,
+        { ts = msg.ts; userAuthContext = userCtxOpt; text = msg.text },
+        msg.threadTs,
+      );
+    };
+    // Store the agent response (bot message, always null userAuthContext)
+    // Use a synthetic reply ts derived from the event ts to maintain ordering.
+    let replyTs = msg.ts # "r"; // synthetic ts: original ts + "r" suffix
+    ConversationModel.addMessage(
+      ctx.conversationStore,
+      msg.channel,
+      { ts = replyTs; userAuthContext = null; text = replyText },
+      ?rootTs, // always a thread reply to maintain the group structure
+    );
+
+    // --- 8. Post reply to Slack ---
     // If the message is already inside a thread, reply within that thread.
     // If it is a top-level channel message, post the reply as a new top-level
     // channel message — do NOT open a thread from a non-threaded message.

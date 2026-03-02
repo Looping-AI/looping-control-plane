@@ -1,5 +1,4 @@
 import Map "mo:core/Map";
-import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Types "../types";
@@ -19,15 +18,17 @@ module {
   // Resolves the first #admin agent from the registry and uses its
   // llmModel and secretsAllowed to authenticate and dispatch the request.
   //
-  // Expects workspace-scoped inputs:
-  //   - workspaceSecrets: result of Map.get(secrets, Nat.compare, workspaceId)
-  //   - workspaceConversations: result of Map.get(adminConversations, Nat.compare, workspaceId)
-  //     (must be the live List reference from the map so mutations persist)
+  // `conversationEntry` provides the timeline entry (from the conversation store)
+  // to use as LLM context. Pass `null` when no history exists or is needed
+  // (e.g. the legacy direct endpoint before Phase 2.1 removes it).
+  //
+  // Returns the LLM's final text response. The caller is responsible for
+  // persisting the user message and agent response to the conversation store.
   public func orchestrateAdminTalk(
     agentRegistry : AgentModel.AgentRegistryState,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
-    workspaceConversations : List.List<ConversationModel.Message>,
+    conversationEntry : ?ConversationModel.TimelineEntry,
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
@@ -38,7 +39,7 @@ module {
     encryptionKey : [Nat8],
   ) : async {
     #ok : {
-      messages : [ConversationModel.Message];
+      response : Text;
       steps : [Types.ProcessingStep];
     };
     #err : Text;
@@ -75,7 +76,7 @@ module {
           case (?key) {
             let serviceResult = await GroqWorkspaceAdminService.executeAdminTalk(
               mcpToolRegistry,
-              workspaceConversations,
+              conversationEntry,
               workspaceValueStreamsState,
               valueStreamsMap,
               workspaceObjectivesMap,
@@ -96,8 +97,8 @@ module {
               timestamp = Time.now();
             };
             switch (serviceResult) {
-              case (#ok(messages)) { #ok({ messages; steps = [step] }) };
-              case (#err(_)) { #ok({ messages = []; steps = [step] }) };
+              case (#ok(response)) { #ok({ response; steps = [step] }) };
+              case (#err(_)) { #ok({ response = ""; steps = [step] }) };
             };
           };
         };

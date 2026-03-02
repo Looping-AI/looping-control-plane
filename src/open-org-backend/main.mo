@@ -2,7 +2,6 @@ import Principal "mo:core/Principal";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
-import List "mo:core/List";
 import Text "mo:core/Text";
 import Timer "mo:core/Timer";
 import Int "mo:core/Int";
@@ -19,7 +18,6 @@ import WorkspaceModel "./models/workspace-model";
 import RoundContextStore "./models/round-context-store";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
-import WorkspaceTalkService "./services/workspace-talk-service";
 import WorkspaceAdminOrchestrator "./orchestrators/workspace-admin-orchestrator";
 import McpToolRegistry "./tools/mcp-tool-registry";
 import ToolTypes "./tools/tool-types";
@@ -42,8 +40,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   var orgOwner : Principal = owner;
   var orgAdmins : [Principal] = [owner];
-  var conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
-  var adminConversations = Map.fromArray<Nat, List.List<ConversationModel.Message>>([(0, List.empty<ConversationModel.Message>())], Nat.compare);
+  // Channel-keyed conversation store (Phase 1.4): replaces the old (workspaceId, agentId)-keyed
+  // `conversations` map and the workspaceId-keyed `adminConversations` map.
+  var conversationStore = ConversationModel.empty();
   var secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>(); // Encrypted secrets per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
@@ -77,6 +76,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var roundContextStore = RoundContextStore.empty();
   var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
   var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
+  var lastConversationPruneTimestamp : Int = Time.now(); // Track last time conversation store was pruned
 
   // ============================================
   // Auth Helper
@@ -127,6 +127,11 @@ persistent actor class OpenOrgBackend(owner : Principal) {
         getLastRun = func() : Int { lastWeeklyReconciliationTimestamp };
         callback = weeklyReconciliationTimer;
       },
+      {
+        interval = Constants.SEVEN_DAYS_NS;
+        getLastRun = func() : Int { lastConversationPruneTimestamp };
+        callback = conversationPruneTimer;
+      },
     ];
   };
 
@@ -165,7 +170,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     let ctx : EventRouter.EventProcessingContext = {
       secrets;
       keyCache;
-      adminConversations;
+      conversationStore;
       mcpToolRegistry;
       agentRegistry;
       workspaceValueStreams;
@@ -248,6 +253,25 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
 
     lastWeeklyReconciliationTimestamp := Time.now();
+  };
+
+  // Conversation Store Prune Timer (Phase 1.4)
+  // Runs every 7 days. Drops timeline entries where ALL messages are older than
+  // CONVERSATION_RETENTION_SECS (30 days). The old-thread grace rule preserves
+  // a thread entry if any message in it falls within the retention window.
+  private func conversationPruneTimer() : async () {
+    // Reschedule before doing work so the timer survives a trap
+    ignore Timer.setTimer<system>(
+      #nanoseconds(Constants.SEVEN_DAYS_NS),
+      conversationPruneTimer,
+    );
+
+    let nowSecs : Nat = Int.abs(Time.now() / 1_000_000_000);
+    let cutoffSecs : Nat = if (nowSecs > Constants.CONVERSATION_RETENTION_SECS) {
+      Nat.sub(nowSecs, Constants.CONVERSATION_RETENTION_SECS);
+    } else { 0 };
+    ConversationModel.pruneAll(conversationStore, cutoffSecs);
+    lastConversationPruneTimestamp := Time.now();
   };
 
   // ============================================
@@ -417,7 +441,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
             Map.add(workspaceMembers, Nat.compare, wsId, []);
             Map.add(workspaceValueStreams, Nat.compare, wsId, ValueStreamModel.emptyWorkspaceState());
             Map.add(workspaceObjectives, Nat.compare, wsId, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>());
-            Map.add(adminConversations, Nat.compare, wsId, List.empty<ConversationModel.Message>());
             #ok(wsId);
           };
         };
@@ -616,28 +639,29 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Conversation Management
   // ============================================
 
-  // Get workspace -> agent conversation history
-  public shared ({ caller }) func getConversation(workspaceId : Nat, agentId : Nat) : async {
-    #ok : [ConversationModel.Message];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        ConversationModel.getConversation(conversations, workspaceId, agentId);
-      };
-    };
-  };
-
-  // Get workspace admin conversation history
+  // Get workspace admin conversation history (Phase 1.4).
+  // Returns messages from the channel-keyed conversation store for the
+  // synthetic admin channel of the given workspace.
+  // NOTE: workspaceAdminTalk no longer persists conversation history to the store;
+  //       this endpoint will be removed in Phase 2.1 along with other legacy direct
+  //       endpoints. History is managed through the event-driven Slack path (Phase 1.5+).
   public shared ({ caller }) func getAdminConversation(workspaceId : Nat) : async {
-    #ok : [ConversationModel.Message];
+    #ok : [{ author : { #user; #agent }; content : Text }];
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        ConversationModel.getAdminConversation(adminConversations, workspaceId);
+        // Verify workspace existence (workspaceAdmins is the canonical membership registry
+        // for the legacy principal-based auth path, still used until Phase 2.4).
+        switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
+          case (null) { #err("Workspace not found.") };
+          case (?_) {
+            // No persistent admin conversation history in Phase 1.4.
+            // Conversation history is now managed by the event-driven Slack path.
+            #ok([]);
+          };
+        };
       };
     };
   };
@@ -696,9 +720,12 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   // Workspace Admin Talk
   // ============================================
 
+  // Direct LLM endpoint for workspace admins (legacy — will be removed in Phase 2.1).
+  // Does NOT persist conversation history; use the Slack event-driven path for persistent
+  // multi-turn context once Phase 1.5 (Agent Router) lands.
   public shared ({ caller }) func workspaceAdminTalk(workspaceId : Nat, message : Text) : async {
     #ok : {
-      messages : [ConversationModel.Message];
+      messages : [{ author : { #user; #agent }; content : Text }];
       steps : [Types.ProcessingStep];
     };
     #err : Text;
@@ -718,27 +745,19 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           case (null) { return #err("Workspace objectives not found.") };
           case (?objMap) { objMap };
         };
-        // Scope secrets and conversation history to the workspace
+        // Scope secrets to the workspace
         let workspaceSecrets = Map.get(secrets, Nat.compare, workspaceId);
-        let workspaceConversations = switch (Map.get(adminConversations, Nat.compare, workspaceId)) {
-          case (?list) { list };
-          case (null) {
-            // First message in this workspace — create the entry so mutations persist
-            let newList = List.empty<ConversationModel.Message>();
-            Map.add(adminConversations, Nat.compare, workspaceId, newList);
-            newList;
-          };
-        };
 
-        // Derive encryption key for this workspace (once, shared to orchestrator)
+        // Derive encryption key for this workspace
         let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
 
-        // Delegate to orchestrator for business logic
+        // Delegate to orchestrator — null conversationGroup means no history context
+        // (legacy direct endpoint; history is managed by the event-driven path)
         let orchestratorResult = await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
           agentRegistry,
           mcpToolRegistry,
           workspaceSecrets,
-          workspaceConversations,
+          null, // no conversation history for legacy direct endpoint
           workspaceValueStreamsState,
           workspaceValueStreams,
           workspaceObjectivesMap,
@@ -748,39 +767,17 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           message,
           encryptionKey,
         );
-        // Return messages and steps to the caller
+        // Return messages shaped for the legacy API surface
         switch (orchestratorResult) {
-          case (#ok({ messages; steps })) { #ok({ messages; steps }) };
+          case (#ok({ response; steps })) {
+            let messages = [
+              { author = #user; content = message },
+              { author = #agent; content = response },
+            ];
+            #ok({ messages; steps });
+          };
           case (#err(e)) { #err(e) };
         };
-      };
-    };
-  };
-
-  // ============================================
-  // Workspace Talk
-  // ============================================
-
-  public shared ({ caller }) func workspaceTalk(workspaceId : Nat, agentId : Nat, message : Text) : async {
-    #ok : Text;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin, #IsWorkspaceMember])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        if (Text.trim(message, #char ' ') == "") {
-          return #err("Message cannot be empty.");
-        };
-        // Delegate to service for business logic
-        await WorkspaceTalkService.processWorkspaceTalk(
-          agentRegistry,
-          secrets,
-          conversations,
-          workspaceId,
-          agentId,
-          message,
-          keyCache,
-        );
       };
     };
   };
