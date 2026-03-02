@@ -636,37 +636,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // Conversation Management
-  // ============================================
-
-  // Get workspace admin conversation history (Phase 1.4).
-  // Returns messages from the channel-keyed conversation store for the
-  // synthetic admin channel of the given workspace.
-  // NOTE: workspaceAdminTalk no longer persists conversation history to the store;
-  //       this endpoint will be removed in Phase 2.1 along with other legacy direct
-  //       endpoints. History is managed through the event-driven Slack path (Phase 1.5+).
-  public shared ({ caller }) func getAdminConversation(workspaceId : Nat) : async {
-    #ok : [{ author : { #user; #agent }; content : Text }];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        // Verify workspace existence (workspaceAdmins is the canonical membership registry
-        // for the legacy principal-based auth path, still used until Phase 2.4).
-        switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?_) {
-            // No persistent admin conversation history in Phase 1.4.
-            // Conversation history is now managed by the event-driven Slack path.
-            #ok([]);
-          };
-        };
-      };
-    };
-  };
-
-  // ============================================
   // MCP Tool Management
   // ============================================
 
@@ -712,72 +681,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
         #ok(McpToolRegistry.getAll(mcpToolRegistry));
-      };
-    };
-  };
-
-  // ============================================
-  // Workspace Admin Talk
-  // ============================================
-
-  // Direct LLM endpoint for workspace admins (legacy — will be removed in Phase 2.1).
-  // Does NOT persist conversation history; use the Slack event-driven path for persistent
-  // multi-turn context once Phase 1.5 (Agent Router) lands.
-  public shared ({ caller }) func workspaceAdminTalk(workspaceId : Nat, message : Text) : async {
-    #ok : {
-      messages : [{ author : { #user; #agent }; content : Text }];
-      steps : [Types.ProcessingStep];
-    };
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        if (Text.trim(message, #char ' ') == "") {
-          return #err("Message cannot be empty.");
-        };
-        // Extract workspace-specific data
-        let workspaceValueStreamsState = switch (Map.get(workspaceValueStreams, Nat.compare, workspaceId)) {
-          case (null) { return #err("Workspace value streams not found.") };
-          case (?state) { state };
-        };
-        let workspaceObjectivesMap = switch (Map.get(workspaceObjectives, Nat.compare, workspaceId)) {
-          case (null) { return #err("Workspace objectives not found.") };
-          case (?objMap) { objMap };
-        };
-        // Scope secrets to the workspace
-        let workspaceSecrets = Map.get(secrets, Nat.compare, workspaceId);
-
-        // Derive encryption key for this workspace
-        let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-
-        // Delegate to orchestrator — null conversationGroup means no history context
-        // (legacy direct endpoint; history is managed by the event-driven path)
-        let orchestratorResult = await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
-          agentRegistry,
-          mcpToolRegistry,
-          workspaceSecrets,
-          null, // no conversation history for legacy direct endpoint
-          workspaceValueStreamsState,
-          workspaceValueStreams,
-          workspaceObjectivesMap,
-          metricsRegistry,
-          metricDatapoints,
-          workspaceId,
-          message,
-          encryptionKey,
-        );
-        // Return messages shaped for the legacy API surface
-        switch (orchestratorResult) {
-          case (#ok({ response; steps })) {
-            let messages = [
-              { author = #user; content = message },
-              { author = #agent; content = response },
-            ];
-            #ok({ messages; steps });
-          };
-          case (#err(e)) { #err(e) };
-        };
       };
     };
   };
