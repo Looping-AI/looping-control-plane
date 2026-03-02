@@ -34,6 +34,7 @@ func makeMessageEvent(eventId : Text) : NormalizedEventTypes.Event {
       channel = "C456";
       ts = "1700000000.000001";
       threadTs = null;
+      isBotMessage = false;
     }),
   );
 };
@@ -769,6 +770,7 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
           });
           // Set enqueuedAt to large negative Int so diff is > ONE_HOUR_NS
           enqueuedAt = -9_999_999_999_999;
@@ -808,6 +810,7 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
           });
           enqueuedAt = -9_999_999_999_999; // Stale: far in the past
           claimedAt = null;
@@ -850,6 +853,7 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
           });
           enqueuedAt = -9_999_999_999_999; // Stale: far in the past
           claimedAt = null;
@@ -923,6 +927,7 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
           });
           enqueuedAt = 1;
           claimedAt = null;
@@ -956,6 +961,7 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
           });
           enqueuedAt = 1;
           claimedAt = null;
@@ -1004,6 +1010,7 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
           });
           enqueuedAt = 42;
           claimedAt = null;

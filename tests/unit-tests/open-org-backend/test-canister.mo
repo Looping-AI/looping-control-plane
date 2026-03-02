@@ -28,6 +28,7 @@ import ConversationModel "../../../src/open-org-backend/models/conversation-mode
 import SecretModel "../../../src/open-org-backend/models/secret-model";
 import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
+import RoundContextStore "../../../src/open-org-backend/models/round-context-store";
 import Types "../../../src/open-org-backend/types";
 
 // ============================================
@@ -122,6 +123,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces = testWorkspacesState;
+      roundContextStore = RoundContextStore.empty();
     };
   };
 
@@ -166,6 +168,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces = testWorkspacesState;
+      roundContextStore = RoundContextStore.empty();
     };
   };
 
@@ -305,6 +308,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       channel : Text;
       ts : Text;
       threadTs : ?Text;
+      isBotMessage : Bool;
     },
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
@@ -322,6 +326,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       channel : Text;
       ts : Text;
       threadTs : ?Text;
+      isBotMessage : Bool;
     },
     botToken : Text,
     groqApiKey : Text,

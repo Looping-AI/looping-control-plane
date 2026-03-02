@@ -812,16 +812,28 @@ module {
           channel = mention.channel;
           ts = mention.ts;
           threadTs = mention.thread_ts;
+          isBotMessage = false;
         });
       };
       case (#message(msg)) {
         switch (msg) {
           case (#standard(m)) {
-            // Skip own-bot messages (bot_id present and app_id matches api_app_id)
-            // to prevent infinite loops when the bot's own replies are re-delivered.
-            if (m.botId != null and m.appId == ?callback.api_app_id) {
-              Logger.log(#info, ?"SlackAdapter", "Skipping own-bot message (app_id=" # callback.api_app_id # ")");
-              return #err("Skipping own-bot message");
+            let isOwnBot = m.botId != null and m.appId == ?callback.api_app_id;
+            if (isOwnBot) {
+              // Allow own-bot messages through only when they are inside a thread
+              // (threadTs != null).  Those may carry a ::agentname reference that
+              // needs to be routed to the next agent (Phase 1.3 round tracking).
+              // Top-level bot replies have no parent session and are still skipped
+              // to avoid spurious events.
+              switch (m.threadTs) {
+                case (null) {
+                  Logger.log(#info, ?"SlackAdapter", "Skipping own-bot top-level message (app_id=" # callback.api_app_id # ")");
+                  return #err("Skipping own-bot top-level message");
+                };
+                case (?_) {
+                  Logger.log(#info, ?"SlackAdapter", "Allowing own-bot threaded message for round tracking (app_id=" # callback.api_app_id # ")");
+                };
+              };
             };
             #message({
               user = m.user;
@@ -829,6 +841,7 @@ module {
               channel = m.channel;
               ts = m.ts;
               threadTs = m.threadTs;
+              isBotMessage = isOwnBot;
             });
           };
           case (#meMessage(m)) {
@@ -838,6 +851,7 @@ module {
               channel = m.channel;
               ts = m.ts;
               threadTs = null;
+              isBotMessage = false;
             });
           };
           case (#messageChanged(m)) {

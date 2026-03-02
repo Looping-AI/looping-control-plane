@@ -16,6 +16,7 @@ import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
 import SlackUserModel "./models/slack-user-model";
 import WorkspaceModel "./models/workspace-model";
+import RoundContextStore "./models/round-context-store";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
 import WorkspaceTalkService "./services/workspace-talk-service";
@@ -72,6 +73,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Event store state (Slack events, per-event timer dispatch)
   var eventStore = EventStoreModel.empty();
+  // Round context store (threadTs → UserAuthContext, for Phase 1.3 round tracking)
+  var roundContextStore = RoundContextStore.empty();
   var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
   var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
 
@@ -171,6 +174,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       metricDatapoints;
       slackUsers;
       workspaces;
+      roundContextStore;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };

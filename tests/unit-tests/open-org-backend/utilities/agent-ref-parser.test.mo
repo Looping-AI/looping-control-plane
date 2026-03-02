@@ -26,7 +26,7 @@ func registerSimple(
     )
   ) {
     case (#ok id) { id };
-    case (#err msg) { assert false; 0 };
+    case (#err _) { assert false; 0 };
   };
 };
 

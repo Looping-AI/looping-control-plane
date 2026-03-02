@@ -60,11 +60,12 @@ module {
   /// Normalized event payload — what the router/handlers work with
   public type EventPayload = {
     #message : {
-      user : Text; // Who sent the message
+      user : Text; // Who sent the message (or bot user ID for bot messages)
       text : Text; // Message text
       channel : Text; // Channel ID
       ts : Text; // Message timestamp
       threadTs : ?Text; // Thread timestamp
+      isBotMessage : Bool; // true when posted by our own bot
     };
     #assistantThreadEvent : {
       eventType : {
