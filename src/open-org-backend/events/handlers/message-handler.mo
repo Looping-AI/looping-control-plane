@@ -28,7 +28,6 @@ import ObjectiveModel "../../models/objective-model";
 import WorkspaceAdminOrchestrator "../../orchestrators/workspace-admin-orchestrator";
 import SlackWrapper "../../wrappers/slack-wrapper";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
-import RoundContextStore "../../models/round-context-store";
 import AgentRefParser "../../utilities/agent-ref-parser";
 import AgentModel "../../models/agent-model";
 import Constants "../../constants";
@@ -79,7 +78,7 @@ module {
       };
 
       // Look up the parent session.
-      let parentCtx = switch (RoundContextStore.lookup(ctx.roundContextStore, threadTs)) {
+      let parentCtx = switch (ConversationModel.lookupRoundContext(ctx.conversationStore, msg.channel, threadTs)) {
         case (null) {
           Logger.log(#info, ?"MessageHandler", "No parent session for thread " # threadTs # " — skipping bot message");
           return #ok([{
@@ -118,7 +117,7 @@ module {
       // Hard ceiling: MAX_AGENT_ROUNDS reached → force-terminate and stop.
       if (newRoundCount >= Constants.MAX_AGENT_ROUNDS) {
         let terminatedCtx = SlackAuthMiddleware.withRound(parentCtx, newRoundCount, true);
-        RoundContextStore.save(ctx.roundContextStore, threadTs, terminatedCtx);
+        ConversationModel.saveRoundContext(ctx.conversationStore, msg.channel, threadTs, terminatedCtx);
         Logger.log(
           #warn,
           ?"MessageHandler",
@@ -134,7 +133,7 @@ module {
 
       // Advance the round context with the incremented count.
       let activeCtx = SlackAuthMiddleware.withRound(parentCtx, newRoundCount, false);
-      RoundContextStore.save(ctx.roundContextStore, threadTs, activeCtx);
+      ConversationModel.saveRoundContext(ctx.conversationStore, msg.channel, threadTs, activeCtx);
 
       Logger.log(
         #info,
@@ -169,7 +168,7 @@ module {
         };
         case (?userCtx) {
           // Seed the round context for this thread (roundCount = 0, not terminated).
-          RoundContextStore.save(ctx.roundContextStore, threadKey, userCtx);
+          ConversationModel.saveRoundContext(ctx.conversationStore, msg.channel, threadKey, userCtx);
           Logger.log(
             #info,
             ?"MessageHandler",

@@ -76,12 +76,18 @@ module {
 
   /// Per-channel index structures.
   ///
-  /// - `timeline`:   Map<ts, TimelineEntry> — full ordered channel view; O(log N)
-  /// - `replyIndex`: Map<ts, rootTs>        — reply-only reverse lookup; O(log R)
+  /// - `timeline`:      Map<ts, TimelineEntry>         — full ordered channel view; O(log N)
+  /// - `replyIndex`:    Map<ts, rootTs>                — reply-only reverse lookup; O(log R)
   ///   Root/post ts values are the key in `timeline` so they never need indexing.
+  /// - `roundContexts`: Map<rootTs, UserAuthContext>   — per-thread round tracking.
+  ///   Stores the latest `UserAuthContext` (carrying `roundCount` and `forceTerminated`)
+  ///   for each thread root ts.  Replaces the former standalone RoundContextStore.
+  ///   Keyed by the same rootTs used in `timeline`; cleaned up alongside timeline entries
+  ///   during retention pruning.
   public type ChannelStore = {
     timeline : Map.Map<Text, TimelineEntry>;
     replyIndex : Map.Map<Text, Text>;
+    roundContexts : Map.Map<Text, SlackAuthMiddleware.UserAuthContext>;
   };
 
   /// The conversation store: one ChannelStore per channel.
@@ -110,6 +116,7 @@ module {
         let ch : ChannelStore = {
           timeline = Map.empty<Text, TimelineEntry>();
           replyIndex = Map.empty<Text, Text>();
+          roundContexts = Map.empty<Text, SlackAuthMiddleware.UserAuthContext>();
         };
         Map.add(store, Text.compare, channelId, ch);
         ch;
@@ -183,6 +190,42 @@ module {
           };
         };
       };
+    };
+  };
+
+  // ============================================
+  // Round context (Phase 1.3)
+  // ============================================
+
+  /// Persist (or overwrite) the `UserAuthContext` for a thread root ts.
+  ///
+  /// Called by the message handler:
+  ///   - On a user message: seed with roundCount = 0, forceTerminated = false.
+  ///   - On a bot message: update with the incremented/terminated context.
+  ///
+  /// `rootTs` is the thread root ts (or the message's own ts for top-level posts).
+  public func saveRoundContext(
+    store : ConversationStore,
+    channelId : Text,
+    rootTs : Text,
+    ctx : SlackAuthMiddleware.UserAuthContext,
+  ) {
+    let ch = getOrCreateChannelStore(store, channelId);
+    Map.add(ch.roundContexts, Text.compare, rootTs, ctx);
+  };
+
+  /// Look up the `UserAuthContext` for a thread root ts.
+  ///
+  /// Returns `null` when no session has been recorded — callers should treat
+  /// this as "no active session; skip processing".
+  public func lookupRoundContext(
+    store : ConversationStore,
+    channelId : Text,
+    rootTs : Text,
+  ) : ?SlackAuthMiddleware.UserAuthContext {
+    switch (Map.get(store, Text.compare, channelId)) {
+      case (null) { null };
+      case (?ch) { Map.get(ch.roundContexts, Text.compare, rootTs) };
     };
   };
 
@@ -447,6 +490,8 @@ module {
             case (_) {};
           };
           Map.remove(ch.timeline, Text.compare, rootTs);
+          // Also clean up any round context stored for this thread root.
+          Map.remove(ch.roundContexts, Text.compare, rootTs);
         };
       };
     };

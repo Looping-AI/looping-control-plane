@@ -22,7 +22,6 @@ import ObjectiveModel "../../models/objective-model";
 import MetricModel "../../models/metric-model";
 import SlackUserModel "../../models/slack-user-model";
 import WorkspaceModel "../../models/workspace-model";
-import RoundContextStore "../../models/round-context-store";
 
 module {
 
@@ -58,8 +57,5 @@ module {
     slackUsers : SlackUserModel.SlackUserState;
     /// Workspace channel anchors — used to resolve channel IDs to workspace scopes
     workspaces : WorkspaceModel.WorkspacesState;
-    /// Round context store — maps threadTs → UserAuthContext for round tracking (Phase 1.3)
-    /// Persists `roundCount` and `forceTerminated` across agent hops in the same thread.
-    roundContextStore : RoundContextStore.RoundContextStoreState;
   };
 };
