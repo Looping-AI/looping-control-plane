@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import { createTestEnvironment, type _SERVICE } from "../../setup.ts";
+import { createBackendCanister, type _SERVICE } from "../../setup.ts";
 import { expectErr, expectOk, expectSome, expectNone } from "../../helpers.ts";
 import type {
   MetricRegistrationInput,
@@ -14,7 +14,7 @@ describe("Metrics API", () => {
   let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
 
   beforeEach(async () => {
-    const testEnv = await createTestEnvironment();
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
     ownerIdentity = testEnv.ownerIdentity;

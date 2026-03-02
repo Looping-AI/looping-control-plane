@@ -28,6 +28,7 @@ import SecretModel "../../../src/open-org-backend/models/secret-model";
 import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
 import RoundContextStore "../../../src/open-org-backend/models/round-context-store";
+import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
 import Types "../../../src/open-org-backend/types";
 
 // ============================================
@@ -44,6 +45,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Persistent Slack user state for tests (cache + access change log).
   // This allows us to verify state changes and audit log entries across handler calls.
   var slackUsers = SlackUserModel.emptyState();
+
+  // Persistent key cache for testing key derivation mechanics.
+  // Starts empty; tests seed it via testSeedKeyForWorkspace or test methods.
+  var testKeyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache();
 
   // Pre-seeded workspace state with channel anchors for handler tests.
   //   Workspace 0: Default (no channel anchors) — from emptyState()
@@ -611,5 +616,37 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   public query func testSlackTimestampVerification(timestamp : Text) : async Bool {
     SlackAdapter.verifyTimestamp(timestamp);
+  };
+
+  // ============================================
+  // Key Derivation Service Test Methods
+  // ============================================
+
+  /// Returns the current number of entries in the persistent test key cache.
+  public query func testGetKeyCacheSize() : async Nat {
+    KeyDerivationService.getCacheSize(testKeyCache);
+  };
+
+  /// Clears the persistent test key cache, simulating the periodic cache-clearing timer.
+  public shared ({ caller }) func testClearKeyCache() : async () {
+    assert caller == parent;
+    testKeyCache := KeyDerivationService.clearCache();
+  };
+
+  /// Derives and caches the encryption key for a workspace via a live sign_with_schnorr call.
+  /// Requires the canister to be deployed on a subnet with fiduciary (threshold Schnorr) support.
+  public shared ({ caller }) func testSeedKeyForWorkspace(workspaceId : Nat) : async () {
+    assert caller == parent;
+    let key = await KeyDerivationService.deriveKeyFromSchnorr(workspaceId);
+    Map.add(testKeyCache, Nat.compare, workspaceId, key);
+  };
+
+  /// Returns the byte-length of the cached key for the given workspace, or null if not cached.
+  /// Use this to confirm the dummy key has been stored (expected length = 32).
+  public query func testGetCachedKeyLength(workspaceId : Nat) : async ?Nat {
+    switch (Map.get(testKeyCache, Nat.compare, workspaceId)) {
+      case (?key) { ?key.size() };
+      case (null) { null };
+    };
   };
 };

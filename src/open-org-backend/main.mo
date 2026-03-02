@@ -18,7 +18,6 @@ import WorkspaceModel "./models/workspace-model";
 import RoundContextStore "./models/round-context-store";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
-import WorkspaceAdminOrchestrator "./orchestrators/workspace-admin-orchestrator";
 import McpToolRegistry "./tools/mcp-tool-registry";
 import ToolTypes "./tools/tool-types";
 import Constants "./constants";

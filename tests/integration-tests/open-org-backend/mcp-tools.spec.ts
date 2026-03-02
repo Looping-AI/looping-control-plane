@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
 import {
-  createTestEnvironment,
+  createBackendCanister,
   setupAdminUser,
   type _SERVICE,
 } from "../../setup.ts";
@@ -13,7 +13,7 @@ describe("MCP Tool Management", () => {
   let actor: Actor<_SERVICE>;
 
   beforeEach(async () => {
-    const testEnv = await createTestEnvironment();
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
 
