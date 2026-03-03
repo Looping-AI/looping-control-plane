@@ -148,7 +148,20 @@ module {
     switch (threadTs) {
       case (null) {
         // Top-level post — flat storage, no replyIndex entry needed.
-        Map.add(ch.timeline, Text.compare, msg.ts, #post msg);
+        // If a sparse #thread already exists at this ts (reply arrived before root),
+        // merge the root message into the existing thread instead of overwriting it.
+        switch (Map.get(ch.timeline, Text.compare, msg.ts)) {
+          case (?#thread thread) {
+            // Root arrived after replies — attach root to existing thread.
+            Map.add(thread.messages, Text.compare, msg.ts, msg);
+            // Ensure the timeline continues to point at the thread entry.
+            Map.add(ch.timeline, Text.compare, msg.ts, #thread thread);
+          };
+          case (_) {
+            // No existing thread — store as a simple post.
+            Map.add(ch.timeline, Text.compare, msg.ts, #post msg);
+          };
+        };
       };
       case (?rootTs) {
         // Reply — always register in replyIndex.

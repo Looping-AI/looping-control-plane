@@ -233,8 +233,10 @@ See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 - `orgOwner` / `orgAdmins`: Principal-based ownership (to be replaced by Slack-derived identity).
 - `workspaceAdmins` / `workspaceMembers`: per-workspace Principal arrays (to be replaced by Slack-derived role membership in Phase 0).
 - `agentRegistry`: global agent registry with dual index by ID and name (Phase 1.1, implemented).
-- `conversationStore`: channel-keyed, timeline-structured message history with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps.
-- `roundContextStore`: session/round tracking for agent routing (Phase 1.3, implemented).
+- `conversationStore`: channel-keyed, timeline-structured message history with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Round tracking is embedded here — each `ConversationMessage` carries a `userAuthContext` field (`roundCount`, `forceTerminated`) so no separate round-context store is needed. See [src/open-org-backend/middleware/slack-auth-middleware.mo](src/open-org-backend/middleware/slack-auth-middleware.mo) for the `UserAuthContext` type.
+- `slackUsers`: Slack user cache (`SlackUserEntry` records indexed by Slack user ID); populated by event-driven membership events and weekly reconciliation.
+- `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId` / `memberChannelId`).
+- `orgAdminChannel`: optional anchor for the `#looping-ai-org-admins` Slack channel.
 - `secrets`: encrypted secrets per workspace.
 - `mcpToolRegistry`: dynamic MCP tool registry.
 - `metricsRegistry` / `metricDatapoints`: org-level metrics.

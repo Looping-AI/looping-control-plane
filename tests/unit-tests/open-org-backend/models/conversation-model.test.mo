@@ -156,6 +156,37 @@ suite(
         };
       },
     );
+
+    test(
+      "root arriving after replies merges into existing #thread without dropping replies",
+      func() {
+        let store = ConversationModel.empty();
+        // Two replies arrive before the root.
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply 1"), ?"1000.000001");
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000003", "Reply 2"), ?"1000.000001");
+        // Root message arrives later as a top-level post.
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#thread t) {
+            // Still a thread (not downgraded to #post).
+            expect.text(t.rootTs).equal("1000.000001");
+            // Root + two replies must all be present.
+            expect.nat(Map.size(t.messages)).equal(3);
+            // Verify the root message text is accessible.
+            switch (Map.get(t.messages, Text.compare, "1000.000001")) {
+              case (?msg) { expect.text(msg.text).equal("Root") };
+              case (null) { expect.bool(false).equal(true) };
+            };
+            // Verify replies were not dropped.
+            expect.bool(isSome(Map.get(t.messages, Text.compare, "1000.000002"))).equal(true);
+            expect.bool(isSome(Map.get(t.messages, Text.compare, "1000.000003"))).equal(true);
+          };
+          case (_) { expect.bool(false).equal(true) };
+        };
+      },
+    );
   },
 );
 
