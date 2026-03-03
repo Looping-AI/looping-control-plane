@@ -26,7 +26,7 @@ func registerSimple(
     )
   ) {
     case (#ok id) { id };
-    case (#err _) { assert false; 0 };
+    case (#err e) { expect.text(e).equal("no error expected"); 0 };
   };
 };
 

@@ -349,6 +349,63 @@ module {
   };
 
   // ============================================
+  // updateMessageContext
+  // ============================================
+
+  /// Replace the `userAuthContext` of the message identified by (channelId, rootTs, ts).
+  /// `rootTs` is `threadTs ?? messageTs` — the same value passed to `addMessage`.
+  /// O(log N + log M) — no list traversal.
+  /// Returns true if the message was found and updated.
+  public func updateMessageContext(
+    store : ConversationStore,
+    channelId : Text,
+    rootTs : Text,
+    ts : Text,
+    userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
+  ) : Bool {
+    switch (Map.get(store, Text.compare, channelId)) {
+      case (null) { false };
+      case (?ch) {
+        switch (Map.get(ch.timeline, Text.compare, rootTs)) {
+          case (null) { false };
+          case (?#post msg) {
+            if (msg.ts != ts) { return false };
+            Map.add(
+              ch.timeline,
+              Text.compare,
+              rootTs,
+              #post {
+                ts = msg.ts;
+                userAuthContext;
+                text = msg.text;
+              },
+            );
+            true;
+          };
+          case (?#thread thread) {
+            switch (Map.get(thread.messages, Text.compare, ts)) {
+              case (null) { false };
+              case (?msg) {
+                Map.add(
+                  thread.messages,
+                  Text.compare,
+                  ts,
+                  {
+                    ts = msg.ts;
+                    userAuthContext;
+                    text = msg.text;
+                  },
+                );
+                true;
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  // ============================================
   // deleteMessage
   // ============================================
 
