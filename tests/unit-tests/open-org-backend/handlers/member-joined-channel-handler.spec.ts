@@ -30,7 +30,7 @@ describe("MemberJoinedChannelHandler", () => {
   });
 
   it("should be a no-op when channel has no workspace anchor", async () => {
-    const result = await testCanister.testMemberJoinedChannelHandler(1n, {
+    const result = await testCanister.testMemberJoinedChannelHandler({
       userId: "U_USER_1",
       channelId: "C_UNANCHORED",
       channelType: "public_channel",
@@ -43,7 +43,7 @@ describe("MemberJoinedChannelHandler", () => {
 
   it("should add user to workspace members when channel is admin anchor", async () => {
     // First, add the user to the cache via team_join
-    await testCanister.testTeamJoinHandler(1n, {
+    await testCanister.testTeamJoinHandler({
       userId: "U_USER_ADMIN_1",
       displayName: "user_admin_1",
       realName: ["User Admin 1"],
@@ -53,7 +53,7 @@ describe("MemberJoinedChannelHandler", () => {
     });
 
     // Now add them to the admin channel anchor
-    const result = await testCanister.testMemberJoinedChannelHandler(1n, {
+    const result = await testCanister.testMemberJoinedChannelHandler({
       userId: "U_USER_ADMIN_1",
       channelId: "C_ADMIN_CHANNEL",
       channelType: "public_channel",
@@ -79,7 +79,7 @@ describe("MemberJoinedChannelHandler", () => {
 
   it("should add user to workspace members when channel is member anchor", async () => {
     // First, add the user to the cache via team_join
-    await testCanister.testTeamJoinHandler(1n, {
+    await testCanister.testTeamJoinHandler({
       userId: "U_USER_MEM_1",
       displayName: "user_mem_1",
       realName: ["User Mem 1"],
@@ -89,7 +89,7 @@ describe("MemberJoinedChannelHandler", () => {
     });
 
     // Now add them to the member channel anchor
-    const result = await testCanister.testMemberJoinedChannelHandler(1n, {
+    const result = await testCanister.testMemberJoinedChannelHandler({
       userId: "U_USER_MEM_1",
       channelId: "C_MEMBER_CHANNEL",
       channelType: "public_channel",
@@ -114,7 +114,7 @@ describe("MemberJoinedChannelHandler", () => {
   });
 
   it("should handle direct message channels gracefully", async () => {
-    const result = await testCanister.testMemberJoinedChannelHandler(1n, {
+    const result = await testCanister.testMemberJoinedChannelHandler({
       userId: "U_USER_3",
       channelId: "D_DIRECT_MSG",
       channelType: "im",
@@ -129,7 +129,7 @@ describe("MemberJoinedChannelHandler", () => {
     const userId = "U_USER_4";
 
     // First, add user via team_join
-    await testCanister.testTeamJoinHandler(1n, {
+    await testCanister.testTeamJoinHandler({
       userId: userId,
       displayName: "user_4",
       realName: ["User 4"],
@@ -139,7 +139,7 @@ describe("MemberJoinedChannelHandler", () => {
     });
 
     // Then process member_joined_channel (user should be found in cache)
-    const result = await testCanister.testMemberJoinedChannelHandler(1n, {
+    const result = await testCanister.testMemberJoinedChannelHandler({
       userId: userId,
       channelId: "C_MEMBER_CHANNEL_2",
       channelType: "public_channel",

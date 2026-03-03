@@ -1,4 +1,4 @@
-# Copilot Instructions for bot-agent-testing
+# AGENTS Instructions
 
 ## Project Overview
 

@@ -4,7 +4,7 @@ import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
 import type { _SERVICE } from "../../setup.ts";
 import {
-  createTestEnvironment,
+  createBackendCanister,
   setupAdminUser,
   setupRegularUser,
 } from "../../setup.ts";
@@ -17,7 +17,7 @@ describe("Secrets Management", () => {
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
 
   beforeEach(async () => {
-    const testEnv = await createTestEnvironment();
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
 

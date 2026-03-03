@@ -1,7 +1,6 @@
 import Error "mo:core/Error";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
-import List "mo:core/List";
 import Array "mo:core/Array";
 
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
@@ -27,7 +26,9 @@ import MetricModel "../../../src/open-org-backend/models/metric-model";
 import ConversationModel "../../../src/open-org-backend/models/conversation-model";
 import SecretModel "../../../src/open-org-backend/models/secret-model";
 import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
+import SlackAuthMiddleware "../../../src/open-org-backend/middleware/slack-auth-middleware";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
+import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
 import Types "../../../src/open-org-backend/types";
 
 // ============================================
@@ -44,6 +45,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Persistent Slack user state for tests (cache + access change log).
   // This allows us to verify state changes and audit log entries across handler calls.
   var slackUsers = SlackUserModel.emptyState();
+
+  // Persistent key cache for testing key derivation mechanics.
+  // Starts empty; tests seed it via testSeedKeyForWorkspace or test methods.
+  var testKeyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache();
 
   // Pre-seeded workspace state with channel anchors for handler tests.
   //   Workspace 0: Default (no channel anchors) — from emptyState()
@@ -113,7 +118,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     {
       secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
       keyCache;
-      adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
+      conversationStore = ConversationModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = AgentModel.emptyState();
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
@@ -157,7 +162,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     {
       secrets;
       keyCache;
-      adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
+      conversationStore = ConversationModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
@@ -298,64 +303,127 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // ============================================
 
   public shared ({ caller }) func testMessageHandler(
-    workspaceId : Nat,
     msg : {
       user : Text;
       text : Text;
       channel : Text;
       ts : Text;
       threadTs : ?Text;
-    },
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(workspaceId, msg, emptyCtx());
+    await MessageHandler.handle(msg, emptyCtx());
   };
 
   /// Like testMessageHandler, but pre-seeds the context with a real Slack bot token
   /// and Groq API key so the full happy-path (LLM call → Slack post) can be exercised
   /// and captured with the cassette recording system.
   public shared ({ caller }) func testMessageHandlerWithSecrets(
-    workspaceId : Nat,
     msg : {
       user : Text;
       text : Text;
       channel : Text;
       ts : Text;
       threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
     },
     botToken : Text,
     groqApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(workspaceId, msg, ctxWithSecrets(botToken, groqApiKey));
+    await MessageHandler.handle(msg, ctxWithSecrets(botToken, groqApiKey));
+  };
+
+  /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
+  /// with a parent message that carries a UserAuthContext at a specified roundCount.
+  /// This allows bot-message (isBotMessage: true) tests to exercise session
+  /// inheritance and MAX_AGENT_ROUNDS termination logic without live HTTP calls
+  /// or requiring external cassettes.
+  ///
+  /// parentChannel        — channel where the parent message lives.
+  /// parentTs             — ts of the parent message (also used as rootTs for a top-level post).
+  /// parentRoundCount     — roundCount stamped on the parent's userAuthContext.
+  /// parentForceTerminated — forceTerminated flag on the parent's userAuthContext.
+  public shared ({ caller }) func testMessageHandlerBotBranch(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    groqApiKey : Text,
+    parentChannel : Text,
+    parentTs : Text,
+    parentRoundCount : Nat,
+    parentForceTerminated : Bool,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    let ctx = ctxWithSecrets(botToken, groqApiKey);
+    // Seed the parent message with a UserAuthContext at the requested roundCount.
+    // workspaceScopes is empty — the bot-path guard only checks roundCount / forceTerminated.
+    //
+    // Respect the invariant: parentRef == null ↔ roundCount == 0.
+    // When parentRoundCount > 0 a real context would carry the channelId+ts of the
+    // message that triggered it, so we populate parentRef accordingly.
+    let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_SEEDED_PARENT";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      roundCount = parentRoundCount;
+      forceTerminated = parentForceTerminated;
+      parentRef = if (parentRoundCount == 0) null else ?{
+        channelId = parentChannel;
+        ts = parentTs;
+      };
+    };
+    ConversationModel.addMessage(
+      ctx.conversationStore,
+      parentChannel,
+      { ts = parentTs; userAuthContext = null; text = "seeded parent message" },
+      null,
+    );
+    ignore ConversationModel.updateMessageContext(
+      ctx.conversationStore,
+      parentChannel,
+      parentTs, // rootTs — this is a top-level post so rootTs == ts
+      parentTs, // msgTs
+      ?parentAuthCtx,
+    );
+    await MessageHandler.handle(msg, ctx);
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
-    workspaceId : Nat,
     deleted : {
       channel : Text;
       deletedTs : Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageDeletedHandler.handle(workspaceId, deleted, emptyCtx());
+    await MessageDeletedHandler.handle(deleted, emptyCtx());
   };
 
   public shared ({ caller }) func testMessageEditedHandler(
-    workspaceId : Nat,
     edited : {
       channel : Text;
       messageTs : Text;
+      threadTs : ?Text;
       newText : Text;
       editedBy : ?Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageEditedHandler.handle(workspaceId, edited, emptyCtx());
+    await MessageEditedHandler.handle(edited, emptyCtx());
   };
 
   public shared ({ caller }) func testAssistantThreadEventHandler(
-    workspaceId : Nat,
     thread : {
       eventType : { #threadStarted; #threadContextChanged };
       userId : Text;
@@ -363,14 +431,13 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       threadTs : Text;
       eventTs : Text;
       context : NormalizedEventTypes.AssistantThreadContext;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await AssistantThreadHandler.handle(workspaceId, thread, emptyCtx());
+    await AssistantThreadHandler.handle(thread, emptyCtx());
   };
 
   public shared ({ caller }) func testTeamJoinHandler(
-    workspaceId : Nat,
     event : {
       userId : Text;
       displayName : Text;
@@ -378,38 +445,36 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner : Bool;
       isOrgAdmin : Bool;
       eventTs : Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await TeamJoinHandler.handle(workspaceId, event, emptyCtx());
+    await TeamJoinHandler.handle(event, emptyCtx());
   };
 
   public shared ({ caller }) func testMemberJoinedChannelHandler(
-    workspaceId : Nat,
     event : {
       userId : Text;
       channelId : Text;
       channelType : Text;
       teamId : Text;
       eventTs : Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MemberJoinedChannelHandler.handle(workspaceId, event, emptyCtx());
+    await MemberJoinedChannelHandler.handle(event, emptyCtx());
   };
 
   public shared ({ caller }) func testMemberLeftChannelHandler(
-    workspaceId : Nat,
     event : {
       userId : Text;
       channelId : Text;
       channelType : Text;
       teamId : Text;
       eventTs : Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MemberLeftChannelHandler.handle(workspaceId, event, emptyCtx());
+    await MemberLeftChannelHandler.handle(event, emptyCtx());
   };
 
   // ============================================
@@ -607,5 +672,37 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   public query func testSlackTimestampVerification(timestamp : Text) : async Bool {
     SlackAdapter.verifyTimestamp(timestamp);
+  };
+
+  // ============================================
+  // Key Derivation Service Test Methods
+  // ============================================
+
+  /// Returns the current number of entries in the persistent test key cache.
+  public query func testGetKeyCacheSize() : async Nat {
+    KeyDerivationService.getCacheSize(testKeyCache);
+  };
+
+  /// Clears the persistent test key cache, simulating the periodic cache-clearing timer.
+  public shared ({ caller }) func testClearKeyCache() : async () {
+    assert caller == parent;
+    testKeyCache := KeyDerivationService.clearCache();
+  };
+
+  /// Derives and caches the encryption key for a workspace via a live sign_with_schnorr call.
+  /// Requires the canister to be deployed on a subnet with fiduciary (threshold Schnorr) support.
+  public shared ({ caller }) func testSeedKeyForWorkspace(workspaceId : Nat) : async () {
+    assert caller == parent;
+    let key = await KeyDerivationService.deriveKeyFromSchnorr(workspaceId);
+    Map.add(testKeyCache, Nat.compare, workspaceId, key);
+  };
+
+  /// Returns the byte-length of the cached key for the given workspace, or null if not cached.
+  /// Use this to confirm the dummy key has been stored (expected length = 32).
+  public query func testGetCachedKeyLength(workspaceId : Nat) : async ?Nat {
+    switch (Map.get(testKeyCache, Nat.compare, workspaceId)) {
+      case (?key) { ?key.size() };
+      case (null) { null };
+    };
   };
 };

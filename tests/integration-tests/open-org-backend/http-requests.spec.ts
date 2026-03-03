@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import type { _SERVICE } from "../../setup.ts";
-import { createTestEnvironment } from "../../setup.ts";
+import { createBackendCanister } from "../../setup.ts";
 
 describe("HTTP Requests", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
 
   beforeEach(async () => {
-    const testEnv = await createTestEnvironment();
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
   });

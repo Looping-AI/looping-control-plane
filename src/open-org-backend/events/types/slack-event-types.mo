@@ -5,6 +5,8 @@
 /// They maintain fidelity to Slack's API schema so we can reliably deserialize
 /// their payloads.
 
+import Types "../../types";
+
 module {
 
   // ============================================
@@ -72,6 +74,7 @@ module {
     threadTs : ?Text;
     botId : ?Text; // Present when the message was posted by a bot
     appId : ?Text; // Slack app ID of the sender (matches api_app_id for own-bot messages)
+    agentMetadata : ?Types.AgentMessageMetadata; // Present on own-bot replies that carry lineage
   };
 
   /// /me message (subtype: "me_message")
@@ -108,6 +111,7 @@ module {
     user : Text;
     text : Text;
     ts : Text; // Original message timestamp (use for matching)
+    threadTs : ?Text; // Present when the message is part of a thread
     edited : ?{ user : Text; ts : Text };
   };
 

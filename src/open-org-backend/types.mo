@@ -64,4 +64,31 @@ module {
     result : { #ok; #err : Text };
     timestamp : Int; // Time.now() when this step completed
   };
+
+  // ============================================
+  // Agent Message Metadata
+  // ============================================
+
+  /// Metadata embedded in every agent reply.
+  ///
+  /// Metadata is embedded in every bot reply posted via chat.postMessage.
+  /// When the reply is received back as a Slack event, the adapter parses this
+  /// metadata to reconstruct the lineage and round count — no separate
+  /// server-side round-context index required.
+  ///
+  /// `event_type` is always `"looping_agent_message"` — validated on receipt;
+  /// any other value causes the parser to return `null` (treated as absent).
+  ///
+  /// `event_payload.parent_agent`   — `::name` that triggered this reply (e.g. `"::admin"`).
+  /// `event_payload.parent_ts`      — ts of the message this is a reply to.
+  /// `event_payload.parent_channel` — channel of that message (ts is channel-scoped;
+  ///                                   both fields are needed for an unambiguous lookup).
+  public type AgentMessageMetadata = {
+    event_type : Text;
+    event_payload : {
+      parent_agent : Text;
+      parent_ts : Text;
+      parent_channel : Text;
+    };
+  };
 };

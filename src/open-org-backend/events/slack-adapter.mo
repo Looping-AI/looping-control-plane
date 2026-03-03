@@ -438,8 +438,50 @@ module {
       case (?#string(a)) { ?a };
       case _ { null };
     };
+    let agentMetadata : ?Types.AgentMessageMetadata = switch (Json.get(json, "metadata")) {
+      case (?metaJson) { parseAgentMetadata(metaJson) };
+      case _ { null };
+    };
 
-    #ok(#standard({ user; text; ts; channel; eventTs; threadTs; botId; appId }));
+    #ok(#standard({ user; text; ts; channel; eventTs; threadTs; botId; appId; agentMetadata }));
+  };
+
+  /// Parse the `metadata` block embedded in an own-bot reply.
+  ///
+  /// Returns `null` on any mismatch or missing field so callers receive a clean
+  /// optional rather than a parse error.
+  private func parseAgentMetadata(json : Json.Json) : ?Types.AgentMessageMetadata {
+    let eventType = switch (Json.get(json, "event_type")) {
+      case (?#string(t)) { t };
+      case _ { return null };
+    };
+    // Validate the event_type sentinel; reject anything else.
+    if (eventType != "looping_agent_message") { return null };
+
+    let payloadJson = switch (Json.get(json, "event_payload")) {
+      case (?p) { p };
+      case _ { return null };
+    };
+    let parentAgent = switch (Json.get(payloadJson, "parent_agent")) {
+      case (?#string(a)) { a };
+      case _ { return null };
+    };
+    let parentTs = switch (Json.get(payloadJson, "parent_ts")) {
+      case (?#string(t)) { t };
+      case _ { return null };
+    };
+    let parentChannel = switch (Json.get(payloadJson, "parent_channel")) {
+      case (?#string(c)) { c };
+      case _ { return null };
+    };
+    ?{
+      event_type = eventType;
+      event_payload = {
+        parent_agent = parentAgent;
+        parent_ts = parentTs;
+        parent_channel = parentChannel;
+      };
+    };
   };
 
   /// Parse me_message subtype
@@ -544,6 +586,10 @@ module {
           case (?#string(t)) { t };
           case _ { return #err("Missing 'ts' in message_changed message") };
         };
+        let msgThreadTs = switch (Json.get(msgJson, "thread_ts")) {
+          case (?#string(t)) { ?t };
+          case _ { null };
+        };
         let edited = switch (Json.get(msgJson, "edited")) {
           case (?editedJson) {
             let editedUser = switch (Json.get(editedJson, "user")) {
@@ -559,7 +605,7 @@ module {
           case _ { null };
         };
 
-        #ok(#messageChanged({ channel; ts; message = { user = msgUser; text = msgText; ts = msgTs; edited } }));
+        #ok(#messageChanged({ channel; ts; message = { user = msgUser; text = msgText; ts = msgTs; threadTs = msgThreadTs; edited } }));
       };
     };
   };
@@ -795,7 +841,6 @@ module {
   };
 
   /// Convert a parsed SlackEventCallback into a normalized Event
-  /// Currently hardcodes workspaceId to 0 (will be mapped in the future)
   ///
   /// @param callback - Parsed Slack event callback
   /// @returns Normalized event or error (e.g., unhandled event type, skippable subtype)
@@ -812,16 +857,30 @@ module {
           channel = mention.channel;
           ts = mention.ts;
           threadTs = mention.thread_ts;
+          isBotMessage = false;
+          agentMetadata = null;
         });
       };
       case (#message(msg)) {
         switch (msg) {
           case (#standard(m)) {
-            // Skip own-bot messages (bot_id present and app_id matches api_app_id)
-            // to prevent infinite loops when the bot's own replies are re-delivered.
-            if (m.botId != null and m.appId == ?callback.api_app_id) {
-              Logger.log(#info, ?"SlackAdapter", "Skipping own-bot message (app_id=" # callback.api_app_id # ")");
-              return #err("Skipping own-bot message");
+            let isOwnBot = m.botId != null and m.appId == ?callback.api_app_id;
+            if (isOwnBot) {
+              // Allow own-bot messages through ONLY when they carry agent metadata
+              // (metadata IS the lineage for round tracking).
+              // Messages without metadata (e.g. plain bot notifications) are skipped —
+              // there is no recoverable session context without it.
+              // This gate works for all channel topologies including DMs, because it
+              // depends solely on the metadata field, not on thread structure.
+              switch (m.agentMetadata) {
+                case (null) {
+                  Logger.log(#info, ?"SlackAdapter", "Skipping own-bot message without agent metadata (app_id=" # callback.api_app_id # ")");
+                  return #err("Skipping own-bot message without agent metadata");
+                };
+                case (?_) {
+                  Logger.log(#info, ?"SlackAdapter", "Allowing own-bot message with agent metadata for round tracking (app_id=" # callback.api_app_id # ")");
+                };
+              };
             };
             #message({
               user = m.user;
@@ -829,6 +888,8 @@ module {
               channel = m.channel;
               ts = m.ts;
               threadTs = m.threadTs;
+              isBotMessage = isOwnBot;
+              agentMetadata = m.agentMetadata;
             });
           };
           case (#meMessage(m)) {
@@ -838,12 +899,15 @@ module {
               channel = m.channel;
               ts = m.ts;
               threadTs = null;
+              isBotMessage = false;
+              agentMetadata = null;
             });
           };
           case (#messageChanged(m)) {
             #messageEdited({
               channel = m.channel;
               messageTs = m.message.ts;
+              threadTs = m.message.threadTs;
               newText = m.message.text;
               editedBy = switch (m.message.edited) {
                 case (?e) { ?e.user };
@@ -945,7 +1009,6 @@ module {
 
     #ok({
       source = #slack;
-      workspaceId = 0; // Hardcoded for now — future: map from Slack team_id/channel
       idempotencyKey = callback.event_id;
       eventId = NormalizedEventTypes.buildEventId(#slack, callback.event_id);
       timestamp = callback.event_time;

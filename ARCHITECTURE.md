@@ -231,9 +231,12 @@ This design aligns with security best practices: short-lived tokens, server-side
 See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 
 - `orgOwner` / `orgAdmins`: Principal-based ownership (to be replaced by Slack-derived identity).
-- `workspaceAdmins` / `workspaceMembers`: per-workspace Principal arrays (to be replaced).
-- `workspaceAgents`: per-workspace agent configuration.
-- `conversations` / `adminConversations`: message history.
+- `workspaceAdmins` / `workspaceMembers`: per-workspace Principal arrays (to be replaced by Slack-derived role membership in Phase 0).
+- `agentRegistry`: global agent registry with dual index by ID and name (Phase 1.1, implemented).
+- `conversationStore`: channel-keyed, timeline-structured message history with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Round tracking is embedded here — each `ConversationMessage` carries a `userAuthContext` field (`roundCount`, `forceTerminated`) so no separate round-context store is needed. See [src/open-org-backend/middleware/slack-auth-middleware.mo](src/open-org-backend/middleware/slack-auth-middleware.mo) for the `UserAuthContext` type.
+- `slackUsers`: Slack user cache (`SlackUserEntry` records indexed by Slack user ID); populated by event-driven membership events and weekly reconciliation.
+- `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId` / `memberChannelId`).
+- `orgAdminChannel`: optional anchor for the `#looping-ai-org-admins` Slack channel.
 - `secrets`: encrypted secrets per workspace.
 - `mcpToolRegistry`: dynamic MCP tool registry.
 - `metricsRegistry` / `metricDatapoints`: org-level metrics.
@@ -246,11 +249,11 @@ See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId, memberChannelId }`.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`. Backed by `SlackUserModel`.
 - **Org admin channel**: `{ channelId, channelName }` (the anchor for `#looping-ai-org-admins`).
-- **Agent registry**: `Map<agentName, AgentRecord>` where `AgentRecord = { name, category, llmModel, toolsAllowed, toolsState, sources }`.
+- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, llmModel, secretsAllowed: [(workspaceId, SecretId)], toolsAllowed, toolsState: Map<Text, ToolState>, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/open-org-backend/models/agent-model.mo](src/open-org-backend/models/agent-model.mo).
 - **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace (existing, retained).
-- **Conversations**: per-workspace message history (existing, retained).
+- **Conversations**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/open-org-backend/models/conversation-model.mo](src/open-org-backend/models/conversation-model.mo) for the `ConversationStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
 - **Event store**: event lifecycle with timer dispatch (existing, retained).
 - **Metrics / Value Streams / Objectives**: existing models retained.
 - **Tool registries**: function tool registry (static) and MCP tool registry (dynamic), with new per-agent `toolsAllowed` and `toolsState`.
@@ -327,13 +330,15 @@ The access level is always determined by the **user** who wrote the original mes
 
 ### Agent registry
 
-Agents are stored in a persistent registry keyed by name. Each agent has:
+Agents are stored in a persistent registry with dual indexes (`agentsById: Map<Nat, AgentRecord>`, `agentsByName: Map<Text, Nat>`) for O(1) lookup by ID or name. Each agent record (`AgentRecord`) has:
 
-- `name`: unique identifier, used in `::` references.
-- `category`: which agent category/service handles this agent (e.g., `#admin`, `#research`, `#communication`, `#coding`).
-- `llmModel`: the LLM provider and model to use.
+- `id`: stable unique numeric identifier, assigned by the registry on registration.
+- `name`: kebab-case identifier, must be unique and match the `::name` syntax. Stored lower-cased; lookups are case-insensitive.
+- `category`: which agent category/service handles this agent (e.g., `#admin`, `#research`, `#communication`).
+- `llmModel`: the LLM provider and model to use (e.g., `#groq(#gpt_oss_120b)`).
+- `secretsAllowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent is permitted to access. The agent service must check this list before decrypting any secret.
 - `toolsAllowed`: subset of the category's `category_tools` that this agent is permitted to use.
-- `toolsState`: per-tool runtime state:
+- `toolsState`: per-tool runtime state (`Map<Text, ToolState>`):
   - `usageCount`: how many times this tool has been invoked by this agent.
   - `knowHow`: a Text field containing tool-specific operational knowledge — configuration state, secret key references (how to find them in Secrets), good/bad practices, documentation links, and other relevant context. This field is also used when duplicating an agent as a template: the know-how can be copied and adapted.
 - `sources`: knowledge sources and context configuration.
@@ -387,10 +392,9 @@ When a message passes pre-conditions and references an agent:
 **Round tracking** (in `userAuthContext`):
 
 - `roundCount` increments each time the router processes a new event in the same request chain.
-- **Hard upper bound**: `MAX_AGENT_ROUNDS` (100, defined in Constants).
+- **Hard upper bound**: `MAX_AGENT_ROUNDS` (10, defined in Constants). Once this limit is reached, the session is force-terminated.
 - **Dynamic controls**:
   - If the reply at round N is very similar to round N-1, the router sets `forceTerminated: true` on the context.
-  - After round 10: a classifier evaluates whether the reply was worth the cost and added meaningful value. The classifier's standards get progressively stricter with each additional round. If the reply isn't worth it → `forceTerminated: true` and the user is asked to approve continuation.
 - **Invariant**: an agent service must never directly invoke another agent service. The "connection" is always a `postMessage` on Slack that triggers a new round through an event. This ensures every hop is auditable, traceable, and budget-checkable.
 
 ## Session Tracking

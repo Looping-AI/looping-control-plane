@@ -69,7 +69,7 @@ export const TEST_CANISTER_WASM_PATH = resolve(
  * and sets up the canister
  * @returns Object with PocketIC instance, actor, canisterId, and owner identity
  */
-export async function createTestEnvironment(): Promise<{
+export async function createBackendCanister(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
   canisterId: import("@icp-sdk/core/principal").Principal;
@@ -142,6 +142,30 @@ export async function createTestCanister(): Promise<{
   canisterId: import("@icp-sdk/core/principal").Principal;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "");
+
+  const fixture = await pic.setupCanister<TestCanisterService>({
+    idlFactory: testCanisterIdlFactory,
+    wasm: TEST_CANISTER_WASM_PATH,
+  });
+
+  return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
+}
+
+/**
+ * Creates a new PocketIC test environment with test canister and fiduciary subnet.
+ * Use this for unit tests that require threshold Schnorr signing (sign_with_schnorr).
+ * @returns Object with PocketIC instance, test canister actor, and canisterId
+ */
+export async function createSchnorrTestCanister(): Promise<{
+  pic: PocketIc;
+  actor: Actor<TestCanisterService>;
+  canisterId: import("@icp-sdk/core/principal").Principal;
+}> {
+  const pic = await PocketIc.create(process.env.PIC_URL || "", {
+    fiduciary: {
+      state: { type: SubnetStateType.New },
+    },
+  });
 
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,

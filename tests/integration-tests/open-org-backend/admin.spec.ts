@@ -3,7 +3,7 @@ import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
 import { Principal } from "@icp-sdk/core/principal";
 import {
-  createTestEnvironment,
+  createBackendCanister,
   generateTestPrincipal,
   type _SERVICE,
 } from "../../setup.ts";
@@ -15,7 +15,7 @@ describe("Admin Management", () => {
   let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
 
   beforeEach(async () => {
-    const testEnv = await createTestEnvironment();
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
     ownerIdentity = testEnv.ownerIdentity;

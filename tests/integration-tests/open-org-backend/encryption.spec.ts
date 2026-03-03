@@ -1,31 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import type { PocketIc, Actor, DeferredActor } from "@dfinity/pic";
+import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import type { Principal } from "@icp-sdk/core/principal";
 import {
-  createTestEnvironment,
+  createBackendCanister,
   setupAdminUser,
   setupRegularUser,
-  createGroqAgent,
-  idlFactory,
   type _SERVICE,
 } from "../../setup.ts";
 import { expectOk, expectErr } from "../../helpers.ts";
-import { withCassette } from "../../lib/cassette";
 
 describe("API Key Encryption & Cache Management", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
-  let canisterId: Principal;
   let workspaceAdminIdentity: ReturnType<typeof generateRandomIdentity>;
   let ownerIdentity: ReturnType<typeof generateRandomIdentity>;
   let userIdentity: ReturnType<typeof generateRandomIdentity>;
 
   beforeEach(async () => {
-    const testEnv = await createTestEnvironment();
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
-    canisterId = testEnv.canisterId;
     ownerIdentity = testEnv.ownerIdentity;
 
     // Set up workspace admin for agent operations
@@ -119,42 +113,5 @@ describe("API Key Encryption & Cache Management", () => {
     const statsResult = await actor.getKeyCacheStats();
     const stats = expectOk(statsResult);
     expect(stats.size).toBe(0n);
-  });
-
-  it("should re-derive encryption key after cache clear", async () => {
-    // Create a Groq Agent with valid test API key stored at workspace level
-    const groqAgentId = await createGroqAgent(
-      actor,
-      ownerIdentity,
-      workspaceAdminIdentity,
-    );
-
-    // Owner clears cache
-    actor.setIdentity(ownerIdentity);
-    await actor.clearKeyCache();
-
-    // Create a deferred actor for the HTTP outcall test
-    const deferredActor: DeferredActor<_SERVICE> = pic.createDeferredActor(
-      idlFactory,
-      canisterId,
-    );
-    deferredActor.setIdentity(userIdentity);
-
-    // User is able to use workspaceTalk,
-    // which requires re-deriving the workspace key successfully,
-    // so that the API key can be decrypted
-    const { result } = await withCassette(
-      pic,
-      "integration-tests/open-org-backend/encryption/re-derive-key-after-cache-clear",
-      () =>
-        deferredActor.workspaceTalk(
-          0n,
-          groqAgentId,
-          "What is capital of France?",
-        ),
-      { ticks: 5 }, // More ticks needed for key derivation before HTTP outcall
-    );
-    const response = expectOk(await result);
-    expect(response).toContain("Paris");
   });
 });

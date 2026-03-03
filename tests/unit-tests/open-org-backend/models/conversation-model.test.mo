@@ -1,175 +1,101 @@
 import { test; suite; expect } "mo:test";
 import Map "mo:core/Map";
-import List "mo:core/List";
+import Text "mo:core/Text";
 import Nat "mo:core/Nat";
-import Result "mo:core/Result";
 import ConversationModel "../../../../src/open-org-backend/models/conversation-model";
+import SlackAuthMiddleware "../../../../src/open-org-backend/middleware/slack-auth-middleware";
+import SlackUserModel "../../../../src/open-org-backend/models/slack-user-model";
 
-// Helper functions for Result comparison
-func resultMessagesToText(r : Result.Result<[ConversationModel.Message], Text>) : Text {
-  switch (r) {
-    case (#ok msgs) { "#ok([" # Nat.toText(msgs.size()) # " messages])" };
-    case (#err e) { "#err(" # e # ")" };
-  };
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+/// Build a ConversationMessage with no user context (agent/bot message).
+func agentMsg(ts : Text, text : Text) : ConversationModel.ConversationMessage {
+  { ts; userAuthContext = null; text };
 };
 
-func resultMessagesEqual(
-  r1 : Result.Result<[ConversationModel.Message], Text>,
-  r2 : Result.Result<[ConversationModel.Message], Text>,
-) : Bool {
-  switch (r1, r2) {
-    case (#ok(m1), #ok(m2)) { m1.size() == m2.size() };
-    case (#err(e1), #err(e2)) { e1 == e2 };
-    case (_, _) { false };
-  };
-};
+func isSome<A>(x : ?A) : Bool { switch x { case null false; case _ true } };
+func isNone<A>(x : ?A) : Bool { switch x { case null true; case _ false } };
 
-// Test data
-let testTimestamp : Int = 1_000_000_000_000_000_000;
-
-func createTestMessage(content : Text, isUser : Bool) : ConversationModel.Message {
+/// Build a minimal UserAuthContext for round-context tests.
+func makeRoundCtx(userId : Text, roundCount : Nat, forceTerminated : Bool) : SlackAuthMiddleware.UserAuthContext {
   {
-    author = if (isUser) { #user } else { #agent };
-    content;
-    timestamp = testTimestamp;
+    slackUserId = userId;
+    isPrimaryOwner = false;
+    isOrgAdmin = false;
+    workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    roundCount;
+    forceTerminated;
+    parentRef = null;
   };
 };
 
+// ── empty ─────────────────────────────────────────────────────────────────────
+
 suite(
-  "ConversationModel - conversationKeyCompare",
+  "ConversationModel - empty",
   func() {
     test(
-      "equal keys return #equal",
+      "returns an empty ConversationStore",
       func() {
-        let key1 : ConversationModel.ConversationKey = (1, 2);
-        let key2 : ConversationModel.ConversationKey = (1, 2);
-        let result = ConversationModel.conversationKeyCompare(key1, key2);
-        expect.bool(result == #equal).equal(true);
-      },
-    );
-
-    test(
-      "different workspaceId returns correct order",
-      func() {
-        let key1 : ConversationModel.ConversationKey = (1, 5);
-        let key2 : ConversationModel.ConversationKey = (2, 5);
-        let result = ConversationModel.conversationKeyCompare(key1, key2);
-        expect.bool(result == #less).equal(true);
-
-        let result2 = ConversationModel.conversationKeyCompare(key2, key1);
-        expect.bool(result2 == #greater).equal(true);
-      },
-    );
-
-    test(
-      "same workspaceId, different agentId returns correct order",
-      func() {
-        let key1 : ConversationModel.ConversationKey = (1, 2);
-        let key2 : ConversationModel.ConversationKey = (1, 5);
-        let result = ConversationModel.conversationKeyCompare(key1, key2);
-        expect.bool(result == #less).equal(true);
-
-        let result2 = ConversationModel.conversationKeyCompare(key2, key1);
-        expect.bool(result2 == #greater).equal(true);
+        let store = ConversationModel.empty();
+        let entries = ConversationModel.getRecentEntries(store, "C001", 10);
+        expect.nat(entries.size()).equal(0);
       },
     );
   },
 );
 
+// ── addMessage / getEntry ─────────────────────────────────────────────────────
+
 suite(
-  "ConversationModel - addMessageToConversation",
+  "ConversationModel - addMessage top-level",
   func() {
     test(
-      "creates new conversation when none exists",
+      "stores a top-level message as #post",
       func() {
-        let conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
-        let message = createTestMessage("Hello", true);
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Hello"), null);
 
-        ConversationModel.addMessageToConversation(conversations, 0, 1, message);
-
-        let result = ConversationModel.getConversation(conversations, 0, 1);
-        switch (result) {
-          case (#ok(msgs)) {
-            expect.nat(msgs.size()).equal(1);
-            expect.text(msgs[0].content).equal("Hello");
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?#post msg) {
+            expect.text(msg.ts).equal("1000.000001");
+            expect.text(msg.text).equal("Hello");
           };
-          case (#err(_)) {
-            expect.bool(false).equal(true);
-          };
+          case (?#thread _) { expect.bool(false).equal(true) };
         };
       },
     );
 
     test(
-      "appends to existing conversation",
+      "creates independent #post entries for different top-level messages",
       func() {
-        let conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "First"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1001.000001", "Second"), null);
 
-        ConversationModel.addMessageToConversation(conversations, 0, 1, createTestMessage("First", true));
-        ConversationModel.addMessageToConversation(conversations, 0, 1, createTestMessage("Second", false));
-        ConversationModel.addMessageToConversation(conversations, 0, 1, createTestMessage("Third", true));
-
-        let result = ConversationModel.getConversation(conversations, 0, 1);
-        switch (result) {
-          case (#ok(msgs)) {
-            expect.nat(msgs.size()).equal(3);
-          };
-          case (#err(_)) {
-            expect.bool(false).equal(true);
-          };
-        };
+        expect.bool(isSome(ConversationModel.getEntry(store, "C001", "1000.000001"))).equal(true);
+        expect.bool(isSome(ConversationModel.getEntry(store, "C001", "1001.000001"))).equal(true);
       },
     );
 
     test(
-      "maintains separate conversations per agent",
+      "keeps separate entries per channel",
       func() {
-        let conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "chan1"), null);
+        ConversationModel.addMessage(store, "C002", agentMsg("1000.000001", "chan2"), null);
 
-        ConversationModel.addMessageToConversation(conversations, 0, 1, createTestMessage("To Agent 1", true));
-        ConversationModel.addMessageToConversation(conversations, 0, 2, createTestMessage("To Agent 2", true));
-        ConversationModel.addMessageToConversation(conversations, 0, 1, createTestMessage("Another to Agent 1", true));
-
-        let result1 = ConversationModel.getConversation(conversations, 0, 1);
-        let result2 = ConversationModel.getConversation(conversations, 0, 2);
-
-        switch (result1) {
-          case (#ok(msgs)) { expect.nat(msgs.size()).equal(2) };
-          case (#err(_)) { expect.bool(false).equal(true) };
+        let e1 = ConversationModel.getEntry(store, "C001", "1000.000001");
+        let e2 = ConversationModel.getEntry(store, "C002", "1000.000001");
+        switch (e1) {
+          case (?#post msg) { expect.text(msg.text).equal("chan1") };
+          case (_) { expect.bool(false).equal(true) };
         };
-
-        switch (result2) {
-          case (#ok(msgs)) { expect.nat(msgs.size()).equal(1) };
-          case (#err(_)) { expect.bool(false).equal(true) };
-        };
-      },
-    );
-
-    test(
-      "maintains separate conversations per workspace",
-      func() {
-        let conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
-
-        ConversationModel.addMessageToConversation(conversations, 0, 1, createTestMessage("Workspace 0", true));
-        ConversationModel.addMessageToConversation(conversations, 1, 1, createTestMessage("Workspace 1", true));
-
-        let result0 = ConversationModel.getConversation(conversations, 0, 1);
-        let result1 = ConversationModel.getConversation(conversations, 1, 1);
-
-        switch (result0) {
-          case (#ok(msgs)) {
-            expect.nat(msgs.size()).equal(1);
-            expect.text(msgs[0].content).equal("Workspace 0");
-          };
-          case (#err(_)) { expect.bool(false).equal(true) };
-        };
-
-        switch (result1) {
-          case (#ok(msgs)) {
-            expect.nat(msgs.size()).equal(1);
-            expect.text(msgs[0].content).equal("Workspace 1");
-          };
-          case (#err(_)) { expect.bool(false).equal(true) };
+        switch (e2) {
+          case (?#post msg) { expect.text(msg.text).equal("chan2") };
+          case (_) { expect.bool(false).equal(true) };
         };
       },
     );
@@ -177,124 +103,528 @@ suite(
 );
 
 suite(
-  "ConversationModel - getConversation",
+  "ConversationModel - addMessage thread reply",
   func() {
     test(
-      "returns error for non-existent conversation",
+      "first reply promotes #post to #thread",
       func() {
-        let conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
-        let result = ConversationModel.getConversation(conversations, 0, 999);
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
 
-        expect.result<[ConversationModel.Message], Text>(
-          result,
-          resultMessagesToText,
-          resultMessagesEqual,
-        ).isErr();
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#thread t) {
+            expect.text(t.rootTs).equal("1000.000001");
+            expect.nat(Map.size(t.messages)).equal(2);
+          };
+          case (_) { expect.bool(false).equal(true) };
+        };
       },
     );
 
     test(
-      "returns messages in order",
+      "subsequent replies are appended to existing #thread",
       func() {
-        let conversations = Map.empty<ConversationModel.ConversationKey, List.List<ConversationModel.Message>>();
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply 1"), ?"1000.000001");
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000003", "Reply 2"), ?"1000.000001");
 
-        ConversationModel.addMessageToConversation(conversations, 0, 1, createTestMessage("First", true));
-        ConversationModel.addMessageToConversation(conversations, 0, 1, createTestMessage("Second", false));
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#thread t) { expect.nat(Map.size(t.messages)).equal(3) };
+          case (_) { expect.bool(false).equal(true) };
+        };
+      },
+    );
 
-        let result = ConversationModel.getConversation(conversations, 0, 1);
-        switch (result) {
-          case (#ok(msgs)) {
-            expect.text(msgs[0].content).equal("First");
-            expect.text(msgs[1].content).equal("Second");
+    test(
+      "creates sparse #thread when reply arrives before root",
+      func() {
+        let store = ConversationModel.empty();
+        // No root added — reply arrives first
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Orphan reply"), ?"1000.000001");
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#thread t) {
+            expect.text(t.rootTs).equal("1000.000001");
+            expect.nat(Map.size(t.messages)).equal(1);
           };
-          case (#err(_)) {
-            expect.bool(false).equal(true);
+          case (_) { expect.bool(false).equal(true) };
+        };
+      },
+    );
+
+    test(
+      "root arriving after replies merges into existing #thread without dropping replies",
+      func() {
+        let store = ConversationModel.empty();
+        // Two replies arrive before the root.
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply 1"), ?"1000.000001");
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000003", "Reply 2"), ?"1000.000001");
+        // Root message arrives later as a top-level post.
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#thread t) {
+            // Still a thread (not downgraded to #post).
+            expect.text(t.rootTs).equal("1000.000001");
+            // Root + two replies must all be present.
+            expect.nat(Map.size(t.messages)).equal(3);
+            // Verify the root message text is accessible.
+            switch (Map.get(t.messages, Text.compare, "1000.000001")) {
+              case (?msg) { expect.text(msg.text).equal("Root") };
+              case (null) { expect.bool(false).equal(true) };
+            };
+            // Verify replies were not dropped.
+            expect.bool(isSome(Map.get(t.messages, Text.compare, "1000.000002"))).equal(true);
+            expect.bool(isSome(Map.get(t.messages, Text.compare, "1000.000003"))).equal(true);
           };
+          case (_) { expect.bool(false).equal(true) };
         };
       },
     );
   },
 );
 
+// ── getEntry ──────────────────────────────────────────────────────────────────
+
 suite(
-  "ConversationModel - Admin Conversations",
+  "ConversationModel - getEntry",
   func() {
     test(
-      "addMessageToAdminConversation creates new conversation",
+      "returns null for unknown channel",
       func() {
-        let adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
-        let message = createTestMessage("Admin message", true);
+        let store = ConversationModel.empty();
+        let result = ConversationModel.getEntry(store, "CNONE", "1000.000001");
+        expect.bool(isNone(result)).equal(true);
+      },
+    );
 
-        ConversationModel.addMessageToAdminConversation(adminConversations, 0, message);
+    test(
+      "returns null for unknown ts in known channel",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Msg"), null);
+        let result = ConversationModel.getEntry(store, "C001", "9999.999999");
+        expect.bool(isNone(result)).equal(true);
+      },
+    );
+  },
+);
 
-        let result = ConversationModel.getAdminConversation(adminConversations, 0);
-        switch (result) {
-          case (#ok(msgs)) {
-            expect.nat(msgs.size()).equal(1);
-            expect.text(msgs[0].content).equal("Admin message");
-          };
-          case (#err(_)) {
-            expect.bool(false).equal(true);
-          };
+// ── getRecentEntries ──────────────────────────────────────────────────────────
+
+suite(
+  "ConversationModel - getRecentEntries",
+  func() {
+    test(
+      "returns empty array for unknown channel",
+      func() {
+        let store = ConversationModel.empty();
+        let result = ConversationModel.getRecentEntries(store, "CNONE", 5);
+        expect.nat(result.size()).equal(0);
+      },
+    );
+
+    test(
+      "returns all entries when count <= limit",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "A"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1001.000001", "B"), null);
+
+        let result = ConversationModel.getRecentEntries(store, "C001", 10);
+        expect.nat(result.size()).equal(2);
+      },
+    );
+
+    test(
+      "returns only the last N entries when count > limit",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "A"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1001.000001", "B"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1002.000001", "C"), null);
+
+        let result = ConversationModel.getRecentEntries(store, "C001", 2);
+        expect.nat(result.size()).equal(2);
+        expect.text(result[0].ts).equal("1001.000001");
+        expect.text(result[1].ts).equal("1002.000001");
+      },
+    );
+
+    test(
+      "hasReplies is false for a #post entry",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root only"), null);
+
+        let result = ConversationModel.getRecentEntries(store, "C001", 5);
+        expect.bool(result[0].hasReplies).equal(false);
+      },
+    );
+
+    test(
+      "hasReplies is true when a reply exists (#thread)",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
+
+        let result = ConversationModel.getRecentEntries(store, "C001", 5);
+        expect.bool(result[0].hasReplies).equal(true);
+      },
+    );
+  },
+);
+
+// ── updateMessageText ─────────────────────────────────────────────────────────
+
+suite(
+  "ConversationModel - updateMessageText",
+  func() {
+    test(
+      "updates a #post message and returns true",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Original"), null);
+
+        let updated = ConversationModel.updateMessageText(store, "C001", "1000.000001", "1000.000001", "Edited");
+        expect.bool(updated).equal(true);
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#post msg) { expect.text(msg.text).equal("Edited") };
+          case (_) { expect.bool(false).equal(true) };
         };
       },
     );
 
     test(
-      "addMessageToAdminConversation appends to existing",
+      "updates a message inside a #thread and returns true",
       func() {
-        let adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
 
-        ConversationModel.addMessageToAdminConversation(adminConversations, 0, createTestMessage("First", true));
-        ConversationModel.addMessageToAdminConversation(adminConversations, 0, createTestMessage("Second", false));
+        let updated = ConversationModel.updateMessageText(store, "C001", "1000.000001", "1000.000002", "Edited reply");
+        expect.bool(updated).equal(true);
 
-        let result = ConversationModel.getAdminConversation(adminConversations, 0);
-        switch (result) {
-          case (#ok(msgs)) {
-            expect.nat(msgs.size()).equal(2);
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#thread t) {
+            switch (Map.get(t.messages, Text.compare, "1000.000002")) {
+              case (?msg) { expect.text(msg.text).equal("Edited reply") };
+              case (null) { expect.bool(false).equal(true) };
+            };
           };
-          case (#err(_)) {
-            expect.bool(false).equal(true);
-          };
+          case (_) { expect.bool(false).equal(true) };
         };
       },
     );
 
     test(
-      "maintains separate admin conversations per workspace",
+      "returns false when channel does not exist",
       func() {
-        let adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
+        let store = ConversationModel.empty();
+        let result = ConversationModel.updateMessageText(store, "CNONE", "1000.000001", "1000.000001", "X");
+        expect.bool(result).equal(false);
+      },
+    );
 
-        ConversationModel.addMessageToAdminConversation(adminConversations, 0, createTestMessage("WS 0", true));
-        ConversationModel.addMessageToAdminConversation(adminConversations, 1, createTestMessage("WS 1", true));
-        ConversationModel.addMessageToAdminConversation(adminConversations, 0, createTestMessage("WS 0 again", true));
+    test(
+      "returns false when ts does not match any message",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Msg"), null);
+        let result = ConversationModel.updateMessageText(store, "C001", "1000.000001", "9999.000001", "X");
+        expect.bool(result).equal(false);
+      },
+    );
+  },
+);
 
-        let result0 = ConversationModel.getAdminConversation(adminConversations, 0);
-        let result1 = ConversationModel.getAdminConversation(adminConversations, 1);
+// ── deleteMessage ─────────────────────────────────────────────────────────────
 
-        switch (result0) {
-          case (#ok(msgs)) { expect.nat(msgs.size()).equal(2) };
-          case (#err(_)) { expect.bool(false).equal(true) };
-        };
+suite(
+  "ConversationModel - deleteMessage",
+  func() {
+    test(
+      "removes a reply from a #thread and returns true",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
 
-        switch (result1) {
-          case (#ok(msgs)) { expect.nat(msgs.size()).equal(1) };
-          case (#err(_)) { expect.bool(false).equal(true) };
+        let deleted = ConversationModel.deleteMessage(store, "C001", "1000.000001", "1000.000002");
+        expect.bool(deleted).equal(true);
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#thread t) { expect.nat(Map.size(t.messages)).equal(1) };
+          case (_) { expect.bool(false).equal(true) };
         };
       },
     );
 
     test(
-      "getAdminConversation returns error for non-existent workspace",
+      "removes a #post entry from the timeline",
       func() {
-        let adminConversations = Map.empty<Nat, List.List<ConversationModel.Message>>();
-        let result = ConversationModel.getAdminConversation(adminConversations, 999);
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Only"), null);
 
-        expect.result<[ConversationModel.Message], Text>(
-          result,
-          resultMessagesToText,
-          resultMessagesEqual,
-        ).isErr();
+        let deleted = ConversationModel.deleteMessage(store, "C001", "1000.000001", "1000.000001");
+        expect.bool(deleted).equal(true);
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        expect.bool(isNone(entry)).equal(true);
+      },
+    );
+
+    test(
+      "drops a #thread entry when all messages are removed",
+      func() {
+        let store = ConversationModel.empty();
+        // Sparse thread — reply arrived before root, only one message
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Orphan reply"), ?"1000.000001");
+
+        let deleted = ConversationModel.deleteMessage(store, "C001", "1000.000001", "1000.000002");
+        expect.bool(deleted).equal(true);
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        expect.bool(isNone(entry)).equal(true);
+      },
+    );
+
+    test(
+      "returns false when channel does not exist",
+      func() {
+        let store = ConversationModel.empty();
+        let result = ConversationModel.deleteMessage(store, "CNONE", "1000.000001", "1000.000001");
+        expect.bool(result).equal(false);
+      },
+    );
+
+    test(
+      "returns false when ts is not found",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Msg"), null);
+        let result = ConversationModel.deleteMessage(store, "C001", "1000.000001", "9999.999999");
+        expect.bool(result).equal(false);
+      },
+    );
+  },
+);
+
+// ── findAndDeleteMessage ──────────────────────────────────────────────────────
+
+suite(
+  "ConversationModel - findAndDeleteMessage",
+  func() {
+    test(
+      "finds and deletes a reply via replyIndex",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
+
+        let deleted = ConversationModel.findAndDeleteMessage(store, "C001", "1000.000002");
+        expect.bool(deleted).equal(true);
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        switch (entry) {
+          case (?#thread t) { expect.nat(Map.size(t.messages)).equal(1) };
+          case (_) { expect.bool(false).equal(true) };
+        };
+      },
+    );
+
+    test(
+      "finds and deletes a #post by its root ts",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Only"), null);
+
+        let deleted = ConversationModel.findAndDeleteMessage(store, "C001", "1000.000001");
+        expect.bool(deleted).equal(true);
+
+        let entry = ConversationModel.getEntry(store, "C001", "1000.000001");
+        expect.bool(isNone(entry)).equal(true);
+      },
+    );
+
+    test(
+      "returns false when ts is not found anywhere",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Msg"), null);
+        let result = ConversationModel.findAndDeleteMessage(store, "C001", "9999.999999");
+        expect.bool(result).equal(false);
+      },
+    );
+
+    test(
+      "returns false for unknown channel",
+      func() {
+        let store = ConversationModel.empty();
+        let result = ConversationModel.findAndDeleteMessage(store, "CNONE", "1000.000001");
+        expect.bool(result).equal(false);
+      },
+    );
+  },
+);
+
+// ── pruneChannel ──────────────────────────────────────────────────────────────
+
+suite(
+  "ConversationModel - pruneChannel",
+  func() {
+    test(
+      "removes a #post entry older than cutoff",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("500.000001", "Old"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("2000.000001", "New"), null);
+
+        // Prune with cutoff = 1000 — anything < 1000 is stale
+        ConversationModel.pruneChannel(store, "C001", 1000);
+
+        expect.bool(isNone(ConversationModel.getEntry(store, "C001", "500.000001"))).equal(true);
+        expect.bool(isSome(ConversationModel.getEntry(store, "C001", "2000.000001"))).equal(true);
+      },
+    );
+
+    test(
+      "applies old-thread grace rule: keeps #thread with any recent reply",
+      func() {
+        let store = ConversationModel.empty();
+        // Root is old (ts 500)
+        ConversationModel.addMessage(store, "C001", agentMsg("500.000001", "Old root"), null);
+        // But it has a recent reply (ts 2000) → promotes to #thread
+        ConversationModel.addMessage(store, "C001", agentMsg("2000.000001", "Recent reply"), ?"500.000001");
+
+        ConversationModel.pruneChannel(store, "C001", 1000);
+
+        expect.bool(isSome(ConversationModel.getEntry(store, "C001", "500.000001"))).equal(true);
+      },
+    );
+
+    test(
+      "is a no-op for unknown channel",
+      func() {
+        let store = ConversationModel.empty();
+        // Should not throw
+        ConversationModel.pruneChannel(store, "CNONE", 1000);
+        expect.bool(true).equal(true);
+      },
+    );
+  },
+);
+
+// ── pruneAll ──────────────────────────────────────────────────────────────────
+
+suite(
+  "ConversationModel - pruneAll",
+  func() {
+    test(
+      "prunes across multiple channels",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("500.000001", "Old C1"), null);
+        ConversationModel.addMessage(store, "C002", agentMsg("500.000001", "Old C2"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("2000.000001", "New C1"), null);
+
+        ConversationModel.pruneAll(store, 1000);
+
+        expect.bool(isNone(ConversationModel.getEntry(store, "C001", "500.000001"))).equal(true);
+        expect.bool(isNone(ConversationModel.getEntry(store, "C002", "500.000001"))).equal(true);
+        expect.bool(isSome(ConversationModel.getEntry(store, "C001", "2000.000001"))).equal(true);
+      },
+    );
+  },
+);
+
+// ── getMessage ────────────────────────────────────────────────────────────────
+
+suite(
+  "ConversationModel - getMessage",
+  func() {
+    test(
+      "returns null for unknown channel",
+      func() {
+        let store = ConversationModel.empty();
+        let result = ConversationModel.getMessage(store, "C001", "1000.000001");
+        expect.bool(isNone(result)).equal(true);
+      },
+    );
+
+    test(
+      "returns null for unknown ts in known channel",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Hello"), null);
+        let result = ConversationModel.getMessage(store, "C001", "9999.000000");
+        expect.bool(isNone(result)).equal(true);
+      },
+    );
+
+    test(
+      "finds a top-level message by ts",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        switch (ConversationModel.getMessage(store, "C001", "1000.000001")) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?msg) { expect.text(msg.text).equal("Root") };
+        };
+      },
+    );
+
+    test(
+      "finds a reply message via replyIndex",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
+        switch (ConversationModel.getMessage(store, "C001", "1000.000002")) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?msg) { expect.text(msg.text).equal("Reply") };
+        };
+      },
+    );
+
+    test(
+      "root message is still accessible after replies are added",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
+        switch (ConversationModel.getMessage(store, "C001", "1000.000001")) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?msg) { expect.text(msg.text).equal("Root") };
+        };
+      },
+    );
+
+    test(
+      "messages in different channels are independent",
+      func() {
+        let store = ConversationModel.empty();
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "In C001"), null);
+        ConversationModel.addMessage(store, "C002", agentMsg("1000.000001", "In C002"), null);
+        switch (ConversationModel.getMessage(store, "C001", "1000.000001")) {
+          case (?msg) { expect.text(msg.text).equal("In C001") };
+          case (null) { expect.bool(false).equal(true) };
+        };
+        switch (ConversationModel.getMessage(store, "C002", "1000.000001")) {
+          case (?msg) { expect.text(msg.text).equal("In C002") };
+          case (null) { expect.bool(false).equal(true) };
+        };
       },
     );
   },

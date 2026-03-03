@@ -426,7 +426,7 @@ module {
                 "(ID: `" # anchor.channelId # "`) is no longer accessible.\n\n" #
                 "Please re-create or re-anchor it so org-level access continues to work. " #
                 "Once done, update the channel anchor via the Looping AI configuration.";
-                switch (await SlackWrapper.postMessage(token, ownerId, dmText, null)) {
+                switch (await SlackWrapper.postMessage(token, ownerId, dmText, null, null)) {
                   case (#err(e2)) {
                     let msg = "Failed to DM Primary Owner about org admin channel issue: " # e2;
                     Logger.log(#error, ?"WeeklyReconciliation", msg);
@@ -484,7 +484,7 @@ module {
                     "The admin channel for workspace *" # ws.name # "* " #
                     "(ID: `" # adminChanId # "`) is no longer accessible.\n\n" #
                     "Please assign a new admin channel for this workspace, or request workspace deletion.";
-                    switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null)) {
+                    switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null, null)) {
                       case (#err(e2)) {
                         let msg = "Failed to notify org admin channel about gone workspace admin channel: " # e2;
                         Logger.log(#error, ?"WeeklyReconciliation", msg);
@@ -530,7 +530,7 @@ module {
                   "The member channel for workspace *" # ws.name # "* " #
                   "(ID: `" # memberChanId # "`) is no longer accessible.\n\n" #
                   "Please assign a new member channel for this workspace.";
-                  switch (await SlackWrapper.postMessage(token, adminChanId, notifyText, null)) {
+                  switch (await SlackWrapper.postMessage(token, adminChanId, notifyText, null, null)) {
                     case (#err(e2)) {
                       let msg = "Failed to notify workspace admin channel about gone member channel: " # e2;
                       Logger.log(#error, ?"WeeklyReconciliation", msg);
@@ -557,7 +557,7 @@ module {
                         "(ID: `" # memberChanId # "`) is no longer accessible, " #
                         "and no admin channel is configured for this workspace.\n\n" #
                         "Please assign a new member channel or admin channel for workspace *" # ws.name # "*.";
-                        switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null)) {
+                        switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null, null)) {
                           case (#err(e2)) {
                             let msg = "Failed to notify org admin channel about gone member channel: " # e2;
                             Logger.log(#error, ?"WeeklyReconciliation", msg);

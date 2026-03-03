@@ -16,7 +16,6 @@ import Logger "../../utilities/logger";
 module {
 
   public func handle(
-    workspaceId : Nat,
     event : {
       userId : Text;
       displayName : Text;
@@ -30,8 +29,7 @@ module {
     Logger.log(
       #info,
       ?"TeamJoinHandler",
-      "team_join in workspace " # debug_show (workspaceId) #
-      " | userId: " # event.userId #
+      "team_join | userId: " # event.userId #
       " | displayName: " # event.displayName #
       " | isPrimaryOwner: " # debug_show (event.isPrimaryOwner) #
       " | isOrgAdmin: " # debug_show (event.isOrgAdmin),

@@ -55,25 +55,25 @@ module {
     let handlerResult : NormalizedEventTypes.HandlerResult = try {
       switch (event.payload) {
         case (#message(msg)) {
-          await MessageHandler.handle(event.workspaceId, msg, ctx);
+          await MessageHandler.handle(msg, ctx);
         };
         case (#assistantThreadEvent(thread)) {
-          await AssistantThreadHandler.handle(event.workspaceId, thread, ctx);
+          await AssistantThreadHandler.handle(thread, ctx);
         };
         case (#messageEdited(edited)) {
-          await MessageEditedHandler.handle(event.workspaceId, edited, ctx);
+          await MessageEditedHandler.handle(edited, ctx);
         };
         case (#messageDeleted(deleted)) {
-          await MessageDeletedHandler.handle(event.workspaceId, deleted, ctx);
+          await MessageDeletedHandler.handle(deleted, ctx);
         };
         case (#memberJoinedChannel(joined)) {
-          await MemberJoinedChannelHandler.handle(event.workspaceId, joined, ctx);
+          await MemberJoinedChannelHandler.handle(joined, ctx);
         };
         case (#memberLeftChannel(left)) {
-          await MemberLeftChannelHandler.handle(event.workspaceId, left, ctx);
+          await MemberLeftChannelHandler.handle(left, ctx);
         };
         case (#teamJoin(joined)) {
-          await TeamJoinHandler.handle(event.workspaceId, joined, ctx);
+          await TeamJoinHandler.handle(joined, ctx);
         };
       };
     } catch (e) {

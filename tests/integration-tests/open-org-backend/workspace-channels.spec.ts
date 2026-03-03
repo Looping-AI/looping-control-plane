@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { generateRandomIdentity } from "@dfinity/pic";
-import { createTestEnvironment, type _SERVICE } from "../../setup.ts";
+import { createBackendCanister, type _SERVICE } from "../../setup.ts";
 import { expectOk, expectErr, expectSome, expectNone } from "../../helpers.ts";
 
 describe("Workspace Channel Anchors (Phase 0.5)", () => {
@@ -9,7 +9,7 @@ describe("Workspace Channel Anchors (Phase 0.5)", () => {
   let actor: Actor<_SERVICE>;
 
   beforeEach(async () => {
-    const testEnv = await createTestEnvironment();
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
   });

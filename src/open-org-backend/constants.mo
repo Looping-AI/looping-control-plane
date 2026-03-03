@@ -2,7 +2,7 @@ import Types "./types";
 
 module {
   // Environment - important for dependency management (it can be local, test, staging, production)
-  public let ENVIRONMENT : Types.Environment = #test;
+  public let ENVIRONMENT : Types.Environment = #local;
 
   // 30 days in nanoseconds (30 * 24 * 60 * 60 * 1_000_000_000)
   public let THIRTY_DAYS_NS : Nat = 2_592_000_000_000_000;
@@ -29,12 +29,12 @@ module {
   public let ADMIN_TALK_SECRET : Types.SecretId = #groqApiKey;
   public let ADMIN_TALK_MODEL : Text = "openai/gpt-oss-120b";
 
-  // Agent routing round control (Phase 1)
-  // Absolute ceiling on the number of LLM rounds any session may run.
-  public let MAX_AGENT_ROUNDS : Nat = 100;
+  // Conversation retention
+  // Messages/groups older than this are dropped by the Sunday prune timer.
+  // 30 days in seconds (30 * 24 * 3600)
+  public let CONVERSATION_RETENTION_SECS : Nat = 2_592_000;
 
-  // Round at which the progressive cost classifier activates.
-  // From this round onward each successive response is evaluated against
-  // increasingly strict similarity / cost thresholds.
-  public let ROUND_CLASSIFIER_THRESHOLD : Nat = 10;
+  // Agent routing round control
+  // Absolute ceiling on the number of LLM rounds any session may run.
+  public let MAX_AGENT_ROUNDS : Nat = 10;
 };

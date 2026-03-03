@@ -11,7 +11,6 @@ import NormalizedEventTypes "../../../../src/open-org-backend/events/types/norma
 func makeEvent(eventId : Text, payload : NormalizedEventTypes.EventPayload) : NormalizedEventTypes.Event {
   {
     source = #slack;
-    workspaceId = 0;
     idempotencyKey = eventId;
     eventId = "slack_" # eventId;
     timestamp = 1700000000;
@@ -34,6 +33,8 @@ func makeMessageEvent(eventId : Text) : NormalizedEventTypes.Event {
       channel = "C456";
       ts = "1700000000.000001";
       threadTs = null;
+      isBotMessage = false;
+      agentMetadata = null;
     }),
   );
 };
@@ -759,7 +760,6 @@ suite(
         // so that: now - enqueuedAt = 42 - (-huge) = 42 + huge > ONE_HOUR_NS
         let staleEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvStale002";
           eventId = "slack_EvStale002";
           timestamp = 1700000000;
@@ -769,6 +769,8 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
+            agentMetadata = null;
           });
           // Set enqueuedAt to large negative Int so diff is > ONE_HOUR_NS
           enqueuedAt = -9_999_999_999_999;
@@ -798,7 +800,6 @@ suite(
       func() {
         let staleEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvStale003";
           eventId = "slack_EvStale003";
           timestamp = 1700000000;
@@ -808,6 +809,8 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
+            agentMetadata = null;
           });
           enqueuedAt = -9_999_999_999_999; // Stale: far in the past
           claimedAt = null;
@@ -840,7 +843,6 @@ suite(
       func() {
         let staleEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvStale004";
           eventId = "slack_EvStale004";
           timestamp = 1700000000;
@@ -850,6 +852,8 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
+            agentMetadata = null;
           });
           enqueuedAt = -9_999_999_999_999; // Stale: far in the past
           claimedAt = null;
@@ -913,7 +917,6 @@ suite(
         // So we need failedAt < 42 - 2_592_000_000_000_000 ≈ -2_591_999_999_999_958
         let oldFailedEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvOldFail002";
           eventId = "slack_EvOldFail002";
           timestamp = 1700000000;
@@ -923,6 +926,8 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
+            agentMetadata = null;
           });
           enqueuedAt = 1;
           claimedAt = null;
@@ -946,7 +951,6 @@ suite(
       func() {
         let oldFailedEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvOldFail003";
           eventId = "slack_EvOldFail003";
           timestamp = 1700000000;
@@ -956,6 +960,8 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
+            agentMetadata = null;
           });
           enqueuedAt = 1;
           claimedAt = null;
@@ -994,7 +1000,6 @@ suite(
         // Manufacture a failed event with failedAt = null (edge case)
         let noTimestampFailed : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvOldFail005";
           eventId = "slack_EvOldFail005";
           timestamp = 1700000000;
@@ -1004,6 +1009,8 @@ suite(
             channel = "C456";
             ts = "1700000000.000001";
             threadTs = null;
+            isBotMessage = false;
+            agentMetadata = null;
           });
           enqueuedAt = 42;
           claimedAt = null;

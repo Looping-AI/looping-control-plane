@@ -60,11 +60,13 @@ module {
   /// Normalized event payload — what the router/handlers work with
   public type EventPayload = {
     #message : {
-      user : Text; // Who sent the message
+      user : Text; // Who sent the message (or bot user ID for bot messages)
       text : Text; // Message text
       channel : Text; // Channel ID
       ts : Text; // Message timestamp
       threadTs : ?Text; // Thread timestamp
+      isBotMessage : Bool; // true when posted by our own bot
+      agentMetadata : ?Types.AgentMessageMetadata; // Present on own-bot replies; null on user messages
     };
     #assistantThreadEvent : {
       eventType : {
@@ -81,6 +83,7 @@ module {
     #messageEdited : {
       channel : Text; // Channel ID
       messageTs : Text; // ts of the original message that was edited
+      threadTs : ?Text; // thread_ts if the message is in a thread; null for top-level
       newText : Text; // Current text after the edit
       editedBy : ?Text; // Who edited (may differ from original author)
     };
@@ -115,7 +118,6 @@ module {
   /// Normalized event — single type the queue and router use
   public type Event = {
     source : EventSource; // Which integration sent this
-    workspaceId : Nat; // Internal workspace ID
     idempotencyKey : Text; // Unique key for deduplication (Slack's event_id)
     eventId : Text; // Canonical ID: source prefix + idempotencyKey (e.g. "slack_Ev0123")
     timestamp : Nat; // Unix timestamp of the event

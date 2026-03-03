@@ -1,10 +1,11 @@
 import Array "mo:core/Array";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
-import Time "mo:core/Time";
 import Map "mo:core/Map";
 import Iter "mo:core/Iter";
 import Float "mo:core/Float";
+import Time "mo:core/Time";
+import Types "../types";
 import ConversationModel "../models/conversation-model";
 import ValueStreamModel "../models/value-stream-model";
 import ObjectiveModel "../models/objective-model";
@@ -25,10 +26,14 @@ module {
   // Maximum number of previous conversation messages to include as context
   let MAX_CONVERSATION_HISTORY : Nat = 30;
 
-  // Execute admin talk using Groq LLM with multi-turn tool support
+  // Execute admin talk using Groq LLM with multi-turn tool support.
+  //
+  // `conversationEntry` carries the timeline entry for LLM context (Phase 1.4).
+  // Pass `null` when calling from the legacy direct endpoint (no persistent history).
+  // Tool call / tool response messages are ephemeral and never written to the store.
   public func executeAdminTalk(
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
-    workspaceConversations : List.List<ConversationModel.Message>,
+    conversationEntry : ?ConversationModel.TimelineEntry,
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
@@ -39,9 +44,16 @@ module {
     apiKey : Text,
     model : Text,
   ) : async {
-    #ok : [ConversationModel.Message];
-    #err : Text;
+    #ok : {
+      response : Text;
+      steps : [Types.ProcessingStep];
+    };
+    #err : {
+      message : Text;
+      steps : [Types.ProcessingStep];
+    };
   } {
+    var steps : List.List<Types.ProcessingStep> = List.empty();
     // Build instructions with workspace-specific context
     let instructions = buildAdminInstructions(
       workspaceValueStreamsState,
@@ -76,21 +88,15 @@ module {
     let allTools = Array.concat(functionToolDefs, mcpToolDefs);
     let toolsOpt : ?[GroqWrapper.Tool] = if (allTools.size() == 0) null else ?allTools;
 
-    // Track messages added during this conversation turn
-    var newMessages = List.empty<ConversationModel.Message>();
+    // Build LLM context from persistent conversation history (Phase 1.4).
+    // Tool call / tool response artifacts are appended to inputMessages during the
+    // reasoning loop below but are NOT written to the conversation store — they are
+    // ephemeral and discarded when this function returns.
+    let inputMessages = buildContextMessages(conversationEntry);
 
-    // Store user message in conversation history
-    List.add(
-      workspaceConversations,
-      {
-        author = #user;
-        content = message;
-        timestamp = Time.now();
-      },
-    );
+    // Add the new user message
+    List.add(inputMessages, { role = #user; content = message });
 
-    // Load conversation history (bounded to last 30 messages) and convert to input format
-    let inputMessages = loadConversationHistory(workspaceConversations);
     var iteration = 0;
 
     loop {
@@ -106,19 +112,19 @@ module {
 
       switch (groqResult) {
         case (#ok(#textResponse(response))) {
-          let agentMessage : ConversationModel.Message = {
-            author = #agent;
-            content = response;
-            timestamp = Time.now();
-          };
-          List.add(workspaceConversations, agentMessage);
-          List.add(newMessages, agentMessage);
-
-          return #ok(List.toArray(newMessages));
+          List.add(
+            steps,
+            {
+              action = "llm_text_response";
+              result = #ok;
+              timestamp = Time.now();
+            },
+          );
+          return #ok({ response; steps = List.toArray(steps) });
         };
 
         case (#ok(#toolCalls(calls))) {
-          // Format tool call message
+          // Format tool call message (ephemeral — not written to conversation store)
           let toolCallContent = "Using tools: " # Array.foldLeft<GroqWrapper.ToolCall, Text>(
             calls,
             "",
@@ -127,83 +133,106 @@ module {
             },
           );
 
-          // Add assistant message indicating tool calls were made
-          List.add(
-            inputMessages,
-            {
-              role = #assistant;
-              content = toolCallContent;
-            },
-          );
-
-          // Store tool call message in conversation history
-          let toolCallMessage : ConversationModel.Message = {
-            author = #tool_call;
-            content = toolCallContent;
-            timestamp = Time.now();
-          };
-          List.add(workspaceConversations, toolCallMessage);
-          List.add(newMessages, toolCallMessage);
+          // Append tool call to in-memory input for the next LLM round
+          List.add(inputMessages, { role = #assistant; content = toolCallContent });
 
           // Execute tool calls
           let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
 
-          // Add tool results as user message
+          // Add individual execution steps for each tool
+          for (i in Array.keys(toolResults)) {
+            let toolName = calls[i].toolName;
+            let stepResult : { #ok; #err : Text } = switch (toolResults[i].result) {
+              case (#success(_)) { #ok };
+              case (#error(msg)) { #err(msg) };
+            };
+            List.add(
+              steps,
+              {
+                action = "tool_execution_" # toolName;
+                result = stepResult;
+                timestamp = Time.now();
+              },
+            );
+          };
+
+          // Append tool results to in-memory input for the next LLM round
           let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
           List.add(inputMessages, { role = #assistant; content = formattedResults });
 
-          // Store tool results in conversation history
-          let toolResponseMessage : ConversationModel.Message = {
-            author = #tool_response;
-            content = formattedResults;
-            timestamp = Time.now();
-          };
-          List.add(workspaceConversations, toolResponseMessage);
-          List.add(newMessages, toolResponseMessage);
-
           iteration += 1;
           if (iteration >= MAX_ITERATIONS) {
-            return #err("Max tool iterations reached (" # Nat.toText(MAX_ITERATIONS) # ")");
+            let errMsg = "Max tool iterations reached (" # Nat.toText(MAX_ITERATIONS) # ")";
+            List.add(
+              steps,
+              {
+                action = "max_iterations_exceeded";
+                result = #err(errMsg);
+                timestamp = Time.now();
+              },
+            );
+            return #err({ message = errMsg; steps = List.toArray(steps) });
           };
           // Continue loop
         };
 
         case (#err(error)) {
-          return #err("Groq API Error: " # error);
+          let errMsg = "Groq API Error: " # error;
+          List.add(
+            steps,
+            {
+              action = "llm_api_error";
+              result = #err(errMsg);
+              timestamp = Time.now();
+            },
+          );
+          return #err({ message = errMsg; steps = List.toArray(steps) });
         };
       };
     };
   };
 
-  // Load conversation history and convert to input messages format
-  // Bounds to MAX_CONVERSATION_HISTORY most recent messages
-  private func loadConversationHistory(
-    workspaceConversations : List.List<ConversationModel.Message>
+  // Build LLM input messages from a TimelineEntry (conversation history).
+  //
+  // Role mapping:
+  //   ConversationMessage.userAuthContext = null  → #assistant  (bot/agent message)
+  //   ConversationMessage.userAuthContext = ?_    → #user       (human message)
+  //
+  // For a #post: a single message is added.
+  // For a #thread: the last MAX_CONVERSATION_HISTORY messages are added.
+  private func buildContextMessages(
+    conversationEntry : ?ConversationModel.TimelineEntry
   ) : List.List<GroqWrapper.ResponseInputMessage> {
-    // Convert to array and determine starting index for bounded history
-    let conversationArray = List.toArray(workspaceConversations);
-    let historyStartIndex = if (conversationArray.size() > MAX_CONVERSATION_HISTORY) {
-      Nat.sub(conversationArray.size(), MAX_CONVERSATION_HISTORY);
-    } else {
-      0;
-    };
-
-    // Convert bounded history to ResponseInputMessage format
-    // Include tool calls and responses to provide full context to LLM
     let inputMessages = List.empty<GroqWrapper.ResponseInputMessage>();
-    var i = historyStartIndex;
-    while (i < conversationArray.size()) {
-      let msg = conversationArray[i];
-      let role : GroqWrapper.MessageRole = switch (msg.author) {
-        case (#user) { #user };
-        case (#agent) { #assistant };
-        case (#tool_call) { #assistant };
-        case (#tool_response) { #assistant };
+    switch (conversationEntry) {
+      case (null) { /* no history — start fresh */ };
+      case (?#post msg) {
+        let role : GroqWrapper.MessageRole = switch (msg.userAuthContext) {
+          case (null) { #assistant };
+          case (?_) { #user };
+        };
+        List.add(inputMessages, { role; content = msg.text });
       };
-      List.add(inputMessages, { role; content = msg.content });
-      i += 1;
+      case (?#thread thread) {
+        // Map.toArray returns entries sorted by ts (lexicographic = chronological)
+        let messagesArr = Map.toArray(thread.messages); // [(ts, ConversationMessage)]
+        let startIndex = if (messagesArr.size() > MAX_CONVERSATION_HISTORY) {
+          Nat.sub(messagesArr.size(), MAX_CONVERSATION_HISTORY);
+        } else {
+          0;
+        };
+        var i = startIndex;
+        while (i < messagesArr.size()) {
+          let (_, msg) = messagesArr[i];
+          let role : GroqWrapper.MessageRole = switch (msg.userAuthContext) {
+            case (null) { #assistant }; // bot message
+            case (?_) { #user }; // user message
+          };
+          List.add(inputMessages, { role; content = msg.text });
+          i += 1;
+        };
+      };
     };
-
     inputMessages;
   };
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { createHmac } from "node:crypto";
 import type { _SERVICE } from "../../setup.ts";
-import { createTestEnvironment } from "../../setup.ts";
+import { createBackendCanister } from "../../setup.ts";
 import { expectOk } from "../../helpers.ts";
 import standardMessagePayload from "../../stubs/slack-payloads/message-standard.json";
 import appMentionPayload from "../../stubs/slack-payloads/app-mention.json";
@@ -74,11 +74,11 @@ describe("Slack Webhook", () => {
   let actor: Actor<_SERVICE>;
 
   beforeEach(async () => {
-    const testEnv = await createTestEnvironment();
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
 
-    // Store signing secret (owner identity is set by createTestEnvironment)
+    // Store signing secret (owner identity is set by createBackendCanister)
     const storeResult = await actor.storeSecret(
       0n,
       { slackSigningSecret: null },
@@ -334,8 +334,12 @@ describe("Slack Webhook", () => {
     // Own-bot message filtering (infinite loop prevention)
     // -----------------------------------------------------------------------
     // When our bot posts a reply via postMessage, Slack re-delivers the event
-    // to our webhook. These events must be silently dropped (200 ok, no queue)
-    // to prevent the bot from responding to its own messages forever.
+    // to our webhook. Handling depends on the message subtype:
+    //
+    //   • No subtype (assistant DM thread pattern): enqueued so the handler
+    //     can inspect agent references and decide whether to act.
+    //   • subtype "bot_message": silently dropped (200 ok, no queue) to
+    //     prevent infinite loops from legacy bot_message events.
     //
     // The canonical signature of an own-bot event:
     //   • event.app_id === envelope.api_app_id  (same Slack app)
@@ -343,19 +347,20 @@ describe("Slack Webhook", () => {
     //   • subtype may be absent (assistant DM threads) or "bot_message"
     // -----------------------------------------------------------------------
 
-    it("should NOT enqueue own-bot message without subtype (assistant DM thread pattern)", async () => {
+    it("should enqueue own-bot message without subtype (assistant DM thread pattern)", async () => {
       // Mirrors the exact payload shape from production logs: no subtype,
       // bot_id + app_id present matching api_app_id.
+      // These are enqueued so the handler can check for agent references.
       const body = JSON.stringify(botOwnAppPayload);
 
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
 
-      // Must NOT be enqueued — this is the core regression check
+      // Must be enqueued — own-bot messages without subtype may carry agent references
       const stats = await actor.getEventStoreStats();
       const queueStats = expectOk(stats);
-      expect(queueStats.unprocessedEvents).toBe(0n);
+      expect(queueStats.unprocessedEvents).toBe(1n);
     });
 
     it("should NOT enqueue own-bot message with bot_message subtype", async () => {

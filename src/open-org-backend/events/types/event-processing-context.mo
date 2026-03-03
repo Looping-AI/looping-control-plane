@@ -11,7 +11,6 @@
 /// extra import.
 
 import Map "mo:core/Map";
-import List "mo:core/List";
 import Types "../../types";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
@@ -39,8 +38,9 @@ module {
     secrets : Map.Map<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>;
     /// Async key-derivation cache — pass to KeyDerivationService.getOrDeriveKey
     keyCache : KeyDerivationService.KeyCache;
-    /// Admin conversation histories per workspace — scope to workspaceId before use
-    adminConversations : Map.Map<Nat, List.List<ConversationModel.Message>>;
+    /// Channel-keyed conversation store (Phase 1.4) — handlers call ConversationModel
+    /// to add/update/delete messages; the event-driven path is the only write surface.
+    conversationStore : ConversationModel.ConversationStore;
     /// MCP tool registry (org-wide)
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState;
     /// Global agent registry — used to resolve the active agent for a given category
