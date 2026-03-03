@@ -26,6 +26,7 @@ import MetricModel "../../../src/open-org-backend/models/metric-model";
 import ConversationModel "../../../src/open-org-backend/models/conversation-model";
 import SecretModel "../../../src/open-org-backend/models/secret-model";
 import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
+import SlackAuthMiddleware "../../../src/open-org-backend/middleware/slack-auth-middleware";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
 import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
 import Types "../../../src/open-org-backend/types";
@@ -334,6 +335,62 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     await MessageHandler.handle(msg, ctxWithSecrets(botToken, groqApiKey));
+  };
+
+  /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
+  /// with a parent message that carries a UserAuthContext at a specified roundCount.
+  /// This allows bot-message (isBotMessage: true) tests to exercise session
+  /// inheritance and MAX_AGENT_ROUNDS termination logic without live HTTP calls
+  /// or requiring external cassettes.
+  ///
+  /// parentChannel        — channel where the parent message lives.
+  /// parentTs             — ts of the parent message (also used as rootTs for a top-level post).
+  /// parentRoundCount     — roundCount stamped on the parent's userAuthContext.
+  /// parentForceTerminated — forceTerminated flag on the parent's userAuthContext.
+  public shared ({ caller }) func testMessageHandlerBotBranch(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    groqApiKey : Text,
+    parentChannel : Text,
+    parentTs : Text,
+    parentRoundCount : Nat,
+    parentForceTerminated : Bool,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    let ctx = ctxWithSecrets(botToken, groqApiKey);
+    // Seed the parent message with a UserAuthContext at the requested roundCount.
+    // workspaceScopes is empty — the bot-path guard only checks roundCount / forceTerminated.
+    let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_SEEDED_PARENT";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      roundCount = parentRoundCount;
+      forceTerminated = parentForceTerminated;
+      parentRef = null;
+    };
+    ConversationModel.addMessage(
+      ctx.conversationStore,
+      parentChannel,
+      { ts = parentTs; userAuthContext = null; text = "seeded parent message" },
+      null,
+    );
+    ignore ConversationModel.updateMessageContext(
+      ctx.conversationStore,
+      parentChannel,
+      parentTs, // rootTs — this is a top-level post so rootTs == ts
+      parentTs, // msgTs
+      ?parentAuthCtx,
+    );
+    await MessageHandler.handle(msg, ctx);
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(

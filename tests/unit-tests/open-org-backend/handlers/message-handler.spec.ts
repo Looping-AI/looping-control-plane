@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import type { PocketIc, DeferredActor } from "@dfinity/pic";
+import type { PocketIc, DeferredActor, Actor } from "@dfinity/pic";
 import {
   createDeferredTestCanister,
+  createTestCanister,
   type TestCanisterService,
 } from "../../../setup";
 import { withCassette } from "../../../lib/cassette";
@@ -223,6 +224,257 @@ describe("MessageHandler Unit Tests", () => {
       for (const step of response.ok) {
         expect(typeof step.timestamp).toBe("bigint");
         expect(step.timestamp).toBeGreaterThan(0n);
+      }
+    }
+  });
+
+  // ============================================
+  // Bot-message proceed path — session inheritance
+  // A bot reply that passes every guard and continues through orchestration must
+  // advance the round counter (parentRoundCount 0 → active roundCount 1) and
+  // ultimately post the agent reply back to Slack.
+  // ============================================
+
+  it("should inherit session context from parent and proceed to orchestration when within round limit", async () => {
+    const PARENT_TS = "1700000010.000100";
+    const cassetteName =
+      "unit-tests/open-org-backend/handlers/message-handler/bot-branch-session-inherit";
+    const channel = await resolveSpecsChannel(cassetteName);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerBotBranch(
+          {
+            user: "UBOT001",
+            text: "::unit-test-admin please summarise the progress",
+            channel,
+            ts: "1700000020.000100",
+            threadTs: [PARENT_TS] as [string],
+            isBotMessage: true,
+            agentMetadata: [
+              {
+                event_type: "looping_agent_message",
+                event_payload: {
+                  parent_agent: "::unit-test-admin",
+                  parent_ts: PARENT_TS,
+                  parent_channel: channel,
+                },
+              },
+            ],
+          },
+          BOT_TOKEN,
+          GROQ_API_KEY,
+          channel, // parentChannel — same channel as the bot message
+          PARENT_TS, // parentTs
+          0n, // parentRoundCount = 0 → newRound = 1, well within MAX_AGENT_ROUNDS
+          false, // parentForceTerminated = false
+        ),
+      { ticks: 5, maxRounds: 5 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      // Orchestration must complete with a successful Slack post as the final step.
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+      expect("ok" in lastStep.result).toBe(true);
+      // Every step must carry a valid nanosecond timestamp.
+      for (const step of response.ok) {
+        expect(typeof step.timestamp).toBe("bigint");
+        expect(step.timestamp).toBeGreaterThan(0n);
+      }
+    }
+  });
+});
+
+// ============================================
+// Bot-message guard and round-tracking tests.
+//
+// These tests cover every pre-condition guard and the MAX_AGENT_ROUNDS hard
+// ceiling in the isBotMessage: true path. None of these paths reaches the LLM
+// or Slack (they all short-circuit before token decryption), so a non-deferred
+// actor is sufficient and no cassette recording is needed.
+// ============================================
+
+describe("MessageHandler — bot-message branch guards & round tracking", () => {
+  let pic: PocketIc;
+  let testCanister: Actor<TestCanisterService>;
+
+  beforeEach(async () => {
+    const testEnv = await createTestCanister();
+    pic = testEnv.pic;
+    testCanister = testEnv.actor;
+  });
+
+  afterEach(async () => {
+    await pic.tearDown();
+  });
+
+  it("should return round_skip when bot message carries no valid ::agent reference", async () => {
+    const result = await testCanister.testMessageHandlerWithSecrets(
+      {
+        user: "UBOT001",
+        text: "This bot reply has no agent reference at all",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000001",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [],
+      },
+      BOT_TOKEN,
+      GROQ_API_KEY,
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_skip");
+    }
+  });
+
+  it("should return round_skip when bot message has a valid ::agent ref but no agentMetadata", async () => {
+    // agentMetadata: [] encodes as Candid `null` (absent optional).
+    const result = await testCanister.testMessageHandlerWithSecrets(
+      {
+        user: "UBOT001",
+        text: "::unit-test-admin please continue",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000002",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [],
+      },
+      BOT_TOKEN,
+      GROQ_API_KEY,
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_skip");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain(
+          "bot message missing agentMetadata",
+        );
+      }
+    }
+  });
+
+  it("should return round_skip when the referenced parent message is absent from the conversation store", async () => {
+    // The conversation store is empty, so the parent lookup always fails.
+    const result = await testCanister.testMessageHandlerWithSecrets(
+      {
+        user: "UBOT001",
+        text: "::unit-test-admin please continue",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000003",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [
+          {
+            event_type: "looping_agent_message",
+            event_payload: {
+              parent_agent: "::unit-test-admin",
+              parent_ts: "1700000010.000000",
+              parent_channel: "C_ADMIN_CHANNEL",
+            },
+          },
+        ],
+      },
+      BOT_TOKEN,
+      GROQ_API_KEY,
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_skip");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain("parent message not found");
+      }
+    }
+  });
+
+  it("should return round_skip when the parent session has already been force-terminated", async () => {
+    const result = await testCanister.testMessageHandlerBotBranch(
+      {
+        user: "UBOT001",
+        text: "::unit-test-admin please continue",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000004",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [
+          {
+            event_type: "looping_agent_message",
+            event_payload: {
+              parent_agent: "::unit-test-admin",
+              parent_ts: "1700000010.000000",
+              parent_channel: "C_ADMIN_CHANNEL",
+            },
+          },
+        ],
+      },
+      BOT_TOKEN,
+      GROQ_API_KEY,
+      "C_ADMIN_CHANNEL", // parentChannel
+      "1700000010.000000", // parentTs
+      0n, // parentRoundCount
+      true, // parentForceTerminated = true
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_skip");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain("force-terminated");
+      }
+    }
+  });
+
+  it("should return round_force_terminated and halt when MAX_AGENT_ROUNDS (10) is reached", async () => {
+    // MAX_AGENT_ROUNDS = 10. parentRoundCount = 9 → newRound = 10 ≥ 10 → terminate.
+    const result = await testCanister.testMessageHandlerBotBranch(
+      {
+        user: "UBOT001",
+        text: "::unit-test-admin please continue",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000005",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [
+          {
+            event_type: "looping_agent_message",
+            event_payload: {
+              parent_agent: "::unit-test-admin",
+              parent_ts: "1700000010.000000",
+              parent_channel: "C_ADMIN_CHANNEL",
+            },
+          },
+        ],
+      },
+      BOT_TOKEN,
+      GROQ_API_KEY,
+      "C_ADMIN_CHANNEL", // parentChannel
+      "1700000010.000000", // parentTs
+      9n, // parentRoundCount = 9 → newRound = 10 = MAX_AGENT_ROUNDS
+      false, // parentForceTerminated = false
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_force_terminated");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain("max agent rounds reached");
       }
     }
   });
