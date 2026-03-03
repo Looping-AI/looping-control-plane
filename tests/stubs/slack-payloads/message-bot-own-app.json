@@ -7,10 +7,10 @@
   "event": {
     "type": "message",
     "user": "U0ADWN7P3DY",
-    "ts": "1771572081.526409",
+    "ts": "1772574403.023459",
     "bot_id": "B0AE0AR1TLL",
     "app_id": "A0ADJUKD8TV",
-    "text": "Great – focusing on **Product Management** with a stronger customer orientation is a solid way to drive revenue growth.",
+    "text": "Hey <@unit-test-admin>! :wave:\n\nAt the moment there aren\u2019t any active Value Streams in this workspace, so there isn\u2019t any progress data to summarize yet.  \n\nIf you\u2019d like, we can get started by creating a Value Stream for the next priority you want to tackle. Just let me know the problem you\u2019d like to solve and the goal you have in mind, and I\u2019ll set it up for you. :rocket:",
     "team": "T0ADR0P92G2",
     "bot_profile": {
       "id": "B0AE0AR1TLL",
@@ -19,17 +19,50 @@
       "updated": 1770651646,
       "app_id": "A0ADJUKD8TV",
       "user_id": "U0ADWN7P3DY",
+      "icons": {
+        "image_36": "https:\/\/avatars.slack-edge.com\/2026-02-08\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg",
+        "image_48": "https:\/\/avatars.slack-edge.com\/2026-02-08\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg",
+        "image_72": "https:\/\/avatars.slack-edge.com\/2026-02-08\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg"
+      },
       "team_id": "T0ADR0P92G2"
     },
-    "thread_ts": "1770654557.033289",
-    "parent_user_id": "U0ADWN7P3DY",
-    "channel": "D0ADT9S4S13",
-    "event_ts": "1771572081.526409",
-    "channel_type": "im"
+    "metadata": {
+      "event_type": "looping_agent_message",
+      "event_payload": {
+        "parent_agent": "::unit-test-admin",
+        "parent_ts": "1700000020.000100",
+        "parent_channel": "C0AG99QQAR4"
+      }
+    },
+    "blocks": [
+      {
+        "type": "rich_text",
+        "block_id": "7cuG",
+        "elements": [
+          {
+            "type": "rich_text_section",
+            "elements": [
+              { "type": "text", "text": "Hey " },
+              { "type": "text", "text": "<@unit-test-admin>" },
+              { "type": "text", "text": "! " },
+              { "type": "emoji", "name": "wave", "unicode": "1f44b" },
+              {
+                "type": "text",
+                "text": "\n\nAt the moment there aren\u2019t any active Value Streams in this workspace, so there isn\u2019t any progress data to summarize yet.  \n\nIf you\u2019d like, we can get started by creating a Value Stream for the next priority you want to tackle. Just let me know the problem you\u2019d like to solve and the goal you have in mind, and I\u2019ll set it up for you. "
+              },
+              { "type": "emoji", "name": "rocket", "unicode": "1f680" }
+            ]
+          }
+        ]
+      }
+    ],
+    "channel": "C0AG99QQAR4",
+    "event_ts": "1772574403.023459",
+    "channel_type": "channel"
   },
   "type": "event_callback",
-  "event_id": "Ev0AFNLKUUH5",
-  "event_time": 1771572081,
+  "event_id": "Ev0AJR3ALDCZ",
+  "event_time": 1772574403,
   "authorizations": [
     {
       "enterprise_id": null,
@@ -40,5 +73,5 @@
     }
   ],
   "is_ext_shared_channel": false,
-  "event_context": "4-eyJldCI6Im1lc3NhZ2UiLCJ0aWQiOiJUMEFEUjBQOTJHMiIsImFpZCI6IkEwQURKVUtEOFRWIiwiY2lkIjoiRDBBRFQ5UzRTMTMifQ"
+  "event_context": "4-eyJldCI6Im1lc3NhZ2UiLCJ0aWQiOiJUMEFEUjBQOTJHMiIsImFpZCI6IkEwQURKVUtEOFRWIiwiY2lkIjoiQzBBRzk5UVFBUjQifQ"
 }
