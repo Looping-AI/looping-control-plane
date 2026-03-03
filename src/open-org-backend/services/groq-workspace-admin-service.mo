@@ -5,6 +5,7 @@ import Map "mo:core/Map";
 import Iter "mo:core/Iter";
 import Float "mo:core/Float";
 import Time "mo:core/Time";
+import Types "../types";
 import ConversationModel "../models/conversation-model";
 import ValueStreamModel "../models/value-stream-model";
 import ObjectiveModel "../models/objective-model";
@@ -43,9 +44,16 @@ module {
     apiKey : Text,
     model : Text,
   ) : async {
-    #ok : Text;
-    #err : Text;
+    #ok : {
+      response : Text;
+      steps : [Types.ProcessingStep];
+    };
+    #err : {
+      message : Text;
+      steps : [Types.ProcessingStep];
+    };
   } {
+    var steps : List.List<Types.ProcessingStep> = List.empty();
     // Build instructions with workspace-specific context
     let instructions = buildAdminInstructions(
       workspaceValueStreamsState,
@@ -104,7 +112,15 @@ module {
 
       switch (groqResult) {
         case (#ok(#textResponse(response))) {
-          return #ok(response);
+          List.add(
+            steps,
+            {
+              action = "llm_text_response";
+              result = #ok;
+              timestamp = Time.now();
+            },
+          );
+          return #ok({ response; steps = List.toArray(steps) });
         };
 
         case (#ok(#toolCalls(calls))) {
@@ -123,19 +139,54 @@ module {
           // Execute tool calls
           let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
 
+          // Add individual execution steps for each tool
+          for (i in Array.keys(toolResults)) {
+            let toolName = calls[i].toolName;
+            let stepResult : { #ok; #err : Text } = switch (toolResults[i].result) {
+              case (#success(_)) { #ok };
+              case (#error(msg)) { #err(msg) };
+            };
+            List.add(
+              steps,
+              {
+                action = "tool_execution_" # toolName;
+                result = stepResult;
+                timestamp = Time.now();
+              },
+            );
+          };
+
           // Append tool results to in-memory input for the next LLM round
           let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
           List.add(inputMessages, { role = #assistant; content = formattedResults });
 
           iteration += 1;
           if (iteration >= MAX_ITERATIONS) {
-            return #err("Max tool iterations reached (" # Nat.toText(MAX_ITERATIONS) # ")");
+            let errMsg = "Max tool iterations reached (" # Nat.toText(MAX_ITERATIONS) # ")";
+            List.add(
+              steps,
+              {
+                action = "max_iterations_exceeded";
+                result = #err(errMsg);
+                timestamp = Time.now();
+              },
+            );
+            return #err({ message = errMsg; steps = List.toArray(steps) });
           };
           // Continue loop
         };
 
         case (#err(error)) {
-          return #err("Groq API Error: " # error);
+          let errMsg = "Groq API Error: " # error;
+          List.add(
+            steps,
+            {
+              action = "llm_api_error";
+              result = #err(errMsg);
+              timestamp = Time.now();
+            },
+          );
+          return #err({ message = errMsg; steps = List.toArray(steps) });
         };
       };
     };

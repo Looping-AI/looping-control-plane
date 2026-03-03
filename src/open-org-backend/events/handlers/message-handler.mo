@@ -288,8 +288,8 @@ module {
 
     // --- 6. Extract the LLM steps and reply text ---
     let (llmSteps, replyTextOpt) : ([Types.ProcessingStep], ?Text) = switch (orchestratorResult) {
-      case (#err(e)) {
-        ([{ action = "llm_call"; result = #err(e); timestamp = Time.now() }], null);
+      case (#err({ message = _; steps })) {
+        (steps, null);
       };
       case (#ok({ response; steps })) {
         (steps, ?response);

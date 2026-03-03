@@ -1,3 +1,4 @@
+import Array "mo:core/Array";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
@@ -42,12 +43,18 @@ module {
       response : Text;
       steps : [Types.ProcessingStep];
     };
-    #err : Text;
+    #err : {
+      message : Text;
+      steps : [Types.ProcessingStep];
+    };
   } {
     // Resolve the first #admin agent from the registry
     let agent = switch (AgentModel.getFirstByCategory(#admin, agentRegistry)) {
       case (null) {
-        return #err("No admin agent registered. Please register an admin agent first.");
+        return #err({
+          message = "No admin agent registered. Please register an admin agent first.";
+          steps = [];
+        });
       };
       case (?a) { a };
     };
@@ -58,9 +65,10 @@ module {
 
     // Guard: ensure this agent is allowed to access the secret for this workspace
     if (not AgentModel.isSecretAllowed(agent, workspaceId, secretId)) {
-      return #err(
-        "Admin agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(workspaceId) # "."
-      );
+      return #err({
+        message = "Admin agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(workspaceId) # ".";
+        steps = [];
+      });
     };
 
     // Decrypt the LLM API key using the provided encryption key
@@ -71,7 +79,10 @@ module {
       case (#groq(_)) {
         switch (apiKey) {
           case (null) {
-            #err("No Groq API key found for admin talk. Please store the API key first.");
+            #err({
+              message = "No Groq API key found for admin talk. Please store the API key first.";
+              steps = [];
+            });
           };
           case (?key) {
             let serviceResult = await GroqWorkspaceAdminService.executeAdminTalk(
@@ -87,18 +98,26 @@ module {
               key,
               modelText,
             );
-            // Emit an observability step for the LLM call result
-            let step : Types.ProcessingStep = {
-              action = "llm_call";
-              result = switch (serviceResult) {
-                case (#ok(_)) { #ok };
-                case (#err(e)) { #err(e) };
-              };
-              timestamp = Time.now();
-            };
             switch (serviceResult) {
-              case (#ok(response)) { #ok({ response; steps = [step] }) };
-              case (#err(_)) { #ok({ response = ""; steps = [step] }) };
+              case (#ok({ response; steps = serviceSteps })) {
+                // Emit an observability step for the successful LLM call
+                let llmStep : Types.ProcessingStep = {
+                  action = "llm_call";
+                  result = #ok;
+                  timestamp = Time.now();
+                };
+                let allSteps = Array.concat(serviceSteps, [llmStep]);
+                #ok({ response; steps = allSteps });
+              };
+              case (#err({ message = errMsg; steps = serviceSteps })) {
+                let llmStep : Types.ProcessingStep = {
+                  action = "llm_call";
+                  result = #err(errMsg);
+                  timestamp = Time.now();
+                };
+                let allSteps = Array.concat(serviceSteps, [llmStep]);
+                #err({ message = errMsg; steps = allSteps });
+              };
             };
           };
         };
