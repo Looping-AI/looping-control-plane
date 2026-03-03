@@ -72,11 +72,14 @@ module {
   /// Parse all `::name` references from `text`.
   ///
   /// The scan proceeds left-to-right:
-  ///   1. A triple-backtick (` ``` `) toggles a fenced code block.  When inside a code
-  ///      block, no `::` references are extracted — the block is skipped verbatim until
-  ///      the closing ` ``` `.
-  ///   2. A single backtick (`` ` ``) outside a fenced block toggles inline code.  While
-  ///      inside inline code, `::` references are similarly ignored.
+  ///   1. A triple-backtick (` ``` `) starts a fenced code block.  The scanner looks
+  ///      ahead for a matching closing ` ``` `.  If found, everything between the delimiters
+  ///      is skipped.  If no closing ` ``` ` exists, the triple backtick is treated as
+  ///      literal text (no code block is entered).
+  ///   2. A single backtick (`` ` ``) outside a fenced block starts inline code.  The
+  ///      scanner looks ahead for a matching closing backtick (that is not part of a
+  ///      triple-backtick sequence).  If found, everything between is skipped.  If no
+  ///      closing backtick exists, the backtick is treated as literal text.
   ///   3. Outside any code context, the two-character sequence `::` begins a potential
   ///      reference.  It is accepted only when:
   ///        a. NOT immediately preceded by a word character (`[a-zA-Z0-9_]`), and
@@ -93,36 +96,58 @@ module {
     var seen : [Text] = [];
 
     var i = 0;
-    var inCodeBlock = false;
-    var inInlineCode = false;
 
     while (i < n) {
       let c = chars[i];
 
       // ── Check for triple-backtick (fenced code block) ─────────────────────
-      // Triple-backtick takes priority so that ```code``` beats single-backtick
-      // matching even when currently in inline code.
       if (c == '`' and i + 2 < n and chars[i + 1] == '`' and chars[i + 2] == '`') {
-        if (inCodeBlock) {
-          // Closing a fenced code block
-          inCodeBlock := false;
-          inInlineCode := false; // safety reset
-        } else if (not inInlineCode) {
-          // Opening a fenced code block (only when not inside inline code)
-          inCodeBlock := true;
+        // Look ahead for closing ```
+        let searchStart = i + 3;
+        var found = false;
+        var j = searchStart;
+        label search while (j + 2 < n) {
+          if (chars[j] == '`' and chars[j + 1] == '`' and chars[j + 2] == '`') {
+            // Found closing ``` — skip everything up to and including it
+            i := j + 3;
+            found := true;
+            break search;
+          };
+          j += 1;
         };
-        i += 3;
+        if (not found) {
+          // No closing ``` found — treat as literal, advance past the 3 backticks
+          i += 3;
+        };
 
         // ── Check for single backtick (inline code) ───────────────────────────
-      } else if (c == '`' and not inCodeBlock) {
-        inInlineCode := not inInlineCode;
-        i += 1;
+      } else if (c == '`') {
+        // Look ahead for a matching closing backtick (not part of a triple)
+        var j = i + 1;
+        var found = false;
+        label search while (j < n) {
+          if (chars[j] == '`') {
+            // Make sure this isn't the start of a triple-backtick
+            if (j + 2 < n and chars[j + 1] == '`' and chars[j + 2] == '`') {
+              // This is a triple-backtick — skip it entirely so it doesn't interfere
+              j += 3;
+            } else {
+              // Found matching closing backtick — skip everything up to and including it
+              i := j + 1;
+              found := true;
+              break search;
+            };
+          } else {
+            j += 1;
+          };
+        };
+        if (not found) {
+          // No closing backtick found — treat as literal character
+          i += 1;
+        };
 
-        // ── Check for `::` (only outside any code context) ───────────────────
-      } else if (
-        c == ':' and not inCodeBlock and not inInlineCode and
-        i + 1 < n and chars[i + 1] == ':'
-      ) {
+        // ── Check for `::` ────────────────────────────────────────────────────
+      } else if (c == ':' and i + 1 < n and chars[i + 1] == ':') {
         let precededByWord = i > 0 and isWordChar(chars[i - 1]);
         let precededByBackslash = i > 0 and chars[i - 1] == '\\';
 

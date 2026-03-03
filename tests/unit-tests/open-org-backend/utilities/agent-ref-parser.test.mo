@@ -358,6 +358,144 @@ suite(
       },
     );
 
+    test(
+      "fenced block with an inline tick in the middle",
+      func() {
+        let refs = AgentRefParser.parseReferences("````::ignored``` then ::foo ` ::middle ` ::bar ` ::last");
+        expect.nat(refs.size()).equal(3);
+        expect.text(refs[0]).equal("foo");
+        expect.text(refs[1]).equal("bar");
+        expect.text(refs[2]).equal("last");
+      },
+    );
+
+  },
+);
+
+// ============================================
+// Suite: parseReferences — unclosed delimiters
+// ============================================
+
+suite(
+  "AgentRefParser - parseReferences — unclosed delimiters",
+  func() {
+
+    test(
+      "unclosed single backtick does not suppress subsequent references",
+      func() {
+        let refs = AgentRefParser.parseReferences("` ::agent");
+        expect.nat(refs.size()).equal(1);
+        expect.text(refs[0]).equal("agent");
+      },
+    );
+
+    test(
+      "unclosed backtick after a valid reference does not eat later refs",
+      func() {
+        let refs = AgentRefParser.parseReferences("::first ` ::second");
+        expect.nat(refs.size()).equal(2);
+        expect.text(refs[0]).equal("first");
+        expect.text(refs[1]).equal("second");
+      },
+    );
+
+    test(
+      "multiple unclosed backticks are all treated as literal",
+      func() {
+        let refs = AgentRefParser.parseReferences("` ` ` ::visible");
+        expect.nat(refs.size()).equal(1);
+        expect.text(refs[0]).equal("visible");
+      },
+    );
+
+    test(
+      "unclosed fenced code block does not suppress subsequent references",
+      func() {
+        let refs = AgentRefParser.parseReferences("``` ::agent");
+        expect.nat(refs.size()).equal(1);
+        expect.text(refs[0]).equal("agent");
+      },
+    );
+
+    test(
+      "unclosed fenced block after reference preserves both refs",
+      func() {
+        let refs = AgentRefParser.parseReferences("::first ``` ::second");
+        expect.nat(refs.size()).equal(2);
+        expect.text(refs[0]).equal("first");
+        expect.text(refs[1]).equal("second");
+      },
+    );
+
+    test(
+      "properly closed inline code still works alongside unclosed backtick",
+      func() {
+        // `::hidden` is inline code (properly closed), then ` is unclosed → literal
+        let refs = AgentRefParser.parseReferences("`::hidden` ::visible ` ::also-visible");
+        expect.nat(refs.size()).equal(2);
+        expect.text(refs[0]).equal("visible");
+        expect.text(refs[1]).equal("also-visible");
+      },
+    );
+
+    test(
+      "properly closed fenced block still works alongside unclosed fenced block",
+      func() {
+        let refs = AgentRefParser.parseReferences("```::hidden``` ::visible ``` ::also-visible");
+        expect.nat(refs.size()).equal(2);
+        expect.text(refs[0]).equal("visible");
+        expect.text(refs[1]).equal("also-visible");
+      },
+    );
+
+    test(
+      "backtick immediately before :: does not suppress the reference",
+      func() {
+        // ` is not a word char, so `:: should still match
+        let refs = AgentRefParser.parseReferences("`::agent");
+        expect.nat(refs.size()).equal(1);
+        expect.text(refs[0]).equal("agent");
+      },
+    );
+
+    test(
+      "lone backtick in the middle of text is harmless",
+      func() {
+        let refs = AgentRefParser.parseReferences("::alpha ` ::beta");
+        expect.nat(refs.size()).equal(2);
+        expect.text(refs[0]).equal("alpha");
+        expect.text(refs[1]).equal("beta");
+      },
+    );
+
+    test(
+      "odd number of backticks — last one is unclosed and literal",
+      func() {
+        // three separate inline code opportunities, but last ` has no pair
+        let refs = AgentRefParser.parseReferences("`::a` `::b` ` ::c");
+        expect.nat(refs.size()).equal(1);
+        expect.text(refs[0]).equal("c");
+      },
+    );
+
+    test(
+      "reference immediately after closing backtick is extracted",
+      func() {
+        let refs = AgentRefParser.parseReferences("`code`::agent");
+        expect.nat(refs.size()).equal(1);
+        expect.text(refs[0]).equal("agent");
+      },
+    );
+
+    test(
+      "empty inline code does not break parsing",
+      func() {
+        let refs = AgentRefParser.parseReferences("`` ::agent");
+        expect.nat(refs.size()).equal(1);
+        expect.text(refs[0]).equal("agent");
+      },
+    );
+
   },
 );
 
