@@ -368,6 +368,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     let ctx = ctxWithSecrets(botToken, groqApiKey);
     // Seed the parent message with a UserAuthContext at the requested roundCount.
     // workspaceScopes is empty — the bot-path guard only checks roundCount / forceTerminated.
+    //
+    // Respect the invariant: parentRef == null ↔ roundCount == 0.
+    // When parentRoundCount > 0 a real context would carry the channelId+ts of the
+    // message that triggered it, so we populate parentRef accordingly.
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
@@ -375,7 +379,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
       roundCount = parentRoundCount;
       forceTerminated = parentForceTerminated;
-      parentRef = null;
+      parentRef = if (parentRoundCount == 0) null else ?{
+        channelId = parentChannel;
+        ts = parentTs;
+      };
     };
     ConversationModel.addMessage(
       ctx.conversationStore,
