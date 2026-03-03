@@ -162,7 +162,7 @@ suite(
           case (?c) { c };
         };
 
-        let updated = SlackAuthMiddleware.withRound(ctx, 5, true);
+        let updated = SlackAuthMiddleware.withRound(ctx, 5, true, null);
         expect.nat(updated.roundCount).equal(5);
         expect.bool(updated.forceTerminated).equal(true);
       },
@@ -177,11 +177,58 @@ suite(
           case (?c) { c };
         };
 
-        let updated = SlackAuthMiddleware.withRound(ctx, 3, false);
+        let updated = SlackAuthMiddleware.withRound(ctx, 3, false, null);
         expect.text(updated.slackUserId).equal(orgAdmin1);
         expect.bool(updated.isPrimaryOwner).equal(false);
         expect.bool(updated.isOrgAdmin).equal(true);
         expect.nat(updated.roundCount).equal(3);
+      },
+    );
+
+    test(
+      "parentRef is null when passed null",
+      func() {
+        let cache = buildTestCache();
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(primaryOwner, cache)) {
+          case (null) { expect.bool(false).equal(true); loop {} };
+          case (?c) { c };
+        };
+
+        let updated = SlackAuthMiddleware.withRound(ctx, 1, false, null);
+        expect.bool(updated.parentRef == null).equal(true);
+      },
+    );
+
+    test(
+      "parentRef is propagated when a ref is provided",
+      func() {
+        let cache = buildTestCache();
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(primaryOwner, cache)) {
+          case (null) { expect.bool(false).equal(true); loop {} };
+          case (?c) { c };
+        };
+
+        let ref = ?{ channelId = "C_PARENT"; ts = "1234.567890" };
+        let updated = SlackAuthMiddleware.withRound(ctx, 2, false, ref);
+        switch (updated.parentRef) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.text(r.channelId).equal("C_PARENT");
+            expect.text(r.ts).equal("1234.567890");
+          };
+        };
+      },
+    );
+
+    test(
+      "buildFromCache initialises parentRef to null",
+      func() {
+        let cache = buildTestCache();
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(primaryOwner, cache)) {
+          case (null) { expect.bool(false).equal(true); loop {} };
+          case (?c) { c };
+        };
+        expect.bool(ctx.parentRef == null).equal(true);
       },
     );
   },

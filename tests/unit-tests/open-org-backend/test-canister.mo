@@ -310,6 +310,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       ts : Text;
       threadTs : ?Text;
       isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
     },
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
@@ -328,6 +329,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       ts : Text;
       threadTs : ?Text;
       isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
     },
     botToken : Text,
     groqApiKey : Text,

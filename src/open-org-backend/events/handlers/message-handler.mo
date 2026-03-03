@@ -1,17 +1,21 @@
 /// Message Handler
-/// Handles standard user messages, me_messages, and own-bot threaded messages.
+/// Handles standard user messages, me_messages, and own-bot agent messages.
 ///
 /// Acts as a controller for the message event:
-///   1. Round tracking (Phase 1.3):
-///      - User message  → build a fresh UserAuthContext and store it for the thread.
-///      - Bot message   → inherit the thread's stored UserAuthContext, apply
-///                         pre-condition guards, then increment roundCount.
+///   1. Round tracking (Phase 1.5):
+///      - User message  → build a fresh UserAuthContext (roundCount = 0, parentRef = null)
+///                        and persist it on the ConversationMessage.
+///      - Bot message   → resolve the parent ConversationMessage via agentMetadata,
+///                        inherit its UserAuthContext, apply pre-condition guards,
+///                        then derive a new context with roundCount + 1.
+///      No separate round-context index is used; lineage is carried in agentMetadata
+///      and the roundCount is stored on each ConversationMessage.userAuthContext.
 ///   2. Persist the incoming message to the conversation store (Phase 1.4).
 ///   3. Scope workspace data from EventProcessingContext.
 ///   4. Derive the workspace encryption key (once).
 ///   5. Call WorkspaceAdminOrchestrator for LLM reply.
-///   6. Persist the agent’s response to the conversation store (Phase 1.4).
-///   7. Post the reply back to Slack via SlackWrapper.
+///   6. Persist the agent's response to the conversation store (Phase 1.4).
+///   7. Post the reply back to Slack via SlackWrapper (with agentMetadata for lineage).
 
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
@@ -44,6 +48,7 @@ module {
       ts : Text;
       threadTs : ?Text;
       isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
     },
     ctx : EventProcessingContextTypes.EventProcessingContext,
   ) : async NormalizedEventTypes.HandlerResult {
@@ -58,32 +63,65 @@ module {
     );
 
     // =========================================================
-    // Phase 1.3 — Round tracking + pre-condition guards
+    // Phase 1.5 — Round tracking + pre-condition guards
     // =========================================================
+    //
+    // `activeCtxOpt` carries the UserAuthContext for this message.
+    // It is persisted on ConversationMessage in step 7 so the chain can
+    // be reconstructed by future rounds via getMessage + agentMetadata.
+    var activeCtxOpt : ?SlackAuthMiddleware.UserAuthContext = null;
 
     if (msg.isBotMessage) {
       // --- Bot message path ---
-      // The Slack adapter guarantees threadTs is set for bot messages that
-      // pass through.  Guard defensively anyway.
-      let threadTs = switch (msg.threadTs) {
+      // Adapter already enforces agentMetadata != null for own-bot messages;
+      // guard defensively here.
+      let agentMeta = switch (msg.agentMetadata) {
         case (null) {
-          Logger.log(#warn, ?"MessageHandler", "Bot message with no threadTs — skipping");
+          Logger.log(#warn, ?"MessageHandler", "Bot message missing agentMetadata — skipping");
           return #ok([{
             action = "round_skip";
-            result = #err("bot message has no threadTs");
+            result = #err("bot message missing agentMetadata");
             timestamp = Time.now();
           }]);
         };
-        case (?ts) { ts };
+        case (?m) { m };
       };
 
-      // Look up the parent session.
-      let parentCtx = switch (ConversationModel.lookupRoundContext(ctx.conversationStore, msg.channel, threadTs)) {
+      // Resolve the parent ConversationMessage via metadata lineage.
+      let parentMsg = switch (
+        ConversationModel.getMessage(
+          ctx.conversationStore,
+          agentMeta.event_payload.parent_channel,
+          agentMeta.event_payload.parent_ts,
+        )
+      ) {
         case (null) {
-          Logger.log(#info, ?"MessageHandler", "No parent session for thread " # threadTs # " — skipping bot message");
+          Logger.log(
+            #info,
+            ?"MessageHandler",
+            "Parent message not found: channel=" # agentMeta.event_payload.parent_channel #
+            " ts=" # agentMeta.event_payload.parent_ts # " — discarding orphaned bot message",
+          );
           return #ok([{
             action = "round_skip";
-            result = #err("no parent session for thread");
+            result = #err("parent message not found in store");
+            timestamp = Time.now();
+          }]);
+        };
+        case (?m) { m };
+      };
+
+      // The parent message carries the auth context; null means unauthenticated at storage time.
+      let parentCtx = switch (parentMsg.userAuthContext) {
+        case (null) {
+          Logger.log(
+            #info,
+            ?"MessageHandler",
+            "Parent message has no userAuthContext — discarding bot message",
+          );
+          return #ok([{
+            action = "round_skip";
+            result = #err("parent message has no userAuthContext");
             timestamp = Time.now();
           }]);
         };
@@ -92,7 +130,7 @@ module {
 
       // Pre-condition 1: session was force-terminated.
       if (parentCtx.forceTerminated) {
-        Logger.log(#info, ?"MessageHandler", "Session force-terminated for thread " # threadTs # " — discarding event");
+        Logger.log(#info, ?"MessageHandler", "Session force-terminated — discarding bot message");
         return #ok([{
           action = "round_skip";
           result = #err("session force-terminated");
@@ -111,19 +149,31 @@ module {
         }]);
       };
 
-      // Increment round count.
-      let newRoundCount = parentCtx.roundCount + 1;
+      // Derive the new round count (O(log N) parent lookup already done above).
+      let newRound = parentCtx.roundCount + 1;
 
-      // Hard ceiling: MAX_AGENT_ROUNDS reached → force-terminate and stop.
-      if (newRoundCount >= Constants.MAX_AGENT_ROUNDS) {
-        let terminatedCtx = SlackAuthMiddleware.withRound(parentCtx, newRoundCount, true);
-        ConversationModel.saveRoundContext(ctx.conversationStore, msg.channel, threadTs, terminatedCtx);
+      // canonical parentRef for the new context — points back to the triggering message.
+      let newParentRef : ?{ channelId : Text; ts : Text } = ?{
+        channelId = agentMeta.event_payload.parent_channel;
+        ts = agentMeta.event_payload.parent_ts;
+      };
+
+      // Hard ceiling: MAX_AGENT_ROUNDS reached → force-terminate, store, and stop.
+      if (newRound >= Constants.MAX_AGENT_ROUNDS) {
+        let terminatedCtx = SlackAuthMiddleware.withRound(parentCtx, newRound, true, newParentRef);
+        // Store the incoming message with the terminated context so the chain is complete.
+        ConversationModel.addMessage(
+          ctx.conversationStore,
+          msg.channel,
+          { ts = msg.ts; userAuthContext = ?terminatedCtx; text = msg.text },
+          msg.threadTs,
+        );
         Logger.log(
           #warn,
           ?"MessageHandler",
-          "MAX_AGENT_ROUNDS (" # Nat.toText(Constants.MAX_AGENT_ROUNDS) # ") reached for thread " # threadTs # " — force-terminating session",
+          "MAX_AGENT_ROUNDS (" # Nat.toText(Constants.MAX_AGENT_ROUNDS) # ") reached — force-terminating session",
         );
-        // Phase 1.4 will post an approval prompt to Slack here.
+        // Phase 1.6 will post a continuation prompt to Slack here.
         return #ok([{
           action = "round_force_terminated";
           result = #err("max agent rounds reached");
@@ -131,48 +181,43 @@ module {
         }]);
       };
 
-      // Advance the round context with the incremented count.
-      let activeCtx = SlackAuthMiddleware.withRound(parentCtx, newRoundCount, false);
-      ConversationModel.saveRoundContext(ctx.conversationStore, msg.channel, threadTs, activeCtx);
+      // Advance the round context.
+      let activeCtx = SlackAuthMiddleware.withRound(parentCtx, newRound, false, newParentRef);
+      activeCtxOpt := ?activeCtx;
 
       Logger.log(
         #info,
         ?"MessageHandler",
-        "Bot message round " # Nat.toText(newRoundCount) # " for thread " # threadTs #
+        "Bot message round " # Nat.toText(newRound) #
+        " | parent: " # agentMeta.event_payload.parent_ts #
         " | user: " # activeCtx.slackUserId #
         " | agent(s): " # debug_show (Array.map<AgentModel.AgentRecord, Text>(validAgents, func(a) { a.name })),
       );
 
       // Fall through to orchestration.
-      // Phase 1.4 (Agent Router) will replace this with category-aware routing
+      // Phase 1.6 (Agent Router) will replace this with category-aware routing
       // to the specific agent referenced in `validAgents`.
 
     } else {
       // --- User message path ---
-      // Build (or refresh) a UserAuthContext for this user and store it so
-      // subsequent bot messages in the same thread can inherit it.
-      let threadKey = switch (msg.threadTs) {
-        case (?ts) { ts }; // already inside a thread — key by thread root
-        case (null) { msg.ts }; // top-level message — key by own ts
-      };
-
+      // Build a fresh UserAuthContext (roundCount = 0, parentRef = null).
+      // Persisted on the ConversationMessage in step 7.
       switch (SlackAuthMiddleware.buildFromCache(msg.user, ctx.slackUsers.cache)) {
         case (null) {
-          // User is not in the Slack user cache yet (e.g. cache hasn't been
-          // populated).  Log, but still proceed with message processing.
+          // User is not in the Slack user cache yet (e.g. cache not yet populated).
+          // Log and proceed — message will be stored without auth context.
           Logger.log(
             #warn,
             ?"MessageHandler",
-            "Slack user " # msg.user # " not found in cache — roundContext not seeded for thread " # threadKey,
+            "Slack user " # msg.user # " not found in cache — no userAuthContext for message " # msg.ts,
           );
         };
         case (?userCtx) {
-          // Seed the round context for this thread (roundCount = 0, not terminated).
-          ConversationModel.saveRoundContext(ctx.conversationStore, msg.channel, threadKey, userCtx);
+          activeCtxOpt := ?userCtx;
           Logger.log(
             #info,
             ?"MessageHandler",
-            "Round context seeded for thread " # threadKey # " | user: " # msg.user,
+            "UserAuthContext built for " # msg.user # " | message: " # msg.ts,
           );
         };
       };
@@ -263,20 +308,20 @@ module {
       case (?text) { text };
     };
 
-    // --- 7. Persist messages to conversation store (Phase 1.4) ---
-    // Store the incoming message (user or bot) only on successful LLM response.
-    if (not msg.isBotMessage) {
-      // User message: derive userAuthContext for role mapping
-      let userCtxOpt = SlackAuthMiddleware.buildFromCache(msg.user, ctx.slackUsers.cache);
-      ConversationModel.addMessage(
-        ctx.conversationStore,
-        msg.channel,
-        { ts = msg.ts; userAuthContext = userCtxOpt; text = msg.text },
-        msg.threadTs,
-      );
-    };
-    // Store the agent response (bot message, always null userAuthContext)
-    // Use a synthetic reply ts derived from the event ts to maintain ordering.
+    // --- 7. Persist messages to conversation store ---
+    // Store the incoming message with its derived auth context on successful LLM response.
+    // - User message (isBotMessage=false): userAuthContext = fresh ctx, roundCount = 0.
+    // - Own-bot event (isBotMessage=true):  userAuthContext = derived ctx, roundCount = parent+1.
+    // `activeCtxOpt` was set in the round-tracking section above.
+    ConversationModel.addMessage(
+      ctx.conversationStore,
+      msg.channel,
+      { ts = msg.ts; userAuthContext = activeCtxOpt; text = msg.text },
+      msg.threadTs,
+    );
+    // Store the agent response (bot reply the handler is about to post to Slack).
+    // Stored with null userAuthContext — role = #assistant for LLM context building.
+    // Synthetic reply ts keeps ordering stable before the real Slack-assigned ts is known.
     let replyTs = msg.ts # "r"; // synthetic ts: original ts + "r" suffix
     ConversationModel.addMessage(
       ctx.conversationStore,
@@ -286,10 +331,24 @@ module {
     );
 
     // --- 8. Post reply to Slack ---
-    // If the message is already inside a thread, reply within that thread.
-    // If it is a top-level channel message, post the reply as a new top-level
-    // channel message — do NOT open a thread from a non-threaded message.
-    let slackResult = await SlackWrapper.postMessage(botToken, msg.channel, replyText, msg.threadTs);
+    // Always embed agentMetadata so the round chain is self-describing.
+    // parent_agent: the ::agentname referenced in the triggering message (or "::admin" fallback).
+    // parent_ts / parent_channel: identify the message that triggered this reply.
+    let msgValidAgents = AgentRefParser.extractValidAgents(msg.text, ctx.agentRegistry);
+    let parentAgentName : Text = if (msgValidAgents.size() > 0) {
+      "::" # msgValidAgents[0].name;
+    } else {
+      "::admin" // fallback during Phase 1.5 — Phase 1.6 Agent Router will use the actual agent
+    };
+    let replyMetadata : ?Types.AgentMessageMetadata = ?{
+      event_type = "looping_agent_message";
+      event_payload = {
+        parent_agent = parentAgentName;
+        parent_ts = msg.ts;
+        parent_channel = msg.channel;
+      };
+    };
+    let slackResult = await SlackWrapper.postMessage(botToken, msg.channel, replyText, msg.threadTs, replyMetadata);
     let slackStep : Types.ProcessingStep = {
       action = "post_to_slack";
       result = switch (slackResult) {

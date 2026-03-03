@@ -25,6 +25,7 @@ func makeRoundCtx(userId : Text, roundCount : Nat, forceTerminated : Bool) : Sla
     workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
     roundCount;
     forceTerminated;
+    parentRef = null;
   };
 };
 
@@ -517,161 +518,81 @@ suite(
   },
 );
 
-// ── saveRoundContext / lookupRoundContext ─────────────────────────────────────
+// ── getMessage ────────────────────────────────────────────────────────────────
 
 suite(
-  "ConversationModel - round context (empty store)",
+  "ConversationModel - getMessage",
   func() {
     test(
-      "lookupRoundContext returns null on empty store",
+      "returns null for unknown channel",
       func() {
         let store = ConversationModel.empty();
-        let result = ConversationModel.lookupRoundContext(store, "C001", "1000.000001");
+        let result = ConversationModel.getMessage(store, "C001", "1000.000001");
         expect.bool(isNone(result)).equal(true);
       },
     );
 
     test(
-      "lookupRoundContext returns null for unknown channel",
+      "returns null for unknown ts in known channel",
       func() {
         let store = ConversationModel.empty();
-        ConversationModel.saveRoundContext(store, "C001", "1000.000001", makeRoundCtx("U_ALICE", 0, false));
-        let result = ConversationModel.lookupRoundContext(store, "C_OTHER", "1000.000001");
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Hello"), null);
+        let result = ConversationModel.getMessage(store, "C001", "9999.000000");
         expect.bool(isNone(result)).equal(true);
       },
     );
-  },
-);
 
-suite(
-  "ConversationModel - round context save and lookup",
-  func() {
     test(
-      "saved context can be retrieved by channel + rootTs",
+      "finds a top-level message by ts",
       func() {
         let store = ConversationModel.empty();
-        let ctx = makeRoundCtx("U_ALICE", 0, false);
-        ConversationModel.saveRoundContext(store, "C001", "1000.000001", ctx);
-
-        switch (ConversationModel.lookupRoundContext(store, "C001", "1000.000001")) {
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        switch (ConversationModel.getMessage(store, "C001", "1000.000001")) {
           case (null) { expect.bool(false).equal(true) };
-          case (?found) {
-            expect.text(found.slackUserId).equal("U_ALICE");
-            expect.nat(found.roundCount).equal(0);
-            expect.bool(found.forceTerminated).equal(false);
-          };
+          case (?msg) { expect.text(msg.text).equal("Root") };
         };
       },
     );
 
     test(
-      "save overwrites the previous context for the same rootTs",
+      "finds a reply message via replyIndex",
       func() {
         let store = ConversationModel.empty();
-        ConversationModel.saveRoundContext(store, "C001", "1000.000001", makeRoundCtx("U_ALICE", 0, false));
-        ConversationModel.saveRoundContext(store, "C001", "1000.000001", makeRoundCtx("U_ALICE", 2, false));
-
-        switch (ConversationModel.lookupRoundContext(store, "C001", "1000.000001")) {
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
+        switch (ConversationModel.getMessage(store, "C001", "1000.000002")) {
           case (null) { expect.bool(false).equal(true) };
-          case (?found) { expect.nat(found.roundCount).equal(2) };
+          case (?msg) { expect.text(msg.text).equal("Reply") };
         };
       },
     );
 
     test(
-      "different threads store independent contexts in the same channel",
+      "root message is still accessible after replies are added",
       func() {
         let store = ConversationModel.empty();
-        ConversationModel.saveRoundContext(store, "C001", "thread-A", makeRoundCtx("U_ALICE", 1, false));
-        ConversationModel.saveRoundContext(store, "C001", "thread-B", makeRoundCtx("U_BOB", 5, false));
-
-        switch (ConversationModel.lookupRoundContext(store, "C001", "thread-A")) {
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
+        switch (ConversationModel.getMessage(store, "C001", "1000.000001")) {
           case (null) { expect.bool(false).equal(true) };
-          case (?a) {
-            expect.text(a.slackUserId).equal("U_ALICE");
-            expect.nat(a.roundCount).equal(1);
-          };
-        };
-        switch (ConversationModel.lookupRoundContext(store, "C001", "thread-B")) {
-          case (null) { expect.bool(false).equal(true) };
-          case (?b) {
-            expect.text(b.slackUserId).equal("U_BOB");
-            expect.nat(b.roundCount).equal(5);
-          };
+          case (?msg) { expect.text(msg.text).equal("Root") };
         };
       },
     );
 
     test(
-      "contexts are scoped per channel — same rootTs in different channels is independent",
+      "messages in different channels are independent",
       func() {
         let store = ConversationModel.empty();
-        ConversationModel.saveRoundContext(store, "C001", "1000.000001", makeRoundCtx("U_ALICE", 1, false));
-        ConversationModel.saveRoundContext(store, "C002", "1000.000001", makeRoundCtx("U_BOB", 3, true));
-
-        switch (ConversationModel.lookupRoundContext(store, "C001", "1000.000001")) {
-          case (?a) { expect.text(a.slackUserId).equal("U_ALICE") };
+        ConversationModel.addMessage(store, "C001", agentMsg("1000.000001", "In C001"), null);
+        ConversationModel.addMessage(store, "C002", agentMsg("1000.000001", "In C002"), null);
+        switch (ConversationModel.getMessage(store, "C001", "1000.000001")) {
+          case (?msg) { expect.text(msg.text).equal("In C001") };
           case (null) { expect.bool(false).equal(true) };
         };
-        switch (ConversationModel.lookupRoundContext(store, "C002", "1000.000001")) {
-          case (?b) {
-            expect.text(b.slackUserId).equal("U_BOB");
-            expect.bool(b.forceTerminated).equal(true);
-          };
+        switch (ConversationModel.getMessage(store, "C002", "1000.000001")) {
+          case (?msg) { expect.text(msg.text).equal("In C002") };
           case (null) { expect.bool(false).equal(true) };
-        };
-      },
-    );
-
-    test(
-      "forceTerminated flag is stored and retrieved correctly",
-      func() {
-        let store = ConversationModel.empty();
-        ConversationModel.saveRoundContext(store, "C001", "1000.000001", makeRoundCtx("U_ALICE", 10, true));
-
-        switch (ConversationModel.lookupRoundContext(store, "C001", "1000.000001")) {
-          case (null) { expect.bool(false).equal(true) };
-          case (?found) {
-            expect.nat(found.roundCount).equal(10);
-            expect.bool(found.forceTerminated).equal(true);
-          };
-        };
-      },
-    );
-  },
-);
-
-suite(
-  "ConversationModel - round context pruned with timeline",
-  func() {
-    test(
-      "pruneChannel removes round context for pruned entries",
-      func() {
-        let store = ConversationModel.empty();
-        ConversationModel.addMessage(store, "C001", agentMsg("500.000001", "Old"), null);
-        ConversationModel.saveRoundContext(store, "C001", "500.000001", makeRoundCtx("U_ALICE", 1, false));
-
-        ConversationModel.pruneChannel(store, "C001", 1000);
-
-        // Timeline entry pruned
-        expect.bool(isNone(ConversationModel.getEntry(store, "C001", "500.000001"))).equal(true);
-        // Round context also pruned
-        expect.bool(isNone(ConversationModel.lookupRoundContext(store, "C001", "500.000001"))).equal(true);
-      },
-    );
-
-    test(
-      "pruneChannel keeps round context for retained entries",
-      func() {
-        let store = ConversationModel.empty();
-        ConversationModel.addMessage(store, "C001", agentMsg("2000.000001", "New"), null);
-        ConversationModel.saveRoundContext(store, "C001", "2000.000001", makeRoundCtx("U_ALICE", 2, false));
-
-        ConversationModel.pruneChannel(store, "C001", 1000);
-
-        switch (ConversationModel.lookupRoundContext(store, "C001", "2000.000001")) {
-          case (null) { expect.bool(false).equal(true) };
-          case (?found) { expect.nat(found.roundCount).equal(2) };
         };
       },
     );

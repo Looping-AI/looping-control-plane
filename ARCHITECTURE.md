@@ -390,10 +390,9 @@ When a message passes pre-conditions and references an agent:
 **Round tracking** (in `userAuthContext`):
 
 - `roundCount` increments each time the router processes a new event in the same request chain.
-- **Hard upper bound**: `MAX_AGENT_ROUNDS` (100, defined in Constants).
+- **Hard upper bound**: `MAX_AGENT_ROUNDS` (10, defined in Constants). Once this limit is reached, the session is force-terminated.
 - **Dynamic controls**:
   - If the reply at round N is very similar to round N-1, the router sets `forceTerminated: true` on the context.
-  - After round 10: a classifier evaluates whether the reply was worth the cost and added meaningful value. The classifier's standards get progressively stricter with each additional round. If the reply isn't worth it → `forceTerminated: true` and the user is asked to approve continuation.
 - **Invariant**: an agent service must never directly invoke another agent service. The "connection" is always a `postMessage` on Slack that triggers a new round through an event. This ensures every hop is auditable, traceable, and budget-checkable.
 
 ## Session Tracking

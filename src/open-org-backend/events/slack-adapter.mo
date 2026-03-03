@@ -438,8 +438,50 @@ module {
       case (?#string(a)) { ?a };
       case _ { null };
     };
+    let agentMetadata : ?Types.AgentMessageMetadata = switch (Json.get(json, "metadata")) {
+      case (?metaJson) { parseAgentMetadata(metaJson) };
+      case _ { null };
+    };
 
-    #ok(#standard({ user; text; ts; channel; eventTs; threadTs; botId; appId }));
+    #ok(#standard({ user; text; ts; channel; eventTs; threadTs; botId; appId; agentMetadata }));
+  };
+
+  /// Parse the `metadata` block embedded in an own-bot reply.
+  ///
+  /// Returns `null` on any mismatch or missing field so callers receive a clean
+  /// optional rather than a parse error.
+  private func parseAgentMetadata(json : Json.Json) : ?Types.AgentMessageMetadata {
+    let eventType = switch (Json.get(json, "event_type")) {
+      case (?#string(t)) { t };
+      case _ { return null };
+    };
+    // Validate the event_type sentinel; reject anything else.
+    if (eventType != "looping_agent_message") { return null };
+
+    let payloadJson = switch (Json.get(json, "event_payload")) {
+      case (?p) { p };
+      case _ { return null };
+    };
+    let parentAgent = switch (Json.get(payloadJson, "parent_agent")) {
+      case (?#string(a)) { a };
+      case _ { return null };
+    };
+    let parentTs = switch (Json.get(payloadJson, "parent_ts")) {
+      case (?#string(t)) { t };
+      case _ { return null };
+    };
+    let parentChannel = switch (Json.get(payloadJson, "parent_channel")) {
+      case (?#string(c)) { c };
+      case _ { return null };
+    };
+    ?{
+      event_type = eventType;
+      event_payload = {
+        parent_agent = parentAgent;
+        parent_ts = parentTs;
+        parent_channel = parentChannel;
+      };
+    };
   };
 
   /// Parse me_message subtype
@@ -817,6 +859,7 @@ module {
           ts = mention.ts;
           threadTs = mention.thread_ts;
           isBotMessage = false;
+          agentMetadata = null;
         });
       };
       case (#message(msg)) {
@@ -824,18 +867,19 @@ module {
           case (#standard(m)) {
             let isOwnBot = m.botId != null and m.appId == ?callback.api_app_id;
             if (isOwnBot) {
-              // Allow own-bot messages through only when they are inside a thread
-              // (threadTs != null).  Those may carry a ::agentname reference that
-              // needs to be routed to the next agent (Phase 1.3 round tracking).
-              // Top-level bot replies have no parent session and are still skipped
-              // to avoid spurious events.
-              switch (m.threadTs) {
+              // Allow own-bot messages through ONLY when they carry agent metadata
+              // (metadata IS the lineage for round tracking).
+              // Messages without metadata (e.g. plain bot notifications) are skipped —
+              // there is no recoverable session context without it.
+              // This gate works for all channel topologies including DMs, because it
+              // depends solely on the metadata field, not on thread structure.
+              switch (m.agentMetadata) {
                 case (null) {
-                  Logger.log(#info, ?"SlackAdapter", "Skipping own-bot top-level message (app_id=" # callback.api_app_id # ")");
-                  return #err("Skipping own-bot top-level message");
+                  Logger.log(#info, ?"SlackAdapter", "Skipping own-bot message without agent metadata (app_id=" # callback.api_app_id # ")");
+                  return #err("Skipping own-bot message without agent metadata");
                 };
                 case (?_) {
-                  Logger.log(#info, ?"SlackAdapter", "Allowing own-bot threaded message for round tracking (app_id=" # callback.api_app_id # ")");
+                  Logger.log(#info, ?"SlackAdapter", "Allowing own-bot message with agent metadata for round tracking (app_id=" # callback.api_app_id # ")");
                 };
               };
             };
@@ -846,6 +890,7 @@ module {
               ts = m.ts;
               threadTs = m.threadTs;
               isBotMessage = isOwnBot;
+              agentMetadata = m.agentMetadata;
             });
           };
           case (#meMessage(m)) {
@@ -856,6 +901,7 @@ module {
               ts = m.ts;
               threadTs = null;
               isBotMessage = false;
+              agentMetadata = null;
             });
           };
           case (#messageChanged(m)) {

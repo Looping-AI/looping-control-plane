@@ -34,12 +34,7 @@ module {
   // 30 days in seconds (30 * 24 * 3600)
   public let CONVERSATION_RETENTION_SECS : Nat = 2_592_000;
 
-  // Agent routing round control (Phase 1)
+  // Agent routing round control
   // Absolute ceiling on the number of LLM rounds any session may run.
-  public let MAX_AGENT_ROUNDS : Nat = 100;
-
-  // Round at which the progressive cost classifier activates.
-  // From this round onward each successive response is evaluated against
-  // increasingly strict similarity / cost thresholds.
-  public let ROUND_CLASSIFIER_THRESHOLD : Nat = 10;
+  public let MAX_AGENT_ROUNDS : Nat = 10;
 };

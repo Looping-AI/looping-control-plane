@@ -17,6 +17,7 @@ import { str; obj } "mo:json";
 import HttpWrapper "./http-wrapper";
 import JsonSanitizer "../utilities/json-sanitizer";
 import UrlEncoding "../utilities/url-encoding";
+import Types "../types";
 
 module {
 
@@ -53,37 +54,62 @@ module {
   ///                           the caller passes msg.ts as a subsequent reply)
   ///   - `threadTs = ?ts`    → reply inside an existing thread
   ///
+  /// Metadata for agent lineage:
+  ///   - `metadata = null`   → plain message (no lineage; non-agent callers pass null)
+  ///   - `metadata = ?{...}` → embeds lineage block in the Slack message so the bot
+  ///                           can reconstruct round count when the reply is received
+  ///                           back as a Slack event. Required on every agent reply.
+  ///
   /// @param token     Decrypted Slack bot token (xoxb-...)
   /// @param channel   Channel/DM/group ID to post to
   /// @param text      Message text (plain text or mrkdwn)
   /// @param threadTs  Optional: ts of the parent message to reply within a thread
+  /// @param metadata  Optional: agent lineage metadata to embed in the message
   /// @returns #ok with the posted message ts + channel, or #err with a description
   public func postMessage(
     token : Text,
     channel : Text,
     text : Text,
     threadTs : ?Text,
+    metadata : ?Types.AgentMessageMetadata,
   ) : async {
     #ok : PostMessageOk;
     #err : Text;
   } {
-    // Build JSON body — include thread_ts only when provided
-    let bodyJson : Json.Json = switch (threadTs) {
-      case (null) {
-        obj([
-          ("channel", str(channel)),
-          ("text", str(text)),
-        ]);
-      };
+    // Build base fields — channel and text are always present
+    var fields : [(Text, Json.Json)] = [
+      ("channel", str(channel)),
+      ("text", str(text)),
+    ];
+
+    // Append thread_ts when provided
+    switch (threadTs) {
       case (?ts) {
-        obj([
-          ("channel", str(channel)),
-          ("text", str(text)),
-          ("thread_ts", str(ts)),
-        ]);
+        fields := Array.concat(fields, [("thread_ts", str(ts))]);
       };
+      case (null) {};
     };
 
+    // Append metadata block when provided
+    switch (metadata) {
+      case (?m) {
+        let metaJson : Json.Json = obj([
+          ("event_type", str(m.event_type)),
+          (
+            "event_payload",
+            obj([
+              ("parent_agent", str(m.event_payload.parent_agent)),
+              ("parent_ts", str(m.event_payload.parent_ts)),
+              ("parent_channel", str(m.event_payload.parent_channel)),
+            ]),
+          ),
+        ]);
+        fields := Array.concat(fields, [("metadata", metaJson)]);
+      };
+      case (null) {};
+    };
+
+    let bodyJson : Json.Json = obj(fields);
     let requestBody = Json.stringify(bodyJson, null);
     let url = SLACK_API_BASE_URL # "/chat.postMessage";
 

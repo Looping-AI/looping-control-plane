@@ -66,6 +66,7 @@ module {
       ts : Text; // Message timestamp
       threadTs : ?Text; // Thread timestamp
       isBotMessage : Bool; // true when posted by our own bot
+      agentMetadata : ?Types.AgentMessageMetadata; // Present on own-bot replies; null on user messages
     };
     #assistantThreadEvent : {
       eventType : {
