@@ -36,11 +36,11 @@ import AgentRefParser "../../utilities/agent-ref-parser";
 import AgentModel "../../models/agent-model";
 import Constants "../../constants";
 import Logger "../../utilities/logger";
+import WorkspaceModel "../../models/workspace-model";
 
 module {
 
   public func handle(
-    workspaceId : Nat,
     msg : {
       user : Text;
       text : Text;
@@ -52,6 +52,13 @@ module {
     },
     ctx : EventProcessingContextTypes.EventProcessingContext,
   ) : async NormalizedEventTypes.HandlerResult {
+    // Resolve workspace from the channel — the handler owns this resolution, not the event payload.
+    let workspaceId : Nat = switch (WorkspaceModel.resolveWorkspaceByChannel(ctx.workspaces, msg.channel)) {
+      case (#adminChannel(wsId)) { wsId };
+      case (#memberChannel(wsId)) { wsId };
+      case (#none) { 0 }; // default workspace — channel not yet anchored
+    };
+
     Logger.log(
       #info,
       ?"MessageHandler",

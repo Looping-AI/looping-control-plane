@@ -841,7 +841,6 @@ module {
   };
 
   /// Convert a parsed SlackEventCallback into a normalized Event
-  /// Currently hardcodes workspaceId to 0 (will be mapped in the future)
   ///
   /// @param callback - Parsed Slack event callback
   /// @returns Normalized event or error (e.g., unhandled event type, skippable subtype)
@@ -1010,7 +1009,6 @@ module {
 
     #ok({
       source = #slack;
-      workspaceId = 0; // Hardcoded for now — future: map from Slack team_id/channel
       idempotencyKey = callback.event_id;
       eventId = NormalizedEventTypes.buildEventId(#slack, callback.event_id);
       timestamp = callback.event_time;

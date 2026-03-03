@@ -19,7 +19,6 @@ import Logger "../../utilities/logger";
 module {
 
   public func handle(
-    workspaceId : Nat,
     event : {
       userId : Text;
       channelId : Text;
@@ -89,10 +88,6 @@ module {
         };
       };
     };
-
-    // Suppress unused-variable warning — workspaceId from event store is always 0 until
-    // Phase 0.5+ resolves it from channel anchors.
-    ignore workspaceId;
 
     #ok([
       {

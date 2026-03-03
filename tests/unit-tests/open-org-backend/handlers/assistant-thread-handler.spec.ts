@@ -21,7 +21,6 @@ describe("AssistantThreadHandler Unit Tests", () => {
   it("should successfully handle assistant thread event", async () => {
     // Arrange: Extract event data from assistant_thread_started stub
     const at = assistantThreadStartedStub.event.assistant_thread;
-    const workspaceId = 1n;
 
     const threadInput = {
       eventType: { threadStarted: null },
@@ -33,10 +32,8 @@ describe("AssistantThreadHandler Unit Tests", () => {
     };
 
     // Act: Call the handler via test canister (covers thread lifecycle events)
-    const result = await testCanister.testAssistantThreadEventHandler(
-      workspaceId,
-      threadInput,
-    );
+    const result =
+      await testCanister.testAssistantThreadEventHandler(threadInput);
 
     // Assert: Handler should succeed
     expect("ok" in result).toBe(true);
@@ -50,8 +47,6 @@ describe("AssistantThreadHandler Unit Tests", () => {
   it("should handle assistant thread event in different channel context", async () => {
     // Arrange: Extract event data from assistant_thread_context_changed stub
     const at = assistantThreadContextChangedStub.event.assistant_thread;
-    const workspaceId = 1n;
-
     const threadInput = {
       eventType: { threadContextChanged: null },
       userId: at.user_id,
@@ -68,10 +63,8 @@ describe("AssistantThreadHandler Unit Tests", () => {
     };
 
     // Act
-    const result = await testCanister.testAssistantThreadEventHandler(
-      workspaceId,
-      threadInput,
-    );
+    const result =
+      await testCanister.testAssistantThreadEventHandler(threadInput);
 
     // Assert: Handler should still succeed
     expect("ok" in result).toBe(true);

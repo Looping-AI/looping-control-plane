@@ -11,7 +11,6 @@ import NormalizedEventTypes "../../../../src/open-org-backend/events/types/norma
 func makeEvent(eventId : Text, payload : NormalizedEventTypes.EventPayload) : NormalizedEventTypes.Event {
   {
     source = #slack;
-    workspaceId = 0;
     idempotencyKey = eventId;
     eventId = "slack_" # eventId;
     timestamp = 1700000000;
@@ -761,7 +760,6 @@ suite(
         // so that: now - enqueuedAt = 42 - (-huge) = 42 + huge > ONE_HOUR_NS
         let staleEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvStale002";
           eventId = "slack_EvStale002";
           timestamp = 1700000000;
@@ -802,7 +800,6 @@ suite(
       func() {
         let staleEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvStale003";
           eventId = "slack_EvStale003";
           timestamp = 1700000000;
@@ -846,7 +843,6 @@ suite(
       func() {
         let staleEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvStale004";
           eventId = "slack_EvStale004";
           timestamp = 1700000000;
@@ -921,7 +917,6 @@ suite(
         // So we need failedAt < 42 - 2_592_000_000_000_000 ≈ -2_591_999_999_999_958
         let oldFailedEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvOldFail002";
           eventId = "slack_EvOldFail002";
           timestamp = 1700000000;
@@ -956,7 +951,6 @@ suite(
       func() {
         let oldFailedEvent : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvOldFail003";
           eventId = "slack_EvOldFail003";
           timestamp = 1700000000;
@@ -1006,7 +1000,6 @@ suite(
         // Manufacture a failed event with failedAt = null (edge case)
         let noTimestampFailed : NormalizedEventTypes.Event = {
           source = #slack;
-          workspaceId = 0;
           idempotencyKey = "EvOldFail005";
           eventId = "slack_EvOldFail005";
           timestamp = 1700000000;

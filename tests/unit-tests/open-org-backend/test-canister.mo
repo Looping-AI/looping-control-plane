@@ -302,7 +302,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // ============================================
 
   public shared ({ caller }) func testMessageHandler(
-    workspaceId : Nat,
     msg : {
       user : Text;
       text : Text;
@@ -311,17 +310,16 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       threadTs : ?Text;
       isBotMessage : Bool;
       agentMetadata : ?Types.AgentMessageMetadata;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(workspaceId, msg, emptyCtx());
+    await MessageHandler.handle(msg, emptyCtx());
   };
 
   /// Like testMessageHandler, but pre-seeds the context with a real Slack bot token
   /// and Groq API key so the full happy-path (LLM call → Slack post) can be exercised
   /// and captured with the cassette recording system.
   public shared ({ caller }) func testMessageHandlerWithSecrets(
-    workspaceId : Nat,
     msg : {
       user : Text;
       text : Text;
@@ -335,7 +333,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     groqApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(workspaceId, msg, ctxWithSecrets(botToken, groqApiKey));
+    await MessageHandler.handle(msg, ctxWithSecrets(botToken, groqApiKey));
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
@@ -349,21 +347,19 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   public shared ({ caller }) func testMessageEditedHandler(
-    workspaceId : Nat,
     edited : {
       channel : Text;
       messageTs : Text;
       threadTs : ?Text;
       newText : Text;
       editedBy : ?Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageEditedHandler.handle(workspaceId, edited, emptyCtx());
+    await MessageEditedHandler.handle(edited, emptyCtx());
   };
 
   public shared ({ caller }) func testAssistantThreadEventHandler(
-    workspaceId : Nat,
     thread : {
       eventType : { #threadStarted; #threadContextChanged };
       userId : Text;
@@ -371,14 +367,13 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       threadTs : Text;
       eventTs : Text;
       context : NormalizedEventTypes.AssistantThreadContext;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await AssistantThreadHandler.handle(workspaceId, thread, emptyCtx());
+    await AssistantThreadHandler.handle(thread, emptyCtx());
   };
 
   public shared ({ caller }) func testTeamJoinHandler(
-    workspaceId : Nat,
     event : {
       userId : Text;
       displayName : Text;
@@ -386,38 +381,36 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner : Bool;
       isOrgAdmin : Bool;
       eventTs : Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await TeamJoinHandler.handle(workspaceId, event, emptyCtx());
+    await TeamJoinHandler.handle(event, emptyCtx());
   };
 
   public shared ({ caller }) func testMemberJoinedChannelHandler(
-    workspaceId : Nat,
     event : {
       userId : Text;
       channelId : Text;
       channelType : Text;
       teamId : Text;
       eventTs : Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MemberJoinedChannelHandler.handle(workspaceId, event, emptyCtx());
+    await MemberJoinedChannelHandler.handle(event, emptyCtx());
   };
 
   public shared ({ caller }) func testMemberLeftChannelHandler(
-    workspaceId : Nat,
     event : {
       userId : Text;
       channelId : Text;
       channelType : Text;
       teamId : Text;
       eventTs : Text;
-    },
+    }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MemberLeftChannelHandler.handle(workspaceId, event, emptyCtx());
+    await MemberLeftChannelHandler.handle(event, emptyCtx());
   };
 
   // ============================================

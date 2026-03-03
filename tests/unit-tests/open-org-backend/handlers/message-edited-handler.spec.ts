@@ -20,7 +20,6 @@ describe("MessageEditedHandler Unit Tests", () => {
   it("should successfully handle message edited event", async () => {
     // Arrange: Extract event data from stub
     const event = messageChangedStub.event;
-    const workspaceId = 1n;
 
     const editedInput = {
       channel: event.channel,
@@ -33,10 +32,7 @@ describe("MessageEditedHandler Unit Tests", () => {
     };
 
     // Act: Call the handler via test canister
-    const result = await testCanister.testMessageEditedHandler(
-      workspaceId,
-      editedInput,
-    );
+    const result = await testCanister.testMessageEditedHandler(editedInput);
 
     // Assert: Handler should succeed
     expect("ok" in result).toBe(true);
@@ -51,8 +47,6 @@ describe("MessageEditedHandler Unit Tests", () => {
   it("should handle edited message without explicit editor", async () => {
     // Arrange: Use stub but remove editor info for edge case
     const event = messageChangedStub.event;
-    const workspaceId = 1n;
-
     const editedInput = {
       channel: event.channel,
       messageTs: event.message.ts,
@@ -62,10 +56,7 @@ describe("MessageEditedHandler Unit Tests", () => {
     };
 
     // Act
-    const result = await testCanister.testMessageEditedHandler(
-      workspaceId,
-      editedInput,
-    );
+    const result = await testCanister.testMessageEditedHandler(editedInput);
 
     // Assert: Handler should still succeed
     expect("ok" in result).toBe(true);

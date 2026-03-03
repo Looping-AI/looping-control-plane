@@ -930,7 +930,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       });
 
       // C_ADMIN_CHANNEL is the admin channel for workspace 1 in the test harness.
-      const handlerFn = await testCanister.testMemberJoinedChannelHandler(1n, {
+      const handlerFn = await testCanister.testMemberJoinedChannelHandler({
         userId: "U_EVENT",
         channelId: "C_ADMIN_CHANNEL",
         channelType: "C",

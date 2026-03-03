@@ -13,7 +13,6 @@ import Logger "../../utilities/logger";
 module {
 
   public func handle(
-    workspaceId : Nat,
     edited : {
       channel : Text;
       messageTs : Text;
@@ -26,8 +25,7 @@ module {
     Logger.log(
       #info,
       ?"MessageEditedHandler",
-      "message_edited in workspace " # debug_show (workspaceId) #
-      " | channel: " # edited.channel #
+      "message_edited | channel: " # edited.channel #
       " | messageTs: " # edited.messageTs #
       " | newText: " # edited.newText,
     );

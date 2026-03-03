@@ -29,7 +29,7 @@ describe("TeamJoinHandler", () => {
   });
 
   it("should upsert a new user in SlackUserCache with basic org-level info", async () => {
-    const result = await testCanister.testTeamJoinHandler(1n, {
+    const result = await testCanister.testTeamJoinHandler({
       userId: "U_NEW_USER",
       displayName: "newuser",
       realName: ["New User"],
@@ -53,7 +53,7 @@ describe("TeamJoinHandler", () => {
   });
 
   it("should process team_join when real_name is absent and use display name", async () => {
-    const result = await testCanister.testTeamJoinHandler(1n, {
+    const result = await testCanister.testTeamJoinHandler({
       userId: "U_NO_REALNAME",
       displayName: "norealname",
       realName: [],
@@ -73,7 +73,7 @@ describe("TeamJoinHandler", () => {
   });
 
   it("should mark user as org admin when is_admin is true", async () => {
-    const result = await testCanister.testTeamJoinHandler(1n, {
+    const result = await testCanister.testTeamJoinHandler({
       userId: "U_ORG_ADMIN",
       displayName: "orgadmin",
       realName: ["Org Admin"],
@@ -94,7 +94,7 @@ describe("TeamJoinHandler", () => {
   });
 
   it("should mark user as primary owner when is_primary_owner is true", async () => {
-    const result = await testCanister.testTeamJoinHandler(1n, {
+    const result = await testCanister.testTeamJoinHandler({
       userId: "U_PRIMARY_OWNER",
       displayName: "owner",
       realName: ["Primary Owner"],

@@ -59,7 +59,6 @@ describe("MessageHandler Unit Tests", () => {
       cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
-          1n,
           {
             user: event.user,
             text: event.text,
@@ -101,7 +100,6 @@ describe("MessageHandler Unit Tests", () => {
       cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
-          1n,
           {
             user: "U_THREAD",
             text: "This is a thread reply",
@@ -135,7 +133,6 @@ describe("MessageHandler Unit Tests", () => {
       cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
-          1n,
           {
             user: "U_CHANNEL",
             text: "Hello channel",
@@ -160,12 +157,8 @@ describe("MessageHandler Unit Tests", () => {
     }
   });
 
-  it("should handle messages consistently across multiple workspace IDs", async () => {
-    for (const [wsId, label] of [
-      [0n, "ws0"],
-      [1n, "ws1"],
-      [42n, "ws42"],
-    ] as [bigint, string][]) {
+  it("should handle messages consistently across multiple scenarios", async () => {
+    for (const label of ["ws0", "ws1", "ws42"]) {
       const cassetteName = `unit-tests/open-org-backend/handlers/message-handler/multi-workspace-${label}`;
       const channel = await resolveSpecsChannel(cassetteName);
       const { result } = await withCassette(
@@ -173,7 +166,6 @@ describe("MessageHandler Unit Tests", () => {
         cassetteName,
         () =>
           testCanister.testMessageHandlerWithSecrets(
-            wsId,
             {
               user: "U_TEST",
               text: `Hello from workspace ${label}`,
@@ -210,7 +202,6 @@ describe("MessageHandler Unit Tests", () => {
       cassetteName,
       () =>
         testCanister.testMessageHandlerWithSecrets(
-          0n,
           {
             user: event.user,
             text: event.text,

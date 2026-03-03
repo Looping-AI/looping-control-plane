@@ -15,7 +15,6 @@ import Logger "../../utilities/logger";
 module {
 
   public func handle(
-    workspaceId : Nat,
     thread : {
       eventType : {
         #threadStarted;
@@ -33,8 +32,7 @@ module {
     Logger.log(
       #info,
       ?"AssistantThreadHandler",
-      "assistant_thread event in workspace " # debug_show (workspaceId) #
-      " | eventType: " # debug_show (thread.eventType) #
+      "assistant_thread event | eventType: " # debug_show (thread.eventType) #
       " | channelId: " # thread.channelId #
       " | userId: " # thread.userId #
       " | threadTs: " # thread.threadTs,
