@@ -31,6 +31,7 @@ import List "mo:core/List";
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
+import Types "../types";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 
 module {
@@ -44,13 +45,17 @@ module {
   /// - `ts`: Slack-assigned timestamp; format "UNIX_SECONDS.MICROSECONDS"
   ///   (e.g. "1740000000.123456"). Unique per channel; serves as the
   ///   deduplication key and as the retention age indicator.
-  /// - `userAuthContext`: null for bot/agent messages; set for user messages.
+  /// - `userAuthContext`: null until round tracking resolves; populated by
+  ///   updateMessageContext once auth is known.
   ///   At LLM context-build time: null → #assistant role, non-null → #user role.
   /// - `text`: current message text; replaced in-place on message_changed events.
+  /// - `agentMetadata`: null for user messages; the full lineage payload for bot
+  ///   replies, carrying `parent_agent`, `parent_channel`, and `parent_ts`.
   public type ConversationMessage = {
     ts : Text;
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
     text : Text;
+    agentMetadata : ?Types.AgentMetadataPayload;
   };
 
   /// A thread that has a root message and at least one reply.
@@ -334,6 +339,7 @@ module {
                 ts = msg.ts;
                 userAuthContext = msg.userAuthContext;
                 text = newText;
+                agentMetadata = msg.agentMetadata;
               },
             );
             true;
@@ -350,6 +356,7 @@ module {
                     ts = msg.ts;
                     userAuthContext = msg.userAuthContext;
                     text = newText;
+                    agentMetadata = msg.agentMetadata;
                   },
                 );
                 true;
@@ -391,6 +398,7 @@ module {
                 ts = msg.ts;
                 userAuthContext;
                 text = msg.text;
+                agentMetadata = msg.agentMetadata;
               },
             );
             true;
@@ -407,6 +415,7 @@ module {
                     ts = msg.ts;
                     userAuthContext;
                     text = msg.text;
+                    agentMetadata = msg.agentMetadata;
                   },
                 );
                 true;

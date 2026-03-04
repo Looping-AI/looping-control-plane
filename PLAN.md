@@ -1,52 +1,30 @@
-# v0.2 Plan — Slack-Native Identity & Agent Routing
+# PLAN.md — Looping AI Short-Term Planning
 
-This plan describes the incremental path from the current codebase to the architecture described in [ARCHITECTURE.md](ARCHITECTURE.md). Each phase is a separate development effort (separate PRs). Phases are ordered by dependency, not priority — some later phases may start in parallel with earlier ones where there are no blockers.
+This plan describes the incremental path from the current codebase to the architecture described in [ARCHITECTURE.md](ARCHITECTURE.md).
 
----
+## Instructions
 
-## Phase 0 — Foundation: Slack Identity & Cleanup
+Each Phase is broken down into separate Tasks, each a separate development effort (separate PRs). Phases and Tasks are ordered by dependency, not priority — some later Phases may start in parallel with earlier ones where there are no blockers.
 
-**Goal**: Replace Principal-based auth with Slack-derived identity. Establish the user cache and SlackAuthMiddleware as the authorization backbone.
+Each Phase is assigned a unique, sequential ID. Once a Phase is fully completed, the Phase at position n-2 can be safely deleted, retaining one prior Phase for context.
 
-~~### 0.1 — SlackWrapper expansion~~
+Here’s a cleaner, structured version with better flow:
 
-- Add private functions matching Slack API methods: `usersList()`, `conversationsList()`, `conversationsMembers()`. Parameters aligned with Slack's API.
-- Add public higher-level functions: `getWorkspaceMembers()`, `listChannels()`, `getChannelMembers()`.
-- All Slack API I/O goes through SlackWrapper (adapter pattern).
+Each Task (using decimal notation, e.g., 0.x, 1.x) should begin in short form. Before implementation, it must be expanded into long form, then executed and marked as complete by striking through its title (e.g., ~~### 0.1 – User Model~~).
 
-~~### 0.2 — Slack user cache model~~
+Short form consists of a title and supporting bullet points only.
 
-- New model (`SlackUserModel`): `Map<SlackUserId, SlackUserEntry>`.
-- `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`.
-- CRUD operations: upsert user, update workspace membership, remove workspace membership, lookup by ID.
-- File: `src/open-org-backend/models/slack-user-model.mo`.
+Long form must include at least the following sections:
 
-~~### 0.3 — SlackAuthMiddleware~~
+- Goal
+- Current State
+- Desired State
+- Source Steps
+- Test Steps
 
-- New middleware replacing Principal-based `AuthMiddleware`.
-- Extracts Slack user ID from event payload → looks up user cache → builds `UserAuthContext`.
-- `UserAuthContext = { slackUserId, isPrimaryOwner, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, roundCount, forceTerminated }`.
-- All downstream services receive `UserAuthContext` instead of caller Principal.
+Then other optional sections can be added that you think are relevant for that specific task.
 
-~~### 0.4 — Event-driven cache sync~~
-
-- Subscribe to new Slack event types in the adapter: `member_joined_channel`, `member_left_channel`, `team_join`.
-- Event router dispatches to new handlers that update the user cache in real-time.
-
-~~### 0.5 — Workspace-to-channel mapping~~
-
-- New workspace model: `{ id, name, adminChannelId, memberChannelId }`.
-- Replace current `workspaceAdmins: Map<Nat, [Principal]>` and `workspaceMembers: Map<Nat, [Principal]>` with channel-derived membership.
-- Org admin channel anchor: `{ channelId, channelName }`.
-
-~~### 0.6 — Weekly reconciliation timer~~
-
-- Runs on Sundays (aligned with existing cleanup timers).
-- Full `users.list` + `conversations.members` sweep for all tracked channels.
-- Verifies all tracked channel IDs:
-  - **Org admin channel**: follows recovery rules (see Architecture — "App install and setup flow").
-  - **Workspace admin channel gone**: notifies `#looping-ai-org-admins`, requests new admin channel or workspace deletion.
-  - **Workspace member channel gone**: notifies workspace's admin channel, requests new member channel.
+NOTE: Plans are not documentation. They are temporary and will be discarded. If behavior changes later, there’s no need to update an already struck-through Task.
 
 ---
 
@@ -215,7 +193,7 @@ Services build LLM context by:
 - **1.6 (Generic agent service):** receives a `TimelineEntry` (either `#post` or `#thread` with full message history) instead of a generic list; LLM role is derived from each `ConversationMessage.userAuthContext` without additional lookups.
 - **1.7 (Session tracking):** `channelId + ts` (or a batch of `ts` values) becomes the canonical anchor for `SessionRecord`.
 
-### 1.5 — Round Refactor with Metadata strategy
+~~### 1.5 — Round Refactor with Metadata strategy~~
 
 **Goal**: Decouple round tracking from Slack threading. The current design uses `threadTs` as the round-context key, which breaks for DMs (no thread), cross-channel replies, and any future topology where the bot does not reply inside the originating thread. The metadata strategy moves lineage onto the message itself, making the chain self-describing regardless of channel or thread structure.
 
@@ -383,17 +361,87 @@ metadata = ?{
 - **`getMessage` helper**: post lookup, reply lookup via replyIndex, missing → null.
 - **`UserAuthContext` chain invariant**: `parentRef == null ↔ roundCount == 0`; chain terminates correctly.
 
-### 1.6 — Agent Router
+~~### 1.6 — Agent Router~~
 
-- New module sitting between EventRouter and agent services.
-- Pre-conditions are enforced at this layer (see 2.4) before any service is invoked.
-- On valid event: resolves agent from registry → selects category service → passes `userAuthContext` and session context.
-- **Round controls**:
-  - Hard upper bound: `MAX_AGENT_ROUNDS = 10` (in Constants).
-  - Similarity detection: if reply at round N ≈ reply at round N-1 → `forceTerminated: true`.
-  - After round 10: progressive cost classifier with increasingly strict thresholds.
-  - On force-terminate: the bot asks the user if they want to approve continuation.
-- **Invariant enforcement**: agent services can only trigger other agents via `SlackWrapper.postMessage`.
+**Goal**
+
+Introduce a dedicated `AgentRouter` module that sits between `MessageHandler` and the agent services. `MessageHandler` already handles round tracking, pre-condition guards, and conversation persistence (1.4 + 1.5). The router's sole responsibility is: given a validated `UserAuthContext` and a list of referenced agents, select the right service and invoke it. This is the clean separation between _who-is-allowed-to-act_ (already solved) and _what-acts-and-how_.
+
+**Current State**
+
+- `MessageHandler` calls `WorkspaceAdminOrchestrator.orchestrateAdminTalk` directly, hard-wiring a single service.
+- Round tracking, force-termination guard, and agent-ref extraction all live in `MessageHandler`, which is correct per 1.5.
+- When `MAX_AGENT_ROUNDS` is hit, the handler logs, stamps the terminated context, and returns — no user-facing message is posted yet (a `// Phase 1.6 will post a continuation prompt to Slack here` comment marks the gap).
+- `buildReplyMetadata` in `MessageHandler` uses `"::admin"` as a fallback `parent_agent` — placeholder left by 1.5 for the router to replace.
+- Only one agent category service exists: `WorkspaceAdminOrchestrator` (category `#admin`). Categories `#research` and `#communication` have no service yet.
+- `AgentRecord.category` is defined and stored in the registry but never used at dispatch time — routing is unconditional.
+
+**Desired State**
+
+- New module `src/open-org-backend/events/agent-router.mo` is the single call site for agent service dispatch.
+- `MessageHandler.handle` extracts the valid-agents list (already computed at the pre-condition guard), resolves the primary agent, and delegates to `AgentRouter.route` instead of calling `WorkspaceAdminOrchestrator` directly.
+- `AgentRouter.route` dispatches based on `AgentRecord.category`:
+  - `#admin` → `WorkspaceAdminOrchestrator.orchestrateAdminTalk` (existing).
+  - `#research` / `#communication` → returns `#err("category service not yet implemented")` (stub, replaced in 1.7).
+- When `MAX_AGENT_ROUNDS` is reached, `MessageHandler` calls a new `AgentRouter.postTerminationPrompt` to send a user-facing Slack message asking whether to continue.
+- `buildReplyMetadata` uses `"::" # primaryAgent.name` as `parent_agent` on all outgoing replies. This is the agent that produced the reply and is therefore the agent that should handle any follow-up message that references it.
+
+**Primary Agent Selection**
+
+A message may reference multiple `::agentname` patterns. The router picks only one agent per event — the _primary agent_ — using this precedence:
+
+1. First valid agent extracted by `AgentRefParser.extractValidAgents` (left-to-right in the message text).
+
+Multi-agent fan-out (dispatching to several agents in one round) is out of scope for this task; it is deferred to Phase 5.
+
+**Termination Prompt**
+
+When a session is force-terminated by `MAX_AGENT_ROUNDS`, the bot posts a message in the same channel (in the same thread if `threadTs != null`):
+
+```
+⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.
+```
+
+- New function `AgentRouter.postTerminationPrompt(botToken, channel, threadTs)` calls `SlackWrapper.postMessage` with no metadata and no reply metadata (this message is not a round response — it must not re-trigger round tracking).
+- `MessageHandler` passes `botToken` to this function after deriving it from the secret store — the token is already available at that point in the handler.
+
+**Source Steps**
+
+1. **`src/open-org-backend/events/agent-router.mo`** — new module:
+   - Public type alias `RouteResult = WorkspaceAdminOrchestrator.OrchestratorResult` (or define a shared result type; pick whatever avoids creating a new type for now).
+   - `public func route(primaryAgent : AgentModel.AgentRecord, …) : async RouteResult` — dispatches on `primaryAgent.category`; `#research`/`#communication` return `#err({message = "category not implemented"; steps = []})`.
+   - `public func postTerminationPrompt(botToken : Text, channel : Text, threadTs : ?Text) : async ()` — posts the fixed termination message via `SlackWrapper.postMessage` with no metadata.
+   - `public func findPreviousSameAgentReply(store, channel, startTs, agentName) : ?ConversationMessage` — walks the `parentRef` chain; returns first message with matching `agentMetadata.parent_agent`, or `null`.
+
+2. **`src/open-org-backend/events/handlers/message-handler.mo`** — changes:
+   - Remove direct import of `WorkspaceAdminOrchestrator`; add `import AgentRouter "../agent-router"`.
+   - **Primary agent resolution** — two paths:
+     - _Bot message_: `primaryAgent` is resolved from `agentMetadata.event_payload.parent_agent` via registry `lookupByName`. If not found in registry, discard (log warn).
+     - _User message_: extract via `AgentRefParser.extractValidAgents(msg.text, ...)` and take the first, or fall back to `registry.getFirstByCategory(#admin)` for bare messages with no `::` ref.
+   - Replace the `WorkspaceAdminOrchestrator.orchestrateAdminTalk(...)` call with `AgentRouter.route(primaryAgent, …)`.
+   - Replace the `// Phase 1.6 will post a continuation prompt to Slack here` comment with a call to `AgentRouter.postTerminationPrompt`.
+   - Fix `buildReplyMetadata`: replace the `"::admin"` fallback with `"::" # primaryAgent.name`. This correctly identifies the replying agent so that any subsequent message referencing this reply routes to the right agent.
+
+3. **`dfx build open-org-backend --check`** — no compilation errors.
+
+**Test Steps**
+
+All tests in `tests/unit-tests/open-org-backend/`. Add a new file `agent-router.test.mo` and extend the existing `message-handler.test.mo`.
+
+_`agent-router.test.mo`_
+
+- **`route` — `#admin` category → calls orchestrator stub and returns result**.
+- **`route` — `#research` category → returns `#err` with "not implemented" message**.
+- **`route` — `#communication` category → returns `#err` with "not implemented" message**.
+- **`postTerminationPrompt` — posts correct message text** (verify via cassette or mock).
+
+_`message-handler.test.mo` additions_
+
+- **MAX_AGENT_ROUNDS termination prompt**: send a bot message at round `MAX_AGENT_ROUNDS - 1` → handler posts termination prompt (previously just returned with a log).
+- **Primary agent from user message with `::` reference**: user sends `"::research what is X"` → primary agent resolves to the registered research agent.
+- **Primary agent fallback for bare user message**: user sends `"what is X"` (no `::` ref) → falls back to the first `#admin` agent in the registry.
+- **`buildReplyMetadata` uses replying agent name**: regardless of which agent triggered this round, outgoing reply metadata always has `parent_agent = "::" # primaryAgent.name`. E.g. if `::admin` produces the reply, `parent_agent = "::admin"` — never the name of whoever called it.
+- **`findPreviousSameAgentReply` — chain walk**: three-message chain `user → ::admin reply → ::research reply → ::admin reply (current)` — walk from current's `parent_ts` finds the prior `::admin` reply (skipping the intervening `::research` message).
 
 ### 1.7 — Refactor current service into generic agent service
 

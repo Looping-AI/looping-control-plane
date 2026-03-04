@@ -1,26 +1,40 @@
 /// Message Handler
 /// Handles standard user messages, me_messages, and own-bot agent messages.
 ///
-/// Acts as a controller for the message event:
-///   1. Round tracking (Phase 1.5):
-///      - User message  → build a fresh UserAuthContext (roundCount = 0, parentRef = null)
-///                        and persist it on the ConversationMessage.
-///      - Bot message   → resolve the parent ConversationMessage via agentMetadata,
-///                        inherit its UserAuthContext, apply pre-condition guards,
-///                        then derive a new context with roundCount + 1.
-///      No separate round-context index is used; lineage is carried in agentMetadata
-///      and the roundCount is stored on each ConversationMessage.userAuthContext.
-///   2. Persist the incoming message to the conversation store (Phase 1.4).
-///   3. Scope workspace data from EventProcessingContext.
-///   4. Derive the workspace encryption key (once).
-///   5. Call WorkspaceAdminOrchestrator for LLM reply.
-///   6. Persist the agent's response to the conversation store (Phase 1.4).
-///   7. Post the reply back to Slack via SlackWrapper (with agentMetadata for lineage).
+/// The public `handle` function is a thin orchestration sequence that delegates
+/// each discrete responsibility to a private helper:
+///
+///   Phase 1.4  persistIncomingMessage  — fetch LLM context entry, then store the
+///                                        incoming message with a null auth context.
+///   Phase 1.5  resolveRoundContext     — enforce round guards and advance the
+///                                        UserAuthContext lineage (user or bot path).
+///              postTerminationIfTokenAvailable — post the ceiling prompt when
+///                                        the session must be force-terminated.
+///   Phase 1.6  resolvePrimaryAgent     — pick the agent to route to.
+///              dispatchToAgentRouter   — call AgentRouter.route and unpack the result.
+///              postAgentReply          — post the reply to Slack and emit the final
+///                                        HandlerResult.
+///
+/// Helper inventory (sync):
+///   resolveWorkspaceId, rootTimestamp, persistIncomingMessage,
+///   resolveRoundContext → resolveBotRoundContext / resolveUserRoundContext,
+///   scopeWorkspaceData, buildReplyMetadata, resolvePrimaryAgent,
+///   resolveWorkspaceBotToken
+///
+/// Helper inventory (async):
+///   postTerminationIfTokenAvailable, dispatchToAgentRouter,
+///   postAgentReply
+///
+/// Note: the bot reply is NOT explicitly stored here — Slack echoes the posted
+/// message back as a bot event, which is stored via the normal incoming-message
+/// path (persistIncomingMessage), ensuring exactly one write per reply.
 
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
+import Text "mo:core/Text";
 import Time "mo:core/Time";
+import Runtime "mo:core/Runtime";
 import NormalizedEventTypes "../types/normalized-event-types";
 import EventProcessingContextTypes "../types/event-processing-context";
 import Types "../../types";
@@ -29,7 +43,7 @@ import KeyDerivationService "../../services/key-derivation-service";
 import ConversationModel "../../models/conversation-model";
 import ValueStreamModel "../../models/value-stream-model";
 import ObjectiveModel "../../models/objective-model";
-import WorkspaceAdminOrchestrator "../../orchestrators/workspace-admin-orchestrator";
+import AgentRouter "../agent-router";
 import SlackWrapper "../../wrappers/slack-wrapper";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import AgentRefParser "../../utilities/agent-ref-parser";
@@ -54,10 +68,15 @@ module {
   };
 
   /// Result of round-context resolution.
-  /// #skip   → short-circuit: return this result immediately from the handler.
-  /// #proceed → continue orchestration with the derived (possibly null) auth context.
+  /// #skip                → short-circuit: return this result immediately.
+  /// #skipWithTermination → short-circuit AND post a termination prompt in handle().
+  ///                         Emitted when MAX_AGENT_ROUNDS is hit — the sync round
+  ///                         tracker cannot await, so it delegates prompt delivery
+  ///                         to the async handle() function.
+  /// #proceed             → continue orchestration with the derived auth context.
   type RoundResult = {
     #skip : NormalizedEventTypes.HandlerResult;
+    #skipWithTermination : NormalizedEventTypes.HandlerResult; // post prompt before returning
     #proceed : ?SlackAuthMiddleware.UserAuthContext;
   };
 
@@ -151,6 +170,7 @@ module {
     };
 
     // Hard ceiling: force-terminate, stamp the terminated context, and stop.
+    // Return #skipWithTermination so the async handle() can call postTerminationPrompt.
     if (newRound >= Constants.MAX_AGENT_ROUNDS) {
       let terminatedCtx = SlackAuthMiddleware.withRound(parentCtx, newRound, true, newParentRef);
       let msgRootTs = switch (msg.threadTs) {
@@ -169,8 +189,7 @@ module {
         ?"MessageHandler",
         "MAX_AGENT_ROUNDS (" # Nat.toText(Constants.MAX_AGENT_ROUNDS) # ") reached — force-terminating session",
       );
-      // Phase 1.6 will post a continuation prompt to Slack here.
-      return #skip(#ok([{ action = "round_force_terminated"; result = #err("max agent rounds reached"); timestamp = Time.now() }]));
+      return #skipWithTermination(#ok([{ action = "round_force_terminated"; result = #err("max agent rounds reached"); timestamp = Time.now() }]));
     };
 
     // Advance the round context and fall through to orchestration.
@@ -238,95 +257,166 @@ module {
 
   /// Build the AgentMessageMetadata attached to every outbound Slack message,
   /// which allows future bot events to trace back through the round chain.
+  ///
+  /// `parent_agent` is the bare agent name (no `::` prefix).
+  /// Any subsequent message referencing this reply will therefore
+  /// be routed to the same agent category.
   func buildReplyMetadata(
     channel : Text,
     ts : Text,
-    msgText : Text,
-    agentRegistry : AgentModel.AgentRegistryState,
+    primaryAgent : AgentModel.AgentRecord,
   ) : ?Types.AgentMessageMetadata {
-    let validAgents = AgentRefParser.extractValidAgents(msgText, agentRegistry);
-    let parentAgentName : Text = if (validAgents.size() > 0) {
-      "::" # validAgents[0].name;
-    } else {
-      "::admin" // fallback during Phase 1.5 — Phase 1.6 Agent Router will use the actual agent
-    };
     ?{
       event_type = "looping_agent_message";
       event_payload = {
-        parent_agent = parentAgentName;
+        parent_agent = primaryAgent.name;
         parent_ts = ts;
         parent_channel = channel;
       };
     };
   };
 
-  // ─── Public entry point ──────────────────────────────────────────────────────
-
-  public func handle(
+  /// Resolve the primary agent for this message event.
+  ///
+  /// Bot message  → look up the agent named in `agentMetadata.event_payload.parent_agent`
+  ///                (bare name, no `::` prefix).
+  ///                Returns null (discard) if the agent is not found in the registry.
+  ///
+  /// User message → take the first valid `::agentname` reference in the message text;
+  ///                if none, fall back to the first registered `#admin` agent.
+  ///                Returns null if no agent can be resolved at all.
+  func resolvePrimaryAgent(
     msg : IncomingMsg,
     ctx : EventProcessingContextTypes.EventProcessingContext,
-  ) : async NormalizedEventTypes.HandlerResult {
+  ) : ?AgentModel.AgentRecord {
+    if (msg.isBotMessage) {
+      // Bot path: primary agent comes from the metadata that was embedded when the
+      // reply was originally posted — it is the agent that authored that reply.
+      let agentMeta = switch (msg.agentMetadata) {
+        case (null) { Runtime.unreachable() }; // guard: should have been caught earlier
+        case (?m) { m };
+      };
+      let name = agentMeta.event_payload.parent_agent;
+      switch (AgentModel.lookupByName(name, ctx.agentRegistry)) {
+        case (null) {
+          Logger.log(
+            #warn,
+            ?"MessageHandler",
+            "Primary agent '" # name # "' not found in registry — discarding bot event",
+          );
+          null;
+        };
+        case (?agent) { ?agent };
+      };
+    } else {
+      // User path: prefer an explicit ::agentname reference; fall back to first #admin.
+      let validAgents = AgentRefParser.extractValidAgents(msg.text, ctx.agentRegistry);
+      if (validAgents.size() > 0) {
+        ?validAgents[0];
+      } else {
+        switch (AgentModel.getFirstByCategory(#admin, ctx.agentRegistry)) {
+          case (null) {
+            Logger.log(#warn, ?"MessageHandler", "No #admin agent registered — cannot handle user message");
+            null;
+          };
+          case (?agent) { ?agent };
+        };
+      };
+    };
+  };
 
-    // Resolve workspace from the channel — the handler owns this resolution.
-    let workspaceId = resolveWorkspaceId(msg.channel, ctx.workspaces);
-
-    // ── Phase 1.4 — Persist incoming message immediately ──────────────────────
-    //
-    // rootTs is needed both for the conversation-entry fetch and for the later
-    // updateMessageContext call; compute it once here.
-    let rootTs = switch (msg.threadTs) {
+  /// Derive the root timestamp for a message.
+  /// Replies live inside a thread rooted at `threadTs`; standalone posts use their own `ts`.
+  func rootTimestamp(msg : IncomingMsg) : Text {
+    switch (msg.threadTs) {
       case (?ts) { ts };
       case (null) { msg.ts };
     };
-    // Fetch the conversation entry BEFORE storing the incoming message so the
-    // LLM context does not see the same message twice.
-    let conversationEntry = ConversationModel.getEntry(ctx.conversationStore, msg.channel, rootTs);
+  };
 
-    // Every inbound message event is stored immediately with a null auth context;
-    // the context is stamped via updateMessageContext once round tracking resolves.
+  /// Phase 1.4 — Fetch the existing conversation entry (for LLM context), then
+  /// immediately persist the incoming message with a null auth context.
+  ///
+  /// The entry is fetched BEFORE the message is stored so the LLM context does
+  /// not include the triggering message itself.
+  func persistIncomingMessage(
+    msg : IncomingMsg,
+    ctx : EventProcessingContextTypes.EventProcessingContext,
+    rootTs : Text,
+  ) : ?ConversationModel.TimelineEntry {
+    let entry = ConversationModel.getEntry(ctx.conversationStore, msg.channel, rootTs);
     ConversationModel.addMessage(
       ctx.conversationStore,
       msg.channel,
-      { ts = msg.ts; userAuthContext = null; text = msg.text },
+      {
+        ts = msg.ts;
+        userAuthContext = null;
+        text = msg.text;
+        agentMetadata = switch (msg.agentMetadata) {
+          case (?m) { ?m.event_payload };
+          case null { null };
+        };
+      },
       msg.threadTs,
     );
+    entry;
+  };
 
-    // ── Phase 1.5 — Round tracking + pre-condition guards ─────────────────────
-    //
-    // `activeCtxOpt` is applied to the persisted message (step 7) so the chain
-    // can be reconstructed by future rounds via getMessage + agentMetadata.
-    let activeCtxOpt : ?SlackAuthMiddleware.UserAuthContext = switch (resolveRoundContext(msg, ctx)) {
-      case (#skip(result)) { return result };
-      case (#proceed(ctxOpt)) { ctxOpt };
-    };
-
-    // ── Orchestration (shared path for user and bot messages) ─────────────────
-
-    // 1. Scope workspace data.
-    let { workspaceSecrets; workspaceValueStreamsState; workspaceObjectivesMap } = scopeWorkspaceData(ctx, workspaceId);
-
-    // 2. Derive the workspace encryption key (once per event).
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
-
-    // 3. Decrypt the Slack bot token.
-    let botToken = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
+  /// Resolve the Slack bot token for the given workspace.
+  /// Returns null (and logs a warning) when no token secret is configured.
+  func resolveWorkspaceBotToken(
+    workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
+    encryptionKey : [Nat8],
+    workspaceId : Nat,
+  ) : ?Text {
+    switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
       case (null) {
         Logger.log(
           #warn,
           ?"MessageHandler",
           "No Slack bot token found for workspace " # debug_show (workspaceId),
         );
-        return #ok([{
-          action = "post_to_slack";
-          result = #err("No Slack bot token configured for workspace");
-          timestamp = Time.now();
-        }]);
+        null;
       };
-      case (?token) { token };
+      case (?token) { ?token };
     };
+  };
 
-    // 4. Call the orchestrator.
-    let orchestratorResult = await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
+  /// Post a termination prompt to Slack, deriving the bot token from scratch.
+  ///
+  /// Used when the MAX_AGENT_ROUNDS ceiling (#skipWithTermination) is reached.
+  /// Best-effort — silently ignores missing tokens.
+  func postTerminationIfTokenAvailable(
+    ctx : EventProcessingContextTypes.EventProcessingContext,
+    workspaceId : Nat,
+    channel : Text,
+    threadTs : ?Text,
+  ) : async () {
+    let wsSecrets = Map.get(ctx.secrets, Nat.compare, workspaceId);
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
+    switch (resolveWorkspaceBotToken(wsSecrets, encryptionKey, workspaceId)) {
+      case (?tok) {
+        await AgentRouter.postTerminationPrompt(tok, channel, threadTs);
+      };
+      case (null) {};
+    };
+  };
+
+  /// Dispatch to AgentRouter and unpack the result into (llmSteps, ?replyText).
+  /// Returns null reply text when the orchestrator signals an error.
+  func dispatchToAgentRouter(
+    primaryAgent : AgentModel.AgentRecord,
+    ctx : EventProcessingContextTypes.EventProcessingContext,
+    workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
+    conversationEntry : ?ConversationModel.TimelineEntry,
+    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
+    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
+    workspaceId : Nat,
+    msgText : Text,
+    encryptionKey : [Nat8],
+  ) : async ([Types.ProcessingStep], ?Text) {
+    let result = await AgentRouter.route(
+      primaryAgent,
       ctx.agentRegistry,
       ctx.mcpToolRegistry,
       workspaceSecrets,
@@ -337,33 +427,24 @@ module {
       ctx.metricsRegistry,
       ctx.metricDatapoints,
       workspaceId,
-      msg.text,
+      msgText,
       encryptionKey,
     );
-
-    // 5. Extract LLM steps and reply text.
-    let (llmSteps, replyTextOpt) : ([Types.ProcessingStep], ?Text) = switch (orchestratorResult) {
+    switch (result) {
       case (#err({ message = _; steps })) { (steps, null) };
       case (#ok({ response; steps })) { (steps, ?response) };
     };
+  };
 
-    let replyText = switch (replyTextOpt) {
-      case (null) {
-        Logger.log(
-          #warn,
-          ?"MessageHandler",
-          "No assistant reply generated for workspace " # debug_show (workspaceId),
-        );
-        return #ok(llmSteps);
-      };
-      case (?text) { text };
-    };
-
-    // 6. Stamp the persisted message with the resolved auth context.
-    ignore ConversationModel.updateMessageContext(ctx.conversationStore, msg.channel, rootTs, msg.ts, activeCtxOpt);
-
-    // 7. Post reply to Slack with round-chain metadata.
-    let replyMetadata = buildReplyMetadata(msg.channel, msg.ts, msg.text, ctx.agentRegistry);
+  /// Post the agent reply to Slack and assemble the final HandlerResult.
+  func postAgentReply(
+    botToken : Text,
+    msg : IncomingMsg,
+    replyText : Text,
+    primaryAgent : AgentModel.AgentRecord,
+    llmSteps : [Types.ProcessingStep],
+  ) : async NormalizedEventTypes.HandlerResult {
+    let replyMetadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent);
     let slackResult = await SlackWrapper.postMessage(botToken, msg.channel, replyText, msg.threadTs, replyMetadata);
     let slackStep : Types.ProcessingStep = {
       action = "post_to_slack";
@@ -373,7 +454,86 @@ module {
       };
       timestamp = Time.now();
     };
-
     #ok(Array.concat(llmSteps, [slackStep]));
+  };
+
+  // ─── Public entry point ──────────────────────────────────────────────────────
+
+  public func handle(
+    msg : IncomingMsg,
+    ctx : EventProcessingContextTypes.EventProcessingContext,
+  ) : async NormalizedEventTypes.HandlerResult {
+
+    let workspaceId = resolveWorkspaceId(msg.channel, ctx.workspaces);
+    let rootTs = rootTimestamp(msg);
+
+    // ── Phase 1.4 — Persist incoming message ─────────────────────────────────
+    let conversationEntry = persistIncomingMessage(msg, ctx, rootTs);
+
+    // ── Phase 1.5 — Round tracking + pre-condition guards ────────────────────
+    let activeCtxOpt : ?SlackAuthMiddleware.UserAuthContext = switch (resolveRoundContext(msg, ctx)) {
+      case (#skip(result)) { return result };
+      case (#skipWithTermination(result)) {
+        // Post the termination prompt before returning (best-effort, await available here).
+        await postTerminationIfTokenAvailable(ctx, workspaceId, msg.channel, msg.threadTs);
+        return result;
+      };
+      case (#proceed(ctxOpt)) { ctxOpt };
+    };
+
+    // Stamp the incremented auth context on the persisted message.
+    ignore ConversationModel.updateMessageContext(ctx.conversationStore, msg.channel, rootTs, msg.ts, activeCtxOpt);
+
+    // ── Phase 1.6 — Resolve primary agent ────────────────────────────────────
+    let primaryAgent : AgentModel.AgentRecord = switch (resolvePrimaryAgent(msg, ctx)) {
+      case (null) {
+        Logger.log(#warn, ?"MessageHandler", "No primary agent resolved — discarding event");
+        return #ok([{
+          action = "primary_agent_skip";
+          result = #err("no primary agent found");
+          timestamp = Time.now();
+        }]);
+      };
+      case (?agent) { agent };
+    };
+
+    // ── Orchestration (shared path for user and bot messages) ─────────────────
+
+    let { workspaceSecrets; workspaceValueStreamsState; workspaceObjectivesMap } = scopeWorkspaceData(ctx, workspaceId);
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
+
+    let botToken = switch (resolveWorkspaceBotToken(workspaceSecrets, encryptionKey, workspaceId)) {
+      case (null) {
+        return #ok([{
+          action = "post_to_slack";
+          result = #err("No Slack bot token configured for workspace");
+          timestamp = Time.now();
+        }]);
+      };
+      case (?token) { token };
+    };
+
+    let (llmSteps, replyTextOpt) = await dispatchToAgentRouter(
+      primaryAgent,
+      ctx,
+      workspaceSecrets,
+      conversationEntry,
+      workspaceValueStreamsState,
+      workspaceObjectivesMap,
+      workspaceId,
+      msg.text,
+      encryptionKey,
+    );
+
+    let replyText = switch (replyTextOpt) {
+      case (null) {
+        Logger.log(#warn, ?"MessageHandler", "No assistant reply generated for workspace " # debug_show (workspaceId));
+        return #ok(llmSteps);
+      };
+      case (?text) { text };
+    };
+
+    // ── Post reply to Slack ───────────────────────────────────────────────────
+    await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps);
   };
 };
