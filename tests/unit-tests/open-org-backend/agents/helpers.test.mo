@@ -1,10 +1,10 @@
 import { test; suite; expect } "mo:test";
 import Map "mo:core/Map";
 import Text "mo:core/Text";
-import InstructionComposer "../../../../../src/open-org-backend/instructions/instruction-composer";
-import OrgAdminAgent "../../../../../src/open-org-backend/agents/admin/org-admin-agent";
-import AgentModel "../../../../../src/open-org-backend/models/agent-model";
-import GroqWrapper "../../../../../src/open-org-backend/wrappers/groq-wrapper";
+import InstructionComposer "../../../../src/open-org-backend/instructions/instruction-composer";
+import AgentHelpers "../../../../src/open-org-backend/agents/helpers";
+import AgentModel "../../../../src/open-org-backend/models/agent-model";
+import GroqWrapper "../../../../src/open-org-backend/wrappers/groq-wrapper";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -51,13 +51,13 @@ func toolExists(tools : [GroqWrapper.Tool], name : Text) : Bool {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 suite(
-  "OrgAdminAgent - categoryToRole",
+  "AgentHelpers - categoryToRole",
   func() {
 
     test(
       "#admin maps to #orgAdmin and produces org admin persona text",
       func() {
-        let role = OrgAdminAgent.categoryToRole(#admin, "my-admin");
+        let role = AgentHelpers.categoryToRole(#admin, "my-admin");
         let isOrgAdmin = switch (role) {
           case (#orgAdmin) { true };
           case (_) { false };
@@ -73,7 +73,7 @@ suite(
     test(
       "#research maps to #customAgent with 'research specialist' persona",
       func() {
-        let role = OrgAdminAgent.categoryToRole(#research, "my-research");
+        let role = AgentHelpers.categoryToRole(#research, "my-research");
         let persona = switch (role) {
           case (#customAgent(a)) { a.persona };
           case (_) { null };
@@ -92,7 +92,7 @@ suite(
     test(
       "#communication maps to #customAgent with 'communication specialist' persona",
       func() {
-        let role = OrgAdminAgent.categoryToRole(#communication, "my-comm");
+        let role = AgentHelpers.categoryToRole(#communication, "my-comm");
         let persona = switch (role) {
           case (#customAgent(a)) { a.persona };
           case (_) { null };
@@ -115,7 +115,7 @@ suite(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 suite(
-  "OrgAdminAgent - applyToolBlocklist - empty blocklists",
+  "AgentHelpers - applyToolBlocklist - empty blocklists",
   func() {
 
     test(
@@ -123,7 +123,7 @@ suite(
       func() {
         let agent = makeAgent(#admin, "a", [], [], []);
         let tools = [makeTool("echo"), makeTool("web-search"), makeTool("save_value_stream")];
-        let result = OrgAdminAgent.applyToolBlocklist(agent, tools);
+        let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(3);
       },
     );
@@ -132,7 +132,7 @@ suite(
       "returns empty array when input tools are empty",
       func() {
         let agent = makeAgent(#admin, "a", [], [], []);
-        let result = OrgAdminAgent.applyToolBlocklist(agent, []);
+        let result = AgentHelpers.applyToolBlocklist(agent, []);
         expect.nat(result.size()).equal(0);
       },
     );
@@ -140,7 +140,7 @@ suite(
 );
 
 suite(
-  "OrgAdminAgent - applyToolBlocklist - toolsDisallowed",
+  "AgentHelpers - applyToolBlocklist - toolsDisallowed",
   func() {
 
     test(
@@ -148,7 +148,7 @@ suite(
       func() {
         let agent = makeAgent(#admin, "a", ["web-search"], [], []);
         let tools = [makeTool("echo"), makeTool("web-search"), makeTool("save_value_stream")];
-        let result = OrgAdminAgent.applyToolBlocklist(agent, tools);
+        let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(2);
         expect.bool(toolExists(result, "web-search")).isFalse();
         expect.bool(toolExists(result, "echo")).isTrue();
@@ -161,7 +161,7 @@ suite(
       func() {
         let agent = makeAgent(#admin, "a", ["echo", "web-search"], [], []);
         let tools = [makeTool("echo"), makeTool("web-search"), makeTool("save_value_stream")];
-        let result = OrgAdminAgent.applyToolBlocklist(agent, tools);
+        let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(1);
         expect.text(result[0].function.name).equal("save_value_stream");
       },
@@ -170,7 +170,7 @@ suite(
 );
 
 suite(
-  "OrgAdminAgent - applyToolBlocklist - toolsMisconfigured",
+  "AgentHelpers - applyToolBlocklist - toolsMisconfigured",
   func() {
 
     test(
@@ -178,7 +178,7 @@ suite(
       func() {
         let agent = makeAgent(#admin, "a", [], ["stripe-api"], []);
         let tools = [makeTool("echo"), makeTool("stripe-api")];
-        let result = OrgAdminAgent.applyToolBlocklist(agent, tools);
+        let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(1);
         expect.text(result[0].function.name).equal("echo");
       },
@@ -187,7 +187,7 @@ suite(
 );
 
 suite(
-  "OrgAdminAgent - applyToolBlocklist - combined blocklists",
+  "AgentHelpers - applyToolBlocklist - combined blocklists",
   func() {
 
     test(
@@ -195,7 +195,7 @@ suite(
       func() {
         let agent = makeAgent(#admin, "a", ["web-search"], ["stripe-api"], []);
         let tools = [makeTool("echo"), makeTool("web-search"), makeTool("stripe-api")];
-        let result = OrgAdminAgent.applyToolBlocklist(agent, tools);
+        let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(1);
         expect.text(result[0].function.name).equal("echo");
       },
@@ -204,7 +204,7 @@ suite(
 );
 
 suite(
-  "OrgAdminAgent - applyToolBlocklist - unknown tool names",
+  "AgentHelpers - applyToolBlocklist - unknown tool names",
   func() {
 
     test(
@@ -212,7 +212,7 @@ suite(
       func() {
         let agent = makeAgent(#admin, "a", ["nonexistent-tool", "also-fake"], [], []);
         let tools = [makeTool("echo"), makeTool("web-search")];
-        let result = OrgAdminAgent.applyToolBlocklist(agent, tools);
+        let result = AgentHelpers.applyToolBlocklist(agent, tools);
         // All tools are still present — unknown names in the blocklist are silently ignored
         expect.nat(result.size()).equal(2);
       },
@@ -223,7 +223,7 @@ suite(
       func() {
         let agent = makeAgent(#admin, "a", [], ["nonexistent-tool"], []);
         let tools = [makeTool("echo")];
-        let result = OrgAdminAgent.applyToolBlocklist(agent, tools);
+        let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(1);
       },
     );
@@ -235,14 +235,14 @@ suite(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 suite(
-  "OrgAdminAgent - sourceBlocks",
+  "AgentHelpers - sourceBlocks",
   func() {
 
     test(
       "returns a single 'agent-sources' block when sources are non-empty",
       func() {
         let agent = makeAgent(#admin, "a", [], [], ["https://docs.example.com", "https://other.com"]);
-        let blocks = OrgAdminAgent.sourceBlocks(agent);
+        let blocks = AgentHelpers.sourceBlocks(agent);
         expect.nat(blocks.size()).equal(1);
         expect.text(blocks[0].id).equal("agent-sources");
         expect.bool(Text.contains(blocks[0].content, #text("https://docs.example.com"))).isTrue();
@@ -254,7 +254,7 @@ suite(
       "each source appears on its own line prefixed with '- '",
       func() {
         let agent = makeAgent(#admin, "a", [], [], ["https://docs.example.com"]);
-        let blocks = OrgAdminAgent.sourceBlocks(agent);
+        let blocks = AgentHelpers.sourceBlocks(agent);
         expect.bool(Text.contains(blocks[0].content, #text("- https://docs.example.com"))).isTrue();
       },
     );
@@ -263,7 +263,7 @@ suite(
       "returns empty array when sources list is empty",
       func() {
         let agent = makeAgent(#admin, "a", [], [], []);
-        let blocks = OrgAdminAgent.sourceBlocks(agent);
+        let blocks = AgentHelpers.sourceBlocks(agent);
         expect.nat(blocks.size()).equal(0);
       },
     );
