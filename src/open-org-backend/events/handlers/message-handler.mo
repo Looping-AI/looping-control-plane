@@ -9,7 +9,7 @@
 ///   Phase 1.5  resolveRoundContext     — enforce round guards and advance the
 ///                                        UserAuthContext lineage (user or bot path).
 ///              postTerminationIfTokenAvailable — post the ceiling prompt when
-///                                        when the session must be force-terminated.
+///                                        the session must be force-terminated.
 ///   Phase 1.6  resolvePrimaryAgent     — pick the agent to route to.
 ///              dispatchToAgentRouter   — call AgentRouter.route and unpack the result.
 ///              postAgentReply          — post the reply to Slack and emit the final
