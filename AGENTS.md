@@ -54,7 +54,7 @@ RECORD_CASSETTES=true bun test tests/integration-tests/open-org-backend/workspac
 
 ## When to Request Feedback (CRITICAL)
 
-**STOP and REQUEST USER FEEDBACK** before proceeding in these situations:
+**IMPORTANT:** **STOP and REQUEST USER FEEDBACK** before proceeding in these situations:
 
 ### Design Decision Blockers
 
@@ -71,15 +71,29 @@ RECORD_CASSETTES=true bun test tests/integration-tests/open-org-backend/workspac
 - **Breaking changes required** to existing tests or production code
 - **Workarounds needed** that compromise original requirements
 
+### Challenge Requests That Break Existing Invariants
+
+**Even when the user's intent is clear, push back if the requested change would:**
+
+- Corrupt data semantics (e.g. storing the wrong agent name in a metadata field that downstream logic depends on)
+- Break a chain/lineage invariant established in a prior task
+- Produce a worse user-facing outcome than the current design (e.g. a Slack message labelling a reply from `::admin` as `::research`)
+
+**Do not implement first and revert later.** Stop, explain the specific invariant that would be violated, and confirm before touching anything.
+
+Example of the right response:
+
+> "If I use the incoming `parent_agent` as the outgoing `parent_agent`, a reply from `::admin` would be labelled as `::research` in the metadata — which would route follow-up messages to the wrong agent. Is that intentional, or should `parent_agent` remain the name of the agent that authored this reply?"
+
 ### How to Request Feedback
 
-When you encounter a blocking decision:
+When you encounter a blocking decision, **use the `ask_questions` tool** to surface the decision to the user before proceeding. Do not ask in free text — the tool formats the question clearly and lets the user respond quickly.
+
+Steps:
 
 1. **Stop immediately** - do not implement a solution
-2. **Explain the situation**: What you discovered, why it's blocking progress
-3. **Present options**: List 2-3 alternatives with pros/cons for each
-4. **Recommend approach**: State your preference with reasoning
-5. **Wait for user decision** before coding
+2. **Use `ask_questions`**: frame the situation, present 2-3 options (with pros/cons), and mark your recommended option
+3. **Wait for user decision** before coding
 
 **Example**:
 
