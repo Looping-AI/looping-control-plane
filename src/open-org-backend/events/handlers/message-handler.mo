@@ -8,11 +8,10 @@
 ///                                        incoming message with a null auth context.
 ///   Phase 1.5  resolveRoundContext     — enforce round guards and advance the
 ///                                        UserAuthContext lineage (user or bot path).
-///              postTerminationIfTokenAvailable — post the ceiling/similarity prompt
+///              postTerminationIfTokenAvailable — post the ceiling prompt when
 ///                                        when the session must be force-terminated.
 ///   Phase 1.6  resolvePrimaryAgent     — pick the agent to route to.
 ///              dispatchToAgentRouter   — call AgentRouter.route and unpack the result.
-///              checkSimilarityAndTerminate — detect stuck loops and terminate early.
 ///              postAgentReply          — post the reply to Slack and emit the final
 ///                                        HandlerResult.
 ///
@@ -24,7 +23,7 @@
 ///
 /// Helper inventory (async):
 ///   postTerminationIfTokenAvailable, dispatchToAgentRouter,
-///   checkSimilarityAndTerminate, postAgentReply
+///   postAgentReply
 ///
 /// Note: the bot reply is NOT explicitly stored here — Slack echoes the posted
 /// message back as a bot event, which is stored via the normal incoming-message
@@ -259,8 +258,8 @@ module {
   /// Build the AgentMessageMetadata attached to every outbound Slack message,
   /// which allows future bot events to trace back through the round chain.
   ///
-  /// `parent_agent` is always `"::" # primaryAgent.name` — the agent that produced
-  /// this reply.  Any subsequent message referencing this reply will therefore
+  /// `parent_agent` is the bare agent name (no `::` prefix).
+  /// Any subsequent message referencing this reply will therefore
   /// be routed to the same agent category.
   func buildReplyMetadata(
     channel : Text,
@@ -270,7 +269,7 @@ module {
     ?{
       event_type = "looping_agent_message";
       event_payload = {
-        parent_agent = "::" # primaryAgent.name;
+        parent_agent = primaryAgent.name;
         parent_ts = ts;
         parent_channel = channel;
       };
@@ -280,7 +279,7 @@ module {
   /// Resolve the primary agent for this message event.
   ///
   /// Bot message  → look up the agent named in `agentMetadata.event_payload.parent_agent`
-  ///                (strip leading "::" before the registry lookup).
+  ///                (bare name, no `::` prefix).
   ///                Returns null (discard) if the agent is not found in the registry.
   ///
   /// User message → take the first valid `::agentname` reference in the message text;
@@ -385,8 +384,8 @@ module {
 
   /// Post a termination prompt to Slack, deriving the bot token from scratch.
   ///
-  /// Used in two places: the MAX_AGENT_ROUNDS ceiling (#skipWithTermination) and
-  /// similarity-loop detection.  Best-effort — silently ignores missing tokens.
+  /// Used when the MAX_AGENT_ROUNDS ceiling (#skipWithTermination) is reached.
+  /// Best-effort — silently ignores missing tokens.
   func postTerminationIfTokenAvailable(
     ctx : EventProcessingContextTypes.EventProcessingContext,
     workspaceId : Nat,
@@ -435,75 +434,6 @@ module {
       case (#err({ message = _; steps })) { (steps, null) };
       case (#ok({ response; steps })) { (steps, ?response) };
     };
-  };
-
-  /// Similarity check (bot path only) — gates the Slack post.
-  ///
-  /// Walks the parentRef chain to find a prior reply from the same agent.
-  /// If one exists and the new reply is too similar, force-terminates the session
-  /// and returns `?HandlerResult` so the caller can return immediately.
-  /// Returns `null` when no intervention is needed.
-  func checkSimilarityAndTerminate(
-    msg : IncomingMsg,
-    ctx : EventProcessingContextTypes.EventProcessingContext,
-    replyText : Text,
-    primaryAgent : AgentModel.AgentRecord,
-    activeCtxOpt : ?SlackAuthMiddleware.UserAuthContext,
-    botToken : Text,
-    rootTs : Text,
-    llmSteps : [Types.ProcessingStep],
-  ) : async ?NormalizedEventTypes.HandlerResult {
-    // Only bot messages carry a similarity risk — user messages skip the check.
-    let agentMeta = switch (msg.agentMetadata) {
-      case (null) { return null };
-      case (?m) { m };
-    };
-
-    let prevReply = switch (
-      AgentRouter.findPreviousSameAgentReply(
-        ctx.conversationStore,
-        agentMeta.event_payload.parent_channel,
-        agentMeta.event_payload.parent_ts,
-        primaryAgent.name,
-      )
-    ) {
-      case (null) { return null }; // No prior reply from this agent — proceed.
-      case (?r) { r };
-    };
-
-    if (not AgentRouter.isSimilar(replyText, prevReply.text)) {
-      return null; // Distinct enough — proceed.
-    };
-
-    Logger.log(
-      #warn,
-      ?"MessageHandler",
-      "Similarity loop detected for agent ::" # primaryAgent.name # " — force-terminating session",
-    );
-    let terminatedCtx = switch (activeCtxOpt) {
-      case (null) { null };
-      case (?c) {
-        ?SlackAuthMiddleware.withRound(c, c.roundCount, true, c.parentRef);
-      };
-    };
-    ignore ConversationModel.updateMessageContext(
-      ctx.conversationStore,
-      msg.channel,
-      rootTs,
-      msg.ts,
-      terminatedCtx,
-    );
-    await AgentRouter.postTerminationPrompt(botToken, msg.channel, msg.threadTs);
-    ?#ok(
-      Array.concat(
-        llmSteps,
-        [{
-          action = "round_similarity_terminated";
-          result = #err("similar reply detected — session force-terminated");
-          timestamp = Time.now();
-        }],
-      )
-    );
   };
 
   /// Post the agent reply to Slack and assemble the final HandlerResult.
@@ -601,12 +531,6 @@ module {
         return #ok(llmSteps);
       };
       case (?text) { text };
-    };
-
-    // ── Similarity check (bot path only) ─────────────────────────────────────
-    switch (await checkSimilarityAndTerminate(msg, ctx, replyText, primaryAgent, activeCtxOpt, botToken, rootTs, llmSteps)) {
-      case (?result) { return result };
-      case (null) {};
     };
 
     // ── Post reply to Slack ───────────────────────────────────────────────────

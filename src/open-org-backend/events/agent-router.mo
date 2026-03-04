@@ -5,8 +5,7 @@
 /// required for execution, dispatch to the correct category service.
 ///
 /// Additional responsibilities introduced in Phase 1.6:
-///   - Termination-prompt delivery (MAX_AGENT_ROUNDS / similarity trigger)
-///   - Similarity-based loop detection via normalized Levenshtein distance
+///   - Termination-prompt delivery (MAX_AGENT_ROUNDS)
 ///   - `findPreviousSameAgentReply` for walking the parentRef chain
 
 import Map "mo:core/Map";
@@ -15,7 +14,6 @@ import Time "mo:core/Time";
 import ConversationModel "../models/conversation-model";
 import AgentModel "../models/agent-model";
 import Types "../types";
-import Constants "../constants";
 import WorkspaceAdminOrchestrator "../orchestrators/workspace-admin-orchestrator";
 import SlackWrapper "../wrappers/slack-wrapper";
 import SecretModel "../models/secret-model";
@@ -23,7 +21,6 @@ import ValueStreamModel "../models/value-stream-model";
 import ObjectiveModel "../models/objective-model";
 import MetricModel "../models/metric-model";
 import McpToolRegistry "../tools/mcp-tool-registry";
-import TextSimilarity "../utilities/text-similarity";
 import Logger "../utilities/logger";
 
 module {
@@ -117,20 +114,10 @@ module {
     ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null);
   };
 
-  // ─── Similarity detection ────────────────────────────────────────────────────
-
-  /// Return `true` when `a` and `b` are considered near-duplicates.
-  ///
-  /// Delegates to `TextSimilarity.isSimilar` with the workspace default
-  /// threshold (`Constants.SIMILARITY_THRESHOLD`).
-  public func isSimilar(a : Text, b : Text) : Bool {
-    TextSimilarity.isSimilar(a, b, Constants.SIMILARITY_THRESHOLD);
-  };
-
   // ─── Chain walk ──────────────────────────────────────────────────────────────
 
   /// Walk the `parentRef` chain backwards from `startTs` in `channel`, looking
-  /// for the first `ConversationMessage` whose `authorAgent == ?("::" # agentName)`.
+  /// for the first `ConversationMessage` whose `agentMetadata.parent_agent == agentName`.
   ///
   /// The walk terminates when:
   ///   - The message is found → return `?msg`.
@@ -143,9 +130,9 @@ module {
     store : ConversationModel.ConversationStore,
     channel : Text,
     startTs : Text,
-    agentName : Text, // without leading "::"
+    agentName : Text, // bare name, no "::" prefix
   ) : ?ConversationModel.ConversationMessage {
-    let targetAuthor : ?Text = ?("::" # agentName);
+    let targetAuthor : ?Text = ?agentName;
     var currentChannel = channel;
     var currentTs = startTs;
     loop {
@@ -161,7 +148,7 @@ module {
         };
         case (?msg) {
           // Check if this message was authored by the target agent.
-          // `agentMetadata.parent_agent` holds "::name" for bot replies;
+          // `agentMetadata.parent_agent` holds the bare agent name for bot replies;
           // null agentMetadata means this is a user message, never a match.
           let msgAuthor : ?Text = switch (msg.agentMetadata) {
             case (?meta) { ?meta.parent_agent };

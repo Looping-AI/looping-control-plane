@@ -79,12 +79,12 @@ module {
   /// The payload carried inside every agent message metadata block.
   /// Extracted as a standalone type so callers that only need lineage data
   /// (e.g. ConversationMessage) don't have to carry the outer Slack envelope.
-  /// `event_payload.parent_agent`   — `::name` that triggered this reply (e.g. `"::admin"`).
+  /// `event_payload.parent_agent`   — bare agent name that produced this reply (e.g. `"admin"`, no `::` prefix).
   /// `event_payload.parent_ts`      — ts of the message this is a reply to.
   /// `event_payload.parent_channel` — channel of that message (ts is channel-scoped;
   ///                                   both fields are needed for an unambiguous lookup).
   public type AgentMetadataPayload = {
-    parent_agent : Text; // "::name" of the agent that produced this reply
+    parent_agent : Text; // bare name of the agent that produced this reply (no "::" prefix)
     parent_ts : Text; // ts of the message that triggered this reply
     parent_channel : Text; // channel of that message (ts is channel-scoped)
   };

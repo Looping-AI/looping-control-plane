@@ -38,11 +38,4 @@ module {
   // Absolute ceiling on the number of LLM rounds any session may run.
   public let MAX_AGENT_ROUNDS : Nat = 10;
 
-  // Similarity threshold for loop detection in the Agent Router.
-  // When two consecutive replies from the same agent have a normalized Levenshtein
-  // distance ratio below this value, the session is considered stuck and is
-  // force-terminated. Lower values require more divergence; higher values are
-  // more aggressive. 0.15 means the replies must differ by at least 15% of the
-  // longer text's length.
-  public let SIMILARITY_THRESHOLD : Float = 0.15;
 };

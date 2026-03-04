@@ -174,6 +174,103 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     };
   };
 
+  /// Like `ctxWithSecrets`, but stores the Groq API key ONLY — no Slack bot token.
+  ///
+  /// Use this for guard tests (e.g. MAX_AGENT_ROUNDS, force-termination guards) that
+  /// run on a non-deferred actor without cassette support.  When there is no
+  /// `#slackBotToken` secret for the workspace, `resolveWorkspaceBotToken` returns
+  /// null so `postTerminationIfTokenAvailable` is a no-op and no outgoing HTTPS call
+  /// is attempted.  This avoids the pending-outcall problem in non-cassette tests.
+  private func ctxWithGroqOnlySecrets(groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
+    let keyCache = Map.fromArray<Nat, [Nat8]>(
+      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
+      Nat.compare,
+    );
+    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+    for (wsId in [0, 1, 42].vals()) {
+      // NOTE: #slackBotToken intentionally absent — keeps postTerminationPrompt a no-op.
+      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
+    };
+    let registry = AgentModel.emptyState();
+    ignore AgentModel.register(
+      "unit-test-admin",
+      #admin,
+      #groq(#gpt_oss_120b),
+      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [],
+      Map.empty<Text, AgentModel.ToolState>(),
+      [],
+      registry,
+    );
+    {
+      secrets;
+      keyCache;
+      conversationStore = ConversationModel.empty();
+      mcpToolRegistry = McpToolRegistry.empty();
+      agentRegistry = registry;
+      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
+      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
+      metricsRegistry = MetricModel.emptyRegistry();
+      metricDatapoints = MetricModel.emptyDatapoints();
+      slackUsers;
+      workspaces = testWorkspacesState;
+    };
+  };
+
+  /// Like `ctxWithSecrets`, but also registers a `unit-test-research` agent with
+  /// `#research` category alongside the existing `unit-test-admin`.
+  ///
+  /// Use this context when a test needs to exercise primary agent resolution via
+  /// an explicit `::unit-test-research` reference.
+  private func ctxWithSecretsAndResearch(botToken : Text, groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
+    let keyCache = Map.fromArray<Nat, [Nat8]>(
+      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
+      Nat.compare,
+    );
+    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+    for (wsId in [0, 1, 42].vals()) {
+      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
+      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
+    };
+    let registry = AgentModel.emptyState();
+    // Admin agent (same as ctxWithSecrets)
+    ignore AgentModel.register(
+      "unit-test-admin",
+      #admin,
+      #groq(#gpt_oss_120b),
+      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [],
+      Map.empty<Text, AgentModel.ToolState>(),
+      [],
+      registry,
+    );
+    // Research agent — no real secret needed; route(#research) returns a stub error
+    // without making any HTTP calls, so a dummy secret entry is sufficient.
+    ignore AgentModel.register(
+      "unit-test-research",
+      #research,
+      #groq(#gpt_oss_120b),
+      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [],
+      Map.empty<Text, AgentModel.ToolState>(),
+      [],
+      registry,
+    );
+    {
+      secrets;
+      keyCache;
+      conversationStore = ConversationModel.empty();
+      mcpToolRegistry = McpToolRegistry.empty();
+      agentRegistry = registry;
+      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
+      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
+      metricsRegistry = MetricModel.emptyRegistry();
+      metricDatapoints = MetricModel.emptyDatapoints();
+      slackUsers;
+      workspaces = testWorkspacesState;
+    };
+  };
+
   // ============================================
   // Slack Wrapper Test Methods
   // ============================================
@@ -403,6 +500,159 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       ?parentAuthCtx,
     );
     await MessageHandler.handle(msg, ctx);
+  };
+
+  /// Like `testMessageHandlerBotBranch`, but uses `ctxWithGroqOnlySecrets` (no Slack
+  /// bot token) so the `postTerminationIfTokenAvailable` call is a no-op.
+  ///
+  /// Use this for non-deferred guard tests that verify termination logic (e.g.
+  /// MAX_AGENT_ROUNDS, forceTerminated) without needing a cassette to handle the
+  /// outgoing Slack HTTPS chat.postMessage call.
+  public shared ({ caller }) func testMessageHandlerBotBranchNoSlackToken(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    groqApiKey : Text,
+    parentChannel : Text,
+    parentTs : Text,
+    parentRoundCount : Nat,
+    parentForceTerminated : Bool,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    let ctx = ctxWithGroqOnlySecrets(groqApiKey);
+    let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_SEEDED_PARENT";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      roundCount = parentRoundCount;
+      forceTerminated = parentForceTerminated;
+      parentRef = if (parentRoundCount == 0) null else ?{
+        channelId = parentChannel;
+        ts = parentTs;
+      };
+    };
+    ConversationModel.addMessage(
+      ctx.conversationStore,
+      parentChannel,
+      {
+        ts = parentTs;
+        userAuthContext = null;
+        text = "seeded parent message";
+        agentMetadata = null;
+      },
+      null,
+    );
+    ignore ConversationModel.updateMessageContext(
+      ctx.conversationStore,
+      parentChannel,
+      parentTs,
+      parentTs,
+      ?parentAuthCtx,
+    );
+    await MessageHandler.handle(msg, ctx);
+  };
+
+  /// Like `testMessageHandlerWithSecrets`, but pre-seeds the context with BOTH a
+  /// `unit-test-admin` (#admin) and a `unit-test-research` (#research) agent.
+  ///
+  /// Use this variant for primary-agent resolution tests that reference `::unit-test-research`
+  /// explicitly.  Because `route(#research, …)` returns a stub error without making any HTTP
+  /// calls, these tests complete quickly with no cassette required.
+  public shared ({ caller }) func testMessageHandlerWithResearchAgent(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    groqApiKey : Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageHandler.handle(msg, ctxWithSecretsAndResearch(botToken, groqApiKey));
+  };
+
+  /// Like `ctxWithSecretsAndResearch`, but does NOT seed a Groq API key secret.
+  /// When the admin route tries to decrypt the groqApiKey it finds null and returns
+  /// #err immediately, without issuing any HTTPS outcall.
+  ///
+  /// Use for non-deferred primary-agent resolution tests that need to verify the
+  /// fallback-to-admin path without triggering a live (or cassette-dependent) LLM call.
+  private func ctxWithSecretsAndResearchNoGroq(botToken : Text) : EventProcessingContextTypes.EventProcessingContext {
+    let keyCache = Map.fromArray<Nat, [Nat8]>(
+      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
+      Nat.compare,
+    );
+    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+    for (wsId in [0, 1, 42].vals()) {
+      // NOTE: #groqApiKey intentionally absent — keeps admin route a sync no-op.
+      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
+    };
+    let registry = AgentModel.emptyState();
+    ignore AgentModel.register(
+      "unit-test-admin",
+      #admin,
+      #groq(#gpt_oss_120b),
+      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [],
+      Map.empty<Text, AgentModel.ToolState>(),
+      [],
+      registry,
+    );
+    ignore AgentModel.register(
+      "unit-test-research",
+      #research,
+      #groq(#gpt_oss_120b),
+      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [],
+      Map.empty<Text, AgentModel.ToolState>(),
+      [],
+      registry,
+    );
+    {
+      secrets;
+      keyCache;
+      conversationStore = ConversationModel.empty();
+      mcpToolRegistry = McpToolRegistry.empty();
+      agentRegistry = registry;
+      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
+      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
+      metricsRegistry = MetricModel.emptyRegistry();
+      metricDatapoints = MetricModel.emptyDatapoints();
+      slackUsers;
+      workspaces = testWorkspacesState;
+    };
+  };
+
+  /// Like `testMessageHandlerWithResearchAgent`, but uses `ctxWithSecretsAndResearchNoGroq`
+  /// so the admin route short-circuits at key resolution (#err) without any HTTP outcall.
+  ///
+  /// Use for primary-agent fallback tests on a non-deferred actor where you only need
+  /// to assert that the agent WAS resolved (i.e. primary_agent_skip is NOT emitted).
+  public shared ({ caller }) func testMessageHandlerWithResearchAgentNoGroq(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageHandler.handle(msg, ctxWithSecretsAndResearchNoGroq(botToken));
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(

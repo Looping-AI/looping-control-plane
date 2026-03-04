@@ -257,7 +257,7 @@ describe("MessageHandler Unit Tests", () => {
               {
                 event_type: "looping_agent_message",
                 event_payload: {
-                  parent_agent: "::unit-test-admin",
+                  parent_agent: "unit-test-admin",
                   parent_ts: PARENT_TS,
                   parent_channel: channel,
                 },
@@ -378,7 +378,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
           {
             event_type: "looping_agent_message",
             event_payload: {
-              parent_agent: "::unit-test-admin",
+              parent_agent: "unit-test-admin",
               parent_ts: "1700000010.000000",
               parent_channel: "C_ADMIN_CHANNEL",
             },
@@ -413,7 +413,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
           {
             event_type: "looping_agent_message",
             event_payload: {
-              parent_agent: "::unit-test-admin",
+              parent_agent: "unit-test-admin",
               parent_ts: "1700000010.000000",
               parent_channel: "C_ADMIN_CHANNEL",
             },
@@ -441,7 +441,13 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
 
   it("should return round_force_terminated and halt when MAX_AGENT_ROUNDS (10) is reached", async () => {
     // MAX_AGENT_ROUNDS = 10. parentRoundCount = 9 → newRound = 10 ≥ 10 → terminate.
-    const result = await testCanister.testMessageHandlerBotBranch(
+    //
+    // Uses testMessageHandlerBotBranchNoSlackToken (no Slack bot token seeded) to keep
+    // postTerminationIfTokenAvailable a no-op.  This lets the test run on a non-deferred
+    // actor without managing a pending HTTPS outcall for the Slack chat.postMessage.
+    // A separate cassette test ("should post termination prompt to Slack when MAX_AGENT_ROUNDS
+    // is reached") verifies the full Slack-delivery path.
+    const result = await testCanister.testMessageHandlerBotBranchNoSlackToken(
       {
         user: "UBOT001",
         text: "::unit-test-admin please continue",
@@ -453,14 +459,13 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
           {
             event_type: "looping_agent_message",
             event_payload: {
-              parent_agent: "::unit-test-admin",
+              parent_agent: "unit-test-admin",
               parent_ts: "1700000010.000000",
               parent_channel: "C_ADMIN_CHANNEL",
             },
           },
         ],
       },
-      BOT_TOKEN,
       GROQ_API_KEY,
       "C_ADMIN_CHANNEL", // parentChannel
       "1700000010.000000", // parentTs
@@ -476,6 +481,198 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
       if ("err" in result.ok[0].result) {
         expect(result.ok[0].result.err).toContain("max agent rounds reached");
       }
+    }
+  });
+});
+
+// ============================================
+// Primary agent resolution
+//
+// Tests that verify the agent-resolution logic in resolvePrimaryAgent.
+// Routes to ::research agent (category stub, no LLM call) or verifies
+// primary_agent_skip is returned when no agent can be resolved.
+//
+// These tests run on a non-deferred actor with no cassette.
+// ============================================
+
+describe("MessageHandler — primary agent resolution", () => {
+  let pic: PocketIc;
+  let testCanister: Actor<TestCanisterService>;
+
+  beforeEach(async () => {
+    const testEnv = await createTestCanister();
+    pic = testEnv.pic;
+    testCanister = testEnv.actor;
+  });
+
+  afterEach(async () => {
+    await pic.tearDown();
+  });
+
+  it("should route ::unit-test-research to research category stub (not primary_agent_skip)", async () => {
+    // When the user explicitly references ::unit-test-research, the primary agent is the
+    // registered research agent and AgentRouter.route(#research, …) returns a stub #err
+    // without making any HTTP calls.
+    const result = await testCanister.testMessageHandlerWithResearchAgent(
+      {
+        user: "U_USER",
+        text: "::unit-test-research what is the current status",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000010.000010",
+        threadTs: [] as [],
+        isBotMessage: false,
+        agentMetadata: [] as [],
+      },
+      BOT_TOKEN,
+      GROQ_API_KEY,
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      // Must NOT return primary_agent_skip — the research agent WAS successfully resolved.
+      expect(result.ok.some((s) => s.action === "primary_agent_skip")).toBe(
+        false,
+      );
+      // The route stub for #research returns an error step with the expected message.
+      const routeStep = result.ok.find((s) => s.action === "route");
+      expect(routeStep).toBeDefined();
+      if (routeStep && "err" in routeStep.result) {
+        expect(routeStep.result.err).toContain(
+          "category service not yet implemented",
+        );
+      }
+    }
+  });
+
+  it("should return primary_agent_skip when no agents are registered (empty registry)", async () => {
+    // testMessageHandler uses emptyCtx() — no agents registered at all.
+    // A bare user message with no ::ref has no fallback agent available.
+    const result = await testCanister.testMessageHandler({
+      user: "U_USER",
+      text: "what is the current status",
+      channel: "C_ADMIN_CHANNEL",
+      ts: "1700000010.000011",
+      threadTs: [] as [],
+      isBotMessage: false,
+      agentMetadata: [] as [],
+    });
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("primary_agent_skip");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain("no primary agent found");
+      }
+    }
+  });
+
+  it("should fall back to #admin agent for bare user message with no ::ref", async () => {
+    // With both admin and research agents registered, a bare message (no ::ref) falls
+    // back to getFirstByCategory(#admin).  The NoGroq variant seeds no groqApiKey so
+    // the admin route short-circuits at key resolution (#err) without issuing any HTTP
+    // outcall — letting a non-deferred actor complete the call synchronously.
+    // The important assertion: primary_agent_skip is NOT emitted — the fallback succeeded.
+    const result = await testCanister.testMessageHandlerWithResearchAgentNoGroq(
+      {
+        user: "U_USER",
+        text: "what is the current status",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000010.000012",
+        threadTs: [] as [],
+        isBotMessage: false,
+        agentMetadata: [] as [],
+      },
+      BOT_TOKEN,
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      // Fallback to admin succeeds — must not see primary_agent_skip.
+      expect(result.ok.some((s) => s.action === "primary_agent_skip")).toBe(
+        false,
+      );
+    }
+  });
+});
+
+// ============================================
+// Termination prompt delivery
+//
+// Verifies that MAX_AGENT_ROUNDS causes the bot to post a continuation prompt
+// to Slack in addition to returning round_force_terminated.
+//
+// Uses a deferred actor + cassette so the outgoing Slack chat.postMessage call
+// can be intercepted and replayed without a live API connection.
+// ============================================
+
+describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
+  let pic: PocketIc;
+  let testCanister: DeferredActor<TestCanisterService>;
+
+  beforeEach(async () => {
+    const testEnv = await createDeferredTestCanister();
+    pic = testEnv.pic;
+    testCanister = testEnv.actor;
+  });
+
+  afterEach(async () => {
+    await pic.tearDown();
+  });
+
+  it("should post a termination prompt to Slack when MAX_AGENT_ROUNDS is reached", async () => {
+    // parentRoundCount = 9 → newRound = 10 = MAX_AGENT_ROUNDS → force-terminate.
+    // Unlike the non-deferred guard test, this deferred version captures both the
+    // round_force_terminated HandlerResult AND the outgoing Slack chat.postMessage call
+    // (the termination prompt) via cassette.
+    const PARENT_TS = "1700000010.000100";
+    const cassetteName =
+      "unit-tests/open-org-backend/handlers/message-handler/max-rounds-termination-prompt";
+    const channel = await resolveSpecsChannel(cassetteName);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerBotBranch(
+          {
+            user: "UBOT001",
+            text: "::unit-test-admin please continue",
+            channel,
+            ts: "1700000020.000100",
+            threadTs: [PARENT_TS] as [string],
+            isBotMessage: true,
+            agentMetadata: [
+              {
+                event_type: "looping_agent_message",
+                event_payload: {
+                  parent_agent: "unit-test-admin",
+                  parent_ts: PARENT_TS,
+                  parent_channel: channel,
+                },
+              },
+            ],
+          },
+          BOT_TOKEN,
+          GROQ_API_KEY,
+          channel,
+          PARENT_TS,
+          9n, // parentRoundCount = 9 → terminates on round 10
+          false,
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      // Handler returns round_force_terminated.
+      expect(response.ok).toHaveLength(1);
+      expect(response.ok[0].action).toBe("round_force_terminated");
+      // The cassette should capture the outgoing Slack chat.postMessage for the
+      // termination prompt — verified by the cassette recording containing a POST
+      // to api.slack.com/api/chat.postMessage with the ⚠️ continuation message.
     }
   });
 });
