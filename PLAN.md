@@ -1,52 +1,26 @@
-# v0.2 Plan — Slack-Native Identity & Agent Routing
+# PLAN.md — Looping AI Short-Term Planning
 
 This plan describes the incremental path from the current codebase to the architecture described in [ARCHITECTURE.md](ARCHITECTURE.md). Each phase is a separate development effort (separate PRs). Phases are ordered by dependency, not priority — some later phases may start in parallel with earlier ones where there are no blockers.
 
----
+Each Phase is assigned a unique, sequential ID. Once a Phase is fully completed, the Phase at position n-2 can be safely deleted, retaining one prior Phase for context.
 
-## Phase 0 — Foundation: Slack Identity & Cleanup
+Here’s a cleaner, structured version with better flow:
 
-**Goal**: Replace Principal-based auth with Slack-derived identity. Establish the user cache and SlackAuthMiddleware as the authorization backbone.
+Each Task (using decimal notation, e.g., 0.x, 1.x) should begin in short form. Before implementation, it must be expanded into long form, then executed and marked as complete by striking through its title (e.g., ### 0.1 – User Model).
 
-~~### 0.1 — SlackWrapper expansion~~
+Short form consists of a title and supporting bullet points only.
 
-- Add private functions matching Slack API methods: `usersList()`, `conversationsList()`, `conversationsMembers()`. Parameters aligned with Slack's API.
-- Add public higher-level functions: `getWorkspaceMembers()`, `listChannels()`, `getChannelMembers()`.
-- All Slack API I/O goes through SlackWrapper (adapter pattern).
+Long form must include at least the following sections:
 
-~~### 0.2 — Slack user cache model~~
+- Goal
+- Current State
+- Desired State
+- Source Steps
+- Test Steps
 
-- New model (`SlackUserModel`): `Map<SlackUserId, SlackUserEntry>`.
-- `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`.
-- CRUD operations: upsert user, update workspace membership, remove workspace membership, lookup by ID.
-- File: `src/open-org-backend/models/slack-user-model.mo`.
+Then other optional sections can be added that you think are relevant for that specific task.
 
-~~### 0.3 — SlackAuthMiddleware~~
-
-- New middleware replacing Principal-based `AuthMiddleware`.
-- Extracts Slack user ID from event payload → looks up user cache → builds `UserAuthContext`.
-- `UserAuthContext = { slackUserId, isPrimaryOwner, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, roundCount, forceTerminated }`.
-- All downstream services receive `UserAuthContext` instead of caller Principal.
-
-~~### 0.4 — Event-driven cache sync~~
-
-- Subscribe to new Slack event types in the adapter: `member_joined_channel`, `member_left_channel`, `team_join`.
-- Event router dispatches to new handlers that update the user cache in real-time.
-
-~~### 0.5 — Workspace-to-channel mapping~~
-
-- New workspace model: `{ id, name, adminChannelId, memberChannelId }`.
-- Replace current `workspaceAdmins: Map<Nat, [Principal]>` and `workspaceMembers: Map<Nat, [Principal]>` with channel-derived membership.
-- Org admin channel anchor: `{ channelId, channelName }`.
-
-~~### 0.6 — Weekly reconciliation timer~~
-
-- Runs on Sundays (aligned with existing cleanup timers).
-- Full `users.list` + `conversations.members` sweep for all tracked channels.
-- Verifies all tracked channel IDs:
-  - **Org admin channel**: follows recovery rules (see Architecture — "App install and setup flow").
-  - **Workspace admin channel gone**: notifies `#looping-ai-org-admins`, requests new admin channel or workspace deletion.
-  - **Workspace member channel gone**: notifies workspace's admin channel, requests new member channel.
+NOTE: Plans are not documentation. They are temporary and will be discarded. If behavior changes later, there’s no need to update an already struck-through Task.
 
 ---
 
@@ -215,7 +189,7 @@ Services build LLM context by:
 - **1.6 (Generic agent service):** receives a `TimelineEntry` (either `#post` or `#thread` with full message history) instead of a generic list; LLM role is derived from each `ConversationMessage.userAuthContext` without additional lookups.
 - **1.7 (Session tracking):** `channelId + ts` (or a batch of `ts` values) becomes the canonical anchor for `SessionRecord`.
 
-### 1.5 — Round Refactor with Metadata strategy
+~~### 1.5 — Round Refactor with Metadata strategy~~
 
 **Goal**: Decouple round tracking from Slack threading. The current design uses `threadTs` as the round-context key, which breaks for DMs (no thread), cross-channel replies, and any future topology where the bot does not reply inside the originating thread. The metadata strategy moves lineage onto the message itself, making the chain self-describing regardless of channel or thread structure.
 

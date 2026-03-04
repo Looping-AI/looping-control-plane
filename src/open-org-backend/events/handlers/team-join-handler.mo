@@ -5,7 +5,7 @@
 ///   - Upsert the new user in the Slack user cache with basic org-level info
 ///   - No workspace memberships are set here; those are derived from channel
 ///     membership events (member_joined_channel) resolved against workspace
-///     channel anchors once Phase 0.5 (workspace-to-channel mapping) is in place.
+///     channel anchors once workspace-to-channel mapping is in place.
 
 import Time "mo:core/Time";
 import NormalizedEventTypes "../types/normalized-event-types";
@@ -43,7 +43,7 @@ module {
 
     // Upsert in cache. For a brand-new member, workspace memberships start empty;
     // they will be populated when the user joins relevant tracked channels
-    // (member_joined_channel handler, resolved via Phase 0.5 channel anchors).
+    // (member_joined_channel handler, resolved via channel anchors).
     let entry = SlackUserModel.newEntry(
       event.userId,
       displayName,

@@ -415,7 +415,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // Workspace Channel-Anchor Management (Phase 0.5)
+  // Workspace Channel-Anchor Management
   // ============================================
 
   // Create a new workspace (org admin or org owner only).

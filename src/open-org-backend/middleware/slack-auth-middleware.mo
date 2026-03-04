@@ -6,7 +6,7 @@
 ///
 /// `roundCount` and `forceTerminated` are included here (see Phase 2.4) so that
 /// the context is the single carrier of both identity and round-control state.
-/// For Phase 0 they are always initialized to zero / false by `buildFromCache`.
+/// They are always initialized to zero / false by `buildFromCache`.
 
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
