@@ -361,7 +361,7 @@ metadata = ?{
 - **`getMessage` helper**: post lookup, reply lookup via replyIndex, missing → null.
 - **`UserAuthContext` chain invariant**: `parentRef == null ↔ roundCount == 0`; chain terminates correctly.
 
-### 1.6 — Agent Router
+~~### 1.6 — Agent Router~~
 
 **Goal**
 
@@ -394,61 +394,9 @@ A message may reference multiple `::agentname` patterns. The router picks only o
 
 Multi-agent fan-out (dispatching to several agents in one round) is out of scope for this task; it is deferred to Phase 5.
 
-**Similarity Detection (soft guard)**
-
-When a bot reply at round N is a near-duplicate of the previous reply from the _same agent_, the session is stuck in a loop. Comparing across different agents is not meaningful — an admin agent and a research agent will naturally produce structurally different text. Similarity must be agent-to-agent (same role).
-
-**Prerequisite: `authorAgent` on `ConversationMessage`**
-
-`ConversationMessage` needs a new field to identify which agent authored it (null for user messages):
-
-```motoko
-{
-  ts : Text;
-  userAuthContext : ?UserAuthContext;
-  text : Text;
-  authorAgent : ?Text; // null = user message; "::admin", "::research", etc. for bot replies
-};
-
-```
-
-When a bot reply is stored (after round tracking resolves), set `authorAgent = ?agentMetadata.event_payload.parent_agent`. For user messages (and messages stored before auth resolves), `authorAgent = null`.
-
-This is a backward-compatible addition to the Phase 1.4 model — existing message entries simply have `authorAgent = null`. Add the field to `ConversationMessage` in `conversation-model.mo` as part of this task.
-
-**Walk algorithm**
-
-After the orchestrator returns `replyText`:
-
-1. Take `primaryAgent.name` (e.g. `"::admin"`).
-2. Start from `agentMetadata.parent_ts` / `agentMetadata.parent_channel` — the message this agent was asked to reply to.
-3. Walk the `parentRef` chain (via `ConversationMessage.userAuthContext.parentRef`) going backwards through the conversation store.
-4. At each step, if `msg.authorAgent == ?primaryAgent.name` — this is the previous reply from the same agent. Stop.
-5. If the chain terminates (reaches a round-0 message with `parentRef = null`) without finding a prior same-agent reply: **skip the similarity check** (no prior basis for comparison).
-6. If a prior reply is found: run the similarity check between `replyText` and `priorSameAgentMessage.text`.
-
-**Heuristic**
-
-- Normalise both strings: lowercase, collapse whitespace.
-- Compute `Levenshtein distance / max(len_a, len_b)`.
-- If ratio `< SIMILARITY_THRESHOLD` → similar.
-- `SIMILARITY_THRESHOLD : Float = 0.15` — add to `constants.mo`.
-
-**On trigger**
-
-- Set `forceTerminated = true` on current `UserAuthContext`, stamp it on the stored message.
-- Call `AgentRouter.postTerminationPrompt`.
-- Return `#ok` with a `round_similarity_terminated` step.
-
-**Helpers in `agent-router.mo`**
-
-- `private func levenshtein(a : Text, b : Text) : Nat` — cap inputs at 1000 chars; accurate enough for short-to-medium strings.
-- `public func isSimilar(a : Text, b : Text) : Bool` — normalise + ratio check; exported for unit testability.
-- `public func findPreviousSameAgentReply(store : ConversationModel.ConversationStore, channel : Text, startTs : Text, agentName : Text) : ?ConversationModel.ConversationMessage` — walks the `parentRef` chain from `startTs`; returns the first message whose `authorAgent == ?agentName`, or `null` if none found before the chain ends.
-
 **Termination Prompt**
 
-When a session is force-terminated (either by `MAX_AGENT_ROUNDS` or similarity detection), the bot posts a message in the same channel (in the same thread if `threadTs != null`):
+When a session is force-terminated by `MAX_AGENT_ROUNDS`, the bot posts a message in the same channel (in the same thread if `threadTs != null`):
 
 ```
 ⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.
@@ -459,30 +407,22 @@ When a session is force-terminated (either by `MAX_AGENT_ROUNDS` or similarity d
 
 **Source Steps**
 
-1. **`constants.mo`** — add `SIMILARITY_THRESHOLD : Float = 0.15`.
-
-2. **`src/open-org-backend/models/conversation-model.mo`** — add `authorAgent : ?Text` field to `ConversationMessage`. Update `addMessage` callers to accept an optional `authorAgent` parameter. Existing call sites pass `null`.
-
-3. **`src/open-org-backend/events/agent-router.mo`** — new module:
+1. **`src/open-org-backend/events/agent-router.mo`** — new module:
    - Public type alias `RouteResult = WorkspaceAdminOrchestrator.OrchestratorResult` (or define a shared result type; pick whatever avoids creating a new type for now).
    - `public func route(primaryAgent : AgentModel.AgentRecord, …) : async RouteResult` — dispatches on `primaryAgent.category`; `#research`/`#communication` return `#err({message = "category not implemented"; steps = []})`.
    - `public func postTerminationPrompt(botToken : Text, channel : Text, threadTs : ?Text) : async ()` — posts the fixed termination message via `SlackWrapper.postMessage` with no metadata.
-   - `private func levenshtein(a : Text, b : Text) : Nat` — distance helper, inputs capped at 1000 chars.
-   - `public func isSimilar(a : Text, b : Text) : Bool` — normalise + distance / max(len) < SIMILARITY_THRESHOLD; exported for testability.
-   - `public func findPreviousSameAgentReply(store, channel, startTs, agentName) : ?ConversationMessage` — walks the `parentRef` chain; returns first message with matching `authorAgent`, or `null`.
+   - `public func findPreviousSameAgentReply(store, channel, startTs, agentName) : ?ConversationMessage` — walks the `parentRef` chain; returns first message with matching `agentMetadata.parent_agent`, or `null`.
 
-4. **`src/open-org-backend/events/handlers/message-handler.mo`** — changes:
+2. **`src/open-org-backend/events/handlers/message-handler.mo`** — changes:
    - Remove direct import of `WorkspaceAdminOrchestrator`; add `import AgentRouter "../agent-router"`.
    - **Primary agent resolution** — two paths:
      - _Bot message_: `primaryAgent` is resolved from `agentMetadata.event_payload.parent_agent` via registry `lookupByName`. If not found in registry, discard (log warn).
      - _User message_: extract via `AgentRefParser.extractValidAgents(msg.text, ...)` and take the first, or fall back to `registry.getFirstByCategory(#admin)` for bare messages with no `::` ref.
    - Replace the `WorkspaceAdminOrchestrator.orchestrateAdminTalk(...)` call with `AgentRouter.route(primaryAgent, …)`.
-   - Store the bot reply with `authorAgent = ?primaryAgent.name` on both paths.
-   - After the orchestrator call, on success (bot path only): call `AgentRouter.findPreviousSameAgentReply(store, agentMeta.parent_channel, agentMeta.parent_ts, primaryAgent.name)` and, if found, call `AgentRouter.isSimilar` on the two texts; if similar, stamp `forceTerminated = true`, call `AgentRouter.postTerminationPrompt`, and return early.
    - Replace the `// Phase 1.6 will post a continuation prompt to Slack here` comment with a call to `AgentRouter.postTerminationPrompt`.
    - Fix `buildReplyMetadata`: replace the `"::admin"` fallback with `"::" # primaryAgent.name`. This correctly identifies the replying agent so that any subsequent message referencing this reply routes to the right agent.
 
-5. **`dfx build open-org-backend --check`** — no compilation errors.
+3. **`dfx build open-org-backend --check`** — no compilation errors.
 
 **Test Steps**
 
@@ -490,11 +430,6 @@ All tests in `tests/unit-tests/open-org-backend/`. Add a new file `agent-router.
 
 _`agent-router.test.mo`_
 
-- **`isSimilar` — identical strings → true**: `isSimilar("hello world", "hello world")` returns `true`.
-- **`isSimilar` — unrelated strings → false**: `isSimilar("hello", "completely different text")` returns `false`.
-- **`isSimilar` — near-duplicate (differs by one word) → true**: manually verify distance / len is below threshold.
-- **`isSimilar` — empty strings → true** (degenerate case; distance = 0).
-- **`isSimilar` — input over 1000 chars is capped**: construct two strings > 1000 chars; verify no trap.
 - **`route` — `#admin` category → calls orchestrator stub and returns result**.
 - **`route` — `#research` category → returns `#err` with "not implemented" message**.
 - **`route` — `#communication` category → returns `#err` with "not implemented" message**.
@@ -502,9 +437,6 @@ _`agent-router.test.mo`_
 
 _`message-handler.test.mo` additions_
 
-- **Similarity-triggered termination (same agent)**: seed a conversation where the previous reply from `::admin` is near-identical to the reply the mock orchestrator returns for the current round → handler sets `forceTerminated = true` and posts a termination prompt.
-- **Similarity skipped when no prior same-agent reply**: bot message at round 1 (first reply from this agent) → `findPreviousSameAgentReply` returns null → similarity check skipped, round proceeds normally.
-- **No cross-agent similarity trigger**: seed a prior `::research` reply that matches the current `::admin` reply text → no termination (different agent authors).
 - **MAX_AGENT_ROUNDS termination prompt**: send a bot message at round `MAX_AGENT_ROUNDS - 1` → handler posts termination prompt (previously just returned with a log).
 - **Primary agent from user message with `::` reference**: user sends `"::research what is X"` → primary agent resolves to the registered research agent.
 - **Primary agent fallback for bare user message**: user sends `"what is X"` (no `::` ref) → falls back to the first `#admin` agent in the registry.
