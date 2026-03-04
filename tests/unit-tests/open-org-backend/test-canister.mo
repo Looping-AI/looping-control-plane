@@ -387,7 +387,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     ConversationModel.addMessage(
       ctx.conversationStore,
       parentChannel,
-      { ts = parentTs; userAuthContext = null; text = "seeded parent message" },
+      {
+        ts = parentTs;
+        userAuthContext = null;
+        text = "seeded parent message";
+        agentMetadata = null;
+      },
       null,
     );
     ignore ConversationModel.updateMessageContext(

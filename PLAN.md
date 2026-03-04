@@ -361,7 +361,7 @@ metadata = ?{
 - **`getMessage` helper**: post lookup, reply lookup via replyIndex, missing → null.
 - **`UserAuthContext` chain invariant**: `parentRef == null ↔ roundCount == 0`; chain terminates correctly.
 
-~~### 1.6 — Agent Router~~
+### 1.6 — Agent Router
 
 **Goal**
 
