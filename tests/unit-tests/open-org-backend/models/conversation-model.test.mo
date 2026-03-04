@@ -10,7 +10,7 @@ import SlackUserModel "../../../../src/open-org-backend/models/slack-user-model"
 
 /// Build a ConversationMessage with no user context (agent/bot message).
 func agentMsg(ts : Text, text : Text) : ConversationModel.ConversationMessage {
-  { ts; userAuthContext = null; text };
+  { ts; userAuthContext = null; text; agentMetadata = null };
 };
 
 func isSome<A>(x : ?A) : Bool { switch x { case null false; case _ true } };
