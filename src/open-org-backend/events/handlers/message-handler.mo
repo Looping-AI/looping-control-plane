@@ -417,7 +417,6 @@ module {
   ) : async ([Types.ProcessingStep], ?Text) {
     let result = await AgentRouter.route(
       primaryAgent,
-      ctx.agentRegistry,
       ctx.mcpToolRegistry,
       workspaceSecrets,
       conversationEntry,

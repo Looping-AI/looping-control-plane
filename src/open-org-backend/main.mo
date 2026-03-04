@@ -527,7 +527,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     category : AgentModel.AgentCategory,
     llmModel : AgentModel.LlmModel,
     secretsAllowed : [(Nat, Types.SecretId)],
-    toolsAllowed : [Text],
+    toolsDisallowed : [Text],
+    toolsMisconfigured : [Text],
     sources : [Text],
   ) : async {
     #ok : Nat;
@@ -541,7 +542,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           category,
           llmModel,
           secretsAllowed,
-          toolsAllowed,
+          toolsDisallowed,
+          toolsMisconfigured,
           Map.empty<Text, AgentModel.ToolState>(),
           sources,
           agentRegistry,
@@ -565,7 +567,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     newCategory : ?AgentModel.AgentCategory,
     newLlmModel : ?AgentModel.LlmModel,
     newSecretsAllowed : ?[(Nat, Types.SecretId)],
-    newToolsAllowed : ?[Text],
+    newToolsDisallowed : ?[Text],
+    newToolsMisconfigured : ?[Text],
     newSources : ?[Text],
   ) : async {
     #ok : Bool;
@@ -580,7 +583,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           newCategory,
           newLlmModel,
           newSecretsAllowed,
-          newToolsAllowed,
+          newToolsDisallowed,
+          newToolsMisconfigured,
           null,
           newSources,
           agentRegistry,
@@ -625,7 +629,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        AgentModel.updateById(agentId, null, null, null, ?secretsAllowed, null, null, null, agentRegistry);
+        AgentModel.updateById(agentId, null, null, null, ?secretsAllowed, null, null, null, null, agentRegistry);
       };
     };
   };

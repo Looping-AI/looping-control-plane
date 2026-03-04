@@ -9,24 +9,25 @@ import ValueStreamModel "../models/value-stream-model";
 import ObjectiveModel "../models/objective-model";
 import MetricModel "../models/metric-model";
 import AgentModel "../models/agent-model";
-import GroqWorkspaceAdminService "../services/groq-workspace-admin-service";
+import OrgAdminAgent "../agents/admin/org-admin-agent";
 import McpToolRegistry "../tools/mcp-tool-registry";
 
 module {
 
-  // Orchestrate the admin talk request after validation.
+  // Orchestrate the agent talk request after validation.
   //
-  // Resolves the first #admin agent from the registry and uses its
-  // llmModel and secretsAllowed to authenticate and dispatch the request.
+  // Accepts the already-resolved `agent` from the caller (AgentRouter) — no
+  // internal registry lookup is performed.  This removes the redundant
+  // `getFirstByCategory(#admin, ...)` call that was present in the old
+  // WorkspaceAdminOrchestrator.
   //
   // `conversationEntry` provides the timeline entry (from the conversation store)
-  // to use as LLM context. Pass `null` when no history exists or is needed
-  // (e.g. the legacy direct endpoint before Phase 2.1 removes it).
+  // to use as LLM context. Pass `null` when no history exists or is needed.
   //
   // Returns the LLM's final text response. The caller is responsible for
   // persisting the user message and agent response to the conversation store.
-  public func orchestrateAdminTalk(
-    agentRegistry : AgentModel.AgentRegistryState,
+  public func orchestrateAgentTalk(
+    agent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
     conversationEntry : ?ConversationModel.TimelineEntry,
@@ -48,25 +49,13 @@ module {
       steps : [Types.ProcessingStep];
     };
   } {
-    // Resolve the first #admin agent from the registry
-    let agent = switch (AgentModel.getFirstByCategory(#admin, agentRegistry)) {
-      case (null) {
-        return #err({
-          message = "No admin agent registered. Please register an admin agent first.";
-          steps = [];
-        });
-      };
-      case (?a) { a };
-    };
-
-    // Derive the secretId and model string from the agent's llmModel
+    // Derive the secretId from the agent's llmModel
     let secretId = AgentModel.llmModelToSecretId(agent.llmModel);
-    let modelText = AgentModel.llmModelToText(agent.llmModel);
 
     // Guard: ensure this agent is allowed to access the secret for this workspace
     if (not AgentModel.isSecretAllowed(agent, workspaceId, secretId)) {
       return #err({
-        message = "Admin agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(workspaceId) # ".";
+        message = "Agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(workspaceId) # ".";
         steps = [];
       });
     };
@@ -74,18 +63,19 @@ module {
     // Decrypt the LLM API key using the provided encryption key
     let apiKey = SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, secretId);
 
-    // Dispatch to provider-specific service based on the agent's llmModel
+    // Dispatch to provider-specific agent based on the agent's llmModel
     switch (agent.llmModel) {
       case (#groq(_)) {
         switch (apiKey) {
           case (null) {
             #err({
-              message = "No Groq API key found for admin talk. Please store the API key first.";
+              message = "No Groq API key found for agent talk. Please store the API key first.";
               steps = [];
             });
           };
           case (?key) {
-            let serviceResult = await GroqWorkspaceAdminService.executeAdminTalk(
+            let serviceResult = await OrgAdminAgent.process(
+              agent,
               mcpToolRegistry,
               conversationEntry,
               workspaceValueStreamsState,
@@ -96,7 +86,6 @@ module {
               workspaceId,
               message,
               key,
-              modelText,
             );
             switch (serviceResult) {
               case (#ok({ response; steps = serviceSteps })) {

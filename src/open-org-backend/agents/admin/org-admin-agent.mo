@@ -5,18 +5,20 @@ import Map "mo:core/Map";
 import Iter "mo:core/Iter";
 import Float "mo:core/Float";
 import Time "mo:core/Time";
-import Types "../types";
-import ConversationModel "../models/conversation-model";
-import ValueStreamModel "../models/value-stream-model";
-import ObjectiveModel "../models/objective-model";
-import MetricModel "../models/metric-model";
-import GroqWrapper "../wrappers/groq-wrapper";
-import InstructionComposer "../instructions/instruction-composer";
-import InstructionTypes "../instructions/instruction-types";
-import FunctionToolRegistry "../tools/function-tool-registry";
-import McpToolRegistry "../tools/mcp-tool-registry";
-import ToolExecutor "../tools/tool-executor";
-import ToolTypes "../tools/tool-types";
+import Text "mo:core/Text";
+import Types "../../types";
+import ConversationModel "../../models/conversation-model";
+import ValueStreamModel "../../models/value-stream-model";
+import ObjectiveModel "../../models/objective-model";
+import MetricModel "../../models/metric-model";
+import AgentModel "../../models/agent-model";
+import GroqWrapper "../../wrappers/groq-wrapper";
+import InstructionComposer "../../instructions/instruction-composer";
+import InstructionTypes "../../instructions/instruction-types";
+import FunctionToolRegistry "../../tools/function-tool-registry";
+import McpToolRegistry "../../tools/mcp-tool-registry";
+import ToolExecutor "../../tools/tool-executor";
+import ToolTypes "../../tools/tool-types";
 
 module {
 
@@ -26,12 +28,27 @@ module {
   // Maximum number of previous conversation messages to include as context
   let MAX_CONVERSATION_HISTORY : Nat = 30;
 
-  // Execute admin talk using Groq LLM with multi-turn tool support.
-  //
-  // `conversationEntry` carries the timeline entry for LLM context (Phase 1.4).
-  // Pass `null` when calling from the legacy direct endpoint (no persistent history).
-  // Tool call / tool response messages are ephemeral and never written to the store.
-  public func executeAdminTalk(
+  /// ProcessResult mirrors the executeAdminTalk return type so the orchestrator
+  /// change is minimal.
+  public type ProcessResult = {
+    #ok : {
+      response : Text;
+      steps : [Types.ProcessingStep];
+    };
+    #err : {
+      message : Text;
+      steps : [Types.ProcessingStep];
+    };
+  };
+
+  /// Process a message using the agent's configuration.
+  ///
+  /// `agent` drives persona, tool filtering, and knowledge sources.
+  /// `conversationEntry` carries the timeline entry for LLM context.
+  /// Pass `null` when no persistent history exists.
+  /// Tool call / tool response messages are ephemeral and never written to the store.
+  public func process(
+    agent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     conversationEntry : ?ConversationModel.TimelineEntry,
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
@@ -42,20 +59,15 @@ module {
     workspaceId : Nat,
     message : Text,
     apiKey : Text,
-    model : Text,
-  ) : async {
-    #ok : {
-      response : Text;
-      steps : [Types.ProcessingStep];
-    };
-    #err : {
-      message : Text;
-      steps : [Types.ProcessingStep];
-    };
-  } {
+  ) : async ProcessResult {
     var steps : List.List<Types.ProcessingStep> = List.empty();
-    // Build instructions with workspace-specific context
-    let instructions = buildAdminInstructions(
+
+    // Derive model text from the agent's llmModel — not a caller-supplied param
+    let modelText = AgentModel.llmModelToText(agent.llmModel);
+
+    // Build instructions driven by agent configuration
+    let instructions = buildInstructions(
+      agent,
       workspaceValueStreamsState,
       workspaceObjectivesMap,
       metricsRegistryState,
@@ -63,7 +75,7 @@ module {
       workspaceId,
     );
 
-    // Build tool resources - controls which tools are available
+    // Build tool resources — controls which tools are available
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = ?workspaceId;
       groqApiKey = ?apiKey;
@@ -86,9 +98,13 @@ module {
     let functionToolDefs = FunctionToolRegistry.getAllDefinitions(toolResources);
     let mcpToolDefs = McpToolRegistry.getAllDefinitions(mcpToolRegistry);
     let allTools = Array.concat(functionToolDefs, mcpToolDefs);
-    let toolsOpt : ?[GroqWrapper.Tool] = if (allTools.size() == 0) null else ?allTools;
 
-    // Build LLM context from persistent conversation history (Phase 1.4).
+    // Apply blocklist filtering via the public helper
+    let filteredTools = applyToolBlocklist(agent, allTools);
+
+    let toolsOpt : ?[GroqWrapper.Tool] = if (filteredTools.size() == 0) null else ?filteredTools;
+
+    // Build LLM context from persistent conversation history.
     // Tool call / tool response artifacts are appended to inputMessages during the
     // reasoning loop below but are NOT written to the conversation store — they are
     // ephemeral and discarded when this function returns.
@@ -103,7 +119,7 @@ module {
       let groqResult = await GroqWrapper.reason(
         apiKey,
         List.toArray(inputMessages),
-        model,
+        modelText,
         #workspace(workspaceId),
         ?instructions,
         null,
@@ -192,14 +208,82 @@ module {
     };
   };
 
-  // Build LLM input messages from a TimelineEntry (conversation history).
-  //
-  // Role mapping:
-  //   ConversationMessage.userAuthContext = null  → #assistant  (bot/agent message)
-  //   ConversationMessage.userAuthContext = ?_    → #user       (human message)
-  //
-  // For a #post: a single message is added.
-  // For a #thread: the last MAX_CONVERSATION_HISTORY messages are added.
+  // ─── Public helpers (exposed for unit testability) ─────────────────────────
+
+  /// Map an AgentCategory to the appropriate AgentRole for instruction composition.
+  ///
+  ///   #admin         →  #orgAdmin
+  ///   #research      →  #customAgent({ name; persona = ?"research specialist" })
+  ///   #communication →  #customAgent({ name; persona = ?"communication specialist" })
+  public func categoryToRole(
+    category : AgentModel.AgentCategory,
+    name : Text,
+  ) : InstructionTypes.AgentRole {
+    switch (category) {
+      case (#admin) { #orgAdmin };
+      case (#research) {
+        #customAgent({ name; persona = ?"research specialist" });
+      };
+      case (#communication) {
+        #customAgent({ name; persona = ?"communication specialist" });
+      };
+    };
+  };
+
+  /// Return the filtered tool list after applying the agent's blocklists.
+  ///
+  /// Tools whose `definition.function.name` appears in either `toolsDisallowed`
+  /// or `toolsMisconfigured` are removed. Unknown names in either list are
+  /// silently ignored. This is the blocklist model: all resource-gated tools
+  /// are enabled by default; admins selectively disable specific ones.
+  public func applyToolBlocklist(
+    agent : AgentModel.AgentRecord,
+    tools : [GroqWrapper.Tool],
+  ) : [GroqWrapper.Tool] {
+    Array.filter<GroqWrapper.Tool>(
+      tools,
+      func(tool : GroqWrapper.Tool) : Bool {
+        let name = tool.function.name;
+        let isDisallowed = Array.any<Text>(
+          agent.toolsDisallowed,
+          func(t : Text) : Bool { t == name },
+        );
+        let isMisconfigured = Array.any<Text>(
+          agent.toolsMisconfigured,
+          func(t : Text) : Bool { t == name },
+        );
+        not isDisallowed and not isMisconfigured;
+      },
+    );
+  };
+
+  /// Return the `"agent-sources"` instruction block(s) for an agent.
+  ///
+  /// Returns a single-element array with the block when `agent.sources` is
+  /// non-empty; returns `[]` when `agent.sources` is empty. The block lists
+  /// each source on its own line, prefixed with `"- "`.
+  public func sourceBlocks(
+    agent : AgentModel.AgentRecord
+  ) : [InstructionTypes.InstructionBlock] {
+    if (agent.sources.size() == 0) {
+      return [];
+    };
+    let sourcesText = Array.foldLeft<Text, Text>(
+      agent.sources,
+      "Knowledge Sources:\n",
+      func(acc, src) { acc # "- " # src # "\n" },
+    );
+    [{ id = "agent-sources"; content = sourcesText }];
+  };
+
+  /// Build LLM input messages from a TimelineEntry (conversation history).
+  ///
+  /// Role mapping:
+  ///   ConversationMessage.userAuthContext = null  → #assistant  (bot/agent message)
+  ///   ConversationMessage.userAuthContext = ?_    → #user       (human message)
+  ///
+  /// For a #post: a single message is added.
+  /// For a #thread: the last MAX_CONVERSATION_HISTORY messages are added.
   private func buildContextMessages(
     conversationEntry : ?ConversationModel.TimelineEntry
   ) : List.List<GroqWrapper.ResponseInputMessage> {
@@ -236,7 +320,7 @@ module {
     inputMessages;
   };
 
-  // Build workspace context blocks from ValueStreams, Objectives, and Metrics
+  /// Build workspace context blocks from ValueStreams, Objectives, and Metrics
   private func buildWorkspaceContext(
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
@@ -380,8 +464,13 @@ module {
     List.toArray(blocks);
   };
 
-  // Build admin instructions with context-aware layers
-  private func buildAdminInstructions(
+  /// Build instructions with context-aware layers, driven by agent configuration.
+  ///
+  /// The agent role is derived from `agent.category` via `categoryToRole`.
+  /// If `agent.sources` is non-empty, an `"agent-sources"` block is appended
+  /// listing each source URL/ref on its own line (prefixed with `- `).
+  private func buildInstructions(
+    agent : AgentModel.AgentRecord,
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
     metricsRegistryState : MetricModel.MetricsRegistryState,
@@ -395,6 +484,13 @@ module {
       metricsRegistryState,
       metricDatapoints,
     );
+
+    // Append sources block if the agent has knowledge sources (use public helper)
+    let customBlocks : [InstructionTypes.InstructionBlock] = if (agent.sources.size() > 0) {
+      Array.concat(workspaceContext, sourceBlocks(agent));
+    } else {
+      workspaceContext;
+    };
 
     // Determine which context layers to include based on workspace state
     var contextIds : List.List<InstructionTypes.ContextId> = List.empty();
@@ -424,11 +520,12 @@ module {
       };
     };
 
-    // Compose instructions with appropriate context layers
+    // Compose instructions with the role derived from agent category
     InstructionComposer.compose(
-      #workspaceAdmin,
+      categoryToRole(agent.category, agent.name),
       List.toArray(contextIds),
-      workspaceContext,
+      customBlocks,
     );
   };
+
 };

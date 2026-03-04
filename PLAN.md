@@ -443,11 +443,123 @@ _`message-handler.test.mo` additions_
 - **`buildReplyMetadata` uses replying agent name**: regardless of which agent triggered this round, outgoing reply metadata always has `parent_agent = "::" # primaryAgent.name`. E.g. if `::admin` produces the reply, `parent_agent = "::admin"` — never the name of whoever called it.
 - **`findPreviousSameAgentReply` — chain walk**: three-message chain `user → ::admin reply → ::research reply → ::admin reply (current)` — walk from current's `parent_ts` finds the prior `::admin` reply (skipping the intervening `::research` message).
 
-### 1.7 — Refactor current service into generic agent service
+~~### 1.7 — Introduce `agents/` folder and refactor admin agent~~
 
-- Refactor `GroqWorkspaceAdminService` into a generic agent service that reads agent config from the registry.
-- The agent's `category`, `llmModel`, `toolsAllowed`, and `sources` drive execution rather than hardcoded values.
-- This is the single agent service for Phase 2; category-specific services come later.
+**Goal**
+
+Establish a dedicated `agents/` directory tree (sibling of `models/`, `services/`, etc.) where each agent category lives in its own subfolder and each agent module exposes a single `process()` entry point. Migrate the hardcoded `GroqWorkspaceAdminService` into `agents/admin/` as the first concrete agent, making its execution profile fully driven by `AgentRecord` (persona, tool allowlist, knowledge sources).
+
+**Current State**
+
+- `GroqWorkspaceAdminService.executeAdminTalk` is locked to the workspace-admin persona: it calls `InstructionComposer.compose(#workspaceAdmin, ...)` unconditionally, regardless of which agent was referenced.
+- Tool availability is gated purely by `ToolResources` (resource presence, not per-agent config). There is no mechanism to restrict tools to the subset listed in `agent.toolsAllowed`.
+- `WorkspaceAdminOrchestrator.orchestrateAdminTalk` always calls `AgentModel.getFirstByCategory(#admin)` internally — even though the router (1.6) has already resolved `primaryAgent` and passes it in. The lookup is redundant and means only `#admin` agents can ever be dispatched to.
+- `agent.sources` exists in `AgentRecord` but is never forwarded to or consumed by the service — it is a dead field.
+- `agent.name` and `agent.category` are not visible inside the service, so the LLM receives a generic admin persona regardless of which agent is actually active.
+- All agent logic lives in `services/` alongside unrelated infrastructure services (key derivation, reconciliation), making category expansion harder to navigate.
+
+**Desired State**
+
+#### Directory layout
+
+```
+src/open-org-backend/
+  agents/
+    admin/
+      workspace-admin-agent.mo   ← replaces groq-workspace-admin-service.mo
+  services/                      ← infrastructure only (key-derivation, reconciliation, ...)
+  orchestrators/
+    agent-orchestrator.mo        ← renamed from workspace-admin-orchestrator.mo
+```
+
+- `agents/` is the home for all agent logic. Each category gets a subfolder (`admin/`, `research/`, `communication/`, …).
+- `services/` retains only non-agent infrastructure services.
+- Each agent module in `agents/{category}/` exposes a single public function `process()` — the sole entry point the orchestrator calls.
+- Phase 5 will add `agents/research/` and `agents/communication/` with real implementations; `#research` and `#communication` routes in `AgentRouter` remain `#err("category not implemented")` stubs until then.
+
+#### `workspace-admin-agent.mo` — public API
+
+```motoko
+public func process(
+  agent : AgentModel.AgentRecord,
+  mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
+  conversationEntry : ?ConversationModel.TimelineEntry,
+  workspaceValueStreamsState :...,
+  ... // same resource params as current executeAdminTalk,
+  workspaceId : Nat, // kept as explicit param (tool resources need it)
+  message : Text,
+  apiKey : Text,
+) : async ProcessResult;
+
+```
+
+`model : Text` is no longer a parameter — derived internally via `AgentModel.llmModelToText(agent.llmModel)`.
+
+`ProcessResult` is a type alias kept identical to the existing `executeAdminTalk` return type so the orchestrator change is minimal.
+
+#### Behavior derived from `AgentRecord`
+
+- **Persona**: `AgentRole` is derived from `agent.category` via the mapping below.
+- **Tools**: all resource-gated tools available to the agent category are offered to the LLM, **except** those listed in `agent.toolsDisallowed`. Tools in `agent.toolsMisconfigured` are also excluded (these require operator attention before use). This is a blocklist model: everything is enabled by default for the category, but admins can selectively disable specific tools.
+- **Sources**: if `agent.sources` is non-empty, a `"agent-sources"` `InstructionBlock` listing each source (one per line, prefixed `- `) is appended to the custom blocks passed to `InstructionComposer`.
+
+**Category-to-AgentRole mapping**
+
+```
+#admin         →  #orgAdmin
+#research      →  #customAgent({ name = agent.name; persona = ?"research specialist" })
+#communication →  #customAgent({ name = agent.name; persona = ?"communication specialist" })
+```
+
+The `#customAgent` branch in `InstructionTypes.AgentRole` already exists; `agent-role-layer.mo` must be extended to handle it by producing a minimal persona block: `"You are {name}, a {persona ?? "general-purpose"} AI assistant."` when no dedicated template is found for the name.
+
+**Tool filtering rule**
+
+- **Default (blocklist model)**: start with all resource-gated tools available for the agent's category.
+- **`agent.toolsDisallowed`**: remove any tools whose `definition.function.name` appears in this list. Unknown names in the list are silently ignored (registry may not have them yet).
+- **`agent.toolsMisconfigured`**: remove any tools in this list (same matching by `definition.function.name`). These tools encountered critical errors during setup or execution and require operator attention; they are never offered to the LLM until manually cleared from this list.
+- **Final set**: `allTools - toolsDisallowed - toolsMisconfigured`.
+
+**Source steps**
+
+1. **Create `src/open-org-backend/agents/admin/workspace-admin-agent.mo`**: copy the logic from `groq-workspace-admin-service.mo` as the starting point, then:
+   - Rename `executeAdminTalk` → `process`; add `agent : AgentModel.AgentRecord` parameter; remove `model : Text` parameter.
+   - Add private helper `categoryToRole(category, name) : AgentRole` implementing the mapping above; use it in `buildInstructions` (renamed from `buildAdminInstructions`) in place of the hardcoded `#orgAdmin`.
+   - Add tool-filtering logic after `let allTools = Array.concat(...)`: filter out tools whose names appear in `agent.toolsDisallowed` or `agent.toolsMisconfigured`.
+   - Add sources instruction block inside `buildInstructions`.
+
+2. **Delete `src/open-org-backend/services/groq-workspace-admin-service.mo`**.
+
+3. **Update `AgentRoleLayer.getBlocks`** for `#customAgent`: fall back to the minimal persona block when no dedicated template exists for the name.
+
+4. **Rename orchestrator**: rename `workspace-admin-orchestrator.mo` → `agent-orchestrator.mo`. Rename `orchestrateAdminTalk` → `orchestrateAgentTalk`. Replace `import GroqWorkspaceAdminService` with `import WorkspaceAdminAgent "../agents/admin/workspace-admin-agent"`. Replace the `AgentModel.getFirstByCategory(#admin, ...)` lookup with the `agent : AgentModel.AgentRecord` parameter accepted directly from the caller. Remove the `agentRegistry` parameter. Keep the `isSecretAllowed` guard but update its comment. Replace `GroqWorkspaceAdminService.executeAdminTalk(...)` call with `WorkspaceAdminAgent.process(agent, ...)`.
+
+5. **Update `AgentRouter.route`**: change the `#admin` dispatch to call `AgentOrchestrator.orchestrateAgentTalk(primaryAgent, ...)` instead of `WorkspaceAdminOrchestrator.orchestrateAdminTalk(agentRegistry, ...)`. The `#research` / `#communication` stubs remain `#err("category not implemented")` — their `agents/` modules are Phase 5.
+
+6. **Update `main.mo`**: replace `WorkspaceAdminOrchestrator` import with `AgentOrchestrator`; remove any remaining direct import of `GroqWorkspaceAdminService`.
+
+7. **Verify**: `dfx build open-org-backend --check` — no compilation errors.
+
+**Test steps**
+
+All tests in `tests/unit-tests/open-org-backend/` and `tests/integration-tests/open-org-backend/`.
+
+_Unit tests — new file `tests/unit-tests/open-org-backend/agents/admin/workspace-admin-agent.test.mo`_:
+
+- **Category-to-role mapping**: `#admin` → `#orgAdmin` produces the known org-admin persona text; `#research` → `#customAgent` produces `"research specialist"` line; `#communication` → `"communication specialist"`.
+- **Tool filtering — blocklist empty**: agent with `toolsDisallowed = []` and `toolsMisconfigured = []` → all resource-gated tools offered.
+- **Tool filtering — toolsDisallowed**: agent with `toolsDisallowed = ["web-search"]` → all tools except web-search passed to LLM.
+- **Tool filtering — toolsMisconfigured**: agent with `toolsMisconfigured = ["stripe-api"]` → stripe-api tool excluded from LLM tools, even if not in toolsDisallowed.
+- **Tool filtering — combined blocklists**: agent with `toolsDisallowed = ["web-search"]` and `toolsMisconfigured = ["stripe-api"]` → both tools excluded.
+- **Tool filtering — unknown tool name**: agent with `toolsDisallowed = ["nonexistent-tool"]` → name silently ignored, no panic.
+- **Sources block — non-empty**: agent with `sources = ["https://docs.example.com", "https://other.com"]` → instructions contain `"agent-sources"` block with both URLs.
+- **Sources block — empty**: agent with `sources = []` → no `"agent-sources"` block.
+
+_Integration tests — update `workspace-admin-talk.spec.ts`_:
+
+- Existing admin-talk tests must pass unchanged — the seeded admin agent (`toolsDisallowed = []`, `toolsMisconfigured = []`, `category = #admin`) should behave identically to the pre-refactor service.
+- **Tool blocklist enforced end-to-end**: register an agent with `toolsDisallowed = ["web-search"]`; send a message that would normally trigger web-search → LLM does not receive web-search tool; no web-search step in the returned `steps` array.
+- **Misconfigured tools excluded**: register an agent with `toolsMisconfigured = ["custom-api"]`; send a message → LLM does not receive custom-api tool, even though it's not in toolsDisallow.
 
 ### 1.8 — Session tracking model
 

@@ -7,7 +7,8 @@ module {
 
   /// Role for agent role layer selection
   public type AgentRole = {
-    #workspaceAdmin;
+    #orgAdmin; // org/workspace admin assistant — used by agents with category #admin
+    #workspaceAdmin; // legacy: kept for backward compatibility
     #workspaceMember;
     #customAgent : { name : Text; persona : ?Text };
   };

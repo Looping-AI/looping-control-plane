@@ -242,6 +242,7 @@ export async function createTestAgent(
     secretsAllowed,
     [],
     [],
+    [],
   );
   if ("err" in result) {
     throw new Error(`Failed to register agent: ${result.err}`);

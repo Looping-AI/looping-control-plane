@@ -14,7 +14,7 @@ import Time "mo:core/Time";
 import ConversationModel "../models/conversation-model";
 import AgentModel "../models/agent-model";
 import Types "../types";
-import WorkspaceAdminOrchestrator "../orchestrators/workspace-admin-orchestrator";
+import AgentOrchestrator "../orchestrators/agent-orchestrator";
 import SlackWrapper "../wrappers/slack-wrapper";
 import SecretModel "../models/secret-model";
 import ValueStreamModel "../models/value-stream-model";
@@ -37,12 +37,10 @@ module {
 
   /// Dispatch to the appropriate agent service based on `primaryAgent.category`.
   ///
-  /// Currently only `#admin` is wired to an implementation; `#research` and
-  /// `#communication` return a stub error until Phase 1.7 introduces the generic
-  /// agent service.
+  /// Currently only `#admin` is wired to a full implementation; `#research` and
+  /// `#communication` return a stub error until Phase 5 introduces those agents.
   public func route(
     primaryAgent : AgentModel.AgentRecord,
-    agentRegistry : AgentModel.AgentRegistryState,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
     conversationEntry : ?ConversationModel.TimelineEntry,
@@ -57,8 +55,8 @@ module {
   ) : async RouteResult {
     switch (primaryAgent.category) {
       case (#admin) {
-        await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
-          agentRegistry,
+        await AgentOrchestrator.orchestrateAgentTalk(
+          primaryAgent,
           mcpToolRegistry,
           workspaceSecrets,
           conversationEntry,

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "max-rounds-termination-prompt",
-  "recordedAt": "2026-03-04T18:14:59.510Z",
+  "recordedAt": "2026-03-04T22:51:22.080Z",
   "interactions": [
     {
       "request": {
@@ -30,7 +30,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "507"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Wed, 04 Mar 2026 18:14:59 GMT"],
+          ["date", "Wed, 04 Mar 2026 22:51:22 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -43,27 +43,27 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-szpnwvgi,envoy-edge-lhr-kvjsiusp"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-dbndgilh,envoy-edge-lhr-adflzfdz"
           ],
           ["x-accepted-oauth-scopes", "chat:write"],
           ["x-backend", "api_normal"],
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "155"],
+          ["x-envoy-upstream-service-time", "180"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-gmm6iu7z2g2p"],
+          ["x-server", "slack-www-hhvm-api-iad-ljci8g7e0jrr"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-req-id", "242a7e2fd26cf2949a92ed3da8a66155"],
+          ["x-slack-req-id", "1a0d14577bc8e4c74e54fd901f97e5b8"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aah2o_0CtVajzFxfWAnhzwAAACw"],
+          ["x-slack-unique-id", "aai3amD26bnjN43xL5XFFQAAABg"],
           ["x-xss-protection", "0"]
         ],
-        "body": "{\"ok\":true,\"channel\":\"C0AG99QQAR4\",\"ts\":\"1772648099.775549\",\"message\":{\"user\":\"U0ADWN7P3DY\",\"type\":\"message\",\"ts\":\"1772648099.775549\",\"bot_id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"text\":\":warning: I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.\",\"team\":\"T0ADR0P92G2\",\"bot_profile\":{\"id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"user_id\":\"U0ADWN7P3DY\",\"name\":\"Looping AI\",\"icons\":{\"image_36\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg\"},\"deleted\":false,\"updated\":1770651646,\"team_id\":\"T0ADR0P92G2\"},\"blocks\":[{\"type\":\"rich_text\",\"block_id\":\"FfL\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"emoji\",\"name\":\"warning\",\"unicode\":\"26a0-fe0f\"},{\"type\":\"text\",\"text\":\" I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.\"}]}]}]},\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
+        "body": "{\"ok\":true,\"channel\":\"C0AG99QQAR4\",\"ts\":\"1772664682.345679\",\"message\":{\"user\":\"U0ADWN7P3DY\",\"type\":\"message\",\"ts\":\"1772664682.345679\",\"bot_id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"text\":\":warning: I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.\",\"team\":\"T0ADR0P92G2\",\"bot_profile\":{\"id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"user_id\":\"U0ADWN7P3DY\",\"name\":\"Looping AI\",\"icons\":{\"image_36\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg\"},\"deleted\":false,\"updated\":1770651646,\"team_id\":\"T0ADR0P92G2\"},\"blocks\":[{\"type\":\"rich_text\",\"block_id\":\"S\\/o\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"emoji\",\"name\":\"warning\",\"unicode\":\"26a0-fe0f\"},{\"type\":\"text\",\"text\":\" I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.\"}]}]}]},\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
         "bodyEncoding": "text"
       }
     }
