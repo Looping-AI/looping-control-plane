@@ -6,10 +6,14 @@ import {
   idlFactory,
   type _SERVICE,
   SLACK_TEST_TOKEN,
-  SLACK_ORG_ADMIN_CHANNEL_ID,
   SLACK_SPECS_CHANNEL_ID,
 } from "../../setup.ts";
-import { expectOk, expectErr, expectSome } from "../../helpers.ts";
+import {
+  expectOk,
+  expectErr,
+  expectSome,
+  resolveOrgAdminChannel,
+} from "../../helpers.ts";
 import {
   withCassette,
   withCassetteMulti,
@@ -171,24 +175,17 @@ describe("Workspace Channel Anchors", () => {
     // -----------------------------------------------------------------------
 
     it("should verify channel via Slack API and set admin channel for default workspace", async () => {
-      if (
-        await shouldSkipWithoutCassette(
-          `${CASSETTE_BASE}/set-admin-channel-ws0`,
-        )
-      )
-        return;
+      const cassetteKey = `${CASSETTE_BASE}/set-admin-channel-ws0`;
+      if (await shouldSkipWithoutCassette(cassetteKey)) return;
 
+      const adminChannel = await resolveOrgAdminChannel(cassetteKey);
       await actor.storeSecret(0n, { slackBotToken: null }, SLACK_TEST_TOKEN);
       const deferredActor = makeDeferredActor(pic, canisterId, ownerIdentity);
 
       const { result } = await withCassette(
         pic,
-        `${CASSETTE_BASE}/set-admin-channel-ws0`,
-        () =>
-          deferredActor.setWorkspaceAdminChannel(
-            0n,
-            SLACK_ORG_ADMIN_CHANNEL_ID,
-          ),
+        cassetteKey,
+        () => deferredActor.setWorkspaceAdminChannel(0n, adminChannel),
         { ticks: 5, maxRounds: 3 },
       );
 
@@ -196,34 +193,23 @@ describe("Workspace Channel Anchors", () => {
 
       const list = expectOk(await actor.listWorkspaces());
       const ws = list.find((w) => w.id === 0n)!;
-      expect(expectSome(ws.adminChannelId)).toEqual(SLACK_ORG_ADMIN_CHANNEL_ID);
+      expect(expectSome(ws.adminChannelId)).toEqual(adminChannel);
     });
 
     it("should overwrite an existing admin channel", async () => {
-      if (
-        await shouldSkipWithoutCassette(
-          `${CASSETTE_BASE}/overwrite-admin-channel`,
-        )
-      )
-        return;
+      const cassetteKey = `${CASSETTE_BASE}/overwrite-admin-channel`;
+      if (await shouldSkipWithoutCassette(cassetteKey)) return;
 
+      const adminChannel = await resolveOrgAdminChannel(cassetteKey);
       await actor.storeSecret(0n, { slackBotToken: null }, SLACK_TEST_TOKEN);
       const deferredActor = makeDeferredActor(pic, canisterId, ownerIdentity);
 
       const { results } = await withCassetteMulti(
         pic,
-        `${CASSETTE_BASE}/overwrite-admin-channel`,
+        cassetteKey,
         [
-          () =>
-            deferredActor.setWorkspaceAdminChannel(
-              0n,
-              SLACK_ORG_ADMIN_CHANNEL_ID,
-            ),
-          () =>
-            deferredActor.setWorkspaceAdminChannel(
-              0n,
-              SLACK_ORG_ADMIN_CHANNEL_ID,
-            ),
+          () => deferredActor.setWorkspaceAdminChannel(0n, adminChannel),
+          () => deferredActor.setWorkspaceAdminChannel(0n, adminChannel),
         ],
         { ticks: 5 },
       );
@@ -233,7 +219,7 @@ describe("Workspace Channel Anchors", () => {
 
       const list = expectOk(await actor.listWorkspaces());
       const ws = list.find((w) => w.id === 0n)!;
-      expect(expectSome(ws.adminChannelId)).toEqual(SLACK_ORG_ADMIN_CHANNEL_ID);
+      expect(expectSome(ws.adminChannelId)).toEqual(adminChannel);
     });
 
     it("should reject when Slack reports the channel has the wrong name for workspace 0", async () => {
@@ -341,21 +327,18 @@ describe("Workspace Channel Anchors", () => {
     });
 
     it("should not affect the admin channel when setting member channel", async () => {
-      if (await shouldSkipWithoutCassette(`${CASSETTE_BASE}/both-channels`))
-        return;
+      const cassetteKey = `${CASSETTE_BASE}/both-channels`;
+      if (await shouldSkipWithoutCassette(cassetteKey)) return;
 
+      const adminChannel = await resolveOrgAdminChannel(cassetteKey);
       await actor.storeSecret(0n, { slackBotToken: null }, SLACK_TEST_TOKEN);
       const deferredActor = makeDeferredActor(pic, canisterId, ownerIdentity);
 
       const { results } = await withCassetteMulti(
         pic,
-        `${CASSETTE_BASE}/both-channels`,
+        cassetteKey,
         [
-          () =>
-            deferredActor.setWorkspaceAdminChannel(
-              0n,
-              SLACK_ORG_ADMIN_CHANNEL_ID,
-            ),
+          () => deferredActor.setWorkspaceAdminChannel(0n, adminChannel),
           () =>
             deferredActor.setWorkspaceMemberChannel(0n, SLACK_SPECS_CHANNEL_ID),
         ],
@@ -367,7 +350,7 @@ describe("Workspace Channel Anchors", () => {
 
       const list = expectOk(await actor.listWorkspaces());
       const ws = list.find((w) => w.id === 0n)!;
-      expect(expectSome(ws.adminChannelId)).toEqual(SLACK_ORG_ADMIN_CHANNEL_ID);
+      expect(expectSome(ws.adminChannelId)).toEqual(adminChannel);
       expect(expectSome(ws.memberChannelId)).toEqual(SLACK_SPECS_CHANNEL_ID);
     });
   });
