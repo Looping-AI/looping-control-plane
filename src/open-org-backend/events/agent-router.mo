@@ -14,20 +14,31 @@ import Time "mo:core/Time";
 import ConversationModel "../models/conversation-model";
 import AgentModel "../models/agent-model";
 import Types "../types";
-import WorkspaceAdminOrchestrator "../orchestrators/workspace-admin-orchestrator";
+import AgentOrchestrator "../orchestrators/agent-orchestrator";
 import SlackWrapper "../wrappers/slack-wrapper";
 import SecretModel "../models/secret-model";
-import ValueStreamModel "../models/value-stream-model";
-import ObjectiveModel "../models/objective-model";
-import MetricModel "../models/metric-model";
 import McpToolRegistry "../tools/mcp-tool-registry";
 import Logger "../utilities/logger";
 
 module {
 
-  // ─── Types ───────────────────────────────────────────────────────────────────
+  // ─── Context type aliases ─────────────────────────────────────────────────────
+  //
+  // Defined in AgentOrchestrator; re-exported here so callers only need one import.
 
-  /// Shared result type for all category dispatches.
+  /// Context for the org-admin agent (workspace lifecycle + channel anchors).
+  public type AdminAgentCtx = AgentOrchestrator.AdminAgentCtx;
+
+  /// Context for the work-planning agent (value streams, metrics, objectives).
+  public type PlanningAgentCtx = AgentOrchestrator.PlanningAgentCtx;
+
+  /// Per-category context union — callers construct the right variant based on
+  /// `primaryAgent.category` and pass it to `route()`.
+  public type AgentCtx = AgentOrchestrator.AgentCtx;
+
+  // ─── Result type ─────────────────────────────────────────────────────────────
+
+  /// Shared result type returned by `route()`.
   public type RouteResult = {
     #ok : { response : Text; steps : [Types.ProcessingStep] };
     #err : { message : Text; steps : [Types.ProcessingStep] };
@@ -35,66 +46,53 @@ module {
 
   // ─── Dispatch ────────────────────────────────────────────────────────────────
 
-  /// Dispatch to the appropriate agent service based on `primaryAgent.category`.
+  /// Validate the `(agent.category, agentCtx)` pairing and dispatch to the
+  /// orchestrator.
   ///
-  /// Currently only `#admin` is wired to an implementation; `#research` and
-  /// `#communication` return a stub error until Phase 1.7 introduces the generic
-  /// agent service.
+  /// Returns `#err` if the category tag in `agentCtx` does not match
+  /// `primaryAgent.category` — this is an internal invariant violation and
+  /// should never happen in production; the error message is intentionally
+  /// descriptive for easier debugging.
   public func route(
     primaryAgent : AgentModel.AgentRecord,
-    agentRegistry : AgentModel.AgentRegistryState,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
     conversationEntry : ?ConversationModel.TimelineEntry,
-    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
-    valueStreamsMap : ValueStreamModel.ValueStreamsMap,
-    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistryState : MetricModel.MetricsRegistryState,
-    metricDatapoints : MetricModel.MetricDatapointsStore,
-    workspaceId : Nat,
+    agentCtx : AgentCtx,
     message : Text,
     encryptionKey : [Nat8],
   ) : async RouteResult {
-    switch (primaryAgent.category) {
-      case (#admin) {
-        await WorkspaceAdminOrchestrator.orchestrateAdminTalk(
-          agentRegistry,
-          mcpToolRegistry,
-          workspaceSecrets,
-          conversationEntry,
-          workspaceValueStreamsState,
-          valueStreamsMap,
-          workspaceObjectivesMap,
-          metricsRegistryState,
-          metricDatapoints,
-          workspaceId,
-          message,
-          encryptionKey,
-        );
-      };
-      case (#research) {
-        let step : Types.ProcessingStep = {
-          action = "route";
-          result = #err("category service not yet implemented");
-          timestamp = Time.now();
-        };
-        #err({
-          message = "category service not yet implemented";
-          steps = [step];
-        });
-      };
-      case (#communication) {
-        let step : Types.ProcessingStep = {
-          action = "route";
-          result = #err("category service not yet implemented");
-          timestamp = Time.now();
-        };
-        #err({
-          message = "category service not yet implemented";
-          steps = [step];
-        });
-      };
+    // Validate that the ctx variant matches the agent's declared category.
+    let ctxMatchesCategory : Bool = switch (primaryAgent.category, agentCtx) {
+      case (#admin, #admin(_)) { true };
+      case (#planning, #planning(_)) { true };
+      case (#research, #research) { true };
+      case (#communication, #communication) { true };
+      case _ { false };
     };
+
+    if (not ctxMatchesCategory) {
+      let step : Types.ProcessingStep = {
+        action = "route";
+        result = #err("agent context mismatch");
+        timestamp = Time.now();
+      };
+      return #err({
+        message = "agent context mismatch: category=" # debug_show (primaryAgent.category) # " does not match the provided agentCtx variant";
+        steps = [step];
+      });
+    };
+
+    // Forward to the orchestrator with the typed context
+    await AgentOrchestrator.orchestrateAgentTalk(
+      primaryAgent,
+      mcpToolRegistry,
+      workspaceSecrets,
+      conversationEntry,
+      agentCtx,
+      message,
+      encryptionKey,
+    );
   };
 
   // ─── Termination prompt ──────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ func registerSimple(
       #groq(#gpt_oss_120b),
       [],
       [],
+      [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       state,

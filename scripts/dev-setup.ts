@@ -32,7 +32,8 @@ interface AgentTemplate {
     variant: string;
   };
   secretsAllowed: Array<{ workspaceId: number; secret: string }>;
-  tools: string[];
+  toolsDisallowed: string[];
+  toolsMisconfigured: string[];
   sources: string[];
 }
 
@@ -55,17 +56,22 @@ function buildRegisterAgentArgs(template: AgentTemplate): string {
       ? "vec {}"
       : `vec { ${template.secretsAllowed.map((s) => `record { ${s.workspaceId} : nat; variant { ${s.secret} } }`).join("; ")} }`;
 
-  const toolsCandid =
-    template.tools.length === 0
+  const toolsDisallowedCandid =
+    template.toolsDisallowed.length === 0
       ? "vec {}"
-      : `vec { ${template.tools.map((t) => `"${t}"`).join("; ")} }`;
+      : `vec { ${template.toolsDisallowed.map((t) => `"${t}"`).join("; ")} }`;
+
+  const toolsMisconfiguredCandid =
+    template.toolsMisconfigured.length === 0
+      ? "vec {}"
+      : `vec { ${template.toolsMisconfigured.map((t) => `"${t}"`).join("; ")} }`;
 
   const sourcesCandid =
     template.sources.length === 0
       ? "vec {}"
       : `vec { ${template.sources.map((s) => `"${s}"`).join("; ")} }`;
 
-  return `("${template.name}", variant { ${template.category} }, ${modelCandid}, ${secretsCandid}, ${toolsCandid}, ${sourcesCandid})`;
+  return `("${template.name}", variant { ${template.category} }, ${modelCandid}, ${secretsCandid}, ${toolsDisallowedCandid}, ${toolsMisconfiguredCandid}, ${sourcesCandid})`;
 }
 
 // ANSI color codes for terminal output

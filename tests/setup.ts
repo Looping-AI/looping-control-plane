@@ -23,6 +23,10 @@ export const TEST_API_KEY =
 export const TEST_MODEL = "openai/gpt-oss-120b";
 export const SLACK_TEST_TOKEN =
   process.env["SLACK_APP_BOT_TOKEN"] || "not-needed-due-to-cassette";
+export const SLACK_ORG_ADMIN_CHANNEL_ID =
+  process.env["SLACK_ORG_ADMIN_CHANNEL_ID"] || "C_ORG_ADMIN_NOT_SET";
+export const SLACK_SPECS_CHANNEL_ID =
+  process.env["SLACK_SPECS_CHANNEL_ID"] || "C_SPECS_NOT_SET";
 
 // Load environment variables from .env.test
 const envFile = resolve(import.meta.dir, "..", "..", ".env.test");
@@ -240,6 +244,7 @@ export async function createTestAgent(
     category,
     { groq: { gpt_oss_120b: null } },
     secretsAllowed,
+    [],
     [],
     [],
   );

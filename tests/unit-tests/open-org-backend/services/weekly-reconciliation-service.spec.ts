@@ -90,6 +90,11 @@ function slackPostMessageResponse(channelId: string) {
   return { ok: true, channel: channelId, ts: "1234567890.000001" };
 }
 
+/** A minimal conversations.info success response. */
+function slackChannelInfoResponse(channelId: string, channelName: string) {
+  return { ok: true, channel: { id: channelId, name: channelName } };
+}
+
 const slackAuthError = { ok: false, error: "invalid_auth" };
 const slackChannelNotFoundError = { ok: false, error: "channel_not_found" };
 
@@ -222,7 +227,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         "xoxb-invalid",
         none,
-        none,
       );
 
       // Only 1 HTTP call is made before abort; no workspace channel calls follow.
@@ -248,7 +252,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
 
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
-        none,
         none,
       );
 
@@ -277,7 +280,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         none,
-        none,
       );
 
       const result = (await mockSequentialResponses(pic, call, [
@@ -304,7 +306,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
 
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
-        none,
         none,
       );
 
@@ -339,7 +340,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         none,
-        none,
       );
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([]), // empty — no current members
@@ -360,7 +360,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
 
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
-        none,
         none,
       );
       const result = (await mockSequentialResponses(pic, call, [
@@ -388,7 +387,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
 
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
-        none,
         none,
       );
       await mockSequentialResponses(pic, call, [
@@ -426,7 +424,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         none, // no org admin channel
-        none,
       );
 
       const result = (await mockSequentialResponses(pic, call, [
@@ -462,7 +459,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
       await mockSequentialResponses(pic, call, [
@@ -470,6 +466,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
           { id: "U_ORG_ADMIN", name: "org-admin" },
           { id: "U_REG", name: "regular" },
         ]),
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, ORG_ADMIN_CHANNEL_NAME), // org admin — info ok
         slackChannelMembersResponse(["U_ORG_ADMIN"]), // org admin channel — only U_ORG_ADMIN
         ...WORKSPACE_CHANNEL_RESPONSES,
       ]);
@@ -503,11 +500,11 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_EX_ADMIN", name: "ex-admin" }]),
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, ORG_ADMIN_CHANNEL_NAME), // org admin — info ok
         slackChannelMembersResponse([]), // org admin channel — now empty
         ...WORKSPACE_CHANNEL_RESPONSES,
       ]);
@@ -535,16 +532,15 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
-      // org admin channel → channel_not_found; DM to primary owner → success;
+      // org admin channel → getChannelInfo fails (channel_not_found); DM to primary owner → success;
       // then workspace channel calls.
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([
           { id: "U_OWNER", name: "owner", isPrimaryOwner: true },
         ]),
-        slackChannelNotFoundError, // org admin channel gone
+        slackChannelNotFoundError, // org admin channel — gone (getChannelInfo fails)
         slackPostMessageResponse("U_OWNER"), // DM to primary owner
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
@@ -566,14 +562,13 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([
           { id: "U_OWNER", name: "owner", isPrimaryOwner: true },
         ]),
-        slackChannelNotFoundError, // org admin channel gone
+        slackChannelNotFoundError, // org admin channel — gone (getChannelInfo fails)
         slackPostMessageResponse("U_OWNER"), // DM to primary owner
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
@@ -589,18 +584,71 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_REG", name: "regular" }]),
-        slackChannelNotFoundError, // org admin channel gone
+        slackChannelNotFoundError, // org admin channel — gone (getChannelInfo fails)
         // No postMessage call because there is no primary owner to DM.
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
       expect(result.orgAdminChannelOk).toBe(false);
       expect(result.goneChannels).toContain(ORG_ADMIN_CHANNEL_ID);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(
+        result.errors.some((e) => e.includes("Primary Owner not found")),
+      ).toBe(true);
+    });
+
+    it("should warn Primary Owner when org admin channel has the wrong name", async () => {
+      await resetCache();
+
+      await seedUser({
+        slackUserId: "U_PO",
+        displayName: "primary-owner",
+        isPrimaryOwner: true,
+        isOrgAdmin: false,
+      });
+
+      const call = await testCanister.testWeeklyReconciliation(
+        SLACK_TEST_TOKEN,
+        some(ORG_ADMIN_CHANNEL_ID),
+      );
+
+      // conversations.info returns wrong name → DM warning sent → conversations.members continues.
+      const result = (await mockSequentialResponses(pic, call, [
+        slackUsersListResponse([
+          { id: "U_PO", name: "primary-owner", isPrimaryOwner: true },
+        ]),
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, "wrong-channel-name"), // wrong name!
+        slackPostMessageResponse("U_PO"), // warning DM to Primary Owner
+        slackChannelMembersResponse([]), // org admin channel — members ok
+        ...WORKSPACE_CHANNEL_RESPONSES,
+      ])) as ReconciliationSummary;
+
+      // Channel is still accessible; orgAdminChannelOk = true.
+      expect(result.orgAdminChannelOk).toBe(true);
+      expect(result.goneChannels).toHaveLength(0);
+    });
+
+    it("should record an error when org admin channel has wrong name and no primary owner in cache", async () => {
+      await resetCache();
+      // No primary owner — warning DM cannot be sent.
+
+      const call = await testCanister.testWeeklyReconciliation(
+        SLACK_TEST_TOKEN,
+        some(ORG_ADMIN_CHANNEL_ID),
+      );
+
+      const result = (await mockSequentialResponses(pic, call, [
+        slackUsersListResponse([{ id: "U_REG", name: "regular" }]),
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, "wrong-channel-name"), // wrong name, no DM
+        slackChannelMembersResponse([]), // org admin channel — members ok
+        ...WORKSPACE_CHANNEL_RESPONSES,
+      ])) as ReconciliationSummary;
+
+      expect(result.orgAdminChannelOk).toBe(true);
       expect(result.errors.length).toBeGreaterThan(0);
       expect(
         result.errors.some((e) => e.includes("Primary Owner not found")),
@@ -619,7 +667,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         none,
-        none,
       );
 
       const result = (await mockSequentialResponses(pic, call, [
@@ -637,12 +684,12 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([]),
-        slackChannelMembersResponse([]), // org admin channel — ok
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, ORG_ADMIN_CHANNEL_NAME), // org admin — info ok
+        slackChannelMembersResponse([]), // org admin channel — members ok
         slackChannelNotFoundError, // ws1 admin channel — gone
         slackPostMessageResponse(ORG_ADMIN_CHANNEL_ID), // notification to org admin channel
         slackChannelMembersResponse([]), // ws1 member channel — ok
@@ -659,12 +706,12 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([]),
-        slackChannelMembersResponse([]), // org admin channel — ok
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, ORG_ADMIN_CHANNEL_NAME), // org admin — info ok
+        slackChannelMembersResponse([]), // org admin channel — members ok
         slackChannelMembersResponse([]), // ws1 admin channel — ok
         slackChannelNotFoundError, // ws1 member channel — gone
         slackPostMessageResponse("C_ADMIN_CHANNEL"), // notification to ws1 admin channel
@@ -694,7 +741,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
 
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
-        none,
         none,
       );
 
@@ -740,7 +786,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         none,
-        none,
       );
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_EX_WS_ADMIN", name: "ex-ws-admin" }]),
@@ -774,7 +819,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         none,
-        none,
       );
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_EX_WS_MEM", name: "ex-ws-member" }]),
@@ -807,17 +851,16 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
-      // Sequence: users.list → org admin gone → DM to PO → ws1 admin GONE
+      // Sequence: users.list → org admin getChannelInfo fails (gone) → DM to PO → ws1 admin GONE
       //           (no postMessage to org admin channel — it's gone!) → ws1 member ok
       //           → ws2 admin ok → ws2 member ok
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([
           { id: "U_PO", name: "primary-owner", isPrimaryOwner: true },
         ]),
-        slackChannelNotFoundError, // org admin channel — gone
+        slackChannelNotFoundError, // org admin channel — gone (getChannelInfo fails)
         slackPostMessageResponse("U_PO"), // DM to primary owner
         slackChannelNotFoundError, // ws1 admin channel — also gone
         // Critically: no postMessage response here (code must NOT try to notify)
@@ -850,7 +893,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
 
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
-        none,
         none,
       );
       await mockSequentialResponses(pic, call, [
@@ -897,10 +939,10 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_A", name: "user-a" }]),
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, ORG_ADMIN_CHANNEL_NAME), // org admin — info ok
         slackChannelMembersResponse(["U_A"]), // org admin channel — U_A granted
         ...WORKSPACE_CHANNEL_RESPONSES,
       ]);
@@ -965,7 +1007,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call1 = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         none,
-        none,
       );
       await mockSequentialResponses(pic, call1, [
         slackUsersListResponse([{ id: "U_PURGE", name: "purge-test" }]),
@@ -980,7 +1021,6 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       // Run second reconciliation — should detect and purge the old entries.
       const call2 = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
-        none,
         none,
       );
       const result = (await mockSequentialResponses(pic, call2, [
@@ -1003,14 +1043,14 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const call = await testCanister.testWeeklyReconciliation(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
-        some(ORG_ADMIN_CHANNEL_NAME),
       );
 
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([
           { id: "U001", name: "alice", isPrimaryOwner: true },
         ]),
-        slackChannelMembersResponse(["U001"]), // org admin channel
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, ORG_ADMIN_CHANNEL_NAME), // org admin — info ok
+        slackChannelMembersResponse(["U001"]), // org admin channel — members
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -1037,8 +1077,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       const { result } = await withCassette(
         pic,
         "unit-tests/open-org-backend/services/weekly-reconciliation-service/full-run",
-        () =>
-          testCanister.testWeeklyReconciliation(SLACK_TEST_TOKEN, none, none),
+        () => testCanister.testWeeklyReconciliation(SLACK_TEST_TOKEN, none),
         { ticks: 5, maxRounds: 20 },
       );
 

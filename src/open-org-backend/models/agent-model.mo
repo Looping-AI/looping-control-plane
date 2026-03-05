@@ -13,9 +13,10 @@ module {
   /// The broad category an agent belongs to.
   /// Categories drive which tool set is available and skills the LLM is prompted with.
   public type AgentCategory = {
-    #admin; // org or workspace admin assistant
-    #research; // information gathering and planning
-    #communication; // drafting, summarizing, messaging
+    #admin; // org administration: workspace & channel management
+    #planning; // work planning: value streams, metrics, objectives
+    #research; // information gathering — stub, Phase 5
+    #communication; // drafting, summarizing, messaging — stub, Phase 5
   };
 
   /// Groq-specific model variants.
@@ -44,7 +45,8 @@ module {
   ///   category        — determines the available tool catalogue and prompt strategy.
   ///   llmModel        — provider and model variant (e.g. #groq(#gpt_oss_120b)).
   ///   secretsAllowed  — explicit whitelist of (workspaceId, SecretId) pairs this agent may access.
-  ///   toolsAllowed    — subset of category tools this agent may invoke.
+  ///   toolsDisallowed — blocklist of tool names to exclude from LLM tool set (by function name).
+  ///   toolsMisconfigured — tools excluded due to operator errors; cleared after investigation.
   ///   toolsState      — per-tool runtime state (usageCount + knowHow text).
   ///   sources         — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
   public type AgentRecord = {
@@ -53,7 +55,8 @@ module {
     category : AgentCategory;
     llmModel : LlmModel;
     secretsAllowed : [(Nat, Types.SecretId)];
-    toolsAllowed : [Text];
+    toolsDisallowed : [Text];
+    toolsMisconfigured : [Text];
     toolsState : Map.Map<Text, ToolState>;
     sources : [Text];
   };
@@ -168,7 +171,8 @@ module {
     category : AgentCategory,
     llmModel : LlmModel,
     secretsAllowed : [(Nat, Types.SecretId)],
-    toolsAllowed : [Text],
+    toolsDisallowed : [Text],
+    toolsMisconfigured : [Text],
     toolsState : Map.Map<Text, ToolState>,
     sources : [Text],
     state : AgentRegistryState,
@@ -190,7 +194,8 @@ module {
       category;
       llmModel;
       secretsAllowed;
-      toolsAllowed;
+      toolsDisallowed;
+      toolsMisconfigured;
       toolsState;
       sources;
     };
@@ -226,7 +231,8 @@ module {
     newCategory : ?AgentCategory,
     newLlmModel : ?LlmModel,
     newSecretsAllowed : ?[(Nat, Types.SecretId)],
-    newToolsAllowed : ?[Text],
+    newToolsDisallowed : ?[Text],
+    newToolsMisconfigured : ?[Text],
     newToolsState : ?Map.Map<Text, ToolState>,
     newSources : ?[Text],
     state : AgentRegistryState,
@@ -269,8 +275,12 @@ module {
             case (null) { existing.secretsAllowed };
             case (?s) { s };
           };
-          toolsAllowed = switch (newToolsAllowed) {
-            case (null) { existing.toolsAllowed };
+          toolsDisallowed = switch (newToolsDisallowed) {
+            case (null) { existing.toolsDisallowed };
+            case (?t) { t };
+          };
+          toolsMisconfigured = switch (newToolsMisconfigured) {
+            case (null) { existing.toolsMisconfigured };
             case (?t) { t };
           };
           toolsState = switch (newToolsState) {
@@ -387,7 +397,8 @@ module {
     category : AgentCategory;
     llmModel : LlmModel;
     secretsAllowed : [(Nat, Types.SecretId)];
-    toolsAllowed : [Text];
+    toolsDisallowed : [Text];
+    toolsMisconfigured : [Text];
     toolsState : [(Text, ToolState)];
     sources : [Text];
   };
@@ -400,7 +411,8 @@ module {
       category = record.category;
       llmModel = record.llmModel;
       secretsAllowed = record.secretsAllowed;
-      toolsAllowed = record.toolsAllowed;
+      toolsDisallowed = record.toolsDisallowed;
+      toolsMisconfigured = record.toolsMisconfigured;
       toolsState = Iter.toArray(Map.entries(record.toolsState));
       sources = record.sources;
     };

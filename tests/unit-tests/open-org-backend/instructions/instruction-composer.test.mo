@@ -91,7 +91,8 @@ suite(
               [],
             );
 
-            expect.bool(Text.contains(result, #text("You are TestBot."))).isTrue();
+            // New format: single combined persona block
+            expect.bool(Text.contains(result, #text("You are TestBot, a general-purpose AI assistant."))).isTrue();
           },
         );
 
@@ -101,14 +102,14 @@ suite(
             let result = InstructionComposer.compose(
               #customAgent({
                 name = "TestBot";
-                persona = ?"You are friendly and helpful.";
+                persona = ?"research specialist";
               }),
               [],
               [],
             );
 
-            expect.bool(Text.contains(result, #text("You are TestBot."))).isTrue();
-            expect.bool(Text.contains(result, #text("friendly and helpful"))).isTrue();
+            // New format: name and persona combined into one block
+            expect.bool(Text.contains(result, #text("You are TestBot, a research specialist AI assistant."))).isTrue();
           },
         );
 

@@ -1,10 +1,17 @@
-import List "mo:core/List";
 import InstructionTypes "../instruction-types";
 
 module {
   /// Get agent role layer blocks based on the role
   public func getBlocks(role : InstructionTypes.AgentRole) : [InstructionTypes.InstructionBlock] {
     switch (role) {
+      case (#orgAdmin) {
+        [
+          {
+            id = "org-admin-role";
+            content = "You are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.";
+          },
+        ];
+      };
       case (#workspaceAdmin) {
         [
           {
@@ -22,30 +29,18 @@ module {
         ];
       };
       case (#customAgent(agent)) {
-        let blocks = List.empty<InstructionTypes.InstructionBlock>();
-
-        List.add(
-          blocks,
-          {
-            id = "agent-name";
-            content = "You are " # agent.name # ".";
-          },
-        );
-
-        switch (agent.persona) {
-          case (?persona) {
-            List.add(
-              blocks,
-              {
-                id = "agent-persona";
-                content = persona;
-              },
-            );
-          };
-          case (null) {};
+        // Produce a single combined persona block:
+        // "You are {name}, a {persona ?? "general-purpose"} AI assistant."
+        let persona = switch (agent.persona) {
+          case (?p) { p };
+          case (null) { "general-purpose" };
         };
-
-        List.toArray(blocks);
+        [
+          {
+            id = "agent-persona";
+            content = "You are " # agent.name # ", a " # persona # " AI assistant.";
+          },
+        ];
       };
     };
   };

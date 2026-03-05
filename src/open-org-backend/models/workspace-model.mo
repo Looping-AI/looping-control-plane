@@ -5,12 +5,14 @@
 ///   - `adminChannelId`  — members of this Slack channel get `#admin` scope for the workspace
 ///   - `memberChannelId` — members of this Slack channel get `#member` scope for the workspace
 ///
+/// Workspace 0 is the org workspace. Its `adminChannelId` doubles as the org-admin channel
+/// anchor — members of that channel are treated as org-level admins. There is no separate
+/// org-admin channel state; setting workspace 0's admin channel IS setting the org-admin
+/// channel, and only the org owner is allowed to do so.
+///
 /// Membership itself is stored in the SlackUserCache (SlackUserModel); these channel anchors
 /// are used by event handlers to resolve which workspace and scope to assign when Slack fires
 /// `member_joined_channel` / `member_left_channel` events.
-///
-/// The org-admin channel anchor is stored separately (as part of actor state in main.mo)
-/// because it is org-wide and not tied to a single workspace.
 
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
@@ -36,13 +38,6 @@ module {
   public type WorkspacesState = {
     var nextId : Nat;
     workspaces : Map.Map<Nat, WorkspaceRecord>;
-  };
-
-  /// The org-admin channel anchor — channel whose members are org-level admins.
-  /// Separate from workspace records because it is org-wide.
-  public type OrgAdminChannelAnchor = {
-    channelId : Text;
-    channelName : Text;
   };
 
   /// Result of resolving a Slack channel ID against all workspace anchors.
@@ -110,11 +105,6 @@ module {
     #ok(id);
   };
 
-  /// Look up a workspace by ID. Returns null if not found.
-  public func getWorkspace(state : WorkspacesState, id : Nat) : ?WorkspaceRecord {
-    Map.get(state.workspaces, Nat.compare, id);
-  };
-
   /// List all workspaces.
   public func listWorkspaces(state : WorkspacesState) : [WorkspaceRecord] {
     Iter.toArray(Map.values(state.workspaces));
@@ -166,6 +156,12 @@ module {
       };
     };
     #ok(());
+  };
+
+  /// Look up a single workspace record by ID.
+  /// Returns null if the workspace does not exist.
+  public func getWorkspace(state : WorkspacesState, workspaceId : Nat) : ?WorkspaceRecord {
+    Map.get(state.workspaces, Nat.compare, workspaceId);
   };
 
   /// Set the admin channel anchor for a workspace.

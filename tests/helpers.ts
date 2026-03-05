@@ -54,6 +54,97 @@ export async function resolveSpecsChannel(
   return envChannel;
 }
 
+/**
+ * Resolves the Slack org-admin channel ID to use in a test:
+ *
+ * - **Playback mode** (cassette already exists): extracts the channel from the
+ *   recorded `conversations.info` request URL (`?channel=...`) so the canister
+ *   call uses exactly the same channel that was captured, keeping the cassette
+ *   matcher happy.
+ *
+ * - **Recording mode** (no cassette yet): reads `SLACK_ORG_ADMIN_CHANNEL_ID`
+ *   from the environment (`.env.test`). Throws if the variable is absent.
+ *
+ * Pass the same cassette name you hand to `withCassette`.
+ */
+export async function resolveOrgAdminChannel(
+  cassetteName: string,
+): Promise<string> {
+  const fullPath = resolveCassettePath(cassetteName);
+
+  if (await cassetteExists(fullPath)) {
+    const cassette = await loadCassette(fullPath);
+    for (const interaction of cassette.interactions) {
+      if (
+        interaction.request.url.includes("slack.com/api/conversations.info")
+      ) {
+        const url = new URL(interaction.request.url);
+        const channel = url.searchParams.get("channel");
+        if (channel) return channel;
+      }
+    }
+  }
+
+  // Recording mode: env var must be configured
+  const envChannel = process.env["SLACK_ORG_ADMIN_CHANNEL_ID"];
+  if (!envChannel) {
+    throw new Error(
+      "SLACK_ORG_ADMIN_CHANNEL_ID is not set in .env.test. " +
+        "This is required when recording cassettes for the first time.",
+    );
+  }
+  return envChannel;
+}
+
+/**
+ * Resolves the Slack specs channel ID from a `conversations.info` cassette.
+ *
+ * Use this for tests that verify a real channel that is NOT the org-admin channel
+ * (e.g. workspace 1 admin channel, wrong-name tests for workspace 0).
+ *
+ * - **Playback mode** (cassette already exists): extracts the channel from the
+ *   recorded `conversations.info` request URL so the canister call uses exactly
+ *   the same channel that was captured, keeping the cassette matcher happy.
+ *
+ * - **Recording mode** (no cassette yet): reads `SLACK_SPECS_CHANNEL_ID` from
+ *   the environment (`.env.test`). Throws if the variable is absent.
+ *
+ * Pass the same cassette name you hand to `withCassette`.
+ */
+export async function resolveSpecsChannelForInfo(
+  cassetteName: string,
+): Promise<string> {
+  const fullPath = resolveCassettePath(cassetteName);
+
+  if (await cassetteExists(fullPath)) {
+    const cassette = await loadCassette(fullPath);
+    // Collect all conversations.info channels and return the last one.
+    // When multiple calls appear (e.g. set-admin then set-member in one cassette)
+    // the specs channel is always the final conversations.info interaction.
+    let lastChannel: string | undefined;
+    for (const interaction of cassette.interactions) {
+      if (
+        interaction.request.url.includes("slack.com/api/conversations.info")
+      ) {
+        const url = new URL(interaction.request.url);
+        const channel = url.searchParams.get("channel");
+        if (channel) lastChannel = channel;
+      }
+    }
+    if (lastChannel) return lastChannel;
+  }
+
+  // Recording mode: env var must be configured
+  const envChannel = process.env["SLACK_SPECS_CHANNEL_ID"];
+  if (!envChannel) {
+    throw new Error(
+      "SLACK_SPECS_CHANNEL_ID is not set in .env.test. " +
+        "This is required when recording cassettes for the first time.",
+    );
+  }
+  return envChannel;
+}
+
 // =============================================================================
 // Result / Optional unwrap helpers
 // =============================================================================

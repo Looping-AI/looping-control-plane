@@ -9,18 +9,7 @@
     { "workspaceId": 0, "secret": "groqApiKey" },
     { "workspaceId": 0, "secret": "slackBotToken" }
   ],
-  "tools": [
-    "save_value_stream",
-    "save_plan",
-    "web_search",
-    "create_metric",
-    "update_metric",
-    "get_metric_datapoints",
-    "create_objective",
-    "update_objective",
-    "archive_objective",
-    "record_objective_datapoint",
-    "add_impact_review"
-  ],
+  "toolsDisallowed": [],
+  "toolsMisconfigured": [],
   "sources": []
 }

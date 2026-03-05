@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "name": "bot-branch-session-inherit",
+  "recordedAt": "2026-03-05T18:38:16.323Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://api.groq.com/openai/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"seeded parent message\"},{\"role\":\"user\",\"content\":\"::unit-test-admin please summarise the progress\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. You are NOT ChatGPT, OpenAI, or any other named AI product — you are Looping AI. Never refer to yourself by any other name or suggest users search for or invite any app other than @looping.\\n\\nAll interactions happen through Slack. Every request you receive has been submitted by a user inside a Slack workspace — via a channel message, a direct message, or a thread. Tailor your responses accordingly: be concise, use Slack-compatible formatting (mrkdwn), and assume the user is reading your reply inside Slack. Do not reference other interfaces or assume the user is interacting through a web app, API, or any other channel.\\n\\nIf you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}},{\"type\":\"function\",\"name\":\"web_search\",\"description\":\"Performs a web search using Groq's compound model with built-in search capabilities. Returns AI-analyzed search results with reasoning. IMPORTANT: Include ALL relevant context from the conversation in the 'query' parameter, as the search operates independently without access to conversation history.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\"},\"exclude_domains\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Optional. Domains to exclude from search results. Supports wildcards like '*.example.com'.\"},\"include_domains\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Optional. Restrict search to only these domains. Supports wildcards.\"},\"country\":{\"type\":\"string\",\"description\":\"Optional. ISO country code to boost results from (e.g., 'us', 'uk', 'de').\"}},\"required\":[\"query\"]}},{\"type\":\"function\",\"name\":\"list_workspaces\",\"description\":\"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}},{\"type\":\"function\",\"name\":\"create_workspace\",\"description\":\"Creates a new workspace with the given name. Workspace names must be unique. Returns the new workspace ID.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Name for the new workspace. Must be unique across all workspaces.\"}},\"required\":[\"name\"]}},{\"type\":\"function\",\"name\":\"set_workspace_admin_channel\",\"description\":\"Sets the Slack channel whose members become admins of the given workspace. For workspace 0 (the org workspace) this also anchors the org-admin channel. Channel IDs must be globally unique across all workspace anchors.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to configure.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the admin channel.\"}},\"required\":[\"workspaceId\",\"channelId\"]}},{\"type\":\"function\",\"name\":\"set_workspace_member_channel\",\"description\":\"Sets the Slack channel whose members become members of the given workspace. Channel IDs must be globally unique across all workspace anchors.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to configure.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the member channel.\"}},\"required\":[\"workspaceId\",\"channelId\"]}}],\"user\":\"0\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["alt-svc", "h3=\":443\"; ma=86400"],
+          [
+            "cache-control",
+            "private, max-age=0, no-store, no-cache, must-revalidate"
+          ],
+          ["cf-cache-status", "DYNAMIC"],
+          ["cf-ray", "9d7b3c991f2362e8-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Thu, 05 Mar 2026 18:38:17 GMT"],
+          ["server", "cloudflare"],
+          ["strict-transport-security", "max-age=15552000"],
+          ["vary", "Origin"],
+          ["via", "1.1 google"],
+          ["x-groq-region", "dls"],
+          ["x-ratelimit-limit-requests", "500000"],
+          ["x-ratelimit-limit-tokens", "[REDACTED]"],
+          ["x-ratelimit-remaining-requests", "499999"],
+          ["x-ratelimit-remaining-tokens", "[REDACTED]"],
+          ["x-ratelimit-reset-requests", "172ms"],
+          ["x-ratelimit-reset-tokens", "[REDACTED]"],
+          ["x-request-id", "req_01kjzmp6zzey1v3k498ncakzc5"],
+          ["set-cookie", "[REDACTED]"]
+        ],
+        "body": "{\"id\":\"resp_01kjzmp7ekey2smw9322tpnej2\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1772735897,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kjzmp7ekey3afgqag9h8rrrx\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user says: \\\"::unit-test-admin please summarise the progress\\\". Likely they're invoking some command for admin of a workspace. They want a summary of progress. As Looping AI, we need to respond with a summary. But we have no data. Perhaps they expect us to fetch something? There's no tool for retrieving progress. We might need to ask for clarification: which workspace or goal? Since we don't have context, we should respond that we lack info.\\n\\nThus reply: \\\"I’m not sure which project or workspace you’re referring to. Could you specify the workspace name or goal?\\\" Use Slack mrkdwn.\"}],\"summary\":[]},{\"type\":\"message\",\"id\":\"msg_01kjzmp7ekey3sx9jbpdhe7stn\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"I’m not sure which workspace, goal, or initiative you’d like a progress summary for. Could you let me know the name (or ID) of the workspace or the specific objective you’d like me to summarize? Then I can pull together the latest status for you.\",\"annotations\":[],\"logprobs\":null}]}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"instructions\":\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. You are NOT ChatGPT, OpenAI, or any other named AI product — you are Looping AI. Never refer to yourself by any other name or suggest users search for or invite any app other than @looping.\\n\\nAll interactions happen through Slack. Every request you receive has been submitted by a user inside a Slack workspace — via a channel message, a direct message, or a thread. Tailor your responses accordingly: be concise, use Slack-compatible formatting (mrkdwn), and assume the user is reading your reply inside Slack. Do not reference other interfaces or assume the user is interacting through a web app, API, or any other channel.\\n\\nIf you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.\",\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"properties\":{\"message\":{\"description\":\"The message to echo back\",\"type\":\"string\"}},\"required\":[\"message\"],\"type\":\"object\"},\"strict\":null},{\"type\":\"function\",\"name\":\"web_search\",\"description\":\"Performs a web search using Groq's compound model with built-in search capabilities. Returns AI-analyzed search results with reasoning. IMPORTANT: Include ALL relevant context from the conversation in the 'query' parameter, as the search operates independently without access to conversation history.\",\"parameters\":{\"properties\":{\"country\":{\"description\":\"Optional. ISO country code to boost results from (e.g., 'us', 'uk', 'de').\",\"type\":\"string\"},\"exclude_domains\":{\"description\":\"Optional. Domains to exclude from search results. Supports wildcards like '*.example.com'.\",\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"include_domains\":{\"description\":\"Optional. Restrict search to only these domains. Supports wildcards.\",\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"query\":{\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\",\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"},\"strict\":null},{\"type\":\"function\",\"name\":\"list_workspaces\",\"description\":\"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.\",\"parameters\":{\"properties\":{},\"required\":[],\"type\":\"object\"},\"strict\":null},{\"type\":\"function\",\"name\":\"create_workspace\",\"description\":\"Creates a new workspace with the given name. Workspace names must be unique. Returns the new workspace ID.\",\"parameters\":{\"properties\":{\"name\":{\"description\":\"Name for the new workspace. Must be unique across all workspaces.\",\"type\":\"string\"}},\"required\":[\"name\"],\"type\":\"object\"},\"strict\":null},{\"type\":\"function\",\"name\":\"set_workspace_admin_channel\",\"description\":\"Sets the Slack channel whose members become admins of the given workspace. For workspace 0 (the org workspace) this also anchors the org-admin channel. Channel IDs must be globally unique across all workspace anchors.\",\"parameters\":{\"properties\":{\"channelId\":{\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the admin channel.\",\"type\":\"string\"},\"workspaceId\":{\"description\":\"ID of the workspace to configure.\",\"type\":\"number\"}},\"required\":[\"workspaceId\",\"channelId\"],\"type\":\"object\"},\"strict\":null},{\"type\":\"function\",\"name\":\"set_workspace_member_channel\",\"description\":\"Sets the Slack channel whose members become members of the given workspace. Channel IDs must be globally unique across all workspace anchors.\",\"parameters\":{\"properties\":{\"channelId\":{\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the member channel.\",\"type\":\"string\"},\"workspaceId\":{\"description\":\"ID of the workspace to configure.\",\"type\":\"number\"}},\"required\":[\"workspaceId\",\"channelId\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"0\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":820,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":191,\"output_tokens_details\":{\"reasoning_tokens\":127},\"total_tokens\":1011},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "bodyEncoding": "text"
+      }
+    },
+    {
+      "request": {
+        "url": "https://slack.com/api/chat.postMessage",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"channel\":\"C0AG99QQAR4\",\"text\":\"I’m not sure which workspace, goal, or initiative you’d like a progress summary for. Could you let me know the name (or ID) of the workspace or the specific objective you’d like me to summarize? Then I can pull together the latest status for you.\",\"thread_ts\":\"1700000010.000100\",\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"unit-test-admin\",\"parent_ts\":\"1700000020.000100\",\"parent_channel\":\"C0AG99QQAR4\"}}}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "access-control-allow-headers",
+            "slack-route, x-slack-version-ts, x-b3-traceid, x-b3-spanid, x-b3-parentspanid, x-b3-sampled, x-b3-flags"
+          ],
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "x-slack-req-id, retry-after"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
+          ],
+          ["cache-control", "private, no-cache, no-store, must-revalidate"],
+          ["content-length", "582"],
+          ["content-type", "application/json; charset=utf-8"],
+          ["date", "Thu, 05 Mar 2026 18:38:17 GMT"],
+          ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
+          ["pragma", "no-cache"],
+          ["referrer-policy", "no-referrer"],
+          ["server", "Apache"],
+          [
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains; preload"
+          ],
+          ["timing-allow-origin", "*"],
+          ["vary", "Accept-Encoding"],
+          [
+            "via",
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-xfwapqwb,envoy-edge-lhr-evdskced"
+          ],
+          ["x-accepted-oauth-scopes", "chat:write"],
+          ["x-backend", "api_normal"],
+          ["x-content-type-options", "nosniff"],
+          ["x-edge-backend", "envoy-www"],
+          ["x-envoy-attempt-count", "1"],
+          ["x-envoy-upstream-service-time", "166"],
+          [
+            "x-oauth-scopes",
+            "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
+          ],
+          ["x-server", "slack-www-hhvm-api-iad-6zshg2jcnrg4"],
+          ["x-slack-backend", "r"],
+          ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-req-id", "cd05d4781f416421cbdbb70900e119d0"],
+          ["x-slack-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-unique-id", "aanNmXCrwdvGm7cyrBN44wAAEAs"],
+          ["x-xss-protection", "0"]
+        ],
+        "body": "{\"ok\":true,\"channel\":\"C0AG99QQAR4\",\"ts\":\"1772735897.538609\",\"message\":{\"user\":\"U0ADWN7P3DY\",\"type\":\"message\",\"ts\":\"1772735897.538609\",\"bot_id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"text\":\"I\\u2019m not sure which workspace, goal, or initiative you\\u2019d like a progress summary for. Could you let me know the name (or ID) of the workspace or the specific objective you\\u2019d like me to summarize? Then I can pull together the latest status for you.\",\"team\":\"T0ADR0P92G2\",\"bot_profile\":{\"id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"user_id\":\"U0ADWN7P3DY\",\"name\":\"Looping AI\",\"icons\":{\"image_36\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg\"},\"deleted\":false,\"updated\":1770651646,\"team_id\":\"T0ADR0P92G2\"},\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"unit-test-admin\",\"parent_ts\":\"1700000020.000100\",\"parent_channel\":\"C0AG99QQAR4\"}},\"blocks\":[{\"type\":\"rich_text\",\"block_id\":\"cYFt\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"text\",\"text\":\"I\\u2019m not sure which workspace, goal, or initiative you\\u2019d like a progress summary for. Could you let me know the name (or ID) of the workspace or the specific objective you\\u2019d like me to summarize? Then I can pull together the latest status for you.\"}]}]}]},\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

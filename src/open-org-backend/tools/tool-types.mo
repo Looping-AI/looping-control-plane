@@ -2,6 +2,8 @@ import GroqWrapper "../wrappers/groq-wrapper";
 import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
 import ObjectiveModel "../models/objective-model";
+import WorkspaceModel "../models/workspace-model";
+import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 
 module {
   // ============================================
@@ -34,6 +36,13 @@ module {
     // Groq API key - required for web search and other Groq-powered tools
     groqApiKey : ?Text;
 
+    // Slack bot token - required for channel verification in workspace anchor tools
+    slackBotToken : ?Text;
+
+    // Slack user identity of the user who triggered this agent turn.
+    // Required for authorization checks in workspace-management write tools.
+    userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
+
     // Value Streams - if provided with write=true, save_value_stream tool is available
     valueStreams : ?{
       map : ValueStreamModel.ValueStreamsMap;
@@ -51,6 +60,13 @@ module {
     objectives : ?{
       map : ObjectiveModel.WorkspaceObjectivesMap;
       write : Bool; // false = read-only (future: could enable read-only objective tools)
+    };
+
+    // Workspaces - if provided, workspace-management tools are available.
+    // write=true enables create_workspace, set_workspace_admin_channel, set_workspace_member_channel.
+    workspaces : ?{
+      state : WorkspaceModel.WorkspacesState;
+      write : Bool;
     };
   };
 
