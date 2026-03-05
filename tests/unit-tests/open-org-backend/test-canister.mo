@@ -18,6 +18,7 @@ import NormalizedEventTypes "../../../src/open-org-backend/events/types/normaliz
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
 import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
+import SetWorkspaceAdminChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-admin-channel-handler";
 import AgentModel "../../../src/open-org-backend/models/agent-model";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
@@ -963,5 +964,49 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       case (?key) { ?key.size() };
       case (null) { null };
     };
+  };
+
+  // ============================================
+  // Tool Handler Test Methods
+  // ============================================
+
+  /// Test the SetWorkspaceAdminChannelHandler in isolation.
+  ///
+  /// @param args           JSON-encoded tool arguments (workspaceId + channelId).
+  /// @param botToken       Slack bot token forwarded to SlackWrapper for channel verification.
+  /// @param auth           Simplified auth context — builds UserAuthContext internally so
+  ///                       tests do not need to serialise the full type over Candid.
+  ///
+  /// Note: the handler runs against the pre-seeded testWorkspacesState:
+  ///   Workspace 0: Default (no channel anchors)
+  ///   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
+  ///   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
+  public shared ({ caller }) func testSetWorkspaceAdminChannelHandler(
+    args : Text,
+    botToken : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, botToken, args);
   };
 };
