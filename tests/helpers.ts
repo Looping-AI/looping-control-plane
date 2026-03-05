@@ -118,15 +118,20 @@ export async function resolveSpecsChannelForInfo(
 
   if (await cassetteExists(fullPath)) {
     const cassette = await loadCassette(fullPath);
+    // Collect all conversations.info channels and return the last one.
+    // When multiple calls appear (e.g. set-admin then set-member in one cassette)
+    // the specs channel is always the final conversations.info interaction.
+    let lastChannel: string | undefined;
     for (const interaction of cassette.interactions) {
       if (
         interaction.request.url.includes("slack.com/api/conversations.info")
       ) {
         const url = new URL(interaction.request.url);
         const channel = url.searchParams.get("channel");
-        if (channel) return channel;
+        if (channel) lastChannel = channel;
       }
     }
+    if (lastChannel) return lastChannel;
   }
 
   // Recording mode: env var must be configured

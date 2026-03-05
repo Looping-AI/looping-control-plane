@@ -6,13 +6,13 @@ import {
   idlFactory,
   type _SERVICE,
   SLACK_TEST_TOKEN,
-  SLACK_SPECS_CHANNEL_ID,
 } from "../../setup.ts";
 import {
   expectOk,
   expectErr,
   expectSome,
   resolveOrgAdminChannel,
+  resolveSpecsChannelForInfo,
 } from "../../helpers.ts";
 import {
   withCassette,
@@ -230,14 +230,16 @@ describe("Workspace Channel Anchors", () => {
       )
         return;
 
+      const specsChannel = await resolveSpecsChannelForInfo(
+        `${CASSETTE_BASE}/reject-wrong-channel-name`,
+      );
       await actor.storeSecret(0n, { slackBotToken: null }, SLACK_TEST_TOKEN);
       const deferredActor = makeDeferredActor(pic, canisterId, ownerIdentity);
 
       const { result } = await withCassette(
         pic,
         `${CASSETTE_BASE}/reject-wrong-channel-name`,
-        () =>
-          deferredActor.setWorkspaceAdminChannel(0n, SLACK_SPECS_CHANNEL_ID),
+        () => deferredActor.setWorkspaceAdminChannel(0n, specsChannel),
         { ticks: 5, maxRounds: 3 },
       );
 
@@ -308,14 +310,16 @@ describe("Workspace Channel Anchors", () => {
       )
         return;
 
+      const specsChannel = await resolveSpecsChannelForInfo(
+        `${CASSETTE_BASE}/set-member-channel`,
+      );
       await actor.storeSecret(0n, { slackBotToken: null }, SLACK_TEST_TOKEN);
       const deferredActor = makeDeferredActor(pic, canisterId, ownerIdentity);
 
       const { result } = await withCassette(
         pic,
         `${CASSETTE_BASE}/set-member-channel`,
-        () =>
-          deferredActor.setWorkspaceMemberChannel(0n, SLACK_SPECS_CHANNEL_ID),
+        () => deferredActor.setWorkspaceMemberChannel(0n, specsChannel),
         { ticks: 5, maxRounds: 3 },
       );
 
@@ -323,7 +327,7 @@ describe("Workspace Channel Anchors", () => {
 
       const list = expectOk(await actor.listWorkspaces());
       const ws = list.find((w) => w.id === 0n)!;
-      expect(expectSome(ws.memberChannelId)).toEqual(SLACK_SPECS_CHANNEL_ID);
+      expect(expectSome(ws.memberChannelId)).toEqual(specsChannel);
     });
 
     it("should not affect the admin channel when setting member channel", async () => {
@@ -331,6 +335,7 @@ describe("Workspace Channel Anchors", () => {
       if (await shouldSkipWithoutCassette(cassetteKey)) return;
 
       const adminChannel = await resolveOrgAdminChannel(cassetteKey);
+      const specsChannel = await resolveSpecsChannelForInfo(cassetteKey);
       await actor.storeSecret(0n, { slackBotToken: null }, SLACK_TEST_TOKEN);
       const deferredActor = makeDeferredActor(pic, canisterId, ownerIdentity);
 
@@ -339,8 +344,7 @@ describe("Workspace Channel Anchors", () => {
         cassetteKey,
         [
           () => deferredActor.setWorkspaceAdminChannel(0n, adminChannel),
-          () =>
-            deferredActor.setWorkspaceMemberChannel(0n, SLACK_SPECS_CHANNEL_ID),
+          () => deferredActor.setWorkspaceMemberChannel(0n, specsChannel),
         ],
         { ticks: 5 },
       );
@@ -351,7 +355,7 @@ describe("Workspace Channel Anchors", () => {
       const list = expectOk(await actor.listWorkspaces());
       const ws = list.find((w) => w.id === 0n)!;
       expect(expectSome(ws.adminChannelId)).toEqual(adminChannel);
-      expect(expectSome(ws.memberChannelId)).toEqual(SLACK_SPECS_CHANNEL_ID);
+      expect(expectSome(ws.memberChannelId)).toEqual(specsChannel);
     });
   });
 
