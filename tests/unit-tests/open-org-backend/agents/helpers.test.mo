@@ -122,7 +122,7 @@ suite(
       "all tools pass through when both blocklists are empty",
       func() {
         let agent = makeAgent(#admin, "a", [], [], []);
-        let tools = [makeTool("echo"), makeTool("web-search"), makeTool("save_value_stream")];
+        let tools = [makeTool("echo"), makeTool("web_search"), makeTool("save_value_stream")];
         let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(3);
       },
@@ -146,11 +146,11 @@ suite(
     test(
       "removes the disallowed tool from the list",
       func() {
-        let agent = makeAgent(#admin, "a", ["web-search"], [], []);
-        let tools = [makeTool("echo"), makeTool("web-search"), makeTool("save_value_stream")];
+        let agent = makeAgent(#admin, "a", ["web_search"], [], []);
+        let tools = [makeTool("echo"), makeTool("web_search"), makeTool("save_value_stream")];
         let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(2);
-        expect.bool(toolExists(result, "web-search")).isFalse();
+        expect.bool(toolExists(result, "web_search")).isFalse();
         expect.bool(toolExists(result, "echo")).isTrue();
         expect.bool(toolExists(result, "save_value_stream")).isTrue();
       },
@@ -159,8 +159,8 @@ suite(
     test(
       "removes multiple disallowed tools",
       func() {
-        let agent = makeAgent(#admin, "a", ["echo", "web-search"], [], []);
-        let tools = [makeTool("echo"), makeTool("web-search"), makeTool("save_value_stream")];
+        let agent = makeAgent(#admin, "a", ["echo", "web_search"], [], []);
+        let tools = [makeTool("echo"), makeTool("web_search"), makeTool("save_value_stream")];
         let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(1);
         expect.text(result[0].function.name).equal("save_value_stream");
@@ -193,8 +193,8 @@ suite(
     test(
       "removes tools from both disallowed and misconfigured lists",
       func() {
-        let agent = makeAgent(#admin, "a", ["web-search"], ["stripe-api"], []);
-        let tools = [makeTool("echo"), makeTool("web-search"), makeTool("stripe-api")];
+        let agent = makeAgent(#admin, "a", ["web_search"], ["stripe-api"], []);
+        let tools = [makeTool("echo"), makeTool("web_search"), makeTool("stripe-api")];
         let result = AgentHelpers.applyToolBlocklist(agent, tools);
         expect.nat(result.size()).equal(1);
         expect.text(result[0].function.name).equal("echo");
@@ -211,7 +211,7 @@ suite(
       "ignores unknown names in toolsDisallowed without panicking",
       func() {
         let agent = makeAgent(#admin, "a", ["nonexistent-tool", "also-fake"], [], []);
-        let tools = [makeTool("echo"), makeTool("web-search")];
+        let tools = [makeTool("echo"), makeTool("web_search")];
         let result = AgentHelpers.applyToolBlocklist(agent, tools);
         // All tools are still present — unknown names in the blocklist are silently ignored
         expect.nat(result.size()).equal(2);

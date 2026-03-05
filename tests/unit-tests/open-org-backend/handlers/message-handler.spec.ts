@@ -533,11 +533,11 @@ describe("MessageHandler — primary agent resolution", () => {
       expect(result.ok.some((s) => s.action === "primary_agent_skip")).toBe(
         false,
       );
-      // The route stub for #research returns an error step with the expected message.
-      const routeStep = result.ok.find((s) => s.action === "route");
-      expect(routeStep).toBeDefined();
-      if (routeStep && "err" in routeStep.result) {
-        expect(routeStep.result.err).toContain(
+      // The orchestrate stub for #research returns an error step with the expected message.
+      const orchestrateStep = result.ok.find((s) => s.action === "orchestrate");
+      expect(orchestrateStep).toBeDefined();
+      if (orchestrateStep && "err" in orchestrateStep.result) {
+        expect(orchestrateStep.result.err).toContain(
           "category service not yet implemented",
         );
       }

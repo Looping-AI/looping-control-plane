@@ -548,9 +548,9 @@ _Unit tests — new file `tests/unit-tests/open-org-backend/agents/admin/workspa
 
 - **Category-to-role mapping**: `#admin` → `#orgAdmin` produces the known org-admin persona text; `#research` → `#customAgent` produces `"research specialist"` line; `#communication` → `"communication specialist"`.
 - **Tool filtering — blocklist empty**: agent with `toolsDisallowed = []` and `toolsMisconfigured = []` → all resource-gated tools offered.
-- **Tool filtering — toolsDisallowed**: agent with `toolsDisallowed = ["web-search"]` → all tools except web-search passed to LLM.
+- **Tool filtering — toolsDisallowed**: agent with `toolsDisallowed = ["web_search"]` → all tools except web_search passed to LLM.
 - **Tool filtering — toolsMisconfigured**: agent with `toolsMisconfigured = ["stripe-api"]` → stripe-api tool excluded from LLM tools, even if not in toolsDisallowed.
-- **Tool filtering — combined blocklists**: agent with `toolsDisallowed = ["web-search"]` and `toolsMisconfigured = ["stripe-api"]` → both tools excluded.
+- **Tool filtering — combined blocklists**: agent with `toolsDisallowed = ["web_search"]` and `toolsMisconfigured = ["stripe-api"]` → both tools excluded.
 - **Tool filtering — unknown tool name**: agent with `toolsDisallowed = ["nonexistent-tool"]` → name silently ignored, no panic.
 - **Sources block — non-empty**: agent with `sources = ["https://docs.example.com", "https://other.com"]` → instructions contain `"agent-sources"` block with both URLs.
 - **Sources block — empty**: agent with `sources = []` → no `"agent-sources"` block.
@@ -558,7 +558,7 @@ _Unit tests — new file `tests/unit-tests/open-org-backend/agents/admin/workspa
 _Integration tests — update `workspace-admin-talk.spec.ts`_:
 
 - Existing admin-talk tests must pass unchanged — the seeded admin agent (`toolsDisallowed = []`, `toolsMisconfigured = []`, `category = #admin`) should behave identically to the pre-refactor service.
-- **Tool blocklist enforced end-to-end**: register an agent with `toolsDisallowed = ["web-search"]`; send a message that would normally trigger web-search → LLM does not receive web-search tool; no web-search step in the returned `steps` array.
+- **Tool blocklist enforced end-to-end**: register an agent with `toolsDisallowed = ["web_search"]`; send a message that would normally trigger web_search → LLM does not receive web_search tool; no web_search step in the returned `steps` array.
 - **Misconfigured tools excluded**: register an agent with `toolsMisconfigured = ["custom-api"]`; send a message → LLM does not receive custom-api tool, even though it's not in toolsDisallow.
 
 ### 1.8 — Split org-admin agent from work-planning agent

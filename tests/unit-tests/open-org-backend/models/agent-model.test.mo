@@ -186,7 +186,7 @@ suite(
           #research,
           #groq(#gpt_oss_120b),
           [],
-          ["web-search"],
+          ["web_search"],
           [],
           Map.empty<Text, AgentModel.ToolState>(),
           ["https://docs.example.com"],
@@ -197,7 +197,7 @@ suite(
           case (null) { expect.bool(false).equal(true) };
           case (?record) {
             expect.nat(record.toolsDisallowed.size()).equal(1);
-            expect.text(record.toolsDisallowed[0]).equal("web-search");
+            expect.text(record.toolsDisallowed[0]).equal("web_search");
             expect.nat(record.sources.size()).equal(1);
             expect.text(record.sources[0]).equal("https://docs.example.com");
           };
@@ -452,13 +452,13 @@ suite(
           usageCount = 3;
           knowHow = "use POST endpoint";
         };
-        let result = AgentModel.updateToolState(id, "web-search", ts, state);
+        let result = AgentModel.updateToolState(id, "web_search", ts, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            switch (Map.get(r.toolsState, Text.compare, "web-search")) {
+            switch (Map.get(r.toolsState, Text.compare, "web_search")) {
               case (null) { expect.bool(false).equal(true) };
               case (?found) {
                 expect.nat(found.usageCount).equal(3);
