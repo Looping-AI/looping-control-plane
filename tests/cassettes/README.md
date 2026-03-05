@@ -30,13 +30,13 @@ To record new cassettes, run tests with the `RECORD_CASSETTES` environment varia
 
 ```bash
 # Record all cassettes
-RECORD_CASSETTES=true bun run test
+RECORD_CASSETTES=true bun test
 
 # Record cassettes for a specific test file
-RECORD_CASSETTES=true bun run test -- conversations.spec.ts
+RECORD_CASSETTES=true bun test conversations.spec.ts
 
 # Record cassettes for a specific test
-RECORD_CASSETTES=true bun run test -- -t "should chat with agent"
+RECORD_CASSETTES=true bun test -t "should chat with agent"
 ```
 
 **Requirements for recording:**
@@ -49,7 +49,7 @@ RECORD_CASSETTES=true bun run test -- -t "should chat with agent"
 When running tests normally, cassettes are used for playback:
 
 ```bash
-bun run test
+bun test
 ```
 
 If a cassette is missing, the test will fail with a helpful error message.
@@ -118,7 +118,7 @@ await HttpCassette.record("my-test", {
 When APIs change, re-record affected cassettes:
 
 ```bash
-RECORD_CASSETTES=true bun run test -- conversations.spec.ts
+RECORD_CASSETTES=true bun test conversations.spec.ts
 ```
 
 The system will warn if cassettes are older than 30 days.
@@ -130,7 +130,7 @@ The system will warn if cassettes are older than 30 days.
 Run with `RECORD_CASSETTES=true` to create the cassette:
 
 ```bash
-RECORD_CASSETTES=true bun run test -- your-test.spec.ts
+RECORD_CASSETTES=true bun test your-test.spec.ts
 ```
 
 ### "No cassette match found" error
@@ -146,7 +146,7 @@ The recorded request doesn't match the current request. Common causes:
 Re-record the cassette to get fresh API responses:
 
 ```bash
-RECORD_CASSETTES=true bun run test -- your-test.spec.ts
+RECORD_CASSETTES=true bun test your-test.spec.ts
 ```
 
 ## API Reference
