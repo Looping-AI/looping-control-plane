@@ -657,7 +657,7 @@ module {
     #ok : SlackChannel;
     #err : Text;
   } {
-    let json = switch (Json.parse(responseBody)) {
+    let json = switch (Json.parse(JsonSanitizer.sanitizeJsonSurrogates(responseBody))) {
       case (#err(_)) {
         return #err("Failed to parse conversations.info response as JSON: " # responseBody);
       };

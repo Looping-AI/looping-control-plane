@@ -561,7 +561,7 @@ _Integration tests — update `workspace-admin-talk.spec.ts`_:
 - **Tool blocklist enforced end-to-end**: register an agent with `toolsDisallowed = ["web_search"]`; send a message that would normally trigger web_search → LLM does not receive web_search tool; no web_search step in the returned `steps` array.
 - **Misconfigured tools excluded**: register an agent with `toolsMisconfigured = ["custom-api"]`; send a message → LLM does not receive custom-api tool, even though it's not in toolsDisallow.
 
-### 1.8 — Split org-admin agent from work-planning agent
+~~### 1.8 — Split org-admin agent from work-planning agent~~
 
 **Goal**
 
