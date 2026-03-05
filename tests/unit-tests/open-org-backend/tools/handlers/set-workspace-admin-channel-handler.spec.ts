@@ -5,12 +5,12 @@ import {
   createDeferredTestCanister,
   type TestCanisterService,
   SLACK_TEST_TOKEN,
-} from "../../../setup";
-import { withCassette } from "../../../lib/cassette";
+} from "../../../../setup";
+import { withCassette } from "../../../../lib/cassette";
 import {
   resolveOrgAdminChannel,
   resolveSpecsChannelForInfo,
-} from "../../../helpers";
+} from "../../../../helpers";
 
 // ============================================
 // SetWorkspaceAdminChannelHandler Unit Tests
@@ -34,7 +34,7 @@ import {
 // ============================================
 
 const CASSETTE_BASE =
-  "unit-tests/open-org-backend/handlers/set-workspace-admin-channel-handler";
+  "unit-tests/open-org-backend/tools/handlers/set-workspace-admin-channel-handler";
 
 // ─── Response helpers ──────────────────────────────────────────────────────
 

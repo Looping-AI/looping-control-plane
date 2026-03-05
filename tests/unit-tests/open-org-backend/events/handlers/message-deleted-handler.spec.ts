@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
-import { createTestCanister, type TestCanisterService } from "../../../setup";
-import messageDeletedStub from "../../../stubs/slack-payloads/message-deleted.json";
+import {
+  createTestCanister,
+  type TestCanisterService,
+} from "../../../../setup";
+import messageDeletedStub from "../../../../stubs/slack-payloads/message-deleted.json";
 
 describe("MessageDeletedHandler Unit Tests", () => {
   let pic: PocketIc;

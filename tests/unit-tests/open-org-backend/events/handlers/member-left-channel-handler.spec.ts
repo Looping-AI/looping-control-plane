@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
-import { createTestCanister, type TestCanisterService } from "../../../setup";
+import {
+  createTestCanister,
+  type TestCanisterService,
+} from "../../../../setup";
 
 // Unwrap Candid opt ([] | [T]) to T | null
 const unwrapOpt = <T>(opt: [] | [T]): T | null => (opt.length ? opt[0]! : null);

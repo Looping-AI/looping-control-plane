@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
-import { createTestCanister, type TestCanisterService } from "../../../setup";
-import assistantThreadStartedStub from "../../../stubs/slack-payloads/assistant-thread-started.json";
-import assistantThreadContextChangedStub from "../../../stubs/slack-payloads/assistant-thread-context-changed.json";
+import {
+  createTestCanister,
+  type TestCanisterService,
+} from "../../../../setup";
+import assistantThreadStartedStub from "../../../../stubs/slack-payloads/assistant-thread-started.json";
+import assistantThreadContextChangedStub from "../../../../stubs/slack-payloads/assistant-thread-context-changed.json";
 
 describe("AssistantThreadHandler Unit Tests", () => {
   let pic: PocketIc;

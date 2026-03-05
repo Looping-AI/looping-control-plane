@@ -4,10 +4,10 @@ import {
   createDeferredTestCanister,
   createTestCanister,
   type TestCanisterService,
-} from "../../../setup";
-import { withCassette } from "../../../lib/cassette";
-import { resolveSpecsChannel } from "../../../helpers";
-import messageStandardStub from "../../../stubs/slack-payloads/message-standard.json";
+} from "../../../../setup";
+import { withCassette } from "../../../../lib/cassette";
+import { resolveSpecsChannel } from "../../../../helpers";
+import messageStandardStub from "../../../../stubs/slack-payloads/message-standard.json";
 
 // ============================================
 // MessageHandler is a full controller that:
@@ -52,7 +52,7 @@ describe("MessageHandler Unit Tests", () => {
   it("should post a reply for a standard channel message", async () => {
     const event = messageStandardStub.event;
     const cassetteName =
-      "unit-tests/open-org-backend/handlers/message-handler/standard-message-reply";
+      "unit-tests/open-org-backend/events/handlers/message-handler/standard-message-reply";
     const channel = await resolveSpecsChannel(cassetteName);
 
     const { result } = await withCassette(
@@ -94,7 +94,7 @@ describe("MessageHandler Unit Tests", () => {
 
   it("should reply within an existing thread when threadTs is set", async () => {
     const cassetteName =
-      "unit-tests/open-org-backend/handlers/message-handler/thread-reply";
+      "unit-tests/open-org-backend/events/handlers/message-handler/thread-reply";
     const channel = await resolveSpecsChannel(cassetteName);
     const { result } = await withCassette(
       pic,
@@ -127,7 +127,7 @@ describe("MessageHandler Unit Tests", () => {
 
   it("should post a top-level channel message when threadTs is absent", async () => {
     const cassetteName =
-      "unit-tests/open-org-backend/handlers/message-handler/top-level-channel-post";
+      "unit-tests/open-org-backend/events/handlers/message-handler/top-level-channel-post";
     const channel = await resolveSpecsChannel(cassetteName);
     const { result } = await withCassette(
       pic,
@@ -160,7 +160,7 @@ describe("MessageHandler Unit Tests", () => {
 
   it("should handle messages consistently across multiple scenarios", async () => {
     for (const label of ["ws0", "ws1", "ws42"]) {
-      const cassetteName = `unit-tests/open-org-backend/handlers/message-handler/multi-workspace-${label}`;
+      const cassetteName = `unit-tests/open-org-backend/events/handlers/message-handler/multi-workspace-${label}`;
       const channel = await resolveSpecsChannel(cassetteName);
       const { result } = await withCassette(
         pic,
