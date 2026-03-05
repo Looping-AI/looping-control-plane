@@ -195,7 +195,7 @@ describe("MessageHandler Unit Tests", () => {
   it("should include a positive nanosecond timestamp in every returned step", async () => {
     const event = messageStandardStub.event;
     const cassetteName =
-      "unit-tests/open-org-backend/handlers/message-handler/step-timestamps";
+      "unit-tests/open-org-backend/events/handlers/message-handler/step-timestamps";
     const channel = await resolveSpecsChannel(cassetteName);
 
     const { result } = await withCassette(
@@ -238,7 +238,7 @@ describe("MessageHandler Unit Tests", () => {
   it("should inherit session context from parent and proceed to orchestration when within round limit", async () => {
     const PARENT_TS = "1700000010.000100";
     const cassetteName =
-      "unit-tests/open-org-backend/handlers/message-handler/bot-branch-session-inherit";
+      "unit-tests/open-org-backend/events/handlers/message-handler/bot-branch-session-inherit";
     const channel = await resolveSpecsChannel(cassetteName);
 
     const { result } = await withCassette(
@@ -628,7 +628,7 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
     // (the termination prompt) via cassette.
     const PARENT_TS = "1700000010.000100";
     const cassetteName =
-      "unit-tests/open-org-backend/handlers/message-handler/max-rounds-termination-prompt";
+      "unit-tests/open-org-backend/events/handlers/message-handler/max-rounds-termination-prompt";
     const channel = await resolveSpecsChannel(cassetteName);
 
     const { result } = await withCassette(
