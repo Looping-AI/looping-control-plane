@@ -88,6 +88,8 @@ module {
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = ?ctx.workspaceId;
       groqApiKey = ?apiKey;
+      slackBotToken = null;
+      userAuthContext = null;
       valueStreams = ?{
         map = ctx.valueStreamsMap;
         write = true;

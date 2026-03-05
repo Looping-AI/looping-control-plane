@@ -508,7 +508,11 @@ module {
     // Build the per-category context variant — passes only the data each agent needs.
     let agentCtx : AgentRouter.AgentCtx = switch (primaryAgent.category) {
       case (#admin) {
-        #admin({ workspaces = ctx.workspaces });
+        #admin({
+          workspaces = ctx.workspaces;
+          slackBotToken = ?botToken;
+          userAuthContext = activeCtxOpt;
+        });
       };
       case (#planning) {
         #planning({

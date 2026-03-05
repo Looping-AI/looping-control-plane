@@ -16,6 +16,7 @@ import ToolExecutor "../../tools/tool-executor";
 import ToolTypes "../../tools/tool-types";
 import AgentHelpers "../helpers";
 import WorkspaceModel "../../models/workspace-model";
+import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 
 module {
 
@@ -30,6 +31,10 @@ module {
   /// and configure workspaces and their channel anchors.
   public type AdminCtx = {
     workspaces : WorkspaceModel.WorkspacesState;
+    // Slack bot token — used to verify channel existence before anchoring
+    slackBotToken : ?Text;
+    // Resolved Slack user identity — used for authorization checks in write tools
+    userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
   };
 
   /// ProcessResult mirrors the WorkPlanningAgent return type so the orchestrator
@@ -72,6 +77,8 @@ module {
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = null; // org-admin tools operate on entire WorkspacesState, not a single workspace
       groqApiKey = ?apiKey;
+      slackBotToken = ctx.slackBotToken;
+      userAuthContext = ctx.userAuthContext;
       valueStreams = null;
       metrics = null;
       objectives = null;
