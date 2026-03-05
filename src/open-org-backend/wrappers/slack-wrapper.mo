@@ -649,6 +649,80 @@ module {
     #ok(allChannels);
   };
 
+  // ============================================
+  // Private — Slack API: conversations.info
+  // ============================================
+
+  private func parseChannelInfoResponse(responseBody : Text) : {
+    #ok : SlackChannel;
+    #err : Text;
+  } {
+    let json = switch (Json.parse(responseBody)) {
+      case (#err(_)) {
+        return #err("Failed to parse conversations.info response as JSON: " # responseBody);
+      };
+      case (#ok(j)) { j };
+    };
+
+    let ok = switch (Json.get(json, "ok")) {
+      case (?#bool(b)) { b };
+      case _ {
+        return #err("Missing or invalid 'ok' field in conversations.info response");
+      };
+    };
+
+    if (not ok) {
+      let errorMsg = switch (Json.get(json, "error")) {
+        case (?#string(e)) { e };
+        case _ { "unknown_error" };
+      };
+      return #err("Slack API error: " # errorMsg);
+    };
+
+    let channelJson = switch (Json.get(json, "channel")) {
+      case (?obj) { obj };
+      case (null) {
+        return #err("Missing 'channel' field in conversations.info response");
+      };
+    };
+
+    let id = switch (Json.get(channelJson, "id")) {
+      case (?#string(s)) { s };
+      case _ { return #err("Missing 'id' field in channel object") };
+    };
+    let name = switch (Json.get(channelJson, "name")) {
+      case (?#string(s)) { s };
+      case _ { "" };
+    };
+
+    #ok({ id; name });
+  };
+
+  /// Fetch metadata (id + name) for a single Slack channel via conversations.info.
+  ///
+  /// @param token    Decrypted Slack bot token (xoxb-...)
+  /// @param channel  Channel ID to look up (e.g. C012AB3CD)
+  /// @returns #ok with the channel's id and name, or #err with a description
+  public func getChannelInfo(token : Text, channel : Text) : async {
+    #ok : SlackChannel;
+    #err : Text;
+  } {
+    let url = SLACK_API_BASE_URL # "/conversations.info?channel=" # UrlEncoding.encodeQueryValue(channel);
+    let headers : [HttpWrapper.HttpHeader] = [
+      { name = "Authorization"; value = "Bearer " # token },
+    ];
+    let httpResult = await HttpWrapper.get(url, headers);
+    switch (httpResult) {
+      case (#err(e)) { #err("HTTP request failed: " # e) };
+      case (#ok((status, responseBody))) {
+        if (status != 200) {
+          return #err("conversations.info returned HTTP " # debug_show status # ": " # responseBody);
+        };
+        parseChannelInfoResponse(responseBody);
+      };
+    };
+  };
+
   /// Fetch all members of a Slack channel, paginating through conversations.members automatically.
   ///
   /// @param token    Decrypted Slack bot token (xoxb-...)

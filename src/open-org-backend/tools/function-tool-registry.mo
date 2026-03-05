@@ -13,6 +13,7 @@ import ToolTypes "./tool-types";
 import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
 import ObjectiveModel "../models/objective-model";
+import WorkspaceModel "../models/workspace-model";
 
 module {
   // ============================================
@@ -107,6 +108,23 @@ module {
     // ==========================================
     // ADD NEW TOOL CATEGORIES BELOW
     // ==========================================
+
+    // ==========================================
+    // WORKSPACE TOOLS - require workspaces resource
+    // ==========================================
+    switch (resources.workspaces) {
+      case (?ws) {
+        // Read tools — always available when resource is present
+        List.add(tools, listWorkspacesTool(ws.state));
+        // Write tools — enabled when write = true
+        if (ws.write) {
+          List.add(tools, createWorkspaceTool(ws.state));
+          List.add(tools, setWorkspaceAdminChannelTool(ws.state));
+          List.add(tools, setWorkspaceMemberChannelTool(ws.state));
+        };
+      };
+      case (null) {};
+    };
 
     List.toArray(tools);
   };
@@ -413,6 +431,199 @@ module {
       ]),
       null,
     );
+  };
+
+  // ============================================
+  // WORKSPACE TOOL IMPLEMENTATIONS
+  // ============================================
+
+  /// List workspaces tool — always available when workspaces resource is present
+  private func listWorkspacesTool(state : WorkspaceModel.WorkspacesState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_workspaces";
+          description = ?"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = func(_args : Text) : async Text {
+        let records = WorkspaceModel.listWorkspaces(state);
+        let items = Array.map<WorkspaceModel.WorkspaceRecord, Json.Json>(
+          records,
+          func(r : WorkspaceModel.WorkspaceRecord) : Json.Json {
+            let adminCh : Json.Json = switch (r.adminChannelId) {
+              case (?id) { str(id) };
+              case (null) { #null_ };
+            };
+            let memberCh : Json.Json = switch (r.memberChannelId) {
+              case (?id) { str(id) };
+              case (null) { #null_ };
+            };
+            obj([
+              ("id", int(r.id)),
+              ("name", str(r.name)),
+              ("adminChannelId", adminCh),
+              ("memberChannelId", memberCh),
+            ]);
+          },
+        );
+        Json.stringify(
+          obj([
+            ("success", bool(true)),
+            ("workspaces", arr(items)),
+          ]),
+          null,
+        );
+      };
+    };
+  };
+
+  /// Create workspace tool — requires workspaces resource with write
+  private func createWorkspaceTool(state : WorkspaceModel.WorkspacesState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "create_workspace";
+          description = ?"Creates a new workspace with the given name. Workspace names must be unique. Returns the new workspace ID.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Name for the new workspace. Must be unique across all workspaces.\"}},\"required\":[\"name\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            switch (Json.get(json, "name")) {
+              case (?#string(name)) {
+                switch (WorkspaceModel.createWorkspace(state, name)) {
+                  case (#err(msg)) { buildErrorResponse(msg) };
+                  case (#ok(wsId)) {
+                    Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("id", int(wsId)),
+                        ("name", str(name)),
+                        ("message", str("Workspace '" # name # "' created with ID " # Nat.toText(wsId))),
+                      ]),
+                      null,
+                    );
+                  };
+                };
+              };
+              case _ { buildErrorResponse("Missing required field: name") };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Set workspace admin channel tool — requires workspaces resource with write
+  private func setWorkspaceAdminChannelTool(state : WorkspaceModel.WorkspacesState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "set_workspace_admin_channel";
+          description = ?"Sets the Slack channel whose members become admins of the given workspace. For workspace 0 (the org workspace) this also anchors the org-admin channel. Channel IDs must be globally unique across all workspace anchors.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to configure.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the admin channel.\"}},\"required\":[\"workspaceId\",\"channelId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            let wsIdOpt : ?Nat = switch (Json.get(json, "workspaceId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let channelIdOpt = switch (Json.get(json, "channelId")) {
+              case (?#string(s)) { ?s };
+              case _ { null };
+            };
+            switch (wsIdOpt, channelIdOpt) {
+              case (?wsId, ?channelId) {
+                switch (WorkspaceModel.setAdminChannel(state, wsId, channelId)) {
+                  case (#err(msg)) { buildErrorResponse(msg) };
+                  case (#ok(())) {
+                    Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("message", str("Admin channel set to " # channelId # " for workspace " # Nat.toText(wsId))),
+                      ]),
+                      null,
+                    );
+                  };
+                };
+              };
+              case _ {
+                buildErrorResponse("Missing required fields: workspaceId and channelId");
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  /// Set workspace member channel tool — requires workspaces resource with write
+  private func setWorkspaceMemberChannelTool(state : WorkspaceModel.WorkspacesState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "set_workspace_member_channel";
+          description = ?"Sets the Slack channel whose members become members of the given workspace. Channel IDs must be globally unique across all workspace anchors.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to configure.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the member channel.\"}},\"required\":[\"workspaceId\",\"channelId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        switch (Json.parse(args)) {
+          case (#err(error)) {
+            return buildErrorResponse("Failed to parse arguments: " # debug_show error);
+          };
+          case (#ok(json)) {
+            let wsIdOpt : ?Nat = switch (Json.get(json, "workspaceId")) {
+              case (?#number(#int n)) {
+                if (n >= 0) { ?Int.abs(n) } else { null };
+              };
+              case _ { null };
+            };
+            let channelIdOpt = switch (Json.get(json, "channelId")) {
+              case (?#string(s)) { ?s };
+              case _ { null };
+            };
+            switch (wsIdOpt, channelIdOpt) {
+              case (?wsId, ?channelId) {
+                switch (WorkspaceModel.setMemberChannel(state, wsId, channelId)) {
+                  case (#err(msg)) { buildErrorResponse(msg) };
+                  case (#ok(())) {
+                    Json.stringify(
+                      obj([
+                        ("success", bool(true)),
+                        ("message", str("Member channel set to " # channelId # " for workspace " # Nat.toText(wsId))),
+                      ]),
+                      null,
+                    );
+                  };
+                };
+              };
+              case _ {
+                buildErrorResponse("Missing required fields: workspaceId and channelId");
+              };
+            };
+          };
+        };
+      };
+    };
   };
 
   /// Web search tool - requires groqApiKey

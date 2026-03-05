@@ -895,26 +895,24 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   /// the pre-seeded test workspace state.
   ///
   /// @param token               Decrypted Slack bot token (or mock value)
-  /// @param orgAdminChannelId   Optional org-admin channel ID
-  /// @param orgAdminChannelName Optional org-admin channel display name (required when ID is provided)
+  /// @param orgAdminChannelId   Optional org-admin channel ID — when provided, sets workspace 0's
+  ///                            adminChannelId before the run so the service treats it as the org-admin channel
   public shared ({ caller }) func testWeeklyReconciliation(
     token : Text,
     orgAdminChannelId : ?Text,
-    orgAdminChannelName : ?Text,
   ) : async WeeklyReconciliationService.ReconciliationSummary {
     assert caller == parent;
-    let orgAdminChannel : ?WorkspaceModel.OrgAdminChannelAnchor = switch (
-      orgAdminChannelId,
-      orgAdminChannelName,
-    ) {
-      case (?id, ?name) { ?{ channelId = id; channelName = name } };
-      case _ { null };
+    // Set workspace 0's adminChannelId so the reconciliation service treats it as the org-admin channel.
+    switch (orgAdminChannelId) {
+      case (null) {};
+      case (?channelId) {
+        ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, channelId);
+      };
     };
     await WeeklyReconciliationService.run(
       token,
       slackUsers,
       testWorkspacesState,
-      orgAdminChannel,
     );
   };
 

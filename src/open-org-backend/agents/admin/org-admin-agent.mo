@@ -2,15 +2,10 @@ import Array "mo:core/Array";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Map "mo:core/Map";
-import Iter "mo:core/Iter";
-import Float "mo:core/Float";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Types "../../types";
 import ConversationModel "../../models/conversation-model";
-import ValueStreamModel "../../models/value-stream-model";
-import ObjectiveModel "../../models/objective-model";
-import MetricModel "../../models/metric-model";
 import AgentModel "../../models/agent-model";
 import GroqWrapper "../../wrappers/groq-wrapper";
 import InstructionComposer "../../instructions/instruction-composer";
@@ -20,6 +15,7 @@ import McpToolRegistry "../../tools/mcp-tool-registry";
 import ToolExecutor "../../tools/tool-executor";
 import ToolTypes "../../tools/tool-types";
 import AgentHelpers "../helpers";
+import WorkspaceModel "../../models/workspace-model";
 
 module {
 
@@ -29,8 +25,15 @@ module {
   // Maximum number of previous conversation messages to include as context
   let MAX_CONVERSATION_HISTORY : Nat = 30;
 
-  /// ProcessResult mirrors the executeAdminTalk return type so the orchestrator
-  /// change is minimal.
+  /// All org-admin data the org-admin agent needs at execution time.
+  /// Carries the full workspace state so the agent can list, create,
+  /// and configure workspaces and their channel anchors.
+  public type AdminCtx = {
+    workspaces : WorkspaceModel.WorkspacesState;
+  };
+
+  /// ProcessResult mirrors the WorkPlanningAgent return type so the orchestrator
+  /// can use a shared result type across all agents.
   public type ProcessResult = {
     #ok : {
       response : Text;
@@ -42,9 +45,10 @@ module {
     };
   };
 
-  /// Process a message using the agent's configuration.
+  /// Process a message using the org-admin agent configuration.
   ///
   /// `agent` drives persona, tool filtering, and knowledge sources.
+  /// `ctx` carries the org-admin data (workspace state for channel-anchor management).
   /// `conversationEntry` carries the timeline entry for LLM context.
   /// Pass `null` when no persistent history exists.
   /// Tool call / tool response messages are ephemeral and never written to the store.
@@ -52,12 +56,7 @@ module {
     agent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     conversationEntry : ?ConversationModel.TimelineEntry,
-    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
-    valueStreamsMap : ValueStreamModel.ValueStreamsMap,
-    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistryState : MetricModel.MetricsRegistryState,
-    metricDatapoints : MetricModel.MetricDatapointsStore,
-    workspaceId : Nat,
+    ctx : AdminCtx,
     message : Text,
     apiKey : Text,
   ) : async ProcessResult {
@@ -67,30 +66,17 @@ module {
     let modelText = AgentModel.llmModelToText(agent.llmModel);
 
     // Build instructions driven by agent configuration
-    let instructions = buildInstructions(
-      agent,
-      workspaceValueStreamsState,
-      workspaceObjectivesMap,
-      metricsRegistryState,
-      metricDatapoints,
-      workspaceId,
-    );
+    let instructions = buildInstructions(agent);
 
-    // Build tool resources — controls which tools are available
+    // Build tool resources — only workspace-management tools for this agent
     let toolResources : ToolTypes.ToolResources = {
-      workspaceId = ?workspaceId;
+      workspaceId = null; // org-admin tools operate on entire WorkspacesState, not a single workspace
       groqApiKey = ?apiKey;
-      valueStreams = ?{
-        map = valueStreamsMap;
-        write = true;
-      };
-      metrics = ?{
-        registryState = metricsRegistryState;
-        datapoints = metricDatapoints;
-        write = true;
-      };
-      objectives = ?{
-        map = workspaceObjectivesMap;
+      valueStreams = null;
+      metrics = null;
+      objectives = null;
+      workspaces = ?{
+        state = ctx.workspaces;
         write = true;
       };
     };
@@ -117,11 +103,12 @@ module {
     var iteration = 0;
 
     loop {
+      // groqApiKey is used as the model key; org-admin context is workspace-0 scoped
       let groqResult = await GroqWrapper.reason(
         apiKey,
         List.toArray(inputMessages),
         modelText,
-        #workspace(workspaceId),
+        #workspace(0),
         ?instructions,
         null,
         toolsOpt,
@@ -214,9 +201,6 @@ module {
   /// Role mapping:
   ///   ConversationMessage.userAuthContext = null  → #assistant  (bot/agent message)
   ///   ConversationMessage.userAuthContext = ?_    → #user       (human message)
-  ///
-  /// For a #post: a single message is added.
-  /// For a #thread: the last MAX_CONVERSATION_HISTORY messages are added.
   private func buildContextMessages(
     conversationEntry : ?ConversationModel.TimelineEntry
   ) : List.List<GroqWrapper.ResponseInputMessage> {
@@ -231,8 +215,7 @@ module {
         List.add(inputMessages, { role; content = msg.text });
       };
       case (?#thread thread) {
-        // Map.toArray returns entries sorted by ts (lexicographic = chronological)
-        let messagesArr = Map.toArray(thread.messages); // [(ts, ConversationMessage)]
+        let messagesArr = Map.toArray(thread.messages);
         let startIndex = if (messagesArr.size() > MAX_CONVERSATION_HISTORY) {
           Nat.sub(messagesArr.size(), MAX_CONVERSATION_HISTORY);
         } else {
@@ -242,8 +225,8 @@ module {
         while (i < messagesArr.size()) {
           let (_, msg) = messagesArr[i];
           let role : GroqWrapper.MessageRole = switch (msg.userAuthContext) {
-            case (null) { #assistant }; // bot message
-            case (?_) { #user }; // user message
+            case (null) { #assistant };
+            case (?_) { #user };
           };
           List.add(inputMessages, { role; content = msg.text });
           i += 1;
@@ -253,210 +236,21 @@ module {
     inputMessages;
   };
 
-  /// Build workspace context blocks from ValueStreams, Objectives, and Metrics
-  private func buildWorkspaceContext(
-    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
-    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistryState : MetricModel.MetricsRegistryState,
-    metricDatapoints : MetricModel.MetricDatapointsStore,
-  ) : [InstructionTypes.InstructionBlock] {
-    var blocks : List.List<InstructionTypes.InstructionBlock> = List.empty();
-
-    // Add metrics summary with latest datapoints
-    let allMetrics = MetricModel.listMetrics(metricsRegistryState);
-    if (allMetrics.size() > 0) {
-      let metricsText = Array.foldLeft<MetricModel.MetricRegistration, Text>(
-        allMetrics,
-        "Available Metrics:\n",
-        func(acc, m) {
-          let latestDatapoint = MetricModel.getLatestDatapoint(metricDatapoints, m.id);
-          let latestValue = switch (latestDatapoint) {
-            case (?dp) { " (latest: " # Float.toText(dp.value) # ")" };
-            case (null) { "" };
-          };
-          acc # "- " # m.name # " (" # m.unit # "): " # m.description # latestValue # "\n";
-        },
-      );
-      List.add(blocks, { id = "workspace-metrics"; content = metricsText });
-    };
-
-    // Add value streams for this workspace
-    let streams = Iter.toArray(Map.values(workspaceValueStreamsState.valueStreams));
-    if (streams.size() > 0) {
-      let streamsText = Array.foldLeft<ValueStreamModel.ValueStream, Text>(
-        streams,
-        "Value Streams:\n",
-        func(acc, vs) {
-          let statusText = switch (vs.status) {
-            case (#draft) "draft";
-            case (#active) "active";
-            case (#paused) "paused";
-            case (#archived) "archived";
-          };
-          let planStatus = switch (vs.plan) {
-            case (null) " [no plan]";
-            case (?p) " [has plan: " # p.summary # "]";
-          };
-          acc # "- [" # statusText # "] " # vs.name # " (ID: " # Nat.toText(vs.id) # ")" # planStatus # "\n" #
-          "  Problem: " # vs.problem # "\n" #
-          "  Goal: " # vs.goal # "\n";
-        },
-      );
-      List.add(blocks, { id = "workspace-value-streams"; content = streamsText });
-    };
-
-    // Add objectives for all value streams in this workspace
-    var objectivesText = "Objectives:\n";
-    var contextIdsText = "";
-    var hasObjectives = false;
-    var needsAttention = List.empty<Text>();
-    let now = Time.now();
-
-    for ((vsId, vsObjectivesState) in Map.entries(workspaceObjectivesMap)) {
-      let objectives = Iter.toArray(Map.values(vsObjectivesState.objectives));
-      if (objectives.size() > 0) {
-        hasObjectives := true;
-        for (obj in objectives.vals()) {
-          let typeText = switch (obj.objectiveType) {
-            case (#target) "target";
-            case (#contributing) "contributing";
-            case (#prerequisite) "prerequisite";
-            case (#guardrail) "guardrail";
-          };
-          let statusText = switch (obj.status) {
-            case (#active) "active";
-            case (#paused) "paused";
-            case (#archived) "archived";
-          };
-
-          // Build current vs target display
-          let progressText = switch (obj.current, obj.target) {
-            case (?current, #percentage({ target })) {
-              " | Current: " # Float.toText(current) # "%, Target: " # Float.toText(target) # "%";
-            };
-            case (?current, #count({ target; direction })) {
-              let dir = switch (direction) {
-                case (#increase) "↑";
-                case (#decrease) "↓";
-              };
-              " | Current: " # Float.toText(current) # ", Target: " # Float.toText(target) # " " # dir;
-            };
-            case (?current, #threshold({ min; max })) {
-              let range = switch (min, max) {
-                case (?minVal, ?maxVal) {
-                  Float.toText(minVal) # "-" # Float.toText(maxVal);
-                };
-                case (?minVal, null) { "≥" # Float.toText(minVal) };
-                case (null, ?maxVal) { "≤" # Float.toText(maxVal) };
-                case (null, null) { "no bounds" };
-              };
-              " | Current: " # Float.toText(current) # ", Range: " # range;
-            };
-            case (?current, #boolean(target)) {
-              " | Current: " # (if (current == 1.0) "true" else "false") # ", Target: " # (if (target) "true" else "false");
-            };
-            case (null, _) { " | No data yet" };
-          };
-
-          objectivesText := objectivesText # "- [" # statusText # "] " # obj.name # " (" # typeText # ", VS:" # Nat.toText(vsId) # ", ID:" # Nat.toText(obj.id) # ")" # progressText # "\n";
-
-          switch (obj.description) {
-            case (?desc) {
-              objectivesText := objectivesText # "  Description: " # desc # "\n";
-            };
-            case (null) {};
-          };
-
-          // Check if needs attention (past target date or no recent updates)
-          switch (obj.targetDate) {
-            case (?targetDate) {
-              if (targetDate < now and obj.status == #active) {
-                List.add(needsAttention, "- Objective '" # obj.name # "' (VS:" # Nat.toText(vsId) # ", ID:" # Nat.toText(obj.id) # ") is past its target date. Consider an impact review and updating targets if continuing.");
-              };
-            };
-            case (null) {};
-          };
-        };
-      };
-    };
-
-    if (hasObjectives) {
-      List.add(blocks, { id = "workspace-objectives"; content = objectivesText });
-    };
-
-    // Add context IDs for objectives needing attention
-    if (List.size(needsAttention) > 0) {
-      contextIdsText := "⚠️ Objectives Needing Attention:\n" # Array.foldLeft<Text, Text>(
-        List.toArray(needsAttention),
-        "",
-        func(acc, item) { acc # item # "\n" },
-      );
-      List.add(blocks, { id = "objectives-attention"; content = contextIdsText });
-    };
-
-    List.toArray(blocks);
-  };
-
-  /// Build instructions with context-aware layers, driven by agent configuration.
+  /// Build instructions for the org-admin persona.
   ///
-  /// The agent role is derived from `agent.category` via `categoryToRole`.
-  /// If `agent.sources` is non-empty, an `"agent-sources"` block is appended
-  /// listing each source URL/ref on its own line (prefixed with `- `).
-  private func buildInstructions(
-    agent : AgentModel.AgentRecord,
-    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
-    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    metricsRegistryState : MetricModel.MetricsRegistryState,
-    metricDatapoints : MetricModel.MetricDatapointsStore,
-    _workspaceId : Nat,
-  ) : Text {
-    // Build workspace context from data
-    let workspaceContext = buildWorkspaceContext(
-      workspaceValueStreamsState,
-      workspaceObjectivesMap,
-      metricsRegistryState,
-      metricDatapoints,
-    );
-
-    // Append sources block if the agent has knowledge sources (use public helper)
+  /// No value-stream / metrics / objectives context is included — this agent is
+  /// focused on org and workspace channel-anchor management.
+  /// If `agent.sources` is non-empty, an `"agent-sources"` block is appended.
+  private func buildInstructions(agent : AgentModel.AgentRecord) : Text {
     let customBlocks : [InstructionTypes.InstructionBlock] = if (agent.sources.size() > 0) {
-      Array.concat(workspaceContext, AgentHelpers.sourceBlocks(agent));
+      AgentHelpers.sourceBlocks(agent);
     } else {
-      workspaceContext;
+      [];
     };
 
-    // Determine which context layers to include based on workspace state
-    var contextIds : List.List<InstructionTypes.ContextId> = List.empty();
-
-    // Check if workspace needs value stream setup
-    let streams = Iter.toArray(Map.values(workspaceValueStreamsState.valueStreams));
-    let hasActiveStream = Array.any<ValueStreamModel.ValueStream>(
-      streams,
-      func(vs) { vs.status == #active },
-    );
-
-    if (not hasActiveStream) {
-      List.add(contextIds, #needsValueStreamSetup);
-    } else {
-      // Check if any active value stream needs a plan
-      let hasActiveStreamWithoutPlan = Array.any<ValueStreamModel.ValueStream>(
-        streams,
-        func(vs) { vs.status == #active and vs.plan == null },
-      );
-
-      if (hasActiveStreamWithoutPlan) {
-        List.add(contextIds, #needsPlanCreation);
-      } else {
-        // At least one active stream has plans
-        // Check if metrics review is warranted
-        List.add(contextIds, #needsMetricsReview);
-      };
-    };
-
-    // Compose instructions with the role derived from agent category
     InstructionComposer.compose(
       AgentHelpers.categoryToRole(agent.category, agent.name),
-      List.toArray(contextIds),
+      [], // no context-layer IDs — org admin has no planning pipeline state
       customBlocks,
     );
   };

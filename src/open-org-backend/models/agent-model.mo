@@ -13,9 +13,10 @@ module {
   /// The broad category an agent belongs to.
   /// Categories drive which tool set is available and skills the LLM is prompted with.
   public type AgentCategory = {
-    #admin; // org or workspace admin assistant
-    #research; // information gathering and planning
-    #communication; // drafting, summarizing, messaging
+    #admin; // org administration: workspace & channel management
+    #planning; // work planning: value streams, metrics, objectives
+    #research; // information gathering — stub, Phase 5
+    #communication; // drafting, summarizing, messaging — stub, Phase 5
   };
 
   /// Groq-specific model variants.

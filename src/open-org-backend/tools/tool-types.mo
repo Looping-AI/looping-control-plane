@@ -2,6 +2,7 @@ import GroqWrapper "../wrappers/groq-wrapper";
 import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
 import ObjectiveModel "../models/objective-model";
+import WorkspaceModel "../models/workspace-model";
 
 module {
   // ============================================
@@ -51,6 +52,13 @@ module {
     objectives : ?{
       map : ObjectiveModel.WorkspaceObjectivesMap;
       write : Bool; // false = read-only (future: could enable read-only objective tools)
+    };
+
+    // Workspaces - if provided, workspace-management tools are available.
+    // write=true enables create_workspace, set_workspace_admin_channel, set_workspace_member_channel.
+    workspaces : ?{
+      state : WorkspaceModel.WorkspacesState;
+      write : Bool;
     };
   };
 

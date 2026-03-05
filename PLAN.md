@@ -561,7 +561,207 @@ _Integration tests — update `workspace-admin-talk.spec.ts`_:
 - **Tool blocklist enforced end-to-end**: register an agent with `toolsDisallowed = ["web-search"]`; send a message that would normally trigger web-search → LLM does not receive web-search tool; no web-search step in the returned `steps` array.
 - **Misconfigured tools excluded**: register an agent with `toolsMisconfigured = ["custom-api"]`; send a message → LLM does not receive custom-api tool, even though it's not in toolsDisallow.
 
-### 1.8 — Session tracking model
+### 1.8 — Split org-admin agent from work-planning agent
+
+**Goal**
+
+Separate the monolithic `org-admin-agent.mo` into two focused agents: an **org-admin agent** (`agents/admin/`) responsible for organizational management (workspaces, channel anchors), and a new **work-planning agent** (`agents/planning/`) that carries all existing planning-domain tools (value streams, metrics, objectives). Introduce **typed per-category context structs** in `AgentRouter` so routing plumbing passes only the data each agent actually needs, and new categories never grow the router's flat param list.
+
+**Current State**
+
+- `agents/admin/org-admin-agent.mo` is monolithic: it holds value-stream, metric, and objective tools alongside the org-admin persona. It receives all planning resources (`workspaceValueStreamsState`, `valueStreamsMap`, etc.) even though no org-admin-specific tools exist yet.
+- `AgentRouter.route()` passes a flat list of positional params covering **all** possible tool resources regardless of the category being dispatched to. As new categories diverge, this would grow unboundedly.
+- `AgentCategory` has `#admin`, `#research`, `#communication`. `#research` is meant for "information gathering and planning" but is unimplemented; the planning work currently lives inside `#admin`.
+- `ToolResources` in `tool-types.mo` has no workspace-management resource — only value streams, metrics, objectives, and the Groq API key.
+- Workspace-management methods (`createWorkspace`, `listWorkspaces`, `setWorkspaceAdminChannel`, etc.) live exclusively in `main.mo` as principal-authenticated endpoints and are inaccessible as LLM tools.
+
+**Desired State**
+
+#### New category: `#planning`
+
+`AgentCategory` gains `#planning`:
+
+```motoko
+public type AgentCategory = {
+  #admin; // org administration: workspace & channel management
+  #planning; // work planning: value streams, metrics, objectives
+  #research; // stub — Phase 5
+  #communication; // stub — Phase 5
+};
+
+```
+
+`helpers.mo#categoryToRole` maps `#planning` → `#customAgent({ name; persona = ?"work planning specialist" })`.
+
+#### Directory layout after this task
+
+```
+agents/
+  admin/
+    org-admin-agent.mo       ← org mgmt tools only; workspace tools added here
+  planning/
+    work-planning-agent.mo   ← extracted from current org-admin-agent.mo
+```
+
+#### `org-admin-agent.mo` — after refactor
+
+- Stripped to the org-admin persona (already handled by `categoryToRole` → `#orgAdmin`).
+- **No planning-domain resources** in its `process()` signature (`workspaceValueStreamsState`, etc. removed).
+- `process()` accepts `AdminAgentCtx` (see router section below).
+- **New workspace-management tools** wired via a new `workspaces` resource in `ToolResources`:
+  - `list_workspaces` — lists all workspace records.
+  - `create_workspace(name)` — creates a new workspace (mutates `WorkspacesState`).
+  - `set_workspace_admin_channel(workspaceId, channelId)` — sets the admin channel anchor. Use `workspaceId = 0` to set the org-admin channel (org-owner only).
+  - `set_workspace_member_channel(workspaceId, channelId)` — sets the member channel anchor.
+- `buildInstructions` produces a concise org-admin persona block with no value-stream / metrics / objectives context.
+
+**Mutable state for workspace write tools**: `WorkspacesState` already carries `var nextId` and a mutable `Map`, so it is mutable when passed by reference. The org-admin channel is stored as workspace 0's `adminChannelId` field — no separate wrapper needed; `AdminAgentCtx` carries `workspaces` directly.
+
+#### `work-planning-agent.mo` — new file
+
+- Direct extraction of the current `org-admin-agent.mo` `process()`, `buildInstructions`, `buildWorkspaceContext`, `buildContextMessages` logic.
+- Persona via `categoryToRole(#planning, agent.name)` → `#customAgent` work-planning specialist.
+- All existing tool resources, context building, and tool-filtering logic are unchanged.
+- Lives at `agents/planning/work-planning-agent.mo`.
+
+#### Typed context structs in `AgentRouter`
+
+Replace the flat positional params on `route()` with a single `agentCtx : AgentCtx` variant:
+
+```motoko
+public type AdminAgentCtx = {
+  workspaces : WorkspaceModel.WorkspacesState;
+};
+
+public type PlanningAgentCtx = {
+  workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState;
+  valueStreamsMap : ValueStreamModel.ValueStreamsMap;
+  workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap;
+  metricsRegistryState : MetricModel.MetricsRegistryState;
+  metricDatapoints : MetricModel.MetricDatapointsStore;
+  workspaceId : Nat;
+};
+
+public type AgentCtx = {
+  #admin : AdminAgentCtx;
+  #planning : PlanningAgentCtx;
+  #research; // no ctx payload yet — stub
+  #communication; // no ctx payload yet — stub
+};
+
+```
+
+`route()` new signature:
+
+```motoko
+public func route(
+  primaryAgent : AgentModel.AgentRecord,
+  mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
+  workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
+  conversationEntry : ?ConversationModel.TimelineEntry,
+  agentCtx : AgentCtx,
+  message : Text,
+  encryptionKey : [Nat8],
+) : async RouteResult;
+
+```
+
+The `switch (primaryAgent.category)` dispatch also validates that the `AgentCtx` variant tag matches the agent's category. A mismatch logs a warning and returns `#err({ message = "agent context mismatch: …" ; steps = [] })`.
+
+#### `AgentOrchestrator` changes
+
+- `orchestrateAgentTalk` accepts `agentCtx : AgentCtx` instead of the flat planning params.
+- Switches on `agentCtx`:
+  - `#admin(ctx)` → `OrgAdminAgent.process(agent, mcpToolRegistry, conversationEntry, ctx, message, apiKey)`.
+  - `#planning(ctx)` → `WorkPlanningAgent.process(agent, mcpToolRegistry, conversationEntry, ctx, message, apiKey)`.
+  - `#research` / `#communication` → `#err("category not implemented")`.
+- The `secretId` / `isSecretAllowed` guard is category-agnostic and runs before the dispatch as today.
+
+#### `MessageHandler` changes
+
+- Before calling `AgentRouter.route`, construct `AgentCtx` by switching on `primaryAgent.category`:
+  - `#admin` → `#admin({ workspaces = ctx.workspaces })`.
+  - `#planning` → `#planning({ workspaceValueStreamsState = …; valueStreamsMap = …; … })`.
+  - `#research` → `#research`.
+  - `#communication` → `#communication`.
+- This is the single point that knows all available data; it builds the right context for the router.
+
+#### `EventProcessingContext` changes
+
+No changes needed for the org-admin channel — it is derived from `workspaces` (workspace 0's `adminChannelId`) which is already present in the context.
+
+**Source Steps**
+
+1. **`models/agent-model.mo`** — add `#planning` to `AgentCategory`. No logic changes needed; `getFirstByCategory` already handles all variants by exhaustive match.
+
+2. **`agents/helpers.mo`** — add `#planning` branch to `categoryToRole`:
+
+   ```motoko
+   case (#planning) {
+     #customAgent({ name; persona = ?"work planning specialist" });
+   };
+
+   ```
+
+3. **`tools/tool-types.mo`** — add `workspaces` optional field to `ToolResources`:
+
+   ```motoko
+   workspaces : ?{
+     state : WorkspaceModel.WorkspacesState;
+     write : Bool;
+   };
+
+   ```
+
+4. **`tools/function-tool-registry.mo`** — add workspace-management tools section, gated on `resources.workspaces`. Read tools (`list_workspaces`, `get_workspace`) are always available when the resource is present; write tools (`create_workspace`, `set_workspace_admin_channel`, `set_workspace_member_channel`) are only added when `write = true`. Setting workspace 0's admin channel (`set_workspace_admin_channel(0, ...)`) already enforces org-owner-only at the canister level.
+
+5. **Create `agents/planning/work-planning-agent.mo`** — extract current `org-admin-agent.mo` logic verbatim; change `categoryToRole` call to use `#planning`; keep all value-stream / metrics / objectives tool wiring and context building. Accept `PlanningAgentCtx` as a parameter instead of the flat resource params.
+
+6. **Refactor `agents/admin/org-admin-agent.mo`** — strip planning-domain imports (`ValueStreamModel`, `ObjectiveModel`, `MetricModel`) and all associated logic; accept `AdminAgentCtx`; wire workspace tools via `ToolResources`; simplify `buildInstructions` to produce an org-admin persona only.
+
+7. **`events/agent-router.mo`** — define `AdminAgentCtx`, `PlanningAgentCtx`, `AgentCtx` types; refactor `route()` to accept `agentCtx : AgentCtx`; pass the ctx through to `AgentOrchestrator.orchestrateAgentTalk`.
+
+8. **`orchestrators/agent-orchestrator.mo`** — accept `agentCtx : AgentCtx` instead of flat params; dispatch `OrgAdminAgent.process` or `WorkPlanningAgent.process` based on ctx variant; retain `secretId` guard before dispatch.
+
+9. **`events/types/event-processing-context.mo`** — no changes needed for org-admin channel; `workspaces` field already provides access to workspace 0's `adminChannelId`.
+
+10. **`events/handlers/message-handler.mo`** — build `AgentCtx` from `primaryAgent.category` and the contents of `EventProcessingContext`; pass it to `AgentRouter.route` in place of the old flat params.
+
+11. **`main.mo`**: no changes needed for org-admin channel state — it is stored as workspace 0's `adminChannelId` via `setWorkspaceAdminChannel(0, ...)` (org-owner only guard already enforced).
+
+12. **Verify** — `dfx build open-org-backend --check` — no compilation errors.
+
+**Test Steps**
+
+_Unit tests — new file `tests/unit-tests/open-org-backend/agents/planning/work-planning-agent.test.mo`_:
+
+- **Category-to-role**: `#planning` → `#customAgent` with `"work planning specialist"` persona.
+- Existing planning-domain tool-filtering and instruction-building tests ported here.
+
+_Unit tests — updated `tests/unit-tests/open-org-backend/agents/admin/org-admin-agent.test.mo`_:
+
+- **No planning tools in tool set**: `list_workspaces` is present; `save_value_stream` is absent.
+- **`buildInstructions`**: no value-stream or metrics blocks; org-admin persona block present.
+- **`create_workspace` tool**: call handler with `"My Team"` → workspace created in `WorkspacesState`.
+- **`list_workspaces` tool**: two pre-seeded workspaces → tool returns both records.
+- **`set_workspace_admin_channel` tool**: sets `adminChannelId` on the target workspace.
+- **`get_org_admin_channel` tool**: reads workspace 0's `adminChannelId`; returns null when unset, returns the channel ID when set.
+
+_Unit tests — updated `tests/unit-tests/open-org-backend/events/agent-router.test.mo`_:
+
+- **`#admin` category + `#admin` ctx → dispatches to org-admin agent** (orchestrator stub returns `#ok`).
+- **`#planning` category + `#planning` ctx → dispatches to work-planning agent**.
+- **Category/ctx mismatch** (e.g. `#admin` category with `#planning` ctx) → `#err("agent context mismatch")`.
+- **`#research` → `#err("category not implemented")`**.
+- **`#communication` → `#err("category not implemented")`**.
+
+_Integration tests — updated `tests/integration-tests/open-org-backend/workspace-admin-talk.spec.ts`_:
+
+- Existing planning-flow tests migrated to register a `#planning` agent; all assertions unchanged.
+- **New — org-admin workspace list**: register a `#admin` agent; send `"list my workspaces"` → `list_workspaces` step appears; response enumerates workspace names.
+- **New — org-admin create workspace**: register a `#admin` agent; send `"create a workspace called Ops"` → `create_workspace` step appears; canister state reflects the new workspace.
+
+### 1.9 — Session tracking model
 
 - New persistent model: `Map<slackMessageId, SessionRecord>`.
 - `SessionRecord = { sessionId, slackMessageId, userAuthContextId, agentId, parentSessionId }`.

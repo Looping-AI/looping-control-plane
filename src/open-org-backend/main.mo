@@ -30,6 +30,7 @@ import NormalizedEventTypes "./events/types/normalized-event-types";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
 import WeeklyReconciliationService "./services/weekly-reconciliation-service";
+import SlackWrapper "./wrappers/slack-wrapper";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -54,10 +55,8 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var slackUsers = SlackUserModel.emptyState();
 
   // Workspace channel anchors (workspace ID → WorkspaceRecord with admin/member Slack channel IDs)
+  // Workspace 0 is the org workspace; its adminChannelId IS the org-admin channel anchor.
   var workspaces = WorkspaceModel.emptyState();
-
-  // Org-admin channel anchor (Slack channel whose members are org-level admins)
-  var orgAdminChannel : ?WorkspaceModel.OrgAdminChannelAnchor = null;
 
   // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
   var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
@@ -242,7 +241,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
           token,
           slackUsers,
           workspaces,
-          orgAdminChannel,
         );
       };
     };
@@ -443,19 +441,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
   };
 
-  // Get a workspace record by ID (any authenticated caller).
-  public shared ({ caller }) func getWorkspace(workspaceId : Nat) : async {
-    #ok : ?WorkspaceModel.WorkspaceRecord;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok(WorkspaceModel.getWorkspace(workspaces, workspaceId));
-      };
-    };
-  };
-
   // List all workspace records (org admin or org owner).
   public shared ({ caller }) func listWorkspaces() : async {
     #ok : [WorkspaceModel.WorkspaceRecord];
@@ -470,51 +455,124 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // Set the admin channel anchor for a workspace.
-  // Members of this Slack channel will be granted workspace admin scope.
+  // Workspace 0 is the org workspace — only the org owner may set its admin channel
+  // (that channel doubles as the org-admin channel anchor).
+  // For all other workspaces, org owner, org admin, or workspace admin may set it.
+  //
+  // Always calls Slack's conversations.info to verify the channel exists and the bot
+  // has access before persisting the anchor. For workspace 0, also enforces that the
+  // channel's actual name is exactly '#looping-ai-org-admins'.
   public shared ({ caller }) func setWorkspaceAdminChannel(workspaceId : Nat, channelId : Text) : async {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        WorkspaceModel.setAdminChannel(workspaces, workspaceId, channelId);
+    let requiredRoles = if (workspaceId == 0) {
+      [#IsOrgOwner];
+    } else {
+      [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin];
+    };
+    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), requiredRoles)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
+    };
+
+    // Early workspace existence guard — checked before any async call so the
+    // error is returned without requiring an HTTP outcall round.
+    switch (WorkspaceModel.getWorkspace(workspaces, workspaceId)) {
+      case (null) { return #err("Workspace not found.") };
+      case (?_) {};
+    };
+
+    // Retrieve the Slack bot token needed for API verification.
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
+    let token = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
+      case (null) {
+        return #err(
+          "Slack bot token not configured for workspace 0. " #
+          "Please store a bot token via storeSecret before anchoring channel IDs."
+        );
+      };
+      case (?t) { t };
+    };
+
+    // Verify the channel exists and the bot has access via conversations.info.
+    // This prevents anchoring channels the bot cannot read, which would break
+    // the reconciliation service and event routing downstream.
+    let channelInfo = switch (await SlackWrapper.getChannelInfo(token, channelId)) {
+      case (#err(msg)) {
+        return #err(
+          "Could not verify channel '" # channelId # "' with Slack: " # msg # ". " #
+          "Ensure the channel exists and the bot has been invited to it."
+        );
+      };
+      case (#ok(info)) { info };
+    };
+
+    // For workspace 0 (org workspace), the channel MUST be named exactly
+    // '#looping-ai-org-admins' for visibility and security best practices.
+    // The reconciliation service also enforces this requirement at runtime.
+    if (workspaceId == 0) {
+      if (channelInfo.name != Constants.ORG_ADMIN_CHANNEL_NAME) {
+        return #err(
+          "The org-admin channel must be named '#" # Constants.ORG_ADMIN_CHANNEL_NAME # "', " #
+          "but '#" # channelInfo.name # "' was found. " #
+          "Please rename the Slack channel before anchoring it. " #
+          "This naming requirement ensures the channel is clearly identifiable for all org admins."
+        );
       };
     };
+
+    WorkspaceModel.setAdminChannel(workspaces, workspaceId, channelId);
   };
 
   // Set the member channel anchor for a workspace.
   // Members of this Slack channel will be granted workspace member scope.
+  //
+  // Always calls Slack's conversations.info to verify the channel exists and the bot
+  // has access before persisting the anchor.
   public shared ({ caller }) func setWorkspaceMemberChannel(workspaceId : Nat, channelId : Text) : async {
     #ok : ();
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        WorkspaceModel.setMemberChannel(workspaces, workspaceId, channelId);
-      };
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
     };
-  };
 
-  // Set the org-admin channel anchor (org owner only).
-  // Members of this channel are treated as org-level admins.
-  public shared ({ caller }) func setOrgAdminChannel(channelId : Text, channelName : Text) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        orgAdminChannel := ?{ channelId; channelName };
-        #ok(());
-      };
+    // Early workspace existence guard — checked before any async call.
+    switch (WorkspaceModel.getWorkspace(workspaces, workspaceId)) {
+      case (null) { return #err("Workspace not found.") };
+      case (?_) {};
     };
-  };
 
-  // Get the current org-admin channel anchor (public query — channel IDs are not secret).
-  public query func getOrgAdminChannel() : async ?WorkspaceModel.OrgAdminChannelAnchor {
-    orgAdminChannel;
+    // Retrieve the Slack bot token needed for API verification.
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
+    let token = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
+      case (null) {
+        return #err(
+          "Slack bot token not configured for workspace 0. " #
+          "Please store a bot token via storeSecret before anchoring channel IDs."
+        );
+      };
+      case (?t) { t };
+    };
+
+    // Verify the channel exists and the bot has access via conversations.info.
+    // This prevents anchoring channels the bot cannot read, which would break
+    // workspace member sync in the reconciliation service.
+    switch (await SlackWrapper.getChannelInfo(token, channelId)) {
+      case (#err(msg)) {
+        return #err(
+          "Could not verify channel '" # channelId # "' with Slack: " # msg # ". " #
+          "Ensure the channel exists and the bot has been invited to it."
+        );
+      };
+      case (#ok(_)) {};
+    };
+
+    WorkspaceModel.setMemberChannel(workspaces, workspaceId, channelId);
   };
 
   // ============================================

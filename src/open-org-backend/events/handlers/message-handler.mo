@@ -409,9 +409,7 @@ module {
     ctx : EventProcessingContextTypes.EventProcessingContext,
     workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
     conversationEntry : ?ConversationModel.TimelineEntry,
-    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState,
-    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
-    workspaceId : Nat,
+    agentCtx : AgentRouter.AgentCtx,
     msgText : Text,
     encryptionKey : [Nat8],
   ) : async ([Types.ProcessingStep], ?Text) {
@@ -420,12 +418,7 @@ module {
       ctx.mcpToolRegistry,
       workspaceSecrets,
       conversationEntry,
-      workspaceValueStreamsState,
-      ctx.workspaceValueStreams,
-      workspaceObjectivesMap,
-      ctx.metricsRegistry,
-      ctx.metricDatapoints,
-      workspaceId,
+      agentCtx,
       msgText,
       encryptionKey,
     );
@@ -512,14 +505,31 @@ module {
       case (?token) { token };
     };
 
+    // Build the per-category context variant — passes only the data each agent needs.
+    let agentCtx : AgentRouter.AgentCtx = switch (primaryAgent.category) {
+      case (#admin) {
+        #admin({ workspaces = ctx.workspaces });
+      };
+      case (#planning) {
+        #planning({
+          workspaceValueStreamsState;
+          valueStreamsMap = ctx.workspaceValueStreams;
+          workspaceObjectivesMap;
+          metricsRegistryState = ctx.metricsRegistry;
+          metricDatapoints = ctx.metricDatapoints;
+          workspaceId;
+        });
+      };
+      case (#research) { #research };
+      case (#communication) { #communication };
+    };
+
     let (llmSteps, replyTextOpt) = await dispatchToAgentRouter(
       primaryAgent,
       ctx,
       workspaceSecrets,
       conversationEntry,
-      workspaceValueStreamsState,
-      workspaceObjectivesMap,
-      workspaceId,
+      agentCtx,
       msg.text,
       encryptionKey,
     );

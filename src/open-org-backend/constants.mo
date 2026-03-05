@@ -38,4 +38,11 @@ module {
   // Absolute ceiling on the number of LLM rounds any session may run.
   public let MAX_AGENT_ROUNDS : Nat = 10;
 
+  // Required name for the org-admin Slack channel.
+  // Members of this channel are treated as org-level admins.
+  // The channel MUST be named exactly this value (without the `#` prefix) for
+  // visibility and security best practices. The reconciliation service verifies
+  // this on every weekly run and warns the Primary Owner if the name has changed.
+  public let ORG_ADMIN_CHANNEL_NAME : Text = "looping-ai-org-admins";
+
 };

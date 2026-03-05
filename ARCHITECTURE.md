@@ -235,8 +235,7 @@ See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 - `agentRegistry`: global agent registry with dual index by ID and name (Phase 1.1, implemented).
 - `conversationStore`: channel-keyed, timeline-structured message history with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Round tracking is embedded here — each `ConversationMessage` carries a `userAuthContext` field (`roundCount`, `forceTerminated`) so no separate round-context store is needed. See [src/open-org-backend/middleware/slack-auth-middleware.mo](src/open-org-backend/middleware/slack-auth-middleware.mo) for the `UserAuthContext` type.
 - `slackUsers`: Slack user cache (`SlackUserEntry` records indexed by Slack user ID); populated by event-driven membership events and weekly reconciliation.
-- `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId` / `memberChannelId`).
-- `orgAdminChannel`: optional anchor for the `#looping-ai-org-admins` Slack channel.
+- `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId` / `memberChannelId`). Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor.
 - `secrets`: encrypted secrets per workspace.
 - `mcpToolRegistry`: dynamic MCP tool registry.
 - `metricsRegistry` / `metricDatapoints`: org-level metrics.
@@ -246,9 +245,8 @@ See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 
 ### Target persistent state
 
-- **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId, memberChannelId }`.
+- **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId, memberChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`. Backed by `SlackUserModel`.
-- **Org admin channel**: `{ channelId, channelName }` (the anchor for `#looping-ai-org-admins`).
 - **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, llmModel, secretsAllowed: [(workspaceId, SecretId)], toolsAllowed, toolsState: Map<Text, ToolState>, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/open-org-backend/models/agent-model.mo](src/open-org-backend/models/agent-model.mo).
 - **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry }`. Cleaned up on Sundays in a Timer.

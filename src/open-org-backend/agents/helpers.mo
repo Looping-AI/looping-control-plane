@@ -17,6 +17,9 @@ module {
   ) : InstructionTypes.AgentRole {
     switch (category) {
       case (#admin) { #orgAdmin };
+      case (#planning) {
+        #customAgent({ name; persona = ?"work planning specialist" });
+      };
       case (#research) {
         #customAgent({ name; persona = ?"research specialist" });
       };

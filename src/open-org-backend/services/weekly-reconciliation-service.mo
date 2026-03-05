@@ -300,14 +300,17 @@ module {
   /// @param token          Decrypted Slack bot token (xoxb-...)
   /// @param slackUsers     Slack user state (mutated in-place; changes are auto-logged)
   /// @param workspaces     Workspace registry (read-only during reconciliation)
-  /// @param orgAdminChannel  Org-admin channel anchor (may be null if not yet configured)
   /// @returns Summary of user updates, channel syncs, and any errors encountered
   public func run(
     token : Text,
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
-    orgAdminChannel : ?WorkspaceModel.OrgAdminChannelAnchor,
   ) : async ReconciliationSummary {
+    // Workspace 0 is the org workspace. Its adminChannelId IS the org-admin channel anchor.
+    let orgAdminChannelId : ?Text = switch (Map.get(workspaces.workspaces, Nat.compare, 0)) {
+      case (null) { null };
+      case (?ws0) { ws0.adminChannelId };
+    };
     let runStartTime = Time.now();
     var usersUpdated : Nat = 0;
     var orgAdminChannelOk : Bool = true;
@@ -388,8 +391,10 @@ module {
       };
     };
 
-    // ---- Step 2: Sync org admin channel ----
-    switch (orgAdminChannel) {
+    // ---- Step 2: Sync org admin channel (workspace 0's adminChannelId) ----
+    // First verify the channel is accessible (via conversations.info) and that its
+    // name is exactly '#looping-ai-org-admins', then sync member flags.
+    switch (orgAdminChannelId) {
       case (null) {
         Logger.log(
           #info,
@@ -397,23 +402,20 @@ module {
           "No org admin channel anchor configured; skipping org admin sync.",
         );
       };
-      case (?anchor) {
-        switch (await SlackWrapper.getChannelMembers(token, anchor.channelId)) {
+      case (?channelId) {
+        switch (await SlackWrapper.getChannelInfo(token, channelId)) {
           case (#err(e)) {
+            // Channel is gone or inaccessible.
             orgAdminChannelOk := false;
-            List.add(goneChannels, anchor.channelId);
+            List.add(goneChannels, channelId);
             Logger.log(
               #error,
               ?"WeeklyReconciliation",
-              "Org admin channel is gone or inaccessible (channelId: " # anchor.channelId # "): " # e,
+              "Org admin channel is gone or inaccessible (channelId: " # channelId # "): " # e,
             );
 
             // TODO: Once the Task system is implemented (Phase 2+), replace this
             //       postMessage with a Task of type #orgAdminChannelRecovery.
-            //       The Task should carry the missing channel's ID and guide the
-            //       Primary Owner through re-anchoring the org admin channel via
-            //       an interactive Slack flow (Phase 6). The DM below is the
-            //       interim notification until that infrastructure exists.
             switch (findPrimaryOwner(slackUsers.cache)) {
               case (null) {
                 let msg = "Org admin channel gone and Primary Owner not found in cache — cannot send recovery DM.";
@@ -422,8 +424,7 @@ module {
               };
               case (?ownerId) {
                 let dmText = ":warning: *Looping AI — Org Admin Channel Issue*\n\n" #
-                "The org admin channel `#" # anchor.channelName # "` " #
-                "(ID: `" # anchor.channelId # "`) is no longer accessible.\n\n" #
+                "The org-admin channel (ID: `" # channelId # "`) is no longer accessible.\n\n" #
                 "Please re-create or re-anchor it so org-level access continues to work. " #
                 "Once done, update the channel anchor via the Looping AI configuration.";
                 switch (await SlackWrapper.postMessage(token, ownerId, dmText, null, null)) {
@@ -443,8 +444,62 @@ module {
               };
             };
           };
-          case (#ok(freshMembers)) {
-            syncOrgAdminMembership(slackUsers, freshMembers);
+          case (#ok(channelInfo)) {
+            // Channel is accessible. Verify it still has the required name.
+            if (channelInfo.name != Constants.ORG_ADMIN_CHANNEL_NAME) {
+              Logger.log(
+                #warn,
+                ?"WeeklyReconciliation",
+                "Org admin channel (ID: " # channelId # ") has unexpected name '" #
+                channelInfo.name # "' — expected '#" # Constants.ORG_ADMIN_CHANNEL_NAME # "'.",
+              );
+              switch (findPrimaryOwner(slackUsers.cache)) {
+                case (null) {
+                  let msg = "Org admin channel has wrong name ('" # channelInfo.name #
+                  "') and Primary Owner not found — cannot send warning DM.";
+                  Logger.log(#warn, ?"WeeklyReconciliation", msg);
+                  List.add(errors, msg);
+                };
+                case (?ownerId) {
+                  let warnText = ":warning: *Looping AI — Org Admin Channel Name Issue*\n\n" #
+                  "The org-admin channel (ID: `" # channelId # "`) is currently named " #
+                  "`#" # channelInfo.name # "`, but it must be named " #
+                  "`#" # Constants.ORG_ADMIN_CHANNEL_NAME # "` for visibility and security best practices.\n\n" #
+                  "Please rename the channel to `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "`.";
+                  switch (await SlackWrapper.postMessage(token, ownerId, warnText, null, null)) {
+                    case (#err(e2)) {
+                      let msg = "Failed to DM Primary Owner about org admin channel name issue: " # e2;
+                      Logger.log(#error, ?"WeeklyReconciliation", msg);
+                      List.add(errors, msg);
+                    };
+                    case (#ok(_)) {
+                      Logger.log(
+                        #info,
+                        ?"WeeklyReconciliation",
+                        "Sent name-warning DM to Primary Owner (" # ownerId # ").",
+                      );
+                    };
+                  };
+                };
+              };
+            };
+
+            // Sync org admin membership regardless of name correctness.
+            switch (await SlackWrapper.getChannelMembers(token, channelId)) {
+              case (#err(e)) {
+                orgAdminChannelOk := false;
+                List.add(goneChannels, channelId);
+                Logger.log(
+                  #error,
+                  ?"WeeklyReconciliation",
+                  "Org admin channel members fetch failed (channelId: " # channelId # "): " # e,
+                );
+                List.add(errors, "Org admin channel members fetch failed: " # e);
+              };
+              case (#ok(freshMembers)) {
+                syncOrgAdminMembership(slackUsers, freshMembers);
+              };
+            };
           };
         };
       };
@@ -456,55 +511,58 @@ module {
       workspacesChecked += 1;
 
       // -- Admin channel for this workspace --
-      switch (ws.adminChannelId) {
-        case (null) {};
-        case (?adminChanId) {
-          switch (await SlackWrapper.getChannelMembers(token, adminChanId)) {
-            case (#err(e)) {
-              List.add(goneChannels, adminChanId);
-              Logger.log(
-                #error,
-                ?"WeeklyReconciliation",
-                "Workspace " # Nat.toText(ws.id) # " (" # ws.name # ") admin channel gone " #
-                "(channelId: " # adminChanId # "): " # e,
-              );
-              // Notify org admin channel only if it's still accessible
-              if (orgAdminChannelOk) {
-                switch (orgAdminChannel) {
-                  case (null) {
-                    Logger.log(
-                      #warn,
-                      ?"WeeklyReconciliation",
-                      "No org admin channel configured to notify about gone admin channel " #
-                      "for workspace " # Nat.toText(ws.id) # " (" # ws.name # ").",
-                    );
-                  };
-                  case (?anchor) {
-                    let notifyText = ":warning: *Looping AI — Workspace Admin Channel Issue*\n\n" #
-                    "The admin channel for workspace *" # ws.name # "* " #
-                    "(ID: `" # adminChanId # "`) is no longer accessible.\n\n" #
-                    "Please assign a new admin channel for this workspace, or request workspace deletion.";
-                    switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null, null)) {
-                      case (#err(e2)) {
-                        let msg = "Failed to notify org admin channel about gone workspace admin channel: " # e2;
-                        Logger.log(#error, ?"WeeklyReconciliation", msg);
-                        List.add(errors, msg);
+      // Skip workspace 0 — its admin channel is the org-admin channel, already handled in Step 2.
+      if (ws.id != 0) {
+        switch (ws.adminChannelId) {
+          case (null) {};
+          case (?adminChanId) {
+            switch (await SlackWrapper.getChannelMembers(token, adminChanId)) {
+              case (#err(e)) {
+                List.add(goneChannels, adminChanId);
+                Logger.log(
+                  #error,
+                  ?"WeeklyReconciliation",
+                  "Workspace " # Nat.toText(ws.id) # " (" # ws.name # ") admin channel gone " #
+                  "(channelId: " # adminChanId # "): " # e,
+                );
+                // Notify org admin channel only if it's still accessible
+                if (orgAdminChannelOk) {
+                  switch (orgAdminChannelId) {
+                    case (null) {
+                      Logger.log(
+                        #warn,
+                        ?"WeeklyReconciliation",
+                        "No org admin channel configured to notify about gone admin channel " #
+                        "for workspace " # Nat.toText(ws.id) # " (" # ws.name # ").",
+                      );
+                    };
+                    case (?orgChanId) {
+                      let notifyText = ":warning: *Looping AI — Workspace Admin Channel Issue*\n\n" #
+                      "The admin channel for workspace *" # ws.name # "* " #
+                      "(ID: `" # adminChanId # "`) is no longer accessible.\n\n" #
+                      "Please assign a new admin channel for this workspace, or request workspace deletion.";
+                      switch (await SlackWrapper.postMessage(token, orgChanId, notifyText, null, null)) {
+                        case (#err(e2)) {
+                          let msg = "Failed to notify org admin channel about gone workspace admin channel: " # e2;
+                          Logger.log(#error, ?"WeeklyReconciliation", msg);
+                          List.add(errors, msg);
+                        };
+                        case (#ok(_)) {};
                       };
-                      case (#ok(_)) {};
                     };
                   };
+                } else {
+                  Logger.log(
+                    #warn,
+                    ?"WeeklyReconciliation",
+                    "Skipping notification for gone admin channel (workspace " # Nat.toText(ws.id) #
+                    ") — org admin channel is also inaccessible.",
+                  );
                 };
-              } else {
-                Logger.log(
-                  #warn,
-                  ?"WeeklyReconciliation",
-                  "Skipping notification for gone admin channel (workspace " # Nat.toText(ws.id) #
-                  ") — org admin channel is also inaccessible.",
-                );
               };
-            };
-            case (#ok(freshMembers)) {
-              syncWorkspaceChannelMembership(slackUsers, ws.id, freshMembers, #admin);
+              case (#ok(freshMembers)) {
+                syncWorkspaceChannelMembership(slackUsers, ws.id, freshMembers, #admin);
+              };
             };
           };
         };
@@ -542,7 +600,7 @@ module {
                 case (null) {
                   // No workspace admin channel — fall back to org admin channel (only if accessible)
                   if (orgAdminChannelOk) {
-                    switch (orgAdminChannel) {
+                    switch (orgAdminChannelId) {
                       case (null) {
                         Logger.log(
                           #warn,
@@ -551,13 +609,13 @@ module {
                           "about gone member channel for workspace " # Nat.toText(ws.id) # " (" # ws.name # ").",
                         );
                       };
-                      case (?anchor) {
+                      case (?orgChanId) {
                         let notifyText = ":warning: *Looping AI — Workspace Member Channel Issue*\n\n" #
                         "The member channel for workspace *" # ws.name # "* " #
                         "(ID: `" # memberChanId # "`) is no longer accessible, " #
                         "and no admin channel is configured for this workspace.\n\n" #
                         "Please assign a new member channel or admin channel for workspace *" # ws.name # "*.";
-                        switch (await SlackWrapper.postMessage(token, anchor.channelId, notifyText, null, null)) {
+                        switch (await SlackWrapper.postMessage(token, orgChanId, notifyText, null, null)) {
                           case (#err(e2)) {
                             let msg = "Failed to notify org admin channel about gone member channel: " # e2;
                             Logger.log(#error, ?"WeeklyReconciliation", msg);
