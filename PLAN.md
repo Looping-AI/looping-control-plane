@@ -236,18 +236,230 @@ _Integration tests — updated `tests/integration-tests/open-org-backend/workspa
 
 **Goal**: Ensure all mutations enter through Slack events. Remove any remaining update call endpoints exposed to external clients.
 
-### 2.1 - Add tests to all handlers (see main.mo / integration tests for many of this logic)
+### 2.1 — Migrate all public update methods to tools; remove direct API surface
 
-- ?
+**Goal**
 
-### 2.2 — Audit and remove external update methods
+Remove every `public shared` method from `main.mo` that is not `http_request` / `http_request_update`. Each domain is migrated (to agent tools) or deleted (legacy/internal) one at a time, with a build-and-commit checkpoint after each step. After this task, the only way to mutate canister state is through a Slack webhook event processed by an agent.
 
-- Review all `public shared` methods in `main.mo`.
-- Migrate one domain (notice the comments saying something like "XYZ Management") at a time to be a tool in registry, with respective handler and test.
-- Remove or gate any `update` method that isn't `http_request_update`.
-- Ensure `http_request` (query) and `http_request_update` are the only entry points.
+**Current State**
 
-### 2.3 — Session tracking model
+- `main.mo` exposes ~40 `public shared` methods across 9 non-HTTP domains.
+- Several domains have partial tool handler coverage already: workspace (all 4), metrics (3 of 8 operations), value streams (2 of 6), objectives (5 of 10).
+- Integration tests call these endpoints directly via PocketIC actor calls.
+- State can be mutated either through Slack webhooks or direct canister calls — the direct path must be closed.
+
+**Desired State**
+
+- Only `http_request` (query) and `http_request_update` (update) remain as public methods in `main.mo`.
+- All remaining mutations flow through Slack → webhook → event → agent tool call.
+- Each domain's test coverage lives in unit tests against its tool handler(s), not integration tests against the actor.
+
+**Domain disposition**
+
+| Domain                              | Decision                               | Agent       | Existing handlers | Tests                                        |
+| ----------------------------------- | -------------------------------------- | ----------- | ----------------- | -------------------------------------------- |
+| OrgAdmin Management                 | DELETE (legacy auth, covered by 2.6)   | —           | none              | delete `admin.spec.ts`                       |
+| Workspace Channel-Anchor Management | REMOVE endpoints (tools added in 1.8)  | `#admin`    | all 4 ✓           | migrate `workspace-channels.spec.ts` → unit  |
+| Metrics API                         | REMOVE endpoints; add missing handlers | `#planning` | 3 of 8 ✓          | migrate `metrics.spec.ts` → unit             |
+| Value Streams API                   | REMOVE endpoints; add missing handlers | `#planning` | 2 of 6 ✓          | migrate `value-streams.spec.ts` → unit       |
+| Objectives API                      | REMOVE endpoints; add missing handlers | `#planning` | 5 of 10 ✓         | migrate `objectives.spec.ts` → unit          |
+| Agent Registry                      | MIGRATE to tools                       | `#admin`    | none              | new unit tests                               |
+| MCP Tool Management                 | MIGRATE to tools                       | `#admin`    | none              | migrate `mcp-tools.spec.ts` → unit           |
+| Secrets Management                  | MIGRATE to tools                       | `#admin`    | none              | migrate `secrets.spec.ts` → unit             |
+| Key Cache Management                | DELETE (internal; timer covers it)     | —           | none              | remove cache cases from `encryption.spec.ts` |
+| Event Queue Stats & Management      | MIGRATE to tools                       | `#admin`    | none              | migrate `event-store-admin.spec.ts` → unit   |
+
+**Source Steps**
+
+Each step below is an independent, buildable, committable unit. Verify with `dfx build open-org-backend --check` and `bun run tsc --noEmit` after each before committing.
+
+---
+
+**Step 1 — Delete: OrgAdmin Management**
+
+_Methods to delete from `main.mo`:_ `addOrgAdmin`, `getOrgAdmins`, `isCallerOrgAdmin`, `addWorkspaceAdmin`, `addWorkspaceMember`, `getWorkspaceMembers`, `isCallerWorkspaceMember`.
+
+- These are Principal-based auth helpers that will be fully removed in Task 2.6. They serve no architectural purpose after 2.6 and have no LLM-agent utility.
+- Delete the entire `// OrgAdmin Management` section from `main.mo`.
+- Delete `tests/integration-tests/open-org-backend/admin.spec.ts` (it exclusively tests these methods).
+- Verify → commit.
+
+---
+
+**Step 2 — Remove endpoints: Workspace Channel-Anchor Management**
+
+_Methods to delete from `main.mo`:_ `createWorkspace`, `listWorkspaces`, `setWorkspaceAdminChannel`, `setWorkspaceMemberChannel`.
+
+- Tool handlers for all four already exist (`create-workspace-handler.mo`, `list-workspaces-handler.mo`, `set-workspace-admin-channel-handler.mo`, `set-workspace-member-channel-handler.mo`) and are wired into `org-admin-agent.mo` since Task 1.8.
+- Delete the entire `// Workspace Channel-Anchor Management` section from `main.mo`.
+- Migrate test coverage: port the meaningful cases from `tests/integration-tests/open-org-backend/workspace-channels.spec.ts` into unit tests under `tests/unit-tests/open-org-backend/tools/handlers/` that call the handler functions directly with a `WorkspacesState`. These are pure functional tests — no actor needed.
+- Delete `tests/integration-tests/open-org-backend/workspace-channels.spec.ts`.
+- Verify → commit.
+
+---
+
+**Step 3 — Add missing handlers + remove endpoints: Metrics API**
+
+_Methods to delete from `main.mo`:_ `registerMetric`, `getMetric`, `listMetrics`, `recordMetricDatapoint`, `getMetricDatapoints`, `getLatestMetricDatapoint`, `unregisterMetric`, `purgeOldMetricDatapoints`.
+
+_Existing handlers (keep, wire if not already):_ `create-metric-handler.mo`, `update-metric-handler.mo`, `get-metric-datapoints-handler.mo`.
+
+_New handlers to create in `tools/handlers/`:_
+
+- `list-metrics-handler.mo` — lists all registered metrics.
+- `get-metric-handler.mo` — gets a single metric by ID.
+- `delete-metric-handler.mo` — unregisters a metric and purges its datapoints.
+- `get-latest-metric-datapoint-handler.mo` — gets the latest datapoint for a metric.
+- `record-metric-datapoint-handler.mo` — records a single datapoint (if not already wired).
+
+Wire all new handlers into `work-planning-agent.mo` via `FunctionToolRegistry`.
+
+Migrate test coverage: port cases from `tests/integration-tests/open-org-backend/metrics.spec.ts` into unit tests under `tests/unit-tests/open-org-backend/tools/handlers/metrics/`. Delete `metrics.spec.ts`.
+
+Verify → commit.
+
+---
+
+**Step 4 — Add missing handlers + remove endpoints: Value Streams API**
+
+_Methods to delete from `main.mo`:_ `createValueStream`, `getValueStream`, `listValueStreams`, `updateValueStream`, `deleteValueStream`, `setValueStreamPlan`.
+
+_Existing handlers (keep):_ `save-value-stream-handler.mo` (create + update), `save-plan-handler.mo`.
+
+_New handlers to create:_
+
+- `list-value-streams-handler.mo` — lists all value streams in a workspace.
+- `get-value-stream-handler.mo` — gets a single value stream by ID.
+- `delete-value-stream-handler.mo` — deletes a value stream and its objectives.
+
+Wire new handlers into `work-planning-agent.mo`.
+
+Migrate: port `value-streams.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/value-streams/`. Delete `value-streams.spec.ts`.
+
+Verify → commit.
+
+---
+
+**Step 5 — Add missing handlers + remove endpoints: Objectives API**
+
+_Methods to delete from `main.mo`:_ `addObjective`, `getObjective`, `listObjectives`, `updateObjective`, `archiveObjective`, `recordObjectiveDatapoint`, `getObjectiveHistory`, `addObjectiveDatapointComment`, `addImpactReview`, `getImpactReviews`.
+
+_Existing handlers (keep):_ `create-objective-handler.mo`, `update-objective-handler.mo`, `archive-objective-handler.mo`, `record-objective-datapoint-handler.mo`, `add-impact-review-handler.mo`.
+
+_New handlers to create:_
+
+- `list-objectives-handler.mo` — lists all objectives for a value stream.
+- `get-objective-handler.mo` — gets a single objective by ID.
+- `get-objective-history-handler.mo` — returns the datapoint history array.
+- `add-objective-datapoint-comment-handler.mo` — adds a comment to a history entry.
+- `get-impact-reviews-handler.mo` — returns all impact reviews for an objective.
+
+Wire new handlers into `work-planning-agent.mo`.
+
+Migrate: port `objectives.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/objectives/`. Delete `objectives.spec.ts`.
+
+Verify → commit.
+
+---
+
+**Step 6 — Migrate to tools: Agent Registry**
+
+_Methods to delete from `main.mo`:_ `registerAgent`, `getRegisteredAgent`, `updateRegisteredAgent`, `unregisterAgent`, `getRegisteredAgentById`, `listRegisteredAgents`, `setAgentWorkspaceSecrets`.
+
+_New handlers to create in `tools/handlers/agents/`:_
+
+- `register-agent-handler.mo` — registers a new agent in the registry.
+- `list-agents-handler.mo` — lists all registered agents.
+- `get-agent-handler.mo` — looks up an agent by name or ID.
+- `update-agent-handler.mo` — updates an agent's configuration.
+- `unregister-agent-handler.mo` — removes an agent from the registry.
+
+Wire all into `org-admin-agent.mo`.
+
+Add unit tests under `tests/unit-tests/open-org-backend/tools/handlers/agents/` covering each handler's happy path and key error paths.
+
+Verify → commit.
+
+---
+
+**Step 7 — Migrate to tools: MCP Tool Management**
+
+_Methods to delete from `main.mo`:_ `registerMcpTool`, `unregisterMcpTool`, `listMcpTools`.
+
+_New handlers to create in `tools/handlers/mcp/`:_
+
+- `register-mcp-tool-handler.mo`
+- `unregister-mcp-tool-handler.mo`
+- `list-mcp-tools-handler.mo`
+
+Wire into `org-admin-agent.mo`.
+
+Migrate: port `mcp-tools.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/mcp/`. Delete `mcp-tools.spec.ts`.
+
+Verify → commit.
+
+---
+
+**Step 8 — Migrate to tools: Secrets Management**
+
+_Methods to delete from `main.mo`:_ `storeSecret`, `getWorkspaceSecrets`, `deleteSecret`.
+
+_New handlers to create in `tools/handlers/secrets/`:_
+
+- `store-secret-handler.mo`
+- `get-workspace-secrets-handler.mo`
+- `delete-secret-handler.mo`
+
+Wire into `org-admin-agent.mo`. The auth guard (only org admins may store Slack secrets; workspace admins may store LLM keys) must be enforced inside each handler, not just in main.mo.
+
+Migrate: port `secrets.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/secrets/`. Delete `secrets.spec.ts`.
+
+Verify → commit.
+
+---
+
+**Step 9 — Delete: Key Cache Management**
+
+_Methods to delete from `main.mo`:_ `clearKeyCache`, `getKeyCacheStats`.
+
+- The 30-day timer already handles cache clearing. No agent needs to inspect or clear the cache on demand; these are purely internal maintenance methods.
+- Remove the `// Key Cache Management` section from `main.mo`.
+- Remove the two test cases for `clearKeyCache` / `getKeyCacheStats` from `tests/integration-tests/open-org-backend/encryption.spec.ts` (keep the key-derivation tests).
+- Verify → commit.
+
+---
+
+**Step 10 — Migrate to tools: Event Queue Stats & Management**
+
+_Methods to delete from `main.mo`:_ `getEventStoreStats`, `getFailedEvents`, `deleteFailedEvents`.
+
+_New handlers to create in `tools/handlers/events/`:_
+
+- `get-event-store-stats-handler.mo`
+- `get-failed-events-handler.mo`
+- `delete-failed-events-handler.mo`
+
+Wire into `org-admin-agent.mo`.
+
+Migrate: port `event-store-admin.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/events/`. Delete `event-store-admin.spec.ts`.
+
+Verify → commit.
+
+---
+
+**Test Steps**
+
+After all 10 steps, the only remaining integration tests that exercise `main.mo` public methods are:
+
+- `http-requests.spec.ts` — `http_request` (GET/non-POST) query endpoint.
+- `slack-webhook.spec.ts` — full Slack webhook pipeline through `http_request_update`.
+- `timers.spec.ts` — timer callback behaviour.
+- `encryption.spec.ts` — key derivation (cache parts removed in Step 9).
+
+Run `bun run test:unit` to confirm all unit tests pass. Run `bun run tsc --noEmit` to confirm no TypeScript regressions in the test suite.
+
+### 2.2 — Session tracking model
 
 - New persistent model: `Map<slackMessageId, SessionRecord>`.
 - `SessionRecord = { sessionId, slackMessageId, userAuthContextId, agentId, parentSessionId }`.
@@ -256,20 +468,20 @@ _Integration tests — updated `tests/integration-tests/open-org-backend/workspa
 - Support delegation chain reconstruction by walking `parentSessionId` links.
 - Retention policy: bounded by time or count (TBD).
 
-### 2.4 — Access scoping on models
+### 2.3 — Access scoping on models
 
 - Add visibility metadata to models: `read: #org | #team | #admin`, `write: #org | #team | #admin`.
 - Enforce at the service level: check `userAuthContext.workspaceScopes` (and `isOrgAdmin` for org-level resources) against the resource's required level before read/write operations.
 - Examples: objectives (`read: org`, `write: admin`), tasks (`read: org`, `write: team`).
 
-### 2.5 — App install and setup flow
+### 2.4 — App install and setup flow
 
 - On canister init or first Slack event: call `conversations.list` + `users.list`.
 - Identify Primary Owner (`is_primary_owner: true`).
 - Detect or request creation of `#looping-ai-org-admins`.
 - Store channel ID anchor. Populate org admin user cache entries.
 
-### 2.6 — Remove legacy auth
+### 2.5 — Remove legacy auth
 
 - Delete Principal-based admin management endpoints (`addOrgAdmin`, `removeOrgAdmin`, `addWorkspaceAdmin`, etc.).
 - Delete old `AuthMiddleware`.

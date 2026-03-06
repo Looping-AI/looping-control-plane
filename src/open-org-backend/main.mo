@@ -10,7 +10,6 @@ import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
-import AdminModel "./models/admin-model";
 import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
 import SlackUserModel "./models/slack-user-model";
@@ -297,119 +296,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
     httpCertStore := HttpCertification.initStore();
     certifyHttpEndpoints();
-  };
-
-  // ============================================
-  // OrgAdmin Management
-  // ============================================
-
-  // Add a new organization admin
-  public shared ({ caller }) func addOrgAdmin(newAdmin : Principal) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        // Business validation
-        let validation = AdminModel.validateNewAdmin(newAdmin, orgAdmins);
-        switch (validation) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(())) {
-            orgAdmins := AdminModel.addAdminToList(newAdmin, orgAdmins);
-            #ok(());
-          };
-        };
-      };
-    };
-  };
-
-  // Get list of organization admins
-  public query func getOrgAdmins() : async [Principal] {
-    orgAdmins;
-  };
-
-  // Check if caller is an organization admin
-  public shared ({ caller }) func isCallerOrgAdmin() : async Bool {
-    AdminModel.isAdmin(caller, orgAdmins);
-  };
-
-  // Add a new workspace admin
-  public shared ({ caller }) func addWorkspaceAdmin(workspaceId : Nat, newAdmin : Principal) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?admins) {
-            // Business validation
-            let validation = AdminModel.validateNewAdmin(newAdmin, admins);
-            switch (validation) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(())) {
-                let newAdmins = AdminModel.addAdminToList(newAdmin, admins);
-                Map.add(workspaceAdmins, Nat.compare, workspaceId, newAdmins);
-                #ok(());
-              };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  // Add a new workspace member
-  public shared ({ caller }) func addWorkspaceMember(workspaceId : Nat, newMember : Principal) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?members) {
-            // Business validation
-            let validation = AdminModel.validateNewMember(newMember, members);
-            switch (validation) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(())) {
-                let newMembers = AdminModel.addMemberToList(newMember, members);
-                Map.add(workspaceMembers, Nat.compare, workspaceId, newMembers);
-                #ok(());
-              };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  // Get workspace members (only workspace admins can view)
-  public shared ({ caller }) func getWorkspaceMembers(workspaceId : Nat) : async {
-    #ok : [Principal];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin, #IsWorkspaceMember])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?members) { #ok(members) };
-        };
-      };
-    };
-  };
-
-  // Check if caller is a workspace member
-  public shared ({ caller }) func isCallerWorkspaceMember(workspaceId : Nat) : async Bool {
-    switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-      case (null) { false };
-      case (?members) { AdminModel.isMember(caller, members) };
-    };
   };
 
   // ============================================
