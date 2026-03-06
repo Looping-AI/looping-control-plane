@@ -17,7 +17,6 @@ import WorkspaceModel "./models/workspace-model";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
 import McpToolRegistry "./tools/mcp-tool-registry";
-import ToolTypes "./tools/tool-types";
 import Constants "./constants";
 import MetricModel "./models/metric-model";
 import ValueStreamModel "./models/value-stream-model";
@@ -408,56 +407,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
       case (null) { false };
       case (?members) { AdminModel.isMember(caller, members) };
-    };
-  };
-
-  // ============================================
-  // MCP Tool Management
-  // ============================================
-
-  // Register a new MCP tool
-  // Only org owner and org admins can register MCP tools
-  public shared ({ caller }) func registerMcpTool(tool : ToolTypes.McpToolRegistration) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (McpToolRegistry.register(mcpToolRegistry, tool)) {
-          case (#ok) { #ok(()) };
-          case (#err(msg)) { #err(msg) };
-        };
-      };
-    };
-  };
-
-  // Unregister an MCP tool by name
-  // Only org owner and org admins can unregister MCP tools
-  public shared ({ caller }) func unregisterMcpTool(toolName : Text) : async {
-    #ok : Bool;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let removed = McpToolRegistry.unregister(mcpToolRegistry, toolName);
-        #ok(removed);
-      };
-    };
-  };
-
-  // Get all registered MCP tools
-  // Only org owner and org admins can view MCP tools
-  public shared ({ caller }) func listMcpTools() : async {
-    #ok : [ToolTypes.McpToolRegistration];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok(McpToolRegistry.getAll(mcpToolRegistry));
-      };
     };
   };
 

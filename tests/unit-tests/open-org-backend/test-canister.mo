@@ -48,6 +48,9 @@ import ListAgentsHandler "../../../src/open-org-backend/tools/handlers/agents/li
 import GetAgentHandler "../../../src/open-org-backend/tools/handlers/agents/get-agent-handler";
 import UpdateAgentHandler "../../../src/open-org-backend/tools/handlers/agents/update-agent-handler";
 import UnregisterAgentHandler "../../../src/open-org-backend/tools/handlers/agents/unregister-agent-handler";
+import RegisterMcpToolHandler "../../../src/open-org-backend/tools/handlers/mcp/register-mcp-tool-handler";
+import UnregisterMcpToolHandler "../../../src/open-org-backend/tools/handlers/mcp/unregister-mcp-tool-handler";
+import ListMcpToolsHandler "../../../src/open-org-backend/tools/handlers/mcp/list-mcp-tools-handler";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
@@ -57,6 +60,7 @@ import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
 import SlackAuthMiddleware "../../../src/open-org-backend/middleware/slack-auth-middleware";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
 import AgentModel "../../../src/open-org-backend/models/agent-model";
+import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
 import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
 import Types "../../../src/open-org-backend/types";
 import TestHelpers "./test-helpers";
@@ -117,6 +121,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // register agents through handler calls and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
   var testAgentRegistry = AgentModel.emptyState();
+
+  // MCP tool registry state for MCP handler tests. Starts empty; tests
+  // register tools through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  var testMcpToolRegistry = McpToolRegistry.empty();
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -1190,5 +1199,53 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await UnregisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  // ============================================
+  // MCP Tool Handler Test Methods
+  //
+  // All MCP handlers run against testMcpToolRegistry (starts empty).
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Test the RegisterMcpToolHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ name, serverId, description?, parameters?, remoteName? }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Tools registered here persist for the lifetime of this PocketIC canister
+  /// so subsequent calls to testListMcpToolsHandler see them.
+  public shared ({ caller }) func testRegisterMcpToolHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await RegisterMcpToolHandler.handle(testMcpToolRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the UnregisterMcpToolHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ name }).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testUnregisterMcpToolHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await UnregisterMcpToolHandler.handle(testMcpToolRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the ListMcpToolsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  public shared ({ caller }) func testListMcpToolsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListMcpToolsHandler.handle(testMcpToolRegistry, args);
   };
 };

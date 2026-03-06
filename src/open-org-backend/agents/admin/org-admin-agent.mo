@@ -75,7 +75,7 @@ module {
     // Build instructions driven by agent configuration
     let instructions = buildInstructions(agent);
 
-    // Build tool resources — only workspace-management and agent registry tools for this agent
+    // Build tool resources — workspace-management, agent registry, and MCP tool management
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = null; // org-admin tools operate on entire WorkspacesState, not a single workspace
       groqApiKey = ?apiKey;
@@ -90,6 +90,10 @@ module {
       };
       agentRegistry = ?{
         state = ctx.agentRegistry;
+        write = true;
+      };
+      mcpToolRegistry = ?{
+        state = mcpToolRegistry;
         write = true;
       };
     };

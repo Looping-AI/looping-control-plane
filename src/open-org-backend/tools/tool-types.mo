@@ -1,3 +1,4 @@
+import Map "mo:core/Map";
 import GroqWrapper "../wrappers/groq-wrapper";
 import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
@@ -74,6 +75,13 @@ module {
     // write=true enables register_agent, update_agent, unregister_agent.
     agentRegistry : ?{
       state : AgentModel.AgentRegistryState;
+      write : Bool;
+    };
+
+    // MCP Tool Registry - if provided, MCP tool management tools are available.
+    // write=true enables register_mcp_tool, unregister_mcp_tool.
+    mcpToolRegistry : ?{
+      state : Map.Map<Text, McpToolRegistration>;
       write : Bool;
     };
   };
