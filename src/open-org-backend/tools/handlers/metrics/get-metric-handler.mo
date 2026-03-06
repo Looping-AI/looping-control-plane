@@ -1,14 +1,12 @@
 import Json "mo:json";
 import { str; obj; int; bool } "mo:json";
 import Int "mo:core/Int";
-import Nat "mo:core/Nat";
-import MetricModel "../../models/metric-model";
-import Helpers "./handler-helpers";
+import MetricModel "../../../models/metric-model";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(
     registryState : MetricModel.MetricsRegistryState,
-    datapoints : MetricModel.MetricDatapointsStore,
     args : Text,
   ) : async Text {
     switch (Json.parse(args)) {
@@ -22,18 +20,21 @@ module {
         };
         switch (metricIdOpt) {
           case (?metricId) {
-            if (MetricModel.unregisterMetric(registryState, datapoints, metricId)) {
-              Json.stringify(
-                obj([
-                  ("success", bool(true)),
-                  ("metricId", int(metricId)),
-                  ("action", str("metric_deleted")),
-                  ("message", str("Metric " # Nat.toText(metricId) # " and all its datapoints have been deleted")),
-                ]),
-                null,
-              );
-            } else {
-              Helpers.buildErrorResponse("Metric not found.");
+            switch (MetricModel.getMetric(registryState, metricId)) {
+              case (null) { Helpers.buildErrorResponse("Metric not found.") };
+              case (?m) {
+                Json.stringify(
+                  obj([
+                    ("success", bool(true)),
+                    ("id", int(m.id)),
+                    ("name", str(m.name)),
+                    ("description", str(m.description)),
+                    ("unit", str(m.unit)),
+                    ("retentionDays", int(m.retentionDays)),
+                  ]),
+                  null,
+                );
+              };
             };
           };
           case (null) {

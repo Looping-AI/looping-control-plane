@@ -2,8 +2,8 @@ import Json "mo:json";
 import { str; obj; int; bool } "mo:json";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
-import ValueStreamModel "../../models/value-stream-model";
-import Helpers "./handler-helpers";
+import ValueStreamModel "../../../models/value-stream-model";
+import Helpers "../handler-helpers";
 
 module {
   private func statusToText(status : ValueStreamModel.ValueStreamStatus) : Text {

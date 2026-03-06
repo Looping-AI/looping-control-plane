@@ -4,8 +4,8 @@ import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Map "mo:core/Map";
-import ObjectiveModel "../../models/objective-model";
-import Helpers "./handler-helpers";
+import ObjectiveModel "../../../models/objective-model";
+import Helpers "../handler-helpers";
 
 module {
   private func perceivedImpactToText(impact : ObjectiveModel.PerceivedImpact) : Text {

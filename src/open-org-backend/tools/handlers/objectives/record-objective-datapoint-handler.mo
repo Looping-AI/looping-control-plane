@@ -6,8 +6,8 @@ import Float "mo:core/Float";
 import Time "mo:core/Time";
 import Principal "mo:core/Principal";
 import Map "mo:core/Map";
-import ObjectiveModel "../../models/objective-model";
-import Helpers "./handler-helpers";
+import ObjectiveModel "../../../models/objective-model";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(

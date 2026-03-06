@@ -5,8 +5,8 @@ import Int "mo:core/Int";
 import Float "mo:core/Float";
 import Array "mo:core/Array";
 import Map "mo:core/Map";
-import ObjectiveModel "../../models/objective-model";
-import Helpers "./handler-helpers";
+import ObjectiveModel "../../../models/objective-model";
+import Helpers "../handler-helpers";
 
 module {
   private func authorToText(author : ObjectiveModel.ObjectiveCommentAuthor) : Text {

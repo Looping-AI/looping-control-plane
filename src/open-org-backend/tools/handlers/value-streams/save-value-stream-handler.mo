@@ -1,8 +1,8 @@
 import Json "mo:json";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
-import ValueStreamModel "../../models/value-stream-model";
-import Helpers "./handler-helpers";
+import ValueStreamModel "../../../models/value-stream-model";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(

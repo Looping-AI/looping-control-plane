@@ -1,9 +1,9 @@
 import Json "mo:json";
 import { str; obj; int; bool } "mo:json";
 import Nat "mo:core/Nat";
-import WorkspaceModel "../../models/workspace-model";
-import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
-import Helpers "./handler-helpers";
+import WorkspaceModel "../../../models/workspace-model";
+import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(

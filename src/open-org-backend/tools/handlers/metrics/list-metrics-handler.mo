@@ -1,7 +1,7 @@
 import Json "mo:json";
 import { str; obj; int; bool; arr } "mo:json";
 import Array "mo:core/Array";
-import MetricModel "../../models/metric-model";
+import MetricModel "../../../models/metric-model";
 
 module {
   public func handle(

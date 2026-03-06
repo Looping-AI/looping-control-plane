@@ -4,8 +4,8 @@ import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Map "mo:core/Map";
-import ObjectiveModel "../../models/objective-model";
-import Helpers "./handler-helpers";
+import ObjectiveModel "../../../models/objective-model";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(
@@ -30,33 +30,28 @@ module {
           };
           case _ { null };
         };
-        let perceivedImpactOpt = switch (Json.get(json, "perceivedImpact")) {
-          case (?#string("negative")) { ?#negative };
-          case (?#string("none")) { ?#none };
-          case (?#string("low")) { ?#low };
-          case (?#string("medium")) { ?#medium };
-          case (?#string("high")) { ?#high };
-          case (?#string("unclear")) { ?#unclear };
+        let historyIndexOpt = switch (Json.get(json, "historyIndex")) {
+          case (?#number(#int n)) {
+            if (n >= 0) { ?Int.abs(n) } else { null };
+          };
+          case _ { null };
+        };
+        let messageOpt = switch (Json.get(json, "message")) {
+          case (?#string(s)) { ?s };
           case _ { null };
         };
 
-        switch (valueStreamIdOpt, objectiveIdOpt, perceivedImpactOpt) {
-          case (?valueStreamId, ?objectiveId, ?perceivedImpact) {
-            let comment = switch (Json.get(json, "comment")) {
-              case (?#string(s)) { ?s };
-              case _ { null };
-            };
-
-            let author = switch (Json.get(json, "author")) {
+        switch (valueStreamIdOpt, objectiveIdOpt, historyIndexOpt, messageOpt) {
+          case (?valueStreamId, ?objectiveId, ?historyIndex, ?message) {
+            let author : ObjectiveModel.ObjectiveCommentAuthor = switch (Json.get(json, "author")) {
               case (?#string(name)) { #assistant(name) };
               case _ { #assistant("assistant") };
             };
 
-            let review : ObjectiveModel.ImpactReview = {
+            let comment : ObjectiveModel.ObjectiveDatapointComment = {
               timestamp = Time.now();
               author;
-              perceivedImpact;
-              comment;
+              message;
             };
 
             let fullObjectivesMap = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>(
@@ -64,12 +59,13 @@ module {
               Nat.compare,
             );
 
-            let result = ObjectiveModel.addImpactReview(
+            let result = ObjectiveModel.addCommentToHistoryDatapoint(
               fullObjectivesMap,
               workspaceId,
               valueStreamId,
               objectiveId,
-              review,
+              historyIndex,
+              comment,
             );
 
             switch (result) {
@@ -77,7 +73,7 @@ module {
                 Json.stringify(
                   obj([
                     ("success", bool(true)),
-                    ("message", str("Impact review added successfully")),
+                    ("message", str("Comment added successfully")),
                   ]),
                   null,
                 );
@@ -86,7 +82,7 @@ module {
             };
           };
           case _ {
-            Helpers.buildErrorResponse("Missing required fields: valueStreamId, objectiveId, and perceivedImpact are required");
+            Helpers.buildErrorResponse("Missing required fields: valueStreamId, objectiveId, historyIndex, and message are required");
           };
         };
       };

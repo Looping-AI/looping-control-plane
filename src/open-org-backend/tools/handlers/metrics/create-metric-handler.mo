@@ -4,8 +4,8 @@ import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Principal "mo:core/Principal";
-import MetricModel "../../models/metric-model";
-import Helpers "./handler-helpers";
+import MetricModel "../../../models/metric-model";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(

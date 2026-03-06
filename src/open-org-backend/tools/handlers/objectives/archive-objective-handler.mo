@@ -2,10 +2,9 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
-import Time "mo:core/Time";
 import Map "mo:core/Map";
-import ObjectiveModel "../../models/objective-model";
-import Helpers "./handler-helpers";
+import ObjectiveModel "../../../models/objective-model";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(
@@ -30,42 +29,19 @@ module {
           };
           case _ { null };
         };
-        let historyIndexOpt = switch (Json.get(json, "historyIndex")) {
-          case (?#number(#int n)) {
-            if (n >= 0) { ?Int.abs(n) } else { null };
-          };
-          case _ { null };
-        };
-        let messageOpt = switch (Json.get(json, "message")) {
-          case (?#string(s)) { ?s };
-          case _ { null };
-        };
 
-        switch (valueStreamIdOpt, objectiveIdOpt, historyIndexOpt, messageOpt) {
-          case (?valueStreamId, ?objectiveId, ?historyIndex, ?message) {
-            let author : ObjectiveModel.ObjectiveCommentAuthor = switch (Json.get(json, "author")) {
-              case (?#string(name)) { #assistant(name) };
-              case _ { #assistant("assistant") };
-            };
-
-            let comment : ObjectiveModel.ObjectiveDatapointComment = {
-              timestamp = Time.now();
-              author;
-              message;
-            };
-
+        switch (valueStreamIdOpt, objectiveIdOpt) {
+          case (?valueStreamId, ?objectiveId) {
             let fullObjectivesMap = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>(
               [(workspaceId, workspaceObjectivesMap)],
               Nat.compare,
             );
 
-            let result = ObjectiveModel.addCommentToHistoryDatapoint(
+            let result = ObjectiveModel.archiveObjective(
               fullObjectivesMap,
               workspaceId,
               valueStreamId,
               objectiveId,
-              historyIndex,
-              comment,
             );
 
             switch (result) {
@@ -73,7 +49,7 @@ module {
                 Json.stringify(
                   obj([
                     ("success", bool(true)),
-                    ("message", str("Comment added successfully")),
+                    ("message", str("Objective archived successfully")),
                   ]),
                   null,
                 );
@@ -82,7 +58,7 @@ module {
             };
           };
           case _ {
-            Helpers.buildErrorResponse("Missing required fields: valueStreamId, objectiveId, historyIndex, and message are required");
+            Helpers.buildErrorResponse("Missing required fields: valueStreamId and objectiveId are required");
           };
         };
       };

@@ -2,8 +2,8 @@ import Json "mo:json";
 import { str; obj; int; bool } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
-import MetricModel "../../models/metric-model";
-import Helpers "./handler-helpers";
+import MetricModel "../../../models/metric-model";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(

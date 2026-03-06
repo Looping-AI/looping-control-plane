@@ -2,11 +2,10 @@ import Json "mo:json";
 import { str; obj; int; bool; arr } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
-import Float "mo:core/Float";
 import Array "mo:core/Array";
 import Map "mo:core/Map";
-import ObjectiveModel "../../models/objective-model";
-import Helpers "./handler-helpers";
+import ObjectiveModel "../../../models/objective-model";
+import Helpers "../handler-helpers";
 
 module {
   private func objectiveTypeToText(t : ObjectiveModel.ObjectiveType) : Text {
@@ -69,6 +68,38 @@ module {
     };
   };
 
+  private func objectiveToJson(o : ObjectiveModel.Objective) : Json.Json {
+    let descField : Json.Json = switch (o.description) {
+      case (null) { #null_ };
+      case (?d) { str(d) };
+    };
+    let targetDateField : Json.Json = switch (o.targetDate) {
+      case (null) { #null_ };
+      case (?d) { int(d) };
+    };
+    let currentField : Json.Json = switch (o.current) {
+      case (null) { #null_ };
+      case (?v) { #number(#float(v)) };
+    };
+    let metricIdsJson = arr(
+      Array.map<Nat, Json.Json>(o.metricIds, func(id) { int(id) })
+    );
+    obj([
+      ("id", int(o.id)),
+      ("name", str(o.name)),
+      ("description", descField),
+      ("objectiveType", str(objectiveTypeToText(o.objectiveType))),
+      ("metricIds", metricIdsJson),
+      ("computation", str(o.computation)),
+      ("target", targetToJson(o.target)),
+      ("targetDate", targetDateField),
+      ("current", currentField),
+      ("status", str(statusToText(o.status))),
+      ("createdAt", int(o.createdAt)),
+      ("updatedAt", int(o.updatedAt)),
+    ]);
+  };
+
   public func handle(
     workspaceId : Nat,
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
@@ -85,61 +116,34 @@ module {
           };
           case _ { null };
         };
-        let objectiveIdOpt = switch (Json.get(json, "objectiveId")) {
-          case (?#number(#int n)) {
-            if (n >= 0) { ?Int.abs(n) } else { null };
-          };
-          case _ { null };
-        };
-        switch (valueStreamIdOpt, objectiveIdOpt) {
-          case (?valueStreamId, ?objectiveId) {
+        switch (valueStreamIdOpt) {
+          case (?valueStreamId) {
             let fullObjectivesMap = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>(
               [(workspaceId, workspaceObjectivesMap)],
               Nat.compare,
             );
-            switch (ObjectiveModel.getObjective(fullObjectivesMap, workspaceId, valueStreamId, objectiveId)) {
+            // Initialize if not present so unknown value stream IDs return [] rather than an error
+            ObjectiveModel.initValueStreamObjectives(fullObjectivesMap, workspaceId, valueStreamId);
+            switch (ObjectiveModel.listObjectives(fullObjectivesMap, workspaceId, valueStreamId)) {
               case (#err(msg)) { Helpers.buildErrorResponse(msg) };
-              case (#ok(o)) {
-                let descField : Json.Json = switch (o.description) {
-                  case (null) { #null_ };
-                  case (?d) { str(d) };
-                };
-                let targetDateField : Json.Json = switch (o.targetDate) {
-                  case (null) { #null_ };
-                  case (?d) { int(d) };
-                };
-                let currentField : Json.Json = switch (o.current) {
-                  case (null) { #null_ };
-                  case (?v) { #number(#float(v)) };
-                };
-                let metricIdsJson = arr(
-                  Array.map<Nat, Json.Json>(o.metricIds, func(id) { int(id) })
+              case (#ok(objectives)) {
+                let objectivesJson = arr(
+                  Array.map<ObjectiveModel.Objective, Json.Json>(objectives, objectiveToJson)
                 );
-                let statusText = statusToText(o.status);
-                let typeText = objectiveTypeToText(o.objectiveType);
                 Json.stringify(
                   obj([
                     ("success", bool(true)),
-                    ("id", int(o.id)),
-                    ("name", str(o.name)),
-                    ("description", descField),
-                    ("objectiveType", str(typeText)),
-                    ("metricIds", metricIdsJson),
-                    ("computation", str(o.computation)),
-                    ("target", targetToJson(o.target)),
-                    ("targetDate", targetDateField),
-                    ("current", currentField),
-                    ("status", str(statusText)),
-                    ("createdAt", int(o.createdAt)),
-                    ("updatedAt", int(o.updatedAt)),
+                    ("valueStreamId", int(valueStreamId)),
+                    ("count", int(objectives.size())),
+                    ("objectives", objectivesJson),
                   ]),
                   null,
                 );
               };
             };
           };
-          case _ {
-            Helpers.buildErrorResponse("Missing required fields: valueStreamId and objectiveId are required");
+          case (null) {
+            Helpers.buildErrorResponse("Missing required field: valueStreamId");
           };
         };
       };

@@ -3,9 +3,9 @@ import { str; obj; int; bool } "mo:json";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import Map "mo:core/Map";
-import ValueStreamModel "../../models/value-stream-model";
-import ObjectiveModel "../../models/objective-model";
-import Helpers "./handler-helpers";
+import ValueStreamModel "../../../models/value-stream-model";
+import ObjectiveModel "../../../models/objective-model";
+import Helpers "../handler-helpers";
 
 module {
   public func handle(
