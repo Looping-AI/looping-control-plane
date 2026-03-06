@@ -299,7 +299,7 @@ _Methods to delete from `main.mo`:_ `createWorkspace`, `listWorkspaces`, `setWor
 
 ---
 
-**Step 3 — Add missing handlers + remove endpoints: Metrics API**
+~~**Step 3 — Add missing handlers + remove endpoints: Metrics API**~~
 
 _Methods to delete from `main.mo`:_ `registerMetric`, `getMetric`, `listMetrics`, `recordMetricDatapoint`, `getMetricDatapoints`, `getLatestMetricDatapoint`, `unregisterMetric`, `purgeOldMetricDatapoints`.
 

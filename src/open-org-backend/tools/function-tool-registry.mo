@@ -17,6 +17,11 @@ import WebSearchHandler "./handlers/web-search-handler";
 import CreateMetricHandler "./handlers/create-metric-handler";
 import UpdateMetricHandler "./handlers/update-metric-handler";
 import GetMetricDatapointsHandler "./handlers/get-metric-datapoints-handler";
+import ListMetricsHandler "./handlers/list-metrics-handler";
+import GetMetricHandler "./handlers/get-metric-handler";
+import DeleteMetricHandler "./handlers/delete-metric-handler";
+import GetLatestMetricDatapointHandler "./handlers/get-latest-metric-datapoint-handler";
+import RecordMetricDatapointHandler "./handlers/record-metric-datapoint-handler";
 import CreateObjectiveHandler "./handlers/create-objective-handler";
 import UpdateObjectiveHandler "./handlers/update-objective-handler";
 import ArchiveObjectiveHandler "./handlers/archive-objective-handler";
@@ -86,12 +91,18 @@ module {
     // ==========================================
     switch (resources.metrics) {
       case (?m) {
+        // Read tools — always available when resource is present
+        List.add(tools, listMetricsTool(m.registryState));
+        List.add(tools, getMetricTool(m.registryState));
+        List.add(tools, getMetricDatapointsTool(m.registryState, m.datapoints));
+        List.add(tools, getLatestMetricDatapointTool(m.registryState, m.datapoints));
+        // Write tools — require write access
         if (m.write) {
           List.add(tools, createMetricTool(m.registryState));
           List.add(tools, updateMetricTool(m.registryState));
+          List.add(tools, recordMetricDatapointTool(m.registryState, m.datapoints));
+          List.add(tools, deleteMetricTool(m.registryState, m.datapoints));
         };
-        // get_metric_datapoints available for read or write access
-        List.add(tools, getMetricDatapointsTool(m.registryState, m.datapoints));
       };
       case (null) {};
     };
@@ -371,6 +382,100 @@ module {
       };
       handler = func(args : Text) : async Text {
         await GetMetricDatapointsHandler.handle(registryState, datapoints, args);
+      };
+    };
+  };
+
+  /// List metrics tool - read access sufficient
+  private func listMetricsTool(registryState : MetricModel.MetricsRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_metrics";
+          description = ?"Lists all registered metrics with their IDs, names, descriptions, units, and retention settings.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ListMetricsHandler.handle(registryState, args);
+      };
+    };
+  };
+
+  /// Get metric tool - read access sufficient
+  private func getMetricTool(registryState : MetricModel.MetricsRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_metric";
+          description = ?"Gets a single metric's full definition by its ID. Use this to confirm details before recording datapoints or updating a metric.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"metricId\":{\"type\":\"integer\",\"description\":\"The ID of the metric to retrieve\"}},\"required\":[\"metricId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetMetricHandler.handle(registryState, args);
+      };
+    };
+  };
+
+  /// Get latest metric datapoint tool - read access sufficient
+  private func getLatestMetricDatapointTool(
+    registryState : MetricModel.MetricsRegistryState,
+    datapoints : MetricModel.MetricDatapointsStore,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_latest_metric_datapoint";
+          description = ?"Gets the most recent datapoint for a metric. Useful for quickly checking the current value without fetching the full history.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"metricId\":{\"type\":\"integer\",\"description\":\"The ID of the metric\"}},\"required\":[\"metricId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetLatestMetricDatapointHandler.handle(registryState, datapoints, args);
+      };
+    };
+  };
+
+  /// Record metric datapoint tool - requires write access
+  private func recordMetricDatapointTool(
+    registryState : MetricModel.MetricsRegistryState,
+    datapoints : MetricModel.MetricDatapointsStore,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "record_metric_datapoint";
+          description = ?"Records a new datapoint (measurement) for a metric. Use this when the user provides a new measurement or you compute a value from available data.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"metricId\":{\"type\":\"integer\",\"description\":\"The ID of the metric\"},\"value\":{\"type\":\"number\",\"description\":\"The measured value to record\"},\"sourceType\":{\"type\":\"string\",\"enum\":[\"manual\",\"integration\",\"evaluator\",\"other\"],\"description\":\"Optional. How the value was obtained. Defaults to 'manual'.\"},\"sourceLabel\":{\"type\":\"string\",\"description\":\"Optional. Label identifying the source of the measurement (e.g. 'admin', 'api', 'assistant'). Defaults to 'assistant'.\"}},\"required\":[\"metricId\",\"value\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await RecordMetricDatapointHandler.handle(registryState, datapoints, args);
+      };
+    };
+  };
+
+  /// Delete metric tool - requires write access
+  private func deleteMetricTool(
+    registryState : MetricModel.MetricsRegistryState,
+    datapoints : MetricModel.MetricDatapointsStore,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "delete_metric";
+          description = ?"Permanently deletes a metric and all its historical datapoints. This action cannot be undone. Use only when the metric is no longer needed and its history can be discarded.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"metricId\":{\"type\":\"integer\",\"description\":\"The ID of the metric to delete\"}},\"required\":[\"metricId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await DeleteMetricHandler.handle(registryState, datapoints, args);
       };
     };
   };
