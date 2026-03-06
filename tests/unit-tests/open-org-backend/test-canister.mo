@@ -19,6 +19,9 @@ import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
 import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
 import SetWorkspaceAdminChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-admin-channel-handler";
+import SetWorkspaceMemberChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-member-channel-handler";
+import CreateWorkspaceHandler "../../../src/open-org-backend/tools/handlers/create-workspace-handler";
+import ListWorkspacesHandler "../../../src/open-org-backend/tools/handlers/list-workspaces-handler";
 import AgentModel "../../../src/open-org-backend/models/agent-model";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
@@ -1008,5 +1011,91 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       parentRef = null;
     };
     await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, botToken, args);
+  };
+
+  /// Test the CreateWorkspaceHandler in isolation.
+  ///
+  /// @param args   JSON-encoded tool arguments ({ name: string }).
+  /// @param auth   Simplified auth context.
+  ///
+  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
+  /// Workspaces created here persist within the same canister lifetime.
+  public shared ({ caller }) func testCreateWorkspaceHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await CreateWorkspaceHandler.handle(testWorkspacesState, uac, args);
+  };
+
+  /// Test the ListWorkspacesHandler in isolation.
+  ///
+  /// @param args   JSON-encoded tool arguments (unused by this handler).
+  ///
+  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
+  public shared ({ caller }) func testListWorkspacesHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListWorkspacesHandler.handle(testWorkspacesState, args);
+  };
+
+  /// Test the SetWorkspaceMemberChannelHandler in isolation.
+  ///
+  /// @param args       JSON-encoded tool arguments (workspaceId + channelId).
+  /// @param botToken   Slack bot token forwarded to SlackWrapper for channel verification.
+  /// @param auth       Simplified auth context.
+  ///
+  /// Note: the handler runs against the pre-seeded testWorkspacesState:
+  ///   Workspace 0: Default (no channel anchors)
+  ///   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
+  ///   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
+  public shared ({ caller }) func testSetWorkspaceMemberChannelHandler(
+    args : Text,
+    botToken : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await SetWorkspaceMemberChannelHandler.handle(testWorkspacesState, uac, botToken, args);
   };
 };

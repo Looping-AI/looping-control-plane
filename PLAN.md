@@ -276,18 +276,18 @@ Each step below is an independent, buildable, committable unit. Verify with `dfx
 
 ---
 
-**Step 1 — Delete: OrgAdmin Management**
+~~**Step 1 — Delete: OrgAdmin Management**~~
 
 _Methods to delete from `main.mo`:_ `addOrgAdmin`, `getOrgAdmins`, `isCallerOrgAdmin`, `addWorkspaceAdmin`, `addWorkspaceMember`, `getWorkspaceMembers`, `isCallerWorkspaceMember`.
 
 - These are Principal-based auth helpers that will be fully removed in Task 2.6. They serve no architectural purpose after 2.6 and have no LLM-agent utility.
 - Delete the entire `// OrgAdmin Management` section from `main.mo`.
 - Delete `tests/integration-tests/open-org-backend/admin.spec.ts` (it exclusively tests these methods).
-- Verify → commit.
+- Verify.
 
 ---
 
-**Step 2 — Remove endpoints: Workspace Channel-Anchor Management**
+~~**Step 2 — Remove endpoints: Workspace Channel-Anchor Management**~~
 
 _Methods to delete from `main.mo`:_ `createWorkspace`, `listWorkspaces`, `setWorkspaceAdminChannel`, `setWorkspaceMemberChannel`.
 
@@ -295,7 +295,7 @@ _Methods to delete from `main.mo`:_ `createWorkspace`, `listWorkspaces`, `setWor
 - Delete the entire `// Workspace Channel-Anchor Management` section from `main.mo`.
 - Migrate test coverage: port the meaningful cases from `tests/integration-tests/open-org-backend/workspace-channels.spec.ts` into unit tests under `tests/unit-tests/open-org-backend/tools/handlers/` that call the handler functions directly with a `WorkspacesState`. These are pure functional tests — no actor needed.
 - Delete `tests/integration-tests/open-org-backend/workspace-channels.spec.ts`.
-- Verify → commit.
+- Verify.
 
 ---
 
@@ -317,7 +317,7 @@ Wire all new handlers into `work-planning-agent.mo` via `FunctionToolRegistry`.
 
 Migrate test coverage: port cases from `tests/integration-tests/open-org-backend/metrics.spec.ts` into unit tests under `tests/unit-tests/open-org-backend/tools/handlers/metrics/`. Delete `metrics.spec.ts`.
 
-Verify → commit.
+Verify.
 
 ---
 
@@ -337,7 +337,7 @@ Wire new handlers into `work-planning-agent.mo`.
 
 Migrate: port `value-streams.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/value-streams/`. Delete `value-streams.spec.ts`.
 
-Verify → commit.
+Verify.
 
 ---
 
@@ -359,7 +359,7 @@ Wire new handlers into `work-planning-agent.mo`.
 
 Migrate: port `objectives.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/objectives/`. Delete `objectives.spec.ts`.
 
-Verify → commit.
+Verify.
 
 ---
 
@@ -379,7 +379,7 @@ Wire all into `org-admin-agent.mo`.
 
 Add unit tests under `tests/unit-tests/open-org-backend/tools/handlers/agents/` covering each handler's happy path and key error paths.
 
-Verify → commit.
+Verify.
 
 ---
 
@@ -397,7 +397,7 @@ Wire into `org-admin-agent.mo`.
 
 Migrate: port `mcp-tools.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/mcp/`. Delete `mcp-tools.spec.ts`.
 
-Verify → commit.
+Verify.
 
 ---
 
@@ -415,7 +415,7 @@ Wire into `org-admin-agent.mo`. The auth guard (only org admins may store Slack 
 
 Migrate: port `secrets.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/secrets/`. Delete `secrets.spec.ts`.
 
-Verify → commit.
+Verify.
 
 ---
 
@@ -426,7 +426,7 @@ _Methods to delete from `main.mo`:_ `clearKeyCache`, `getKeyCacheStats`.
 - The 30-day timer already handles cache clearing. No agent needs to inspect or clear the cache on demand; these are purely internal maintenance methods.
 - Remove the `// Key Cache Management` section from `main.mo`.
 - Remove the two test cases for `clearKeyCache` / `getKeyCacheStats` from `tests/integration-tests/open-org-backend/encryption.spec.ts` (keep the key-derivation tests).
-- Verify → commit.
+- Verify.
 
 ---
 
@@ -444,7 +444,7 @@ Wire into `org-admin-agent.mo`.
 
 Migrate: port `event-store-admin.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/events/`. Delete `event-store-admin.spec.ts`.
 
-Verify → commit.
+Verify.
 
 ---
 
