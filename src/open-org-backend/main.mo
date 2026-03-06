@@ -411,37 +411,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // Key Cache Management
-  // ============================================
-
-  // Manually clear the key cache (admin only)
-  public shared ({ caller }) func clearKeyCache() : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        keyCache := KeyDerivationService.clearCache();
-        #ok(());
-      };
-    };
-  };
-
-  // Get cache statistics (admin only)
-  public shared ({ caller }) func getKeyCacheStats() : async {
-    #ok : { size : Nat };
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok({ size = KeyDerivationService.getCacheSize(keyCache) });
-      };
-    };
-  };
-
-  // ============================================
   // HTTP Incoming Requests (Webhooks)
   // ============================================
 
