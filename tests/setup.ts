@@ -214,47 +214,6 @@ export async function setupRegularUser(actor: Actor<_SERVICE>): Promise<{
 }
 
 /**
- * Creates a test agent via the global agent registry.
- * Note: Caller must be admin before calling this function.
- * @param actor - The canister actor
- * @param name - Agent name
- * @param category - Agent category
- * @param secretsAllowed - List of (workspaceId, secretId) pairs this agent may access
- * @returns Registry agent ID if successful
- * @throws Error if creation fails
- */
-export async function createTestAgent(
-  actor: Actor<_SERVICE>,
-  name: string,
-  category: { admin: null } | { research: null } | { communication: null },
-  secretsAllowed: Array<
-    [
-      bigint,
-      (
-        | { groqApiKey: null }
-        | { openaiApiKey: null }
-        | { slackSigningSecret: null }
-        | { slackBotToken: null }
-      ),
-    ]
-  >,
-): Promise<bigint> {
-  const result = await actor.registerAgent(
-    name,
-    category,
-    { groq: { gpt_oss_120b: null } },
-    secretsAllowed,
-    [],
-    [],
-    [],
-  );
-  if ("err" in result) {
-    throw new Error(`Failed to register agent: ${result.err}`);
-  }
-  return result.ok;
-}
-
-/**
  * Creates a Groq admin agent in the registry with the API key fetched from .env.test
  * Registration requires OrgAdmin rights; API key storage requires WorkspaceAdmin rights.
  * The API key is stored at workspace level (not per-user).
@@ -262,7 +221,7 @@ export async function createTestAgent(
  * @param orgAdminIdentity - OrgAdmin (owner) identity used to register the agent
  * @param workspaceAdminIdentity - WorkspaceAdmin identity used to store the API key.
  *   Defaults to orgAdminIdentity when omitted (e.g. when the owner is also a workspace admin).
- * @returns Registry agent ID
+ * @returns void
  * @throws Error if creation fails or GROQ_TEST_KEY is not set
  */
 export async function createGroqAgent(
@@ -271,7 +230,7 @@ export async function createGroqAgent(
   workspaceAdminIdentity: ReturnType<
     typeof generateRandomIdentity
   > = orgAdminIdentity,
-): Promise<bigint> {
+): Promise<void> {
   const apiKey = TEST_API_KEY;
 
   // Validate that API key is available
@@ -283,18 +242,7 @@ export async function createGroqAgent(
     }
   }
 
-  // Register the agent as org admin (registerAgent requires #IsOrgAdmin)
-  actor.setIdentity(orgAdminIdentity);
-  const agentId = await createTestAgent(
-    actor,
-    "workspace-admin",
-    { admin: null },
-    [[0n, { groqApiKey: null }]],
-  );
-
   // Store API key at workspace level as workspace admin
   actor.setIdentity(workspaceAdminIdentity);
   await actor.storeSecret(0n, { groqApiKey: null }, apiKey);
-
-  return agentId;
 }

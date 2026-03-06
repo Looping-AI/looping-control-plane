@@ -16,33 +16,38 @@ import MemberJoinedChannelHandler "../../../src/open-org-backend/events/handlers
 import MemberLeftChannelHandler "../../../src/open-org-backend/events/handlers/member-left-channel-handler";
 import NormalizedEventTypes "../../../src/open-org-backend/events/types/normalized-event-types";
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
-import SetWorkspaceAdminChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-admin-channel-handler";
-import SetWorkspaceMemberChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-member-channel-handler";
-import CreateWorkspaceHandler "../../../src/open-org-backend/tools/handlers/create-workspace-handler";
-import ListWorkspacesHandler "../../../src/open-org-backend/tools/handlers/list-workspaces-handler";
-import CreateMetricHandler "../../../src/open-org-backend/tools/handlers/create-metric-handler";
-import UpdateMetricHandler "../../../src/open-org-backend/tools/handlers/update-metric-handler";
-import GetMetricHandler "../../../src/open-org-backend/tools/handlers/get-metric-handler";
-import ListMetricsHandler "../../../src/open-org-backend/tools/handlers/list-metrics-handler";
-import DeleteMetricHandler "../../../src/open-org-backend/tools/handlers/delete-metric-handler";
-import RecordMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/record-metric-datapoint-handler";
-import GetMetricDatapointsHandler "../../../src/open-org-backend/tools/handlers/get-metric-datapoints-handler";
-import GetLatestMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/get-latest-metric-datapoint-handler";
-import SaveValueStreamHandler "../../../src/open-org-backend/tools/handlers/save-value-stream-handler";
+import SetWorkspaceAdminChannelHandler "../../../src/open-org-backend/tools/handlers/workspaces/set-workspace-admin-channel-handler";
+import SetWorkspaceMemberChannelHandler "../../../src/open-org-backend/tools/handlers/workspaces/set-workspace-member-channel-handler";
+import CreateWorkspaceHandler "../../../src/open-org-backend/tools/handlers/workspaces/create-workspace-handler";
+import ListWorkspacesHandler "../../../src/open-org-backend/tools/handlers/workspaces/list-workspaces-handler";
+import CreateMetricHandler "../../../src/open-org-backend/tools/handlers/metrics/create-metric-handler";
+import UpdateMetricHandler "../../../src/open-org-backend/tools/handlers/metrics/update-metric-handler";
+import GetMetricHandler "../../../src/open-org-backend/tools/handlers/metrics/get-metric-handler";
+import ListMetricsHandler "../../../src/open-org-backend/tools/handlers/metrics/list-metrics-handler";
+import DeleteMetricHandler "../../../src/open-org-backend/tools/handlers/metrics/delete-metric-handler";
+import RecordMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/metrics/record-metric-datapoint-handler";
+import GetMetricDatapointsHandler "../../../src/open-org-backend/tools/handlers/metrics/get-metric-datapoints-handler";
+import GetLatestMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/metrics/get-latest-metric-datapoint-handler";
+import SaveValueStreamHandler "../../../src/open-org-backend/tools/handlers/value-streams/save-value-stream-handler";
 import SavePlanHandler "../../../src/open-org-backend/tools/handlers/save-plan-handler";
-import ListValueStreamsHandler "../../../src/open-org-backend/tools/handlers/list-value-streams-handler";
-import GetValueStreamHandler "../../../src/open-org-backend/tools/handlers/get-value-stream-handler";
-import DeleteValueStreamHandler "../../../src/open-org-backend/tools/handlers/delete-value-stream-handler";
-import CreateObjectiveHandler "../../../src/open-org-backend/tools/handlers/create-objective-handler";
-import UpdateObjectiveHandler "../../../src/open-org-backend/tools/handlers/update-objective-handler";
-import ArchiveObjectiveHandler "../../../src/open-org-backend/tools/handlers/archive-objective-handler";
-import RecordObjectiveDatapointHandler "../../../src/open-org-backend/tools/handlers/record-objective-datapoint-handler";
-import AddImpactReviewHandler "../../../src/open-org-backend/tools/handlers/add-impact-review-handler";
-import ListObjectivesHandler "../../../src/open-org-backend/tools/handlers/list-objectives-handler";
-import GetObjectiveHandler "../../../src/open-org-backend/tools/handlers/get-objective-handler";
-import GetObjectiveHistoryHandler "../../../src/open-org-backend/tools/handlers/get-objective-history-handler";
-import AddObjectiveDatapointCommentHandler "../../../src/open-org-backend/tools/handlers/add-objective-datapoint-comment-handler";
-import GetImpactReviewsHandler "../../../src/open-org-backend/tools/handlers/get-impact-reviews-handler";
+import ListValueStreamsHandler "../../../src/open-org-backend/tools/handlers/value-streams/list-value-streams-handler";
+import GetValueStreamHandler "../../../src/open-org-backend/tools/handlers/value-streams/get-value-stream-handler";
+import DeleteValueStreamHandler "../../../src/open-org-backend/tools/handlers/value-streams/delete-value-stream-handler";
+import CreateObjectiveHandler "../../../src/open-org-backend/tools/handlers/objectives/create-objective-handler";
+import UpdateObjectiveHandler "../../../src/open-org-backend/tools/handlers/objectives/update-objective-handler";
+import ArchiveObjectiveHandler "../../../src/open-org-backend/tools/handlers/objectives/archive-objective-handler";
+import RecordObjectiveDatapointHandler "../../../src/open-org-backend/tools/handlers/objectives/record-objective-datapoint-handler";
+import AddImpactReviewHandler "../../../src/open-org-backend/tools/handlers/objectives/add-impact-review-handler";
+import ListObjectivesHandler "../../../src/open-org-backend/tools/handlers/objectives/list-objectives-handler";
+import GetObjectiveHandler "../../../src/open-org-backend/tools/handlers/objectives/get-objective-handler";
+import GetObjectiveHistoryHandler "../../../src/open-org-backend/tools/handlers/objectives/get-objective-history-handler";
+import AddObjectiveDatapointCommentHandler "../../../src/open-org-backend/tools/handlers/objectives/add-objective-datapoint-comment-handler";
+import GetImpactReviewsHandler "../../../src/open-org-backend/tools/handlers/objectives/get-impact-reviews-handler";
+import RegisterAgentHandler "../../../src/open-org-backend/tools/handlers/agents/register-agent-handler";
+import ListAgentsHandler "../../../src/open-org-backend/tools/handlers/agents/list-agents-handler";
+import GetAgentHandler "../../../src/open-org-backend/tools/handlers/agents/get-agent-handler";
+import UpdateAgentHandler "../../../src/open-org-backend/tools/handlers/agents/update-agent-handler";
+import UnregisterAgentHandler "../../../src/open-org-backend/tools/handlers/agents/unregister-agent-handler";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
@@ -51,6 +56,7 @@ import ConversationModel "../../../src/open-org-backend/models/conversation-mode
 import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
 import SlackAuthMiddleware "../../../src/open-org-backend/middleware/slack-auth-middleware";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
+import AgentModel "../../../src/open-org-backend/models/agent-model";
 import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
 import Types "../../../src/open-org-backend/types";
 import TestHelpers "./test-helpers";
@@ -106,6 +112,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   // Per-workspace objectives map for delete handler cleanup tests.
   var testWorkspaceObjectivesMap = ObjectiveModel.emptyWorkspaceObjectivesMap();
+
+  // Agent registry state for agent handler tests. Starts empty; tests
+  // register agents through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  var testAgentRegistry = AgentModel.emptyState();
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -1095,5 +1106,89 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await GetImpactReviewsHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  // ============================================
+  // Agent Handler Test Methods
+  //
+  // All agent handlers run against testAgentRegistry (starts empty).
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Build a UserAuthContext for agent handler tests.
+  private func agentHandlerUac(isPrimaryOwner : Bool, isOrgAdmin : Bool) : SlackAuthMiddleware.UserAuthContext {
+    {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner;
+      isOrgAdmin;
+      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+  };
+
+  /// Test the RegisterAgentHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ name, category, llmModel?, secretsAllowed?, toolsDisallowed?, sources? }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Agents registered here persist for the lifetime of this PocketIC canister
+  /// so subsequent calls to testListAgentsHandler / testGetAgentHandler see them.
+  public shared ({ caller }) func testRegisterAgentHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the ListAgentsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  public shared ({ caller }) func testListAgentsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListAgentsHandler.handle(testAgentRegistry, args);
+  };
+
+  /// Test the GetAgentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ id } or { name }).
+  public shared ({ caller }) func testGetAgentHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetAgentHandler.handle(testAgentRegistry, args);
+  };
+
+  /// Test the UpdateAgentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ id, name?, category?, llmModel?, secretsAllowed?, toolsDisallowed?, sources? }).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testUpdateAgentHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await UpdateAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the UnregisterAgentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ id }).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testUnregisterAgentHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await UnregisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
   };
 };

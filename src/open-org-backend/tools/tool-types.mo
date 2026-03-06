@@ -3,6 +3,7 @@ import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
 import ObjectiveModel "../models/objective-model";
 import WorkspaceModel "../models/workspace-model";
+import AgentModel "../models/agent-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 
 module {
@@ -66,6 +67,13 @@ module {
     // write=true enables create_workspace, set_workspace_admin_channel, set_workspace_member_channel.
     workspaces : ?{
       state : WorkspaceModel.WorkspacesState;
+      write : Bool;
+    };
+
+    // Agent Registry - if provided, agent-management tools are available.
+    // write=true enables register_agent, update_agent, unregister_agent.
+    agentRegistry : ?{
+      state : AgentModel.AgentRegistryState;
       write : Bool;
     };
   };

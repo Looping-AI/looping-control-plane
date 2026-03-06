@@ -35,6 +35,12 @@ import GetObjectiveHandler "./handlers/objectives/get-objective-handler";
 import GetObjectiveHistoryHandler "./handlers/objectives/get-objective-history-handler";
 import AddObjectiveDatapointCommentHandler "./handlers/objectives/add-objective-datapoint-comment-handler";
 import GetImpactReviewsHandler "./handlers/objectives/get-impact-reviews-handler";
+import RegisterAgentHandler "./handlers/agents/register-agent-handler";
+import ListAgentsHandler "./handlers/agents/list-agents-handler";
+import GetAgentHandler "./handlers/agents/get-agent-handler";
+import UpdateAgentHandler "./handlers/agents/update-agent-handler";
+import UnregisterAgentHandler "./handlers/agents/unregister-agent-handler";
+import AgentModel "../models/agent-model";
 
 module {
   // ============================================
@@ -166,6 +172,29 @@ module {
             };
           };
           case _ {};
+        };
+      };
+      case (null) {};
+    };
+
+    // ==========================================
+    // AGENT REGISTRY TOOLS - require agentRegistry resource
+    // ==========================================
+    switch (resources.agentRegistry) {
+      case (?ar) {
+        // Read tools — always available when resource is present
+        List.add(tools, listAgentsTool(ar.state));
+        List.add(tools, getAgentTool(ar.state));
+        // Write tools — require write access and a resolved user identity
+        switch (resources.userAuthContext) {
+          case (?uac) {
+            if (ar.write) {
+              List.add(tools, registerAgentTool(ar.state, uac));
+              List.add(tools, updateAgentTool(ar.state, uac));
+              List.add(tools, unregisterAgentTool(ar.state, uac));
+            };
+          };
+          case (null) {};
         };
       };
       case (null) {};
@@ -729,6 +758,104 @@ module {
       };
       handler = func(args : Text) : async Text {
         await AddImpactReviewHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  // ============================================
+  // AGENT REGISTRY TOOL IMPLEMENTATIONS
+  // ============================================
+
+  /// List agents tool — always available when agentRegistry resource is present
+  private func listAgentsTool(state : AgentModel.AgentRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_agents";
+          description = ?"Lists all registered agents with their IDs, names, categories, LLM models, and configuration.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ListAgentsHandler.handle(state, args);
+      };
+    };
+  };
+
+  /// Get agent tool — always available when agentRegistry resource is present
+  private func getAgentTool(state : AgentModel.AgentRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_agent";
+          description = ?"Looks up a registered agent by its ID (number) or name (string). Provide either 'id' or 'name'.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Agent ID to look up.\"},\"name\":{\"type\":\"string\",\"description\":\"Agent name to look up (case-insensitive).\"}},\"required\":[]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetAgentHandler.handle(state, args);
+      };
+    };
+  };
+
+  /// Register agent tool — requires agentRegistry resource with write + user identity
+  private func registerAgentTool(
+    state : AgentModel.AgentRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "register_agent";
+          description = ?"Registers a new agent in the global registry. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens. Category must be one of: admin, planning, research, communication. The default LLM model is gpt_oss_120b.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'work-planning').\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"Agent category.\"},\"llmModel\":{\"type\":\"string\",\"description\":\"LLM model to use. Currently: gpt_oss_120b. Omit to use the default.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackSigningSecret\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names to block for this agent. Omit for none.\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Knowledge source URLs or references for this agent. Omit for none.\"}},\"required\":[\"name\",\"category\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await RegisterAgentHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Update agent tool — requires agentRegistry resource with write + user identity
+  private func updateAgentTool(
+    state : AgentModel.AgentRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "update_agent";
+          description = ?"Updates an existing agent's configuration. Provide the agent 'id' and only the fields you want to change; omitted fields are left unchanged.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"New category (optional).\"},\"llmModel\":{\"type\":\"string\",\"description\":\"New LLM model (optional). Currently: gpt_oss_120b.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackSigningSecret\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New tools blocklist (optional).\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New knowledge sources (optional).\"}},\"required\":[\"id\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await UpdateAgentHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Unregister agent tool — requires agentRegistry resource with write + user identity
+  private func unregisterAgentTool(
+    state : AgentModel.AgentRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "unregister_agent";
+          description = ?"Permanently removes an agent from the registry. This action cannot be undone. Any active sessions referencing this agent will fail after removal.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to unregister.\"}},\"required\":[\"id\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await UnregisterAgentHandler.handle(state, uac, args);
       };
     };
   };

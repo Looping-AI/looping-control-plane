@@ -104,6 +104,7 @@ module {
         write = true;
       };
       workspaces = null; // planning agent does not manage workspace channel anchors
+      agentRegistry = null; // planning agent does not manage agent registry
     };
 
     // Combine tool definitions from both registries

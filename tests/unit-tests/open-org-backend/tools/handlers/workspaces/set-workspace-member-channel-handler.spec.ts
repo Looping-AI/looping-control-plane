@@ -5,9 +5,9 @@ import {
   createDeferredTestCanister,
   type TestCanisterService,
   SLACK_TEST_TOKEN,
-} from "../../../../setup";
-import { withCassette } from "../../../../lib/cassette";
-import { resolveSpecsChannelForInfo } from "../../../../helpers";
+} from "../../../../../setup";
+import { withCassette } from "../../../../../lib/cassette";
+import { resolveSpecsChannelForInfo } from "../../../../../helpers";
 
 // ============================================
 // SetWorkspaceMemberChannelHandler Unit Tests

@@ -510,6 +510,7 @@ module {
       case (#admin) {
         #admin({
           workspaces = ctx.workspaces;
+          agentRegistry = ctx.agentRegistry;
           slackBotToken = ?botToken;
           userAuthContext = activeCtxOpt;
         });

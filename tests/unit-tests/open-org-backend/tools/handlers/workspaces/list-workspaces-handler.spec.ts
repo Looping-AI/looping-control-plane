@@ -3,7 +3,7 @@ import type { PocketIc, Actor } from "@dfinity/pic";
 import {
   createTestCanister,
   type TestCanisterService,
-} from "../../../../setup";
+} from "../../../../../setup";
 
 // ============================================
 // ListWorkspacesHandler Unit Tests

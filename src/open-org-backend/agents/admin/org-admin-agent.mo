@@ -29,8 +29,10 @@ module {
   /// All org-admin data the org-admin agent needs at execution time.
   /// Carries the full workspace state so the agent can list, create,
   /// and configure workspaces and their channel anchors.
+  /// Also carries the agent registry so the agent can register and manage agents.
   public type AdminCtx = {
     workspaces : WorkspaceModel.WorkspacesState;
+    agentRegistry : AgentModel.AgentRegistryState;
     // Slack bot token — used to verify channel existence before anchoring
     slackBotToken : ?Text;
     // Resolved Slack user identity — used for authorization checks in write tools
@@ -73,7 +75,7 @@ module {
     // Build instructions driven by agent configuration
     let instructions = buildInstructions(agent);
 
-    // Build tool resources — only workspace-management tools for this agent
+    // Build tool resources — only workspace-management and agent registry tools for this agent
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = null; // org-admin tools operate on entire WorkspacesState, not a single workspace
       groqApiKey = ?apiKey;
@@ -84,6 +86,10 @@ module {
       objectives = null;
       workspaces = ?{
         state = ctx.workspaces;
+        write = true;
+      };
+      agentRegistry = ?{
+        state = ctx.agentRegistry;
         write = true;
       };
     };

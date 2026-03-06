@@ -341,7 +341,7 @@ Verify.
 
 ---
 
-**Step 5 — Add missing handlers + remove endpoints: Objectives API**
+~~**Step 5 — Add missing handlers + remove endpoints: Objectives API**~~
 
 _Methods to delete from `main.mo`:_ `addObjective`, `getObjective`, `listObjectives`, `updateObjective`, `archiveObjective`, `recordObjectiveDatapoint`, `getObjectiveHistory`, `addObjectiveDatapointComment`, `addImpactReview`, `getImpactReviews`.
 
