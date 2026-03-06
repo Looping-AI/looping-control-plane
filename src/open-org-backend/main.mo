@@ -10,7 +10,6 @@ import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
 import Types "./types";
 import AuthMiddleware "./middleware/auth-middleware";
-import AdminModel "./models/admin-model";
 import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
 import SlackUserModel "./models/slack-user-model";
@@ -30,7 +29,7 @@ import NormalizedEventTypes "./events/types/normalized-event-types";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
 import WeeklyReconciliationService "./services/weekly-reconciliation-service";
-import SlackWrapper "./wrappers/slack-wrapper";
+import AdminModel "./models/admin-model";
 
 persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
@@ -388,7 +387,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
   };
 
-  // Get workspace members (only workspace admins can view)
+  // Get workspace members (workspace admins and above can view)
   public shared ({ caller }) func getWorkspaceMembers(workspaceId : Nat) : async {
     #ok : [Principal];
     #err : Text;
@@ -410,169 +409,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (null) { false };
       case (?members) { AdminModel.isMember(caller, members) };
     };
-  };
-
-  // ============================================
-  // Workspace Channel-Anchor Management
-  // ============================================
-
-  // Create a new workspace (org admin or org owner only).
-  // Initialises all per-workspace maps so the workspace is immediately usable.
-  public shared ({ caller }) func createWorkspace(name : Text) : async {
-    #ok : Nat;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (WorkspaceModel.createWorkspace(workspaces, name)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(wsId)) {
-            // Seed all per-workspace maps so existing guards ("workspace not found") pass.
-            // The caller is seeded as the initial workspace admin.
-            Map.add(workspaceAdmins, Nat.compare, wsId, [caller]);
-            Map.add(workspaceMembers, Nat.compare, wsId, []);
-            Map.add(workspaceValueStreams, Nat.compare, wsId, ValueStreamModel.emptyWorkspaceState());
-            Map.add(workspaceObjectives, Nat.compare, wsId, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>());
-            #ok(wsId);
-          };
-        };
-      };
-    };
-  };
-
-  // List all workspace records (org admin or org owner).
-  public shared ({ caller }) func listWorkspaces() : async {
-    #ok : [WorkspaceModel.WorkspaceRecord];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok(WorkspaceModel.listWorkspaces(workspaces));
-      };
-    };
-  };
-
-  // Set the admin channel anchor for a workspace.
-  // Workspace 0 is the org workspace — only the org owner may set its admin channel
-  // (that channel doubles as the org-admin channel anchor).
-  // For all other workspaces, org owner, org admin, or workspace admin may set it.
-  //
-  // Always calls Slack's conversations.info to verify the channel exists and the bot
-  // has access before persisting the anchor. For workspace 0, also enforces that the
-  // channel's actual name is exactly '#looping-ai-org-admins'.
-  public shared ({ caller }) func setWorkspaceAdminChannel(workspaceId : Nat, channelId : Text) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    let requiredRoles = if (workspaceId == 0) {
-      [#IsOrgOwner];
-    } else {
-      [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin];
-    };
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), requiredRoles)) {
-      case (#err(msg)) { return #err(msg) };
-      case (#ok(())) {};
-    };
-
-    // Early workspace existence guard — checked before any async call so the
-    // error is returned without requiring an HTTP outcall round.
-    switch (WorkspaceModel.getWorkspace(workspaces, workspaceId)) {
-      case (null) { return #err("Workspace not found.") };
-      case (?_) {};
-    };
-
-    // Retrieve the Slack bot token needed for API verification.
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
-    let token = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
-      case (null) {
-        return #err(
-          "Slack bot token not configured for workspace 0. " #
-          "Please store a bot token via storeSecret before anchoring channel IDs."
-        );
-      };
-      case (?t) { t };
-    };
-
-    // Verify the channel exists and the bot has access via conversations.info.
-    // This prevents anchoring channels the bot cannot read, which would break
-    // the reconciliation service and event routing downstream.
-    let channelInfo = switch (await SlackWrapper.getChannelInfo(token, channelId)) {
-      case (#err(msg)) {
-        return #err(
-          "Could not verify channel '" # channelId # "' with Slack: " # msg # ". " #
-          "Ensure the channel exists and the bot has been invited to it."
-        );
-      };
-      case (#ok(info)) { info };
-    };
-
-    // For workspace 0 (org workspace), the channel MUST be named exactly
-    // '#looping-ai-org-admins' for visibility and security best practices.
-    // The reconciliation service also enforces this requirement at runtime.
-    if (workspaceId == 0) {
-      if (channelInfo.name != Constants.ORG_ADMIN_CHANNEL_NAME) {
-        return #err(
-          "The org-admin channel must be named '#" # Constants.ORG_ADMIN_CHANNEL_NAME # "', " #
-          "but '#" # channelInfo.name # "' was found. " #
-          "Please rename the Slack channel before anchoring it. " #
-          "This naming requirement ensures the channel is clearly identifiable for all org admins."
-        );
-      };
-    };
-
-    WorkspaceModel.setAdminChannel(workspaces, workspaceId, channelId);
-  };
-
-  // Set the member channel anchor for a workspace.
-  // Members of this Slack channel will be granted workspace member scope.
-  //
-  // Always calls Slack's conversations.info to verify the channel exists and the bot
-  // has access before persisting the anchor.
-  public shared ({ caller }) func setWorkspaceMemberChannel(workspaceId : Nat, channelId : Text) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { return #err(msg) };
-      case (#ok(())) {};
-    };
-
-    // Early workspace existence guard — checked before any async call.
-    switch (WorkspaceModel.getWorkspace(workspaces, workspaceId)) {
-      case (null) { return #err("Workspace not found.") };
-      case (?_) {};
-    };
-
-    // Retrieve the Slack bot token needed for API verification.
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
-    let token = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
-      case (null) {
-        return #err(
-          "Slack bot token not configured for workspace 0. " #
-          "Please store a bot token via storeSecret before anchoring channel IDs."
-        );
-      };
-      case (?t) { t };
-    };
-
-    // Verify the channel exists and the bot has access via conversations.info.
-    // This prevents anchoring channels the bot cannot read, which would break
-    // workspace member sync in the reconciliation service.
-    switch (await SlackWrapper.getChannelInfo(token, channelId)) {
-      case (#err(msg)) {
-        return #err(
-          "Could not verify channel '" # channelId # "' with Slack: " # msg # ". " #
-          "Ensure the channel exists and the bot has been invited to it."
-        );
-      };
-      case (#ok(_)) {};
-    };
-
-    WorkspaceModel.setMemberChannel(workspaces, workspaceId, channelId);
   };
 
   // ============================================
@@ -849,159 +685,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // Metrics API (Org-Level)
-  // ============================================
-
-  /// Register a new metric
-  public shared ({ caller }) func registerMetric(input : MetricModel.MetricRegistrationInput) : async {
-    #ok : MetricModel.MetricRegistration;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let result = MetricModel.registerMetric(
-          metricsRegistry,
-          input,
-          caller,
-          Time.now(),
-        );
-        switch (result) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(id)) {
-            switch (MetricModel.getMetric(metricsRegistry, id)) {
-              case (null) { #err("Failed to retrieve registered metric.") };
-              case (?metric) { #ok(metric) };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  /// Get a metric by ID
-  public shared ({ caller }) func getMetric(metricId : Nat) : async {
-    #ok : MetricModel.MetricRegistration;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
-          case (null) { #err("Metric not found.") };
-          case (?metric) { #ok(metric) };
-        };
-      };
-    };
-  };
-
-  /// List all registered metrics
-  public shared ({ caller }) func listMetrics() : async {
-    #ok : [MetricModel.MetricRegistration];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok(MetricModel.listMetrics(metricsRegistry));
-      };
-    };
-  };
-
-  /// Record a datapoint for a metric
-  public shared ({ caller }) func recordMetricDatapoint(
-    metricId : Nat,
-    value : Float,
-    source : MetricModel.MetricSource,
-  ) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        MetricModel.recordDatapoint(
-          metricDatapoints,
-          metricsRegistry,
-          metricId,
-          value,
-          source,
-          Time.now(),
-        );
-      };
-    };
-  };
-
-  /// Get datapoints for a metric
-  public shared ({ caller }) func getMetricDatapoints(metricId : Nat, since : ?Int) : async {
-    #ok : [MetricModel.MetricDatapoint];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
-          case (null) { #err("Metric not found.") };
-          case (?_) {
-            #ok(MetricModel.getDatapoints(metricDatapoints, metricId, since));
-          };
-        };
-      };
-    };
-  };
-
-  /// Get the latest datapoint for a metric
-  public shared ({ caller }) func getLatestMetricDatapoint(metricId : Nat) : async {
-    #ok : ?MetricModel.MetricDatapoint;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (MetricModel.getMetric(metricsRegistry, metricId)) {
-          case (null) { #err("Metric not found.") };
-          case (?_) {
-            #ok(MetricModel.getLatestDatapoint(metricDatapoints, metricId));
-          };
-        };
-      };
-    };
-  };
-
-  /// Unregister a metric and delete all its datapoints
-  public shared ({ caller }) func unregisterMetric(metricId : Nat) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        if (MetricModel.unregisterMetric(metricsRegistry, metricDatapoints, metricId)) {
-          #ok(());
-        } else {
-          #err("Metric not found.");
-        };
-      };
-    };
-  };
-
-  /// Purge old metric datapoints based on retention settings
-  /// Returns the number of datapoints purged
-  public shared ({ caller }) func purgeOldMetricDatapoints() : async {
-    #ok : { purged : Nat; sizeBefore : Nat; sizeAfter : Nat };
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let sizeBefore = MetricModel.totalDatapointsCount(metricDatapoints);
-        ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
-        let sizeAfter = MetricModel.totalDatapointsCount(metricDatapoints);
-        #ok({ purged = sizeBefore - sizeAfter; sizeBefore; sizeAfter });
-      };
-    };
-  };
-
   // ============================================
   // Value Streams API (Workspace-Scoped)
   // ============================================

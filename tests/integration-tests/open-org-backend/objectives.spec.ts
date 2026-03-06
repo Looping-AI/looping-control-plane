@@ -9,7 +9,6 @@ import type {
   ObjectiveDatapoint,
   ObjectiveDatapointComment,
   ValueStreamInput,
-  MetricRegistrationInput,
 } from "../../builds/open-org-backend.did.d.ts";
 
 describe("Objectives API", () => {
@@ -29,17 +28,6 @@ describe("Objectives API", () => {
     return expectOk(result).id;
   };
 
-  const registerMetric = async (): Promise<bigint> => {
-    const input: MetricRegistrationInput = {
-      name: "Test Metric",
-      description: "A test metric for objectives",
-      unit: "count",
-      retentionDays: 30n,
-    };
-    const result = await actor.registerMetric(input);
-    return expectOk(result).id;
-  };
-
   const defaultObjectiveInput = (): ObjectiveInput => ({
     name: "Test Objective",
     description: ["A test objective"],
@@ -55,7 +43,7 @@ describe("Objectives API", () => {
     pic = testEnv.pic;
     actor = testEnv.actor;
     defaultValueStreamId = await createValueStream();
-    defaultMetricId = await registerMetric();
+    defaultMetricId = 0n; // metrics are now managed via agent tools; use placeholder ID
   });
 
   afterEach(async () => {

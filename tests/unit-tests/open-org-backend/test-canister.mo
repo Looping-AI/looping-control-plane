@@ -19,6 +19,17 @@ import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
 import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
 import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
 import SetWorkspaceAdminChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-admin-channel-handler";
+import SetWorkspaceMemberChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-member-channel-handler";
+import CreateWorkspaceHandler "../../../src/open-org-backend/tools/handlers/create-workspace-handler";
+import ListWorkspacesHandler "../../../src/open-org-backend/tools/handlers/list-workspaces-handler";
+import CreateMetricHandler "../../../src/open-org-backend/tools/handlers/create-metric-handler";
+import UpdateMetricHandler "../../../src/open-org-backend/tools/handlers/update-metric-handler";
+import GetMetricHandler "../../../src/open-org-backend/tools/handlers/get-metric-handler";
+import ListMetricsHandler "../../../src/open-org-backend/tools/handlers/list-metrics-handler";
+import DeleteMetricHandler "../../../src/open-org-backend/tools/handlers/delete-metric-handler";
+import RecordMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/record-metric-datapoint-handler";
+import GetMetricDatapointsHandler "../../../src/open-org-backend/tools/handlers/get-metric-datapoints-handler";
+import GetLatestMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/get-latest-metric-datapoint-handler";
 import AgentModel "../../../src/open-org-backend/models/agent-model";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
@@ -65,6 +76,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     ignore WorkspaceModel.setMemberChannel(s, 2, "C_ROUND_TRIP_MEMBER");
     s;
   };
+
+  // Persistent metric state for handler tests. Starts empty; tests
+  // create metrics through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  var testMetricsRegistry = MetricModel.emptyRegistry();
+  var testMetricDatapoints = MetricModel.emptyDatapoints();
 
   // ============================================
   // Test Helpers
@@ -1008,5 +1025,167 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       parentRef = null;
     };
     await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, botToken, args);
+  };
+
+  /// Test the CreateWorkspaceHandler in isolation.
+  ///
+  /// @param args   JSON-encoded tool arguments ({ name: string }).
+  /// @param auth   Simplified auth context.
+  ///
+  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
+  /// Workspaces created here persist within the same canister lifetime.
+  public shared ({ caller }) func testCreateWorkspaceHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await CreateWorkspaceHandler.handle(testWorkspacesState, uac, args);
+  };
+
+  /// Test the ListWorkspacesHandler in isolation.
+  ///
+  /// @param args   JSON-encoded tool arguments (unused by this handler).
+  ///
+  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
+  public shared ({ caller }) func testListWorkspacesHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListWorkspacesHandler.handle(testWorkspacesState, args);
+  };
+
+  /// Test the SetWorkspaceMemberChannelHandler in isolation.
+  ///
+  /// @param args       JSON-encoded tool arguments (workspaceId + channelId).
+  /// @param botToken   Slack bot token forwarded to SlackWrapper for channel verification.
+  /// @param auth       Simplified auth context.
+  ///
+  /// Note: the handler runs against the pre-seeded testWorkspacesState:
+  ///   Workspace 0: Default (no channel anchors)
+  ///   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
+  ///   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
+  public shared ({ caller }) func testSetWorkspaceMemberChannelHandler(
+    args : Text,
+    botToken : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await SetWorkspaceMemberChannelHandler.handle(testWorkspacesState, uac, botToken, args);
+  };
+
+  // ============================================
+  // Metric Handler Test Methods
+  // ============================================
+
+  /// Test the CreateMetricHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ name, description, unit, retentionDays }).
+  public shared ({ caller }) func testCreateMetricHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await CreateMetricHandler.handle(testMetricsRegistry, args);
+  };
+
+  /// Test the UpdateMetricHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ metricId, name?, description?, unit?, retentionDays? }).
+  public shared ({ caller }) func testUpdateMetricHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await UpdateMetricHandler.handle(testMetricsRegistry, args);
+  };
+
+  /// Test the GetMetricHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ metricId }).
+  public shared ({ caller }) func testGetMetricHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetMetricHandler.handle(testMetricsRegistry, args);
+  };
+
+  /// Test the ListMetricsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  public shared ({ caller }) func testListMetricsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListMetricsHandler.handle(testMetricsRegistry, args);
+  };
+
+  /// Test the DeleteMetricHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ metricId }).
+  public shared ({ caller }) func testDeleteMetricHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await DeleteMetricHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
+  };
+
+  /// Test the RecordMetricDatapointHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ metricId, value, sourceType?, sourceLabel? }).
+  public shared ({ caller }) func testRecordMetricDatapointHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await RecordMetricDatapointHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
+  };
+
+  /// Test the GetMetricDatapointsHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ metricId, since?, limit? }).
+  public shared ({ caller }) func testGetMetricDatapointsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetMetricDatapointsHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
+  };
+
+  /// Test the GetLatestMetricDatapointHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ metricId }).
+  public shared ({ caller }) func testGetLatestMetricDatapointHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetLatestMetricDatapointHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
   };
 };

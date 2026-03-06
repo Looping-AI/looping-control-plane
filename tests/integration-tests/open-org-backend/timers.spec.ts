@@ -4,10 +4,6 @@ import { generateRandomIdentity } from "@dfinity/pic";
 import type { _SERVICE } from "../../setup.ts";
 import { createBackendCanister } from "../../setup.ts";
 import { expectOk } from "../../helpers.ts";
-import type {
-  MetricRegistrationInput,
-  MetricSource,
-} from "../../builds/open-org-backend.did.d.ts";
 
 describe("Timer Management", () => {
   let pic: PocketIc;
@@ -52,40 +48,6 @@ describe("Timer Management", () => {
       const finalStats = await actor.getKeyCacheStats();
       const finalSize = expectOk(finalStats).size;
       expect(finalSize).toBe(0n);
-    });
-  });
-
-  describe("Metric retention cleanup timer", () => {
-    it("should purge old datapoints after 30 days", async () => {
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-
-      // Register a metric with 30 day retention
-      const input: MetricRegistrationInput = {
-        name: "TimerTestMetric",
-        description: "Metric for timer test",
-        unit: "count",
-        retentionDays: 30n,
-      };
-      const regResult = await actor.registerMetric(input);
-      const metric = expectOk(regResult);
-
-      // Record a datapoint
-      const source: MetricSource = { manual: "test" };
-      await actor.recordMetricDatapoint(metric.id, 100.0, source);
-
-      // Verify datapoint exists
-      const dpBefore = await actor.getMetricDatapoints(metric.id, []);
-      expect(expectOk(dpBefore).length).toBe(1);
-
-      // Advance time by 30 days to trigger the timer
-      await pic.advanceTime(thirtyDaysMs);
-
-      // Tick to trigger the retention cleanup timer
-      await pic.tick();
-
-      // Datapoint should have been purged by the timer
-      const dpAfter = await actor.getMetricDatapoints(metric.id, []);
-      expect(expectOk(dpAfter).length).toBe(0);
     });
   });
 
