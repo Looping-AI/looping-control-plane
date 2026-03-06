@@ -401,7 +401,7 @@ Verify.
 
 ---
 
-**Step 8 — Migrate to tools: Secrets Management**
+~~**Step 8 — Migrate to tools: Secrets Management**~~
 
 _Methods to delete from `main.mo`:_ `storeSecret`, `getWorkspaceSecrets`, `deleteSecret`.
 

@@ -513,6 +513,8 @@ module {
           agentRegistry = ctx.agentRegistry;
           slackBotToken = ?botToken;
           userAuthContext = activeCtxOpt;
+          secrets = ctx.secrets;
+          keyCache = ctx.keyCache;
         });
       };
       case (#planning) {

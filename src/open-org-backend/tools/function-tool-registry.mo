@@ -43,8 +43,13 @@ import UnregisterAgentHandler "./handlers/agents/unregister-agent-handler";
 import RegisterMcpToolHandler "./handlers/mcp/register-mcp-tool-handler";
 import UnregisterMcpToolHandler "./handlers/mcp/unregister-mcp-tool-handler";
 import ListMcpToolsHandler "./handlers/mcp/list-mcp-tools-handler";
+import StoreSecretHandler "./handlers/secrets/store-secret-handler";
+import GetWorkspaceSecretsHandler "./handlers/secrets/get-workspace-secrets-handler";
+import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
 import AgentModel "../models/agent-model";
 import McpToolRegistry "./mcp-tool-registry";
+import SecretModel "../models/secret-model";
+import KeyDerivationService "../services/key-derivation-service";
 
 module {
   // ============================================
@@ -223,6 +228,28 @@ module {
         };
       };
       case (null) {};
+    };
+
+    // ==========================================
+    // SECRETS MANAGEMENT TOOLS - require secrets resource + userAuthContext
+    // ==========================================
+    switch (resources.secrets, resources.userAuthContext) {
+      case (?sec, ?uac) {
+        // Read tools — always available when resource and user identity are present
+        List.add(tools, getWorkspaceSecretsTool(sec.map, uac));
+        // Write tools — require write=true
+        if (sec.write) {
+          // store_secret additionally needs workspaces resource for workspace existence check
+          switch (resources.workspaces) {
+            case (?ws) {
+              List.add(tools, storeSecretTool(sec.map, sec.keyCache, ws.state, uac));
+            };
+            case (null) {};
+          };
+          List.add(tools, deleteSecretTool(sec.map, uac));
+        };
+      };
+      case _ {};
     };
 
     // ==========================================
@@ -942,6 +969,72 @@ module {
       };
       handler = func(args : Text) : async Text {
         await UnregisterMcpToolHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  // ============================================
+  // SECRETS MANAGEMENT TOOL IMPLEMENTATIONS
+  // ============================================
+
+  /// Get workspace secrets tool — always available when secrets resource + user identity are present
+  private func getWorkspaceSecretsTool(
+    map : SecretModel.SecretsMap,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_workspace_secrets";
+          description = ?"Lists the secret identifiers stored for a workspace. Secret values are never returned — only the names of which secrets have been stored.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to list secrets for.\"}},\"required\":[\"workspaceId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetWorkspaceSecretsHandler.handle(map, uac, args);
+      };
+    };
+  };
+
+  /// Store secret tool — requires secrets resource with write + workspaces resource + user identity
+  private func storeSecretTool(
+    map : SecretModel.SecretsMap,
+    keyCache : KeyDerivationService.KeyCache,
+    workspacesState : WorkspaceModel.WorkspacesState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "store_secret";
+          description = ?"Encrypts and stores a secret for a workspace. Slack secrets (slackSigningSecret, slackBotToken) require org-admin access. LLM API keys (groqApiKey, openaiApiKey) can be stored by workspace admins.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to store the secret for.\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackSigningSecret\",\"slackBotToken\"],\"description\":\"The type of secret to store.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"workspaceId\",\"secretId\",\"secretValue\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await StoreSecretHandler.handle(map, keyCache, workspacesState, uac, args);
+      };
+    };
+  };
+
+  /// Delete secret tool — requires secrets resource with write + user identity
+  private func deleteSecretTool(
+    map : SecretModel.SecretsMap,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "delete_secret";
+          description = ?"Removes a stored secret from a workspace. Slack secrets require org-admin access. LLM API keys can be deleted by workspace admins.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace.\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackSigningSecret\",\"slackBotToken\"],\"description\":\"The type of secret to delete.\"}},\"required\":[\"workspaceId\",\"secretId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await DeleteSecretHandler.handle(map, uac, args);
       };
     };
   };

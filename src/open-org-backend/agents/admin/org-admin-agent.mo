@@ -17,6 +17,8 @@ import ToolTypes "../../tools/tool-types";
 import AgentHelpers "../helpers";
 import WorkspaceModel "../../models/workspace-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
+import SecretModel "../../models/secret-model";
+import KeyDerivationService "../../services/key-derivation-service";
 
 module {
 
@@ -37,6 +39,10 @@ module {
     slackBotToken : ?Text;
     // Resolved Slack user identity — used for authorization checks in write tools
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
+    // Encrypted secrets store — used by secrets-management tools
+    secrets : SecretModel.SecretsMap;
+    // Key derivation cache — passed to StoreSecretHandler for encryption
+    keyCache : KeyDerivationService.KeyCache;
   };
 
   /// ProcessResult mirrors the WorkPlanningAgent return type so the orchestrator
@@ -94,6 +100,11 @@ module {
       };
       mcpToolRegistry = ?{
         state = mcpToolRegistry;
+        write = true;
+      };
+      secrets = ?{
+        map = ctx.secrets;
+        keyCache = ctx.keyCache;
         write = true;
       };
     };

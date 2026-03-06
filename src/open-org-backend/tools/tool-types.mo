@@ -6,6 +6,8 @@ import ObjectiveModel "../models/objective-model";
 import WorkspaceModel "../models/workspace-model";
 import AgentModel "../models/agent-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
+import SecretModel "../models/secret-model";
+import KeyDerivationService "../services/key-derivation-service";
 
 module {
   // ============================================
@@ -82,6 +84,15 @@ module {
     // write=true enables register_mcp_tool, unregister_mcp_tool.
     mcpToolRegistry : ?{
       state : Map.Map<Text, McpToolRegistration>;
+      write : Bool;
+    };
+
+    // Secrets store - if provided, secrets-management tools are available.
+    // write=true enables store_secret and delete_secret.
+    // store_secret additionally requires the workspaces resource to validate workspace existence.
+    secrets : ?{
+      map : SecretModel.SecretsMap;
+      keyCache : KeyDerivationService.KeyCache;
       write : Bool;
     };
   };

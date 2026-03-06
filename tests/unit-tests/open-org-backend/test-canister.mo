@@ -51,6 +51,9 @@ import UnregisterAgentHandler "../../../src/open-org-backend/tools/handlers/agen
 import RegisterMcpToolHandler "../../../src/open-org-backend/tools/handlers/mcp/register-mcp-tool-handler";
 import UnregisterMcpToolHandler "../../../src/open-org-backend/tools/handlers/mcp/unregister-mcp-tool-handler";
 import ListMcpToolsHandler "../../../src/open-org-backend/tools/handlers/mcp/list-mcp-tools-handler";
+import StoreSecretHandler "../../../src/open-org-backend/tools/handlers/secrets/store-secret-handler";
+import GetWorkspaceSecretsHandler "../../../src/open-org-backend/tools/handlers/secrets/get-workspace-secrets-handler";
+import DeleteSecretHandler "../../../src/open-org-backend/tools/handlers/secrets/delete-secret-handler";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
@@ -62,6 +65,7 @@ import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
 import AgentModel "../../../src/open-org-backend/models/agent-model";
 import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
 import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
+import SecretModel "../../../src/open-org-backend/models/secret-model";
 import Types "../../../src/open-org-backend/types";
 import TestHelpers "./test-helpers";
 
@@ -126,6 +130,17 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // register tools through handler calls and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
   var testMcpToolRegistry = McpToolRegistry.empty();
+
+  // Secrets map and key cache for secrets handler tests. Starts empty; tests
+  // store/delete secrets through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  // The key cache is pre-seeded with the all-zeros dummy key for workspaces 0, 1, 2
+  // to avoid live Schnorr calls during unit tests.
+  var testSecretsMap = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+  var testSecretsKeyCache : KeyDerivationService.KeyCache = Map.fromArray<Nat, [Nat8]>(
+    [(0, TestHelpers.dummyKey), (1, TestHelpers.dummyKey), (2, TestHelpers.dummyKey)],
+    Nat.compare,
+  );
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -1247,5 +1262,111 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await ListMcpToolsHandler.handle(testMcpToolRegistry, args);
+  };
+
+  // ============================================
+  // Secrets Handler Test Methods
+  //
+  // All secrets handlers run against testSecretsMap (starts empty).
+  // testSecretsKeyCache is pre-seeded with the all-zeros dummy key for
+  // workspaces 0, 1, and 2, avoiding live Schnorr calls.
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Test the StoreSecretHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId, secretId, secretValue }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Secrets stored here persist for the lifetime of this PocketIC canister
+  /// so subsequent calls to testGetWorkspaceSecretsHandler see them.
+  public shared ({ caller }) func testStoreSecretHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await StoreSecretHandler.handle(testSecretsMap, testSecretsKeyCache, testWorkspacesState, uac, args);
+  };
+
+  /// Test the GetWorkspaceSecretsHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId }).
+  /// @param auth  Simplified auth context.
+  public shared ({ caller }) func testGetWorkspaceSecretsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, args);
+  };
+
+  /// Test the DeleteSecretHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId, secretId }).
+  /// @param auth  Simplified auth context.
+  public shared ({ caller }) func testDeleteSecretHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await DeleteSecretHandler.handle(testSecretsMap, uac, args);
   };
 };

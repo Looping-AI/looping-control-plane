@@ -106,6 +106,7 @@ module {
       workspaces = null; // planning agent does not manage workspace channel anchors
       agentRegistry = null; // planning agent does not manage agent registry
       mcpToolRegistry = null; // planning agent does not manage MCP tool registry
+      secrets = null; // planning agent does not manage secrets
     };
 
     // Combine tool definitions from both registries
