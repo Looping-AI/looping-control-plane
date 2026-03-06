@@ -276,7 +276,7 @@ Each step below is an independent, buildable, committable unit. Verify with `dfx
 
 ---
 
-~~**Step 1 — Delete: OrgAdmin Management**~~
+**Step 1 — Delete: OrgAdmin Management** _(partially reverted: `addOrgAdmin`, `addWorkspaceAdmin`, `addWorkspaceMember`, `getOrgAdmins`, `getWorkspaceMembers`, `isCallerOrgAdmin`, `isCallerWorkspaceMember` restored to unblock test helpers; to be removed again in Task 2.5 together with the test migration)_
 
 _Methods to delete from `main.mo`:_ `addOrgAdmin`, `getOrgAdmins`, `isCallerOrgAdmin`, `addWorkspaceAdmin`, `addWorkspaceMember`, `getWorkspaceMembers`, `isCallerWorkspaceMember`.
 
