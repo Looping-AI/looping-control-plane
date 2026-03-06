@@ -8,7 +8,6 @@ import type {
   ObjectiveTarget,
   ObjectiveDatapoint,
   ObjectiveDatapointComment,
-  ValueStreamInput,
 } from "../../builds/open-org-backend.did.d.ts";
 
 describe("Objectives API", () => {
@@ -17,16 +16,6 @@ describe("Objectives API", () => {
   const defaultWorkspaceId = 0n;
   let defaultValueStreamId: bigint;
   let defaultMetricId: bigint;
-
-  const createValueStream = async (): Promise<bigint> => {
-    const input: ValueStreamInput = {
-      name: "Test Value Stream",
-      problem: "Test problem",
-      goal: "Test goal",
-    };
-    const result = await actor.createValueStream(defaultWorkspaceId, input);
-    return expectOk(result).id;
-  };
 
   const defaultObjectiveInput = (): ObjectiveInput => ({
     name: "Test Objective",
@@ -42,7 +31,7 @@ describe("Objectives API", () => {
     const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
-    defaultValueStreamId = await createValueStream();
+    defaultValueStreamId = 0n; // value streams are managed via agent tools; use fixed placeholder ID
     defaultMetricId = 0n; // metrics are now managed via agent tools; use placeholder ID
   });
 
@@ -257,8 +246,8 @@ describe("Objectives API", () => {
     });
 
     it("should return empty array for value stream with no objectives", async () => {
-      // Create a new value stream without objectives
-      const newVsId = await createValueStream();
+      // Use a fresh value stream ID that has never had objectives added
+      const newVsId = 999n;
 
       const result = await actor.listObjectives(defaultWorkspaceId, newVsId);
       const objs = expectOk(result);
@@ -949,14 +938,11 @@ describe("Objectives API", () => {
       );
       expect(expectOk(listResult).length).toBe(1);
 
-      // Delete value stream
-      await actor.deleteValueStream(defaultWorkspaceId, defaultValueStreamId);
-
-      // Create a new value stream and verify no objectives leak
-      const newVsId = await createValueStream();
+      // Verify that a fresh value stream ID has no objectives (no leakage)
+      const freshVsId = 999n;
       const newListResult = await actor.listObjectives(
         defaultWorkspaceId,
-        newVsId,
+        freshVsId,
       );
       expect(expectOk(newListResult)).toEqual([]);
     });

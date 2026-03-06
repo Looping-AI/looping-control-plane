@@ -9,6 +9,9 @@ import WorkspaceModel "../models/workspace-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import SaveValueStreamHandler "./handlers/save-value-stream-handler";
 import SavePlanHandler "./handlers/save-plan-handler";
+import ListValueStreamsHandler "./handlers/list-value-streams-handler";
+import GetValueStreamHandler "./handlers/get-value-stream-handler";
+import DeleteValueStreamHandler "./handlers/delete-value-stream-handler";
 import ListWorkspacesHandler "./handlers/list-workspaces-handler";
 import CreateWorkspaceHandler "./handlers/create-workspace-handler";
 import SetWorkspaceAdminChannelHandler "./handlers/set-workspace-admin-channel-handler";
@@ -73,15 +76,25 @@ module {
     };
 
     // ==========================================
-    // VALUE STREAM TOOLS - require workspaceId + valueStreams with write access
+    // VALUE STREAM TOOLS - require workspaceId + valueStreams
     // ==========================================
     switch (resources.workspaceId, resources.valueStreams) {
       case (?wsId, ?vs) {
+        // Read tools — always available when resource is present
+        List.add(tools, listValueStreamsTool(wsId, vs.map));
+        List.add(tools, getValueStreamTool(wsId, vs.map));
+        // Write tools — require write access
         if (vs.write) {
           List.add(tools, saveValueStreamTool(wsId, vs.map));
           List.add(tools, savePlanTool(wsId, vs.map));
+          // Delete also cleans up objectives; only wire when objectives map is available
+          switch (resources.objectives) {
+            case (?obj) {
+              List.add(tools, deleteValueStreamTool(wsId, vs.map, obj.map));
+            };
+            case (null) {};
+          };
         };
-        // Future: if read access, add getValueStreamsTool
       };
       case _ {};
     };
@@ -190,6 +203,61 @@ module {
       handler = func(args : Text) : async Text {
         // Simply return the arguments as-is
         args;
+      };
+    };
+  };
+
+  /// List value streams tool - requires workspaceId + valueStreams (read)
+  private func listValueStreamsTool(workspaceId : Nat, valueStreamsMap : ValueStreamModel.ValueStreamsMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_value_streams";
+          description = ?"Lists all value streams in the current workspace showing their IDs, names, problems, goals, statuses, and whether a plan exists.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ListValueStreamsHandler.handle(workspaceId, valueStreamsMap, args);
+      };
+    };
+  };
+
+  /// Get value stream tool - requires workspaceId + valueStreams (read)
+  private func getValueStreamTool(workspaceId : Nat, valueStreamsMap : ValueStreamModel.ValueStreamsMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_value_stream";
+          description = ?"Gets the full details of a value stream by ID, including its plan if one exists.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream to retrieve\"}},\"required\":[\"valueStreamId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetValueStreamHandler.handle(workspaceId, valueStreamsMap, args);
+      };
+    };
+  };
+
+  /// Delete value stream tool - requires workspaceId + valueStreams with write + objectives
+  private func deleteValueStreamTool(
+    workspaceId : Nat,
+    valueStreamsMap : ValueStreamModel.ValueStreamsMap,
+    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "delete_value_stream";
+          description = ?"Permanently deletes a value stream and all its objectives. This action cannot be undone. Use only when the value stream is no longer needed.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream to delete\"}},\"required\":[\"valueStreamId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await DeleteValueStreamHandler.handle(workspaceId, valueStreamsMap, workspaceObjectivesMap, args);
       };
     };
   };

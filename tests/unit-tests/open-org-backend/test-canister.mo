@@ -30,6 +30,11 @@ import DeleteMetricHandler "../../../src/open-org-backend/tools/handlers/delete-
 import RecordMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/record-metric-datapoint-handler";
 import GetMetricDatapointsHandler "../../../src/open-org-backend/tools/handlers/get-metric-datapoints-handler";
 import GetLatestMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/get-latest-metric-datapoint-handler";
+import SaveValueStreamHandler "../../../src/open-org-backend/tools/handlers/save-value-stream-handler";
+import SavePlanHandler "../../../src/open-org-backend/tools/handlers/save-plan-handler";
+import ListValueStreamsHandler "../../../src/open-org-backend/tools/handlers/list-value-streams-handler";
+import GetValueStreamHandler "../../../src/open-org-backend/tools/handlers/get-value-stream-handler";
+import DeleteValueStreamHandler "../../../src/open-org-backend/tools/handlers/delete-value-stream-handler";
 import AgentModel "../../../src/open-org-backend/models/agent-model";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
@@ -82,6 +87,18 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // canister lifetime (but each test creates a fresh PocketIC canister).
   var testMetricsRegistry = MetricModel.emptyRegistry();
   var testMetricDatapoints = MetricModel.emptyDatapoints();
+
+  // Persistent value stream state for handler tests. Workspace 0 is pre-initialised
+  // so create/list/get/delete tests can run directly against it.
+  var testValueStreamsMap = do {
+    let m = ValueStreamModel.emptyValueStreamsMap();
+    Map.add(m, Nat.compare, 0, ValueStreamModel.emptyWorkspaceState());
+    m;
+  };
+  let testValueStreamWorkspaceId : Nat = 0;
+
+  // Per-workspace objectives map for delete handler cleanup tests.
+  var testWorkspaceObjectivesMap = ObjectiveModel.emptyWorkspaceObjectivesMap();
 
   // ============================================
   // Test Helpers
@@ -1187,5 +1204,54 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await GetLatestMetricDatapointHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
+  };
+
+  // ============================================
+  // Value Stream Handler Test Methods
+  // ============================================
+
+  /// Test the SaveValueStreamHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ id?, name, problem, goal, activate? }).
+  public shared ({ caller }) func testSaveValueStreamHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await SaveValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
+  };
+
+  /// Test the SavePlanHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, summary, currentState, targetState, steps, risks, resources }).
+  public shared ({ caller }) func testSavePlanHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await SavePlanHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
+  };
+
+  /// Test the ListValueStreamsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  public shared ({ caller }) func testListValueStreamsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListValueStreamsHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
+  };
+
+  /// Test the GetValueStreamHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
+  public shared ({ caller }) func testGetValueStreamHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
+  };
+
+  /// Test the DeleteValueStreamHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
+  public shared ({ caller }) func testDeleteValueStreamHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await DeleteValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, testWorkspaceObjectivesMap, args);
   };
 };
