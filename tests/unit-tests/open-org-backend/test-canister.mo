@@ -16,8 +16,6 @@ import MemberJoinedChannelHandler "../../../src/open-org-backend/events/handlers
 import MemberLeftChannelHandler "../../../src/open-org-backend/events/handlers/member-left-channel-handler";
 import NormalizedEventTypes "../../../src/open-org-backend/events/types/normalized-event-types";
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
-import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
-import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
 import SetWorkspaceAdminChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-admin-channel-handler";
 import SetWorkspaceMemberChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-member-channel-handler";
 import CreateWorkspaceHandler "../../../src/open-org-backend/tools/handlers/create-workspace-handler";
@@ -35,18 +33,17 @@ import SavePlanHandler "../../../src/open-org-backend/tools/handlers/save-plan-h
 import ListValueStreamsHandler "../../../src/open-org-backend/tools/handlers/list-value-streams-handler";
 import GetValueStreamHandler "../../../src/open-org-backend/tools/handlers/get-value-stream-handler";
 import DeleteValueStreamHandler "../../../src/open-org-backend/tools/handlers/delete-value-stream-handler";
-import AgentModel "../../../src/open-org-backend/models/agent-model";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
 import MetricModel "../../../src/open-org-backend/models/metric-model";
 import ConversationModel "../../../src/open-org-backend/models/conversation-model";
-import SecretModel "../../../src/open-org-backend/models/secret-model";
 import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
 import SlackAuthMiddleware "../../../src/open-org-backend/middleware/slack-auth-middleware";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
 import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
 import Types "../../../src/open-org-backend/types";
+import TestHelpers "./test-helpers";
 
 // ============================================
 // Test Canister
@@ -99,216 +96,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   // Per-workspace objectives map for delete handler cleanup tests.
   var testWorkspaceObjectivesMap = ObjectiveModel.emptyWorkspaceObjectivesMap();
-
-  // ============================================
-  // Test Helpers
-  // ============================================
-
-  /// The deterministic 32-byte all-zeros key used for every workspace in unit tests.
-  /// Seeding keyCache with this key avoids live Schnorr threshold-key calls.
-  private let testDummyKey : [Nat8] = [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-  ];
-
-  /// Creates an empty EventProcessingContext suitable for unit tests.
-  /// Secrets are not populated so handlers that require them will return graceful
-  /// error steps rather than crashing.
-  /// Uses the persistent slackUserCache so state changes persist across handler calls.
-  private func emptyCtx() : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    {
-      secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = AgentModel.emptyState();
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
-
-  /// Creates an EventProcessingContext pre-seeded with a Slack bot token and a Groq
-  /// API key, both encrypted with the deterministic dummy key used across unit tests.
-  /// This lets message-handler tests reach the Slack-posting code path without live
-  /// Schnorr key derivation or a real secret-store call.
-  ///
-  /// Secrets are stored for workspace IDs 0, 1, and 42.
-  /// Uses the persistent slackUserCache so state changes persist across handler calls.
-  private func ctxWithSecrets(botToken : Text, groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-    for (wsId in [0, 1, 42].vals()) {
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
-    };
-    // Register an admin agent permitted to access groqApiKey for workspaces 0, 1, and 42
-    let registry = AgentModel.emptyState();
-    ignore AgentModel.register(
-      "unit-test-admin",
-      #admin,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    {
-      secrets;
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
-
-  /// Like `ctxWithSecrets`, but stores the Groq API key ONLY — no Slack bot token.
-  ///
-  /// Use this for guard tests (e.g. MAX_AGENT_ROUNDS, force-termination guards) that
-  /// run on a non-deferred actor without cassette support.  When there is no
-  /// `#slackBotToken` secret for the workspace, `resolveWorkspaceBotToken` returns
-  /// null so `postTerminationIfTokenAvailable` is a no-op and no outgoing HTTPS call
-  /// is attempted.  This avoids the pending-outcall problem in non-cassette tests.
-  private func ctxWithGroqOnlySecrets(groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-    for (wsId in [0, 1, 42].vals()) {
-      // NOTE: #slackBotToken intentionally absent — keeps postTerminationPrompt a no-op.
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
-    };
-    let registry = AgentModel.emptyState();
-    ignore AgentModel.register(
-      "unit-test-admin",
-      #admin,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    {
-      secrets;
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
-
-  /// Like `ctxWithSecrets`, but also registers a `unit-test-research` agent with
-  /// `#research` category alongside the existing `unit-test-admin`.
-  ///
-  /// Use this context when a test needs to exercise primary agent resolution via
-  /// an explicit `::unit-test-research` reference.
-  private func ctxWithSecretsAndResearch(botToken : Text, groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-    for (wsId in [0, 1, 42].vals()) {
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
-    };
-    let registry = AgentModel.emptyState();
-    // Admin agent (same as ctxWithSecrets)
-    ignore AgentModel.register(
-      "unit-test-admin",
-      #admin,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    // Research agent — no real secret needed; route(#research) returns a stub error
-    // without making any HTTP calls, so a dummy secret entry is sufficient.
-    ignore AgentModel.register(
-      "unit-test-research",
-      #research,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    {
-      secrets;
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -435,7 +222,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   // ============================================
-  // Handler Test Methods
+  // Events Handler Test Methods
   // ============================================
 
   public shared ({ caller }) func testMessageHandler(
@@ -450,7 +237,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, emptyCtx());
+    await MessageHandler.handle(msg, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   /// Like testMessageHandler, but pre-seeds the context with a real Slack bot token
@@ -470,7 +257,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     groqApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, ctxWithSecrets(botToken, groqApiKey));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, groqApiKey));
   };
 
   /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
@@ -501,7 +288,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     parentForceTerminated : Bool,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = ctxWithSecrets(botToken, groqApiKey);
+    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, groqApiKey);
     // Seed the parent message with a UserAuthContext at the requested roundCount.
     // workspaceScopes is empty — the bot-path guard only checks roundCount / forceTerminated.
     //
@@ -564,7 +351,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     parentForceTerminated : Bool,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = ctxWithGroqOnlySecrets(groqApiKey);
+    let ctx = TestHelpers.ctxWithGroqOnlySecrets(slackUsers, testWorkspacesState, groqApiKey);
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
@@ -618,64 +405,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     groqApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, ctxWithSecretsAndResearch(botToken, groqApiKey));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, groqApiKey));
   };
 
-  /// Like `ctxWithSecretsAndResearch`, but does NOT seed a Groq API key secret.
-  /// When the admin route tries to decrypt the groqApiKey it finds null and returns
-  /// #err immediately, without issuing any HTTPS outcall.
-  ///
-  /// Use for non-deferred primary-agent resolution tests that need to verify the
-  /// fallback-to-admin path without triggering a live (or cassette-dependent) LLM call.
-  private func ctxWithSecretsAndResearchNoGroq(botToken : Text) : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-    for (wsId in [0, 1, 42].vals()) {
-      // NOTE: #groqApiKey intentionally absent — keeps admin route a sync no-op.
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
-    };
-    let registry = AgentModel.emptyState();
-    ignore AgentModel.register(
-      "unit-test-admin",
-      #admin,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    ignore AgentModel.register(
-      "unit-test-research",
-      #research,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    {
-      secrets;
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
-
-  /// Like `testMessageHandlerWithResearchAgent`, but uses `ctxWithSecretsAndResearchNoGroq`
+  /// Like `testMessageHandlerWithResearchAgent`, but uses `TestHelpers.ctxWithSecretsAndResearchNoGroq`
   /// so the admin route short-circuits at key resolution (#err) without any HTTP outcall.
   ///
   /// Use for primary-agent fallback tests on a non-deferred actor where you only need
@@ -693,7 +426,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     botToken : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, ctxWithSecretsAndResearchNoGroq(botToken));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoGroq(slackUsers, testWorkspacesState, botToken));
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
@@ -703,7 +436,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageDeletedHandler.handle(deleted, emptyCtx());
+    await MessageDeletedHandler.handle(deleted, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testMessageEditedHandler(
@@ -716,7 +449,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageEditedHandler.handle(edited, emptyCtx());
+    await MessageEditedHandler.handle(edited, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testAssistantThreadEventHandler(
@@ -730,7 +463,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await AssistantThreadHandler.handle(thread, emptyCtx());
+    await AssistantThreadHandler.handle(thread, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testTeamJoinHandler(
@@ -744,7 +477,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await TeamJoinHandler.handle(event, emptyCtx());
+    await TeamJoinHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testMemberJoinedChannelHandler(
@@ -757,7 +490,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MemberJoinedChannelHandler.handle(event, emptyCtx());
+    await MemberJoinedChannelHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testMemberLeftChannelHandler(
@@ -770,7 +503,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MemberLeftChannelHandler.handle(event, emptyCtx());
+    await MemberLeftChannelHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   // ============================================
