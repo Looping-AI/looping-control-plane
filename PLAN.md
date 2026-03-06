@@ -321,7 +321,7 @@ Verify.
 
 ---
 
-**Step 4 — Add missing handlers + remove endpoints: Value Streams API**
+~~**Step 4 — Add missing handlers + remove endpoints: Value Streams API**~~
 
 _Methods to delete from `main.mo`:_ `createValueStream`, `getValueStream`, `listValueStreams`, `updateValueStream`, `deleteValueStream`, `setValueStreamPlan`.
 

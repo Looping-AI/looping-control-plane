@@ -33,6 +33,16 @@ import SavePlanHandler "../../../src/open-org-backend/tools/handlers/save-plan-h
 import ListValueStreamsHandler "../../../src/open-org-backend/tools/handlers/list-value-streams-handler";
 import GetValueStreamHandler "../../../src/open-org-backend/tools/handlers/get-value-stream-handler";
 import DeleteValueStreamHandler "../../../src/open-org-backend/tools/handlers/delete-value-stream-handler";
+import CreateObjectiveHandler "../../../src/open-org-backend/tools/handlers/create-objective-handler";
+import UpdateObjectiveHandler "../../../src/open-org-backend/tools/handlers/update-objective-handler";
+import ArchiveObjectiveHandler "../../../src/open-org-backend/tools/handlers/archive-objective-handler";
+import RecordObjectiveDatapointHandler "../../../src/open-org-backend/tools/handlers/record-objective-datapoint-handler";
+import AddImpactReviewHandler "../../../src/open-org-backend/tools/handlers/add-impact-review-handler";
+import ListObjectivesHandler "../../../src/open-org-backend/tools/handlers/list-objectives-handler";
+import GetObjectiveHandler "../../../src/open-org-backend/tools/handlers/get-objective-handler";
+import GetObjectiveHistoryHandler "../../../src/open-org-backend/tools/handlers/get-objective-history-handler";
+import AddObjectiveDatapointCommentHandler "../../../src/open-org-backend/tools/handlers/add-objective-datapoint-comment-handler";
+import GetImpactReviewsHandler "../../../src/open-org-backend/tools/handlers/get-impact-reviews-handler";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
@@ -986,5 +996,104 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await DeleteValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, testWorkspaceObjectivesMap, args);
+  };
+
+  // ============================================
+  // Objective Handler Test Methods
+  //
+  // All objective handlers run against testWorkspaceObjectivesMap
+  // (workspace ID 0, shared with value-stream cleanup tests).
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Test the CreateObjectiveHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, name, objectiveType, metricIds, computation, targetType, ... }).
+  public shared ({ caller }) func testCreateObjectiveHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await CreateObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the ListObjectivesHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
+  public shared ({ caller }) func testListObjectivesHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListObjectivesHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the GetObjectiveHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
+  public shared ({ caller }) func testGetObjectiveHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the UpdateObjectiveHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, name?, description?, ... }).
+  public shared ({ caller }) func testUpdateObjectiveHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await UpdateObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the ArchiveObjectiveHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
+  public shared ({ caller }) func testArchiveObjectiveHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ArchiveObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the RecordObjectiveDatapointHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, value, ... }).
+  public shared ({ caller }) func testRecordObjectiveDatapointHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await RecordObjectiveDatapointHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the GetObjectiveHistoryHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
+  public shared ({ caller }) func testGetObjectiveHistoryHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetObjectiveHistoryHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the AddObjectiveDatapointCommentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, historyIndex, message, author? }).
+  public shared ({ caller }) func testAddObjectiveDatapointCommentHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await AddObjectiveDatapointCommentHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the AddImpactReviewHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, perceivedImpact, comment?, author? }).
+  public shared ({ caller }) func testAddImpactReviewHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await AddImpactReviewHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the GetImpactReviewsHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
+  public shared ({ caller }) func testGetImpactReviewsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetImpactReviewsHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
   };
 };

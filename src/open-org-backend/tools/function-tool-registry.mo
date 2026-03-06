@@ -30,6 +30,11 @@ import UpdateObjectiveHandler "./handlers/update-objective-handler";
 import ArchiveObjectiveHandler "./handlers/archive-objective-handler";
 import RecordObjectiveDatapointHandler "./handlers/record-objective-datapoint-handler";
 import AddImpactReviewHandler "./handlers/add-impact-review-handler";
+import ListObjectivesHandler "./handlers/list-objectives-handler";
+import GetObjectiveHandler "./handlers/get-objective-handler";
+import GetObjectiveHistoryHandler "./handlers/get-objective-history-handler";
+import AddObjectiveDatapointCommentHandler "./handlers/add-objective-datapoint-comment-handler";
+import GetImpactReviewsHandler "./handlers/get-impact-reviews-handler";
 
 module {
   // ============================================
@@ -121,18 +126,24 @@ module {
     };
 
     // ==========================================
-    // OBJECTIVE TOOLS - require workspaceId + objectives with write access
+    // OBJECTIVE TOOLS - require workspaceId + objectives resource
     // ==========================================
     switch (resources.workspaceId, resources.objectives) {
       case (?wsId, ?obj) {
+        // Read tools — always available when resource is present
+        List.add(tools, listObjectivesTool(wsId, obj.map));
+        List.add(tools, getObjectiveTool(wsId, obj.map));
+        List.add(tools, getObjectiveHistoryTool(wsId, obj.map));
+        List.add(tools, getImpactReviewsTool(wsId, obj.map));
+        // Write tools — require write access
         if (obj.write) {
           List.add(tools, createObjectiveTool(wsId, obj.map));
           List.add(tools, updateObjectiveTool(wsId, obj.map));
           List.add(tools, archiveObjectiveTool(wsId, obj.map));
           List.add(tools, recordObjectiveDatapointTool(wsId, obj.map));
           List.add(tools, addImpactReviewTool(wsId, obj.map));
+          List.add(tools, addObjectiveDatapointCommentTool(wsId, obj.map));
         };
-        // Future: if read access, add read-only objective tools
       };
       case _ {};
     };
@@ -551,6 +562,91 @@ module {
   // ============================================
   // OBJECTIVE TOOLS
   // ============================================
+
+  /// List objectives tool - read access sufficient
+  private func listObjectivesTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_objectives";
+          description = ?"Lists all objectives for a value stream, including their current values, targets, and status.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream to list objectives for\"}},\"required\":[\"valueStreamId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ListObjectivesHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  /// Get objective tool - read access sufficient
+  private func getObjectiveTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_objective";
+          description = ?"Gets the full details of a single objective by ID, including its target definition, current value, and status.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective to retrieve\"}},\"required\":[\"valueStreamId\",\"objectiveId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetObjectiveHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  /// Get objective history tool - read access sufficient
+  private func getObjectiveHistoryTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_objective_history";
+          description = ?"Returns the full datapoint history for an objective in chronological order. Use this to review progress over time or before adding a comment to a specific entry.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective\"}},\"required\":[\"valueStreamId\",\"objectiveId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetObjectiveHistoryHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  /// Get impact reviews tool - read access sufficient
+  private func getImpactReviewsTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_impact_reviews";
+          description = ?"Returns all impact reviews for an objective. Use this to understand the history of perceived impact assessments before adding a new review.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective\"}},\"required\":[\"valueStreamId\",\"objectiveId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetImpactReviewsHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  /// Add objective datapoint comment tool - requires write access
+  private func addObjectiveDatapointCommentTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "add_objective_datapoint_comment";
+          description = ?"Adds a comment to a specific datapoint in an objective's history. Use get_objective_history first to confirm the correct historyIndex (0 = oldest entry).";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective\"},\"historyIndex\":{\"type\":\"number\",\"description\":\"Index of the history entry to comment on (0 = oldest)\"},\"message\":{\"type\":\"string\",\"description\":\"The comment text\"},\"author\":{\"type\":\"string\",\"description\":\"Optional. Author name for the comment. Defaults to 'assistant'\"}},\"required\":[\"valueStreamId\",\"objectiveId\",\"historyIndex\",\"message\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await AddObjectiveDatapointCommentHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
 
   /// Create objective tool - requires workspaceId + objectives with write
   private func createObjectiveTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
