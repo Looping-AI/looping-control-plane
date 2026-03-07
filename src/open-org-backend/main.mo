@@ -29,44 +29,43 @@ import Logger "./utilities/logger";
 import WeeklyReconciliationService "./services/weekly-reconciliation-service";
 import AdminModel "./models/admin-model";
 
-persistent actor class OpenOrgBackend(owner : Principal, slackSigningSecret_init : Text) {
+persistent actor class OpenOrgBackend(owner : Principal) {
   // ============================================
   // State
   // ============================================
 
-  var orgOwner : Principal = owner;
+  let orgOwner : Principal = owner;
   var orgAdmins : [Principal] = [owner];
-  var slackSigningSecret : Text = slackSigningSecret_init;
   // Channel-keyed conversation store (Phase 1.4): replaces the old (workspaceId, agentId)-keyed
   // `conversations` map and the workspaceId-keyed `adminConversations` map.
-  var conversationStore = ConversationModel.empty();
-  var secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>(); // Encrypted secrets per workspace
+  let conversationStore = ConversationModel.empty();
+  let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>(); // Encrypted secrets per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
-  var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
-  var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
-  var agentRegistry = AgentModel.emptyState(); // Global agent registry state (ID → AgentRecord, name lookup)
-  var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
+  let workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
+  let workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
+  let agentRegistry = AgentModel.defaultState(); // Global agent registry state, pre-seeded with the default workspace-admin agent
+  let mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
   // Slack user state (cache: Slack user ID → SlackUserEntry; changeLog: audit trail)
-  var slackUsers = SlackUserModel.emptyState();
+  let slackUsers = SlackUserModel.emptyState();
 
   // Workspace channel anchors (workspace ID → WorkspaceRecord with admin/member Slack channel IDs)
   // Workspace 0 is the org workspace; its adminChannelId IS the org-admin channel anchor.
-  var workspaces = WorkspaceModel.emptyState();
+  let workspaces = WorkspaceModel.emptyState();
 
   // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
-  var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
-  var metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
-  var workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
-  var workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
+  let metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
+  let metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
+  let workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
+  let workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
 
   // HTTP certification state (skip-certification for query responses)
   var httpCertStore = HttpCertification.initStore();
 
   // Event store state (Slack events, per-event timer dispatch)
-  var eventStore = EventStoreModel.empty();
+  let eventStore = EventStoreModel.empty();
   var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
   var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
   var lastConversationPruneTimestamp : Int = Time.now(); // Track last time conversation store was pruned
@@ -412,19 +411,27 @@ persistent actor class OpenOrgBackend(owner : Principal, slackSigningSecret_init
   };
 
   // ============================================
-  // Slack Signing Secret
+  // Org-Critical Secrets
   // ============================================
 
-  /// Update the Slack signing secret. Only the org owner may call this.
-  public shared ({ caller }) func setSlackSigningSecret(newSecret : Text) : async {
+  /// Store an org-critical secret (encrypted at rest). Only the org owner may call this.
+  /// Secrets are stored under workspace 0 (the org workspace) using the workspace
+  /// encryption key derived from ICP's Threshold Schnorr signatures.
+  public shared ({ caller }) func storeOrgCriticalSecrets(secretId : Types.SecretId, value : Text) : async {
     #ok : ();
     #err : Text;
   } {
     switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner])) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) {
-        slackSigningSecret := newSecret;
-        #ok(());
+        if (Text.trim(value, #char ' ') == "") {
+          return #err("Secret value cannot be empty.");
+        };
+        let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+        switch (SecretModel.storeSecret(secrets, encryptionKey, 0, secretId, value)) {
+          case (#err(msg)) { #err(msg) };
+          case (#ok(())) { #ok(()) };
+        };
       };
     };
   };
@@ -505,12 +512,9 @@ persistent actor class OpenOrgBackend(owner : Principal, slackSigningSecret_init
       case _ {};
     };
 
-    // For all other event types, verify the Slack signature
-    if (slackSigningSecret == "") {
-      Logger.log(#error, ?"SlackWebhook", "No Slack signing secret configured");
-      return respondWithText(401, "Slack signing secret not configured");
-    };
-
+    // For all other event types, verify the Slack signature.
+    // Check headers first (fast path), then derive the encryption key to read
+    // the signing secret from the encrypted store (workspace 0).
     let signature = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Signature")) {
       case (null) {
         return respondWithText(401, "Missing signature");
@@ -524,7 +528,17 @@ persistent actor class OpenOrgBackend(owner : Principal, slackSigningSecret_init
       case (?ts) { ts };
     };
 
-    if (not SlackAdapter.verifySignature(slackSigningSecret, signature, timestamp, bodyText)) {
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
+    let signingSecret = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackSigningSecret)) {
+      case (null) {
+        Logger.log(#error, ?"SlackWebhook", "No Slack signing secret configured");
+        return respondWithText(401, "Slack signing secret not configured");
+      };
+      case (?secret) { secret };
+    };
+
+    if (not SlackAdapter.verifySignature(signingSecret, signature, timestamp, bodyText)) {
       Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
       return respondWithText(401, "Invalid signature");
     };

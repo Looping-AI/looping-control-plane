@@ -23,6 +23,8 @@ export const TEST_API_KEY =
 export const TEST_MODEL = "openai/gpt-oss-120b";
 export const SLACK_TEST_TOKEN =
   process.env["SLACK_APP_BOT_TOKEN"] || "not-needed-due-to-cassette";
+export const SLACK_SIGNING_SECRET =
+  process.env["SLACK_APP_SIGNING_SECRET"] || "test-slack-signing-secret-12345";
 export const SLACK_ORG_ADMIN_CHANNEL_ID =
   process.env["SLACK_ORG_ADMIN_CHANNEL_ID"] || "C_ORG_ADMIN_NOT_SET";
 export const SLACK_SPECS_CHANNEL_ID =
@@ -73,9 +75,7 @@ export const TEST_CANISTER_WASM_PATH = resolve(
  * and sets up the canister
  * @returns Object with PocketIC instance, actor, canisterId, and owner identity
  */
-export async function createBackendCanister(options?: {
-  slackSigningSecret?: string;
-}): Promise<{
+export async function createBackendCanister(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
   canisterId: import("@icp-sdk/core/principal").Principal;
@@ -91,12 +91,8 @@ export async function createBackendCanister(options?: {
   const ownerIdentity = generateRandomIdentity();
   const ownerPrincipal = ownerIdentity.getPrincipal();
 
-  // Encode the owner principal and Slack signing secret as IDL init arguments
-  const signingSecret = options?.slackSigningSecret ?? "";
-  const args = IDL.encode(
-    [IDL.Principal, IDL.Text],
-    [ownerPrincipal, signingSecret],
-  );
+  // Encode the owner principal as IDL init argument
+  const args = IDL.encode([IDL.Principal], [ownerPrincipal]);
 
   const fixture = await pic.setupCanister<_SERVICE>({
     idlFactory,

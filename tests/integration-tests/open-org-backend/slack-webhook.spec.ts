@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { createHmac } from "node:crypto";
 import type { _SERVICE } from "../../setup.ts";
-import { createBackendCanister } from "../../setup.ts";
+import { createBackendCanister, SLACK_SIGNING_SECRET } from "../../setup.ts";
 import { expectOk } from "../../helpers.ts";
 import standardMessagePayload from "../../stubs/slack-payloads/message-standard.json";
 import appMentionPayload from "../../stubs/slack-payloads/app-mention.json";
@@ -17,7 +17,7 @@ import thirdPartyBotPayload from "../../stubs/slack-payloads/message-bot-third-p
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-const TEST_SIGNING_SECRET = "test-slack-signing-secret-12345";
+const TEST_SIGNING_SECRET = SLACK_SIGNING_SECRET;
 const TEST_TIMESTAMP = "1700000000";
 
 /**
@@ -74,11 +74,16 @@ describe("Slack Webhook", () => {
   let actor: Actor<_SERVICE>;
 
   beforeEach(async () => {
-    const testEnv = await createBackendCanister({
-      slackSigningSecret: TEST_SIGNING_SECRET,
-    });
+    const testEnv = await createBackendCanister();
     pic = testEnv.pic;
     actor = testEnv.actor;
+    // Store the signing secret for tests that exercise the verification path
+    expectOk(
+      await actor.storeOrgCriticalSecrets(
+        { slackSigningSecret: null },
+        TEST_SIGNING_SECRET,
+      ),
+    );
   });
 
   afterEach(async () => {
@@ -245,11 +250,29 @@ describe("Slack Webhook", () => {
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
     });
+  });
+
+  // ============================================
+  // No Signing Secret Configured
+  // (fresh canister — storeOrgCriticalSecrets is intentionally never called)
+  // ============================================
+
+  describe("when no signing secret is configured", () => {
+    let pic2: PocketIc;
+    let actor2: Actor<_SERVICE>;
+
+    beforeEach(async () => {
+      const testEnv = await createBackendCanister();
+      pic2 = testEnv.pic;
+      actor2 = testEnv.actor;
+      // Intentionally NOT calling storeOrgCriticalSecrets so no signing secret is stored
+    });
+
+    afterEach(async () => {
+      await pic2.tearDown();
+    });
 
     it("should reject when no signing secret is configured", async () => {
-      // Clear the signing secret
-      expectOk(await actor.setSlackSigningSecret(""));
-
       const body = JSON.stringify({
         type: "event_callback",
         token: "tok",
@@ -266,7 +289,7 @@ describe("Slack Webhook", () => {
         event_time: 1700000000,
       });
 
-      const response = await sendSignedWebhook(actor, body);
+      const response = await sendSignedWebhook(actor2, body);
 
       expect(response.status_code).toBe(401);
       expect(decodeBody(response)).toBe("Slack signing secret not configured");

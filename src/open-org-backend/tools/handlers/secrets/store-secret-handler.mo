@@ -58,6 +58,9 @@ module {
               case (#groqApiKey or #openaiApiKey) {
                 [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
               };
+              case (#slackSigningSecret) {
+                return Helpers.buildErrorResponse("slackSigningSecret must be managed via the storeOrgCriticalSecrets canister method.");
+              };
             };
             switch (SlackAuthMiddleware.authorize(uac, requiredRoles)) {
               case (#err(msg)) {

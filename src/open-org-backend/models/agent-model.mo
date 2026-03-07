@@ -360,6 +360,40 @@ module {
     null;
   };
 
+  /// Count all registered agents with the given category.
+  public func countByCategory(category : AgentCategory, state : AgentRegistryState) : Nat {
+    var count = 0;
+    for (record in Map.values(state.agentsById)) {
+      if (record.category == category) {
+        count += 1;
+      };
+    };
+    count;
+  };
+
+  /// Create the default agent registry state pre-seeded with the built-in
+  /// workspace-admin agent (category = #admin, Groq gpt_oss_120b).
+  ///
+  /// The default admin agent is granted access to the org-level (workspace 0)
+  /// Groq API key and Slack bot token, matching the orgAdmin.json template.
+  ///
+  /// Called once during canister initialisation in main.mo.
+  public func defaultState() : AgentRegistryState {
+    let state = emptyState();
+    ignore register(
+      "workspace-admin",
+      #admin,
+      #groq(#gpt_oss_120b),
+      [(0, #groqApiKey), (0, #slackBotToken)],
+      [],
+      [],
+      Map.empty<Text, ToolState>(),
+      [],
+      state,
+    );
+    state;
+  };
+
   /// Map an LlmModel to the provider-specific model string used in API calls.
   public func llmModelToText(model : LlmModel) : Text {
     switch (model) {

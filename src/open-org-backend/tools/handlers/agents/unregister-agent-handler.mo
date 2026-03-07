@@ -1,6 +1,7 @@
 import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
@@ -31,6 +32,18 @@ module {
           };
           case _ {
             return Helpers.buildErrorResponse("Missing required field: id");
+          };
+        };
+
+        // Guard: the last #admin agent must never be removed — at least one must always exist.
+        switch (AgentModel.lookupById(id, state)) {
+          case (null) {
+            return Helpers.buildErrorResponse("Agent with ID " # Nat.toText(id) # " not found.");
+          };
+          case (?agent) {
+            if (agent.category == #admin and AgentModel.countByCategory(#admin, state) <= 1) {
+              return Helpers.buildErrorResponse("Cannot unregister the last admin agent. At least one admin agent must remain.");
+            };
           };
         };
 

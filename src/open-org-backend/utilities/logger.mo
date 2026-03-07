@@ -39,12 +39,7 @@ module {
     switch (Constants.ENVIRONMENT) {
       case (#test) { false };
       case (#local) { true };
-      case (#staging) {
-        switch (level) {
-          case (#warn or #error) { true };
-          case _ { false };
-        };
-      };
+      case (#staging) { true };
       case (#production) {
         switch (level) {
           case (#error) { true };

@@ -110,12 +110,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Persistent metric state for handler tests. Starts empty; tests
   // create metrics through handler calls and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
-  var testMetricsRegistry = MetricModel.emptyRegistry();
-  var testMetricDatapoints = MetricModel.emptyDatapoints();
+  let testMetricsRegistry = MetricModel.emptyRegistry();
+  let testMetricDatapoints = MetricModel.emptyDatapoints();
 
   // Persistent value stream state for handler tests. Workspace 0 is pre-initialised
   // so create/list/get/delete tests can run directly against it.
-  var testValueStreamsMap = do {
+  let testValueStreamsMap = do {
     let m = ValueStreamModel.emptyValueStreamsMap();
     Map.add(m, Nat.compare, 0, ValueStreamModel.emptyWorkspaceState());
     m;
@@ -123,25 +123,25 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   let testValueStreamWorkspaceId : Nat = 0;
 
   // Per-workspace objectives map for delete handler cleanup tests.
-  var testWorkspaceObjectivesMap = ObjectiveModel.emptyWorkspaceObjectivesMap();
+  let testWorkspaceObjectivesMap = ObjectiveModel.emptyWorkspaceObjectivesMap();
 
   // Agent registry state for agent handler tests. Starts empty; tests
   // register agents through handler calls and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
-  var testAgentRegistry = AgentModel.emptyState();
+  let testAgentRegistry = AgentModel.emptyState();
 
   // MCP tool registry state for MCP handler tests. Starts empty; tests
   // register tools through handler calls and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
-  var testMcpToolRegistry = McpToolRegistry.empty();
+  let testMcpToolRegistry = McpToolRegistry.empty();
 
   // Secrets map and key cache for secrets handler tests. Starts empty; tests
   // store/delete secrets through handler calls and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
   // The key cache is pre-seeded with the all-zeros dummy key for workspaces 0, 1, 2
   // to avoid live Schnorr calls during unit tests.
-  var testSecretsMap = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-  var testSecretsKeyCache : KeyDerivationService.KeyCache = Map.fromArray<Nat, [Nat8]>(
+  let testSecretsMap = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+  let testSecretsKeyCache : KeyDerivationService.KeyCache = Map.fromArray<Nat, [Nat8]>(
     [(0, TestHelpers.dummyKey), (1, TestHelpers.dummyKey), (2, TestHelpers.dummyKey)],
     Nat.compare,
   );
@@ -149,7 +149,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Event store state for event handler tests. Starts empty; tests seed events
   // through the testSeedFailedEvent helper and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
-  var testEventStore = EventStoreModel.empty();
+  let testEventStore = EventStoreModel.empty();
 
   // ============================================
   // Slack Wrapper Test Methods

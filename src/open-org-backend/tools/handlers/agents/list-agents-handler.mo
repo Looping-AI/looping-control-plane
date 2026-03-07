@@ -25,6 +25,7 @@ module {
       case (#groqApiKey) { "groqApiKey" };
       case (#openaiApiKey) { "openaiApiKey" };
       case (#slackBotToken) { "slackBotToken" };
+      case (#slackSigningSecret) { "slackSigningSecret" };
     };
   };
 

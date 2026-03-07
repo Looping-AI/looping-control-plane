@@ -1,17 +1,17 @@
-# yaml-language-server: $schema=http://raw.githubusercontent.com/dfinity/icp-cli/refs/tags/v0.1.0/docs/schemas/icp-yaml-schema.json
+# yaml-language-server: $schema=http://raw.githubusercontent.com/dfinity/icp-cli/refs/tags/v0.2.0/docs/schemas/icp-yaml-schema.json
 
 canisters:
   - name: open-org-backend
     init_args: '(principal "aaaaa-aa")'
     recipe:
-      type: "@dfinity/motoko"
+      type: "@dfinity/motoko@v4.1.0"
       configuration:
         main: src/open-org-backend/main.mo
         args: ""
 
   - name: test-canister
     recipe:
-      type: "@dfinity/motoko"
+      type: "@dfinity/motoko@v4.1.0"
       configuration:
         main: tests/unit-tests/open-org-backend/test-canister.mo
         args: ""

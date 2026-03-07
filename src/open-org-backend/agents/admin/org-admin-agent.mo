@@ -76,7 +76,7 @@ module {
     message : Text,
     apiKey : Text,
   ) : async ProcessResult {
-    var steps : List.List<Types.ProcessingStep> = List.empty();
+    let steps : List.List<Types.ProcessingStep> = List.empty();
 
     // Derive model text from the agent's llmModel — not a caller-supplied param
     let modelText = AgentModel.llmModelToText(agent.llmModel);

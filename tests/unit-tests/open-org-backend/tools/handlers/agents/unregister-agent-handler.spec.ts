@@ -58,7 +58,7 @@ describe("UnregisterAgentHandler", () => {
 
     it("should allow primary owner to unregister an agent", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "AdminBot", category: "admin" }),
+        JSON.stringify({ name: "AdminBot", category: "planning" }),
         PRIMARY_OWNER,
       );
 
@@ -72,7 +72,7 @@ describe("UnregisterAgentHandler", () => {
 
     it("should allow org admin to unregister an agent", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "AdminBot", category: "admin" }),
+        JSON.stringify({ name: "AdminBot", category: "planning" }),
         PRIMARY_OWNER,
       );
 
@@ -119,7 +119,7 @@ describe("UnregisterAgentHandler", () => {
   describe("happy path", () => {
     it("should remove the agent from the registry", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "to-be-deleted", category: "admin" }),
+        JSON.stringify({ name: "to-be-deleted", category: "planning" }),
         PRIMARY_OWNER,
       );
 
@@ -143,7 +143,7 @@ describe("UnregisterAgentHandler", () => {
 
     it("should return success message on successful unregistration", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "removable-agent", category: "admin" }),
+        JSON.stringify({ name: "removable-agent", category: "planning" }),
         PRIMARY_OWNER,
       );
 
@@ -166,8 +166,9 @@ describe("UnregisterAgentHandler", () => {
         PRIMARY_OWNER,
       );
 
+      // Delete the planning agent (id 1) — the admin agent must remain.
       await testCanister.testUnregisterAgentHandler(
-        JSON.stringify({ id: 0 }),
+        JSON.stringify({ id: 1 }),
         PRIMARY_OWNER,
       );
 
@@ -177,6 +178,39 @@ describe("UnregisterAgentHandler", () => {
         agents: unknown[];
       };
       expect(list.agents).toHaveLength(1);
+    });
+
+    it("should prevent deleting the last admin agent", async () => {
+      await testCanister.testRegisterAgentHandler(
+        JSON.stringify({ name: "sole-admin", category: "admin" }),
+        PRIMARY_OWNER,
+      );
+
+      const result = await testCanister.testUnregisterAgentHandler(
+        JSON.stringify({ id: 0 }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(false);
+      expect(response.error).toContain("last admin agent");
+    });
+
+    it("should allow deleting a non-last admin agent when another admin exists", async () => {
+      await testCanister.testRegisterAgentHandler(
+        JSON.stringify({ name: "admin-a", category: "admin" }),
+        PRIMARY_OWNER,
+      );
+      await testCanister.testRegisterAgentHandler(
+        JSON.stringify({ name: "admin-b", category: "admin" }),
+        PRIMARY_OWNER,
+      );
+
+      const result = await testCanister.testUnregisterAgentHandler(
+        JSON.stringify({ id: 0 }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
     });
   });
 });

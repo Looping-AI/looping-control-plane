@@ -69,7 +69,7 @@ module {
     message : Text,
     apiKey : Text,
   ) : async ProcessResult {
-    var steps : List.List<Types.ProcessingStep> = List.empty();
+    let steps : List.List<Types.ProcessingStep> = List.empty();
 
     // Derive model text from the agent's llmModel — not a caller-supplied param
     let modelText = AgentModel.llmModelToText(agent.llmModel);
@@ -275,7 +275,7 @@ module {
     metricsRegistryState : MetricModel.MetricsRegistryState,
     metricDatapoints : MetricModel.MetricDatapointsStore,
   ) : [InstructionTypes.InstructionBlock] {
-    var blocks : List.List<InstructionTypes.InstructionBlock> = List.empty();
+    let blocks : List.List<InstructionTypes.InstructionBlock> = List.empty();
 
     // Add metrics summary with latest datapoints
     let allMetrics = MetricModel.listMetrics(metricsRegistryState);
@@ -323,7 +323,7 @@ module {
     // Add objectives for all value streams in this workspace
     var objectivesText = "Objectives:\n";
     var hasObjectives = false;
-    var needsAttention = List.empty<Text>();
+    let needsAttention = List.empty<Text>();
     let now = Time.now();
 
     for ((vsId, vsObjectivesState) in Map.entries(workspaceObjectivesMap)) {
@@ -440,7 +440,7 @@ module {
     };
 
     // Determine which context layers to include based on workspace state
-    var contextIds : List.List<InstructionTypes.ContextId> = List.empty();
+    let contextIds : List.List<InstructionTypes.ContextId> = List.empty();
 
     // Check if workspace needs value stream setup
     let streams = Iter.toArray(Map.values(workspaceValueStreamsState.valueStreams));

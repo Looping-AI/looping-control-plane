@@ -17,20 +17,12 @@ module {
   /// workspaceId -> secretId -> encrypted_secret
   public type SecretsMap = Map.Map<Nat, Map.Map<Types.SecretId, EncryptedSecret>>;
 
-  /// Comparator for SecretId enum
+  /// Comparator for SecretId enum.
+  /// Uses the stable string representation so that the BTree ordering is
+  /// independent of the variant declaration order — adding or reordering
+  /// variants in the future will never silently corrupt stored keys.
   public func compareSecretId(a : Types.SecretId, b : Types.SecretId) : Order.Order {
-    let aVal = secretIdToNat(a);
-    let bVal = secretIdToNat(b);
-    Nat.compare(aVal, bVal);
-  };
-
-  /// Convert SecretId variant to Nat for comparison
-  private func secretIdToNat(id : Types.SecretId) : Nat {
-    switch (id) {
-      case (#groqApiKey) { 0 };
-      case (#openaiApiKey) { 1 };
-      case (#slackBotToken) { 2 };
-    };
+    Text.compare(secretIdToString(a), secretIdToString(b));
   };
 
   /// Convert SecretId variant to string representation
@@ -39,6 +31,7 @@ module {
       case (#groqApiKey) { "groqApiKey" };
       case (#openaiApiKey) { "openaiApiKey" };
       case (#slackBotToken) { "slackBotToken" };
+      case (#slackSigningSecret) { "slackSigningSecret" };
     };
   };
 
