@@ -460,7 +460,7 @@ After all 10 steps, the only remaining integration tests that exercise `main.mo`
 
 - `http-requests.spec.ts` — `http_request` (GET/non-POST) query endpoint.
 - `slack-webhook.spec.ts` — full Slack webhook pipeline through `http_request_update`.
-- `timers.spec.ts` — timer callback behavioç´0r.
+- `timers.spec.ts` — timer callback behavior.
 - `encryption.spec.ts` — key derivation (cache parts removed in Step 9).
 
 Run `bun run test:unit` to confirm all unit tests pass. Run `bun run tsc --noEmit` to confirm no TypeScript regressions in the test suite.
