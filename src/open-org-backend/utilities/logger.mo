@@ -33,8 +33,8 @@ module {
   /// Check if logging should occur based on environment and level
   /// - test: no logs
   /// - local: all levels
-  /// - staging: warn and error only
-  /// - production: error only
+  /// - staging: all levels
+  /// - production: warn and error only
   private func shouldLog(level : LogLevel) : Bool {
     switch (Constants.ENVIRONMENT) {
       case (#test) { false };
@@ -42,7 +42,7 @@ module {
       case (#staging) { true };
       case (#production) {
         switch (level) {
-          case (#error) { true };
+          case (#warn or #error) { true };
           case _ { false };
         };
       };
