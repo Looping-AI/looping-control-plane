@@ -7,7 +7,6 @@ import {
   type DeferredActor,
 } from "@dfinity/pic";
 import { Principal } from "@icp-sdk/core/principal";
-import { IDL } from "@icp-sdk/core/candid";
 import type { _SERVICE } from "./builds/open-org-backend.did.d.ts";
 import { idlFactory } from "./builds/open-org-backend.did.js";
 import type { _SERVICE as TestCanisterService } from "./builds/test-canister.did.d.ts";
@@ -73,13 +72,13 @@ export const TEST_CANISTER_WASM_PATH = resolve(
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
- * @returns Object with PocketIC instance, actor, canisterId, and owner identity
+ * @returns Object with PocketIC instance, actor, canisterId, and controller identity
  */
 export async function createBackendCanister(): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
   canisterId: import("@icp-sdk/core/principal").Principal;
-  ownerIdentity: ReturnType<typeof generateRandomIdentity>;
+  controllerIdentity: ReturnType<typeof generateRandomIdentity>;
 }> {
   const pic = await PocketIc.create(process.env.PIC_URL || "", {
     fiduciary: {
@@ -87,27 +86,24 @@ export async function createBackendCanister(): Promise<{
     },
   });
 
-  // Create owner identity
-  const ownerIdentity = generateRandomIdentity();
-  const ownerPrincipal = ownerIdentity.getPrincipal();
-
-  // Encode the owner principal as IDL init argument
-  const args = IDL.encode([IDL.Principal], [ownerPrincipal]);
+  // Create controller identity — used as the canister installer (and thus controller)
+  const controllerIdentity = generateRandomIdentity();
+  const controllerPrincipal = controllerIdentity.getPrincipal();
 
   const fixture = await pic.setupCanister<_SERVICE>({
     idlFactory,
     wasm: WASM_PATH,
-    arg: args,
+    sender: controllerPrincipal,
   });
 
-  // Set the owner as the initial actor identity
-  fixture.actor.setIdentity(ownerIdentity);
+  // Set the controller as the initial actor identity so privileged calls work
+  fixture.actor.setIdentity(controllerIdentity);
 
   return {
     pic,
     actor: fixture.actor,
     canisterId: fixture.canisterId,
-    ownerIdentity,
+    controllerIdentity,
   };
 }
 
@@ -179,38 +175,4 @@ export async function createSchnorrTestCanister(): Promise<{
   });
 
   return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
-}
-
-/**
- * Sets up a test admin user (non-owner) for testing
- * Only the owner can add admins, so this just creates a new identity
- * and the caller (owner) can add them as an admin if needed
- * @param actor - The canister actor (should be called by owner)
- * @returns Object with admin identity and principal
- */
-export async function setupAdminUser(actor: Actor<_SERVICE>): Promise<{
-  adminIdentity: ReturnType<typeof generateRandomIdentity>;
-  adminPrincipal: Principal;
-}> {
-  const adminIdentity = generateRandomIdentity();
-  const adminPrincipal = adminIdentity.getPrincipal();
-  // Owner adds the new admin to workspace 0
-  await actor.addWorkspaceAdmin(0n, adminPrincipal);
-  return { adminIdentity, adminPrincipal };
-}
-
-/**
- * Sets up a regular (non-admin) user for testing
- * @param actor - The canister actor (should be called by owner)
- * @returns Object with user identity and principal
- */
-export async function setupRegularUser(actor: Actor<_SERVICE>): Promise<{
-  userIdentity: ReturnType<typeof generateRandomIdentity>;
-  userPrincipal: Principal;
-}> {
-  const userIdentity = generateRandomIdentity();
-  const userPrincipal = userIdentity.getPrincipal();
-  // Owner adds the new user as a member of workspace 0
-  await actor.addWorkspaceMember(0n, userPrincipal);
-  return { userIdentity, userPrincipal };
 }

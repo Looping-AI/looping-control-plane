@@ -2,7 +2,6 @@
 
 canisters:
   - name: open-org-backend
-    init_args: '(principal "aaaaa-aa")'
     recipe:
       type: "@dfinity/motoko@v4.1.0"
       configuration:

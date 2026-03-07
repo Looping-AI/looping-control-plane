@@ -1,5 +1,5 @@
 import Json "mo:json";
-import { str; obj; bool; arr } "mo:json";
+import { obj; bool; arr } "mo:json";
 import Array "mo:core/Array";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";

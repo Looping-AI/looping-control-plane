@@ -9,7 +9,6 @@ import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
 import Types "./types";
-import AuthMiddleware "./middleware/auth-middleware";
 import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
 import SlackUserModel "./models/slack-user-model";
@@ -27,15 +26,12 @@ import EventRouter "./events/event-router";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
 import WeeklyReconciliationService "./services/weekly-reconciliation-service";
-import AdminModel "./models/admin-model";
 
-persistent actor class OpenOrgBackend(owner : Principal) {
+persistent actor class OpenOrgBackend() = this {
   // ============================================
   // State
   // ============================================
 
-  let orgOwner : Principal = owner;
-  var orgAdmins : [Principal] = [owner];
   // Channel-keyed conversation store (Phase 1.4): replaces the old (workspaceId, agentId)-keyed
   // `conversations` map and the workspaceId-keyed `adminConversations` map.
   let conversationStore = ConversationModel.empty();
@@ -43,8 +39,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
-  let workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
-  let workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
   let agentRegistry = AgentModel.defaultState(); // Global agent registry state, pre-seeded with the default workspace-admin agent
   let mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
@@ -69,21 +63,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
   var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
   var lastConversationPruneTimestamp : Int = Time.now(); // Track last time conversation store was pruned
-
-  // ============================================
-  // Auth Helper
-  // ============================================
-
-  private func authContext(caller : Principal, workspaceId : ?Nat) : AuthMiddleware.AuthContext {
-    {
-      caller;
-      workspaceId;
-      orgOwner;
-      orgAdmins;
-      workspaceAdmins;
-      workspaceMembers;
-    };
-  };
 
   // ============================================
   // Timer Management
@@ -298,119 +277,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // OrgAdmin Management
-  // ============================================
-
-  // Add a new organization admin
-  public shared ({ caller }) func addOrgAdmin(newAdmin : Principal) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        // Business validation
-        let validation = AdminModel.validateNewAdmin(newAdmin, orgAdmins);
-        switch (validation) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(())) {
-            orgAdmins := AdminModel.addAdminToList(newAdmin, orgAdmins);
-            #ok(());
-          };
-        };
-      };
-    };
-  };
-
-  // Get list of organization admins
-  public query func getOrgAdmins() : async [Principal] {
-    orgAdmins;
-  };
-
-  // Check if caller is an organization admin
-  public shared ({ caller }) func isCallerOrgAdmin() : async Bool {
-    AdminModel.isAdmin(caller, orgAdmins);
-  };
-
-  // Add a new workspace admin
-  public shared ({ caller }) func addWorkspaceAdmin(workspaceId : Nat, newAdmin : Principal) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?admins) {
-            // Business validation
-            let validation = AdminModel.validateNewAdmin(newAdmin, admins);
-            switch (validation) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(())) {
-                let newAdmins = AdminModel.addAdminToList(newAdmin, admins);
-                Map.add(workspaceAdmins, Nat.compare, workspaceId, newAdmins);
-                #ok(());
-              };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  // Add a new workspace member
-  public shared ({ caller }) func addWorkspaceMember(workspaceId : Nat, newMember : Principal) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?members) {
-            // Business validation
-            let validation = AdminModel.validateNewMember(newMember, members);
-            switch (validation) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(())) {
-                let newMembers = AdminModel.addMemberToList(newMember, members);
-                Map.add(workspaceMembers, Nat.compare, workspaceId, newMembers);
-                #ok(());
-              };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  // Get workspace members (workspace admins and above can view)
-  public shared ({ caller }) func getWorkspaceMembers(workspaceId : Nat) : async {
-    #ok : [Principal];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin, #IsWorkspaceMember])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?members) { #ok(members) };
-        };
-      };
-    };
-  };
-
-  // Check if caller is a workspace member
-  public shared ({ caller }) func isCallerWorkspaceMember(workspaceId : Nat) : async Bool {
-    switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-      case (null) { false };
-      case (?members) { AdminModel.isMember(caller, members) };
-    };
-  };
-
-  // ============================================
   // Org-Critical Secrets
   // ============================================
 
@@ -421,18 +287,28 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        if (Text.trim(value, #char ' ') == "") {
-          return #err("Secret value cannot be empty.");
-        };
-        let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-        switch (SecretModel.storeSecret(secrets, encryptionKey, 0, secretId, value)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(())) { #ok(()) };
-        };
+    // Authorize by checking that the caller is a controller of this canister
+    let ic = actor "aaaaa-aa" : actor {
+      canister_status : ({ canister_id : Principal }) -> async {
+        settings : { controllers : [Principal] };
       };
+    };
+    let status = await ic.canister_status({
+      canister_id = Principal.fromActor(this);
+    });
+    switch (Array.find<Principal>(status.settings.controllers, func(p) { Principal.equal(p, caller) })) {
+      case (null) {
+        return #err("Unauthorized: caller is not a canister controller.");
+      };
+      case (?_) {};
+    };
+    if (Text.trim(value, #char ' ') == "") {
+      return #err("Secret value cannot be empty.");
+    };
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    switch (SecretModel.storeSecret(secrets, encryptionKey, 0, secretId, value)) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) { #ok(()) };
     };
   };
 

@@ -136,26 +136,13 @@ function checkDfxNetwork(): void {
 }
 
 /**
- * Get the current dfx identity principal
- */
-async function getDfxIdentityPrincipal(): Promise<string> {
-  const output = await execCommand("dfx", ["identity", "get-principal"]);
-  return output.trim();
-}
-
-/**
  * Deploy canisters
  */
-async function deployCanisters(deployerPrincipal: string): Promise<void> {
+async function deployCanisters(): Promise<void> {
   logStep(2, "Deploying canisters...");
 
   log("Deploying open-org-backend...", colors.blue);
-  await execCommand("dfx", [
-    "deploy",
-    "--argument",
-    `(principal "${deployerPrincipal}")`,
-    "open-org-backend",
-  ]);
+  await execCommand("dfx", ["deploy", "open-org-backend"]);
   logSuccess("open-org-backend deployed");
 
   log("Deploying internet_identity...", colors.blue);
@@ -291,12 +278,8 @@ async function main() {
     // Check if dfx network is running
     checkDfxNetwork();
 
-    // Get the current dfx identity principal (for deployment)
-    const dfxPrincipal = await getDfxIdentityPrincipal();
-    log(`Using dfx identity: ${dfxPrincipal}`, colors.blue);
-
     // Deploy canisters
-    await deployCanisters(dfxPrincipal);
+    await deployCanisters();
 
     // Seed secrets
     await seedSecrets(envVars);
