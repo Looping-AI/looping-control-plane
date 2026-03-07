@@ -10,8 +10,8 @@ import {
 //
 // This handler:
 //   1. Authorizes the caller via UserAuthContext
-//      - Slack secrets: #IsPrimaryOwner or #IsOrgAdmin only
-//      - LLM keys: #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+//      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
+//      - LLM keys (groqApiKey, openaiApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
 //   2. Validates input: workspaceId (number), secretId (string enum), secretValue (non-empty string)
 //   3. Verifies the workspace exists
 //   4. Derives encryption key from the key cache (pre-seeded with dummy key)
@@ -259,6 +259,32 @@ describe("StoreSecretHandler", () => {
           secretValue: "xoxb-test-bot-token",
         }),
         ORG_ADMIN,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
+    });
+
+    it("should store a slackSigningSecret successfully (org admin)", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "slackSigningSecret",
+          secretValue: "signing-secret-value",
+        }),
+        ORG_ADMIN,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
+    });
+
+    it("should store a slackSigningSecret successfully (primary owner)", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "slackSigningSecret",
+          secretValue: "signing-secret-value",
+        }),
+        PRIMARY_OWNER,
       );
       const response = parseResponse(result);
       expect(response.success).toBe(true);

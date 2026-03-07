@@ -41,6 +41,7 @@ module {
           case (?#string("groqApiKey")) { ?#groqApiKey };
           case (?#string("openaiApiKey")) { ?#openaiApiKey };
           case (?#string("slackBotToken")) { ?#slackBotToken };
+          case (?#string("slackSigningSecret")) { ?#slackSigningSecret };
           case _ { null };
         };
         let secretValueOpt : ?Text = switch (Json.get(json, "secretValue")) {
@@ -52,14 +53,11 @@ module {
           case (?wsId, ?secretId, ?secretValue) {
             // Auth: Slack bot token requires org-level; LLM keys allow workspace admin
             let requiredRoles : [SlackAuthMiddleware.AuthStep] = switch (secretId) {
-              case (#slackBotToken) {
+              case (#slackBotToken or #slackSigningSecret) {
                 [#IsPrimaryOwner, #IsOrgAdmin];
               };
               case (#groqApiKey or #openaiApiKey) {
                 [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
-              };
-              case (#slackSigningSecret) {
-                return Helpers.buildErrorResponse("slackSigningSecret must be managed via the storeOrgCriticalSecrets canister method.");
               };
             };
             switch (SlackAuthMiddleware.authorize(uac, requiredRoles)) {

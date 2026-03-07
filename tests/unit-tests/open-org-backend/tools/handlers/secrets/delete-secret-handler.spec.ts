@@ -10,8 +10,8 @@ import {
 //
 // This handler:
 //   1. Authorizes the caller via UserAuthContext
-//      - Slack secrets: #IsPrimaryOwner or #IsOrgAdmin only
-//      - LLM keys: #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+//      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
+//      - LLM keys (groqApiKey, openaiApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
 //   2. Parses JSON args for { workspaceId: number, secretId: string }
 //   3. Deletes the specified secret from the secrets map
 //
@@ -249,6 +249,40 @@ describe("DeleteSecretHandler", () => {
       };
       expect(listResponse.secretIds).toHaveLength(3);
       expect(listResponse.secretIds).not.toContain("openaiApiKey");
+    });
+
+    it("should delete a slackSigningSecret successfully (org admin)", async () => {
+      await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "slackSigningSecret",
+          secretValue: "signing-secret-value",
+        }),
+        PRIMARY_OWNER,
+      );
+      const result = await testCanister.testDeleteSecretHandler(
+        JSON.stringify({ workspaceId: 0, secretId: "slackSigningSecret" }),
+        ORG_ADMIN,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
+    });
+
+    it("should delete a slackSigningSecret successfully (primary owner)", async () => {
+      await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "slackSigningSecret",
+          secretValue: "signing-secret-value",
+        }),
+        PRIMARY_OWNER,
+      );
+      const result = await testCanister.testDeleteSecretHandler(
+        JSON.stringify({ workspaceId: 0, secretId: "slackSigningSecret" }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
     });
 
     it("should allow storing the same secretId again after deletion", async () => {
