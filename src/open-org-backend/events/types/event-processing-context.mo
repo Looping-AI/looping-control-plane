@@ -22,6 +22,7 @@ import ObjectiveModel "../../models/objective-model";
 import MetricModel "../../models/metric-model";
 import SlackUserModel "../../models/slack-user-model";
 import WorkspaceModel "../../models/workspace-model";
+import EventStoreModel "../../models/event-store-model";
 
 module {
 
@@ -57,5 +58,7 @@ module {
     slackUsers : SlackUserModel.SlackUserState;
     /// Workspace channel anchors — used to resolve channel IDs to workspace scopes
     workspaces : WorkspaceModel.WorkspacesState;
+    /// Event store — passed to the org-admin agent for event queue management tools
+    eventStore : EventStoreModel.EventStoreState;
   };
 };

@@ -19,7 +19,6 @@ module {
   public type SecretId = {
     #groqApiKey;
     #openaiApiKey;
-    #slackSigningSecret;
     #slackBotToken;
   };
 

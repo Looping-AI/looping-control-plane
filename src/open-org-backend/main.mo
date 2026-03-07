@@ -24,19 +24,19 @@ import ObjectiveModel "./models/objective-model";
 import HttpCertification "./utilities/http-certification";
 import EventStoreModel "./models/event-store-model";
 import EventRouter "./events/event-router";
-import NormalizedEventTypes "./events/types/normalized-event-types";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
 import WeeklyReconciliationService "./services/weekly-reconciliation-service";
 import AdminModel "./models/admin-model";
 
-persistent actor class OpenOrgBackend(owner : Principal) {
+persistent actor class OpenOrgBackend(owner : Principal, slackSigningSecret_init : Text) {
   // ============================================
   // State
   // ============================================
 
   var orgOwner : Principal = owner;
   var orgAdmins : [Principal] = [owner];
+  var slackSigningSecret : Text = slackSigningSecret_init;
   // Channel-keyed conversation store (Phase 1.4): replaces the old (workspaceId, agentId)-keyed
   // `conversations` map and the workspaceId-keyed `adminConversations` map.
   var conversationStore = ConversationModel.empty();
@@ -172,6 +172,7 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       metricDatapoints;
       slackUsers;
       workspaces;
+      eventStore;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
@@ -411,6 +412,24 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
+  // Slack Signing Secret
+  // ============================================
+
+  /// Update the Slack signing secret. Only the org owner may call this.
+  public shared ({ caller }) func setSlackSigningSecret(newSecret : Text) : async {
+    #ok : ();
+    #err : Text;
+  } {
+    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner])) {
+      case (#err(msg)) { #err(msg) };
+      case (#ok(())) {
+        slackSigningSecret := newSecret;
+        #ok(());
+      };
+    };
+  };
+
+  // ============================================
   // HTTP Incoming Requests (Webhooks)
   // ============================================
 
@@ -487,35 +506,27 @@ persistent actor class OpenOrgBackend(owner : Principal) {
     };
 
     // For all other event types, verify the Slack signature
-    // Retrieve the signing secret from workspace
-    let workspaceId = 0; // TODO: Support multiple workspaces in the future
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-    let signingSecret = SecretModel.getSecret(secrets, encryptionKey, workspaceId, #slackSigningSecret);
+    if (slackSigningSecret == "") {
+      Logger.log(#error, ?"SlackWebhook", "No Slack signing secret configured");
+      return respondWithText(401, "Slack signing secret not configured");
+    };
 
-    switch (signingSecret) {
+    let signature = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Signature")) {
       case (null) {
-        Logger.log(#error, ?"SlackWebhook", "No signing secret configured for workspace " # Nat.toText(workspaceId));
-        return respondWithText(401, "Slack signing secret not configured");
+        return respondWithText(401, "Missing signature");
       };
-      case (?secret) {
-        let signature = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Signature")) {
-          case (null) {
-            return respondWithText(401, "Missing signature");
-          };
-          case (?sig) { sig };
-        };
-        let timestamp = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Request-Timestamp")) {
-          case (null) {
-            return respondWithText(401, "Missing timestamp");
-          };
-          case (?ts) { ts };
-        };
+      case (?sig) { sig };
+    };
+    let timestamp = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Request-Timestamp")) {
+      case (null) {
+        return respondWithText(401, "Missing timestamp");
+      };
+      case (?ts) { ts };
+    };
 
-        if (not SlackAdapter.verifySignature(secret, signature, timestamp, bodyText)) {
-          Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
-          return respondWithText(401, "Invalid signature");
-        };
-      };
+    if (not SlackAdapter.verifySignature(slackSigningSecret, signature, timestamp, bodyText)) {
+      Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
+      return respondWithText(401, "Invalid signature");
     };
 
     // Signature verified — process the envelope
@@ -561,55 +572,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#unknown(envelopeType)) {
         Logger.log(#warn, ?"SlackWebhook", "Unknown envelope type: " # envelopeType);
         respondWithText(200, "ok");
-      };
-    };
-  };
-
-  // ============================================
-  // Event Queue Stats & Management (Admin)
-  // ============================================
-
-  /// Get event queue statistics (admin only)
-  public shared ({ caller }) func getEventStoreStats() : async {
-    #ok : { unprocessedEvents : Nat; processedEvents : Nat; failedEvents : Nat };
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let stats = EventStoreModel.sizes(eventStore);
-        #ok({
-          unprocessedEvents = stats.unprocessed;
-          processedEvents = stats.processed;
-          failedEvents = stats.failed;
-        });
-      };
-    };
-  };
-
-  /// Get all failed events (admin only)
-  public shared ({ caller }) func getFailedEvents() : async {
-    #ok : [NormalizedEventTypes.Event];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok(EventStoreModel.listFailed(eventStore));
-      };
-    };
-  };
-
-  /// Delete failed event(s) — null deletes all, ?id deletes specific
-  public shared ({ caller }) func deleteFailedEvents(eventId : ?Text) : async {
-    #ok : { deleted : Nat };
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let deleted = EventStoreModel.deleteFailed(eventStore, eventId);
-        #ok({ deleted });
       };
     };
   };

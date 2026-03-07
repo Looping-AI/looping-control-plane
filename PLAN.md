@@ -419,7 +419,7 @@ Verify.
 
 ---
 
-**Step 9 — Delete: Key Cache Management**
+~~**Step 9 — Delete: Key Cache Management**~~
 
 _Methods to delete from `main.mo`:_ `clearKeyCache`, `getKeyCacheStats`.
 
@@ -430,7 +430,7 @@ _Methods to delete from `main.mo`:_ `clearKeyCache`, `getKeyCacheStats`.
 
 ---
 
-**Step 10 — Migrate to tools: Event Queue Stats & Management**
+~~**Step 10 — Migrate to tools: Event Queue Stats & Management**~~
 
 _Methods to delete from `main.mo`:_ `getEventStoreStats`, `getFailedEvents`, `deleteFailedEvents`.
 
@@ -445,6 +445,12 @@ Wire into `org-admin-agent.mo`.
 Migrate: port `event-store-admin.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/events/`. Delete `event-store-admin.spec.ts`.
 
 Verify.
+
+---
+
+**Step 11 — Improve Timers & Cleanup AuthMiddleware test**
+
+- ?
 
 ---
 

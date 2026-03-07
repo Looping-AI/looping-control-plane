@@ -19,6 +19,7 @@ import WorkspaceModel "../../models/workspace-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
+import EventStoreModel "../../models/event-store-model";
 
 module {
 
@@ -43,6 +44,8 @@ module {
     secrets : SecretModel.SecretsMap;
     // Key derivation cache — passed to StoreSecretHandler for encryption
     keyCache : KeyDerivationService.KeyCache;
+    // Event store — used by event queue management tools
+    eventStore : EventStoreModel.EventStoreState;
   };
 
   /// ProcessResult mirrors the WorkPlanningAgent return type so the orchestrator
@@ -105,6 +108,10 @@ module {
       secrets = ?{
         map = ctx.secrets;
         keyCache = ctx.keyCache;
+        write = true;
+      };
+      eventStore = ?{
+        state = ctx.eventStore;
         write = true;
       };
     };

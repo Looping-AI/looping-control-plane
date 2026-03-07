@@ -29,8 +29,7 @@ module {
     switch (id) {
       case (#groqApiKey) { 0 };
       case (#openaiApiKey) { 1 };
-      case (#slackSigningSecret) { 2 };
-      case (#slackBotToken) { 3 };
+      case (#slackBotToken) { 2 };
     };
   };
 
@@ -39,7 +38,6 @@ module {
     switch (id) {
       case (#groqApiKey) { "groqApiKey" };
       case (#openaiApiKey) { "openaiApiKey" };
-      case (#slackSigningSecret) { "slackSigningSecret" };
       case (#slackBotToken) { "slackBotToken" };
     };
   };

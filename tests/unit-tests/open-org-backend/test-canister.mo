@@ -54,6 +54,9 @@ import ListMcpToolsHandler "../../../src/open-org-backend/tools/handlers/mcp/lis
 import StoreSecretHandler "../../../src/open-org-backend/tools/handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "../../../src/open-org-backend/tools/handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "../../../src/open-org-backend/tools/handlers/secrets/delete-secret-handler";
+import GetEventStoreStatsHandler "../../../src/open-org-backend/tools/handlers/events/get-event-store-stats-handler";
+import GetFailedEventsHandler "../../../src/open-org-backend/tools/handlers/events/get-failed-events-handler";
+import DeleteFailedEventsHandler "../../../src/open-org-backend/tools/handlers/events/delete-failed-events-handler";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
@@ -66,6 +69,7 @@ import AgentModel "../../../src/open-org-backend/models/agent-model";
 import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
 import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
 import SecretModel "../../../src/open-org-backend/models/secret-model";
+import EventStoreModel "../../../src/open-org-backend/models/event-store-model";
 import Types "../../../src/open-org-backend/types";
 import TestHelpers "./test-helpers";
 
@@ -141,6 +145,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     [(0, TestHelpers.dummyKey), (1, TestHelpers.dummyKey), (2, TestHelpers.dummyKey)],
     Nat.compare,
   );
+
+  // Event store state for event handler tests. Starts empty; tests seed events
+  // through the testSeedFailedEvent helper and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  var testEventStore = EventStoreModel.empty();
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -1368,5 +1377,88 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       parentRef = null;
     };
     await DeleteSecretHandler.handle(testSecretsMap, uac, args);
+  };
+
+  // ============================================
+  // Event Store Handler Test Methods
+  //
+  // All event store handlers run against testEventStore (starts empty).
+  // Use testSeedFailedEvent to inject a failed event before calling the handlers.
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Seed a failed event into testEventStore for handler tests.
+  /// Enqueues a minimal event then immediately marks it as failed with the given error.
+  public shared ({ caller }) func testSeedFailedEvent(
+    eventId : Text,
+    errorMsg : Text,
+  ) : async () {
+    assert caller == parent;
+    let event : NormalizedEventTypes.Event = {
+      source = #slack;
+      idempotencyKey = eventId;
+      eventId = "slack_" # eventId;
+      timestamp = 0;
+      payload = #message({
+        user = "U_TEST";
+        text = "test";
+        channel = "C_TEST";
+        ts = "1700000000.000001";
+        threadTs = null;
+        isBotMessage = false;
+        agentMetadata = null;
+      });
+      enqueuedAt = 0;
+      claimedAt = null;
+      processedAt = null;
+      failedAt = null;
+      failedError = "";
+      processingLog = [];
+    };
+    ignore EventStoreModel.enqueue(testEventStore, event);
+    EventStoreModel.markFailed(testEventStore, "slack_" # eventId, errorMsg);
+  };
+
+  /// Test the GetEventStoreStatsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testGetEventStoreStatsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await GetEventStoreStatsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the GetFailedEventsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testGetFailedEventsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await GetFailedEventsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the DeleteFailedEventsHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ eventId? }).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testDeleteFailedEventsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await DeleteFailedEventsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
   };
 };

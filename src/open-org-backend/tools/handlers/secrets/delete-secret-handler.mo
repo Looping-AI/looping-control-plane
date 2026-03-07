@@ -13,7 +13,7 @@ module {
   /// JSON args: { workspaceId: number, secretId: string }
   ///
   /// Authorization:
-  ///   - Slack secrets (slackSigningSecret, slackBotToken): requires #IsPrimaryOwner or #IsOrgAdmin
+  ///   - Slack bot token (slackBotToken): requires #IsPrimaryOwner or #IsOrgAdmin
   ///   - LLM keys (groqApiKey, openaiApiKey): requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
   public func handle(
     secrets : SecretModel.SecretsMap,
@@ -34,16 +34,15 @@ module {
         let secretIdOpt : ?Types.SecretId = switch (Json.get(json, "secretId")) {
           case (?#string("groqApiKey")) { ?#groqApiKey };
           case (?#string("openaiApiKey")) { ?#openaiApiKey };
-          case (?#string("slackSigningSecret")) { ?#slackSigningSecret };
           case (?#string("slackBotToken")) { ?#slackBotToken };
           case _ { null };
         };
 
         switch (wsIdOpt, secretIdOpt) {
           case (?wsId, ?secretId) {
-            // Auth: Slack secrets require org-level; LLM keys allow workspace admin
+            // Auth: Slack bot token requires org-level; LLM keys allow workspace admin
             let requiredRoles : [SlackAuthMiddleware.AuthStep] = switch (secretId) {
-              case (#slackSigningSecret or #slackBotToken) {
+              case (#slackBotToken) {
                 [#IsPrimaryOwner, #IsOrgAdmin];
               };
               case (#groqApiKey or #openaiApiKey) {

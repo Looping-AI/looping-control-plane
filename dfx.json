@@ -14,8 +14,8 @@
     "open-org-backend": {
       "main": "src/open-org-backend/main.mo",
       "type": "motoko",
-      "init_guide": "Use `dfx deploy --argument '(principal \"aaaaa-aa\")' open-org-backend` to set the owner, or configure with an 'init' argument below.",
-      "init_arg": "(principal \"aaaaa-aa\")"
+      "init_guide": "Use `dfx deploy --argument '(principal \"<owner-principal>\", \"<slack-signing-secret>\")' open-org-backend` to set the owner and Slack signing secret. Example: dfx deploy --argument '(principal \"aaaaa-aa\", \"v0-secret-abc123\")' open-org-backend",
+      "init_arg": "(principal \"aaaaa-aa\", \"\")"
     }
   },
   "defaults": {

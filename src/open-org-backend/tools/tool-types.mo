@@ -8,6 +8,7 @@ import AgentModel "../models/agent-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
+import EventStoreModel "../models/event-store-model";
 
 module {
   // ============================================
@@ -93,6 +94,13 @@ module {
     secrets : ?{
       map : SecretModel.SecretsMap;
       keyCache : KeyDerivationService.KeyCache;
+      write : Bool;
+    };
+
+    // Event store - if provided, event queue management tools are available.
+    // write=true enables delete_failed_events.
+    eventStore : ?{
+      state : EventStoreModel.EventStoreState;
       write : Bool;
     };
   };

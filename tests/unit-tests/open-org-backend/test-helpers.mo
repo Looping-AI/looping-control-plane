@@ -11,6 +11,7 @@ import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
 import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
+import EventStoreModel "../../../src/open-org-backend/models/event-store-model";
 import Types "../../../src/open-org-backend/types";
 
 // ============================================
@@ -87,6 +88,7 @@ module {
       metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
+      eventStore = EventStoreModel.empty();
     };
   };
 
@@ -136,6 +138,7 @@ module {
       metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
+      eventStore = EventStoreModel.empty();
     };
   };
 
@@ -184,6 +187,7 @@ module {
       metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
+      eventStore = EventStoreModel.empty();
     };
   };
 
@@ -245,6 +249,7 @@ module {
       metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
+      eventStore = EventStoreModel.empty();
     };
   };
 
@@ -303,6 +308,7 @@ module {
       metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
+      eventStore = EventStoreModel.empty();
     };
   };
 

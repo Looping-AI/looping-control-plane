@@ -73,7 +73,9 @@ export const TEST_CANISTER_WASM_PATH = resolve(
  * and sets up the canister
  * @returns Object with PocketIC instance, actor, canisterId, and owner identity
  */
-export async function createBackendCanister(): Promise<{
+export async function createBackendCanister(options?: {
+  slackSigningSecret?: string;
+}): Promise<{
   pic: PocketIc;
   actor: Actor<_SERVICE>;
   canisterId: import("@icp-sdk/core/principal").Principal;
@@ -89,8 +91,12 @@ export async function createBackendCanister(): Promise<{
   const ownerIdentity = generateRandomIdentity();
   const ownerPrincipal = ownerIdentity.getPrincipal();
 
-  // Encode the owner principal as IDL arguments using the canister's init type
-  const args = IDL.encode([IDL.Principal], [ownerPrincipal]);
+  // Encode the owner principal and Slack signing secret as IDL init arguments
+  const signingSecret = options?.slackSigningSecret ?? "";
+  const args = IDL.encode(
+    [IDL.Principal, IDL.Text],
+    [ownerPrincipal, signingSecret],
+  );
 
   const fixture = await pic.setupCanister<_SERVICE>({
     idlFactory,
@@ -211,38 +217,4 @@ export async function setupRegularUser(actor: Actor<_SERVICE>): Promise<{
   // Owner adds the new user as a member of workspace 0
   await actor.addWorkspaceMember(0n, userPrincipal);
   return { userIdentity, userPrincipal };
-}
-
-/**
- * Creates a Groq admin agent in the registry with the API key fetched from .env.test
- * Registration requires OrgAdmin rights; API key storage requires WorkspaceAdmin rights.
- * The API key is stored at workspace level (not per-user).
- * @param actor - The canister actor
- * @param orgAdminIdentity - OrgAdmin (owner) identity used to register the agent
- * @param workspaceAdminIdentity - WorkspaceAdmin identity used to store the API key.
- *   Defaults to orgAdminIdentity when omitted (e.g. when the owner is also a workspace admin).
- * @returns void
- * @throws Error if creation fails or GROQ_TEST_KEY is not set
- */
-export async function createGroqAgent(
-  actor: Actor<_SERVICE>,
-  orgAdminIdentity: ReturnType<typeof generateRandomIdentity>,
-  workspaceAdminIdentity: ReturnType<
-    typeof generateRandomIdentity
-  > = orgAdminIdentity,
-): Promise<void> {
-  const apiKey = TEST_API_KEY;
-
-  // Validate that API key is available
-  if (!apiKey || apiKey === "not-needed-due-to-cassette") {
-    if (!process.env["GITHUB_ACTIONS"]) {
-      throw new Error(
-        "GROQ_TEST_KEY environment variable is not set. Please ensure .env.test file exists with GROQ_TEST_KEY defined.",
-      );
-    }
-  }
-
-  // Store API key at workspace level as workspace admin
-  actor.setIdentity(workspaceAdminIdentity);
-  await actor.storeSecret(0n, { groqApiKey: null }, apiKey);
 }

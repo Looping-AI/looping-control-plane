@@ -46,10 +46,14 @@ import ListMcpToolsHandler "./handlers/mcp/list-mcp-tools-handler";
 import StoreSecretHandler "./handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "./handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
+import GetEventStoreStatsHandler "./handlers/events/get-event-store-stats-handler";
+import GetFailedEventsHandler "./handlers/events/get-failed-events-handler";
+import DeleteFailedEventsHandler "./handlers/events/delete-failed-events-handler";
 import AgentModel "../models/agent-model";
 import McpToolRegistry "./mcp-tool-registry";
 import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
+import EventStoreModel "../models/event-store-model";
 
 module {
   // ============================================
@@ -253,8 +257,20 @@ module {
     };
 
     // ==========================================
-    // ADD NEW TOOL CATEGORIES BELOW
+    // EVENT STORE TOOLS - require eventStore resource + userAuthContext
     // ==========================================
+    switch (resources.eventStore, resources.userAuthContext) {
+      case (?es, ?uac) {
+        // Read tools — always available when resource and user identity are present
+        List.add(tools, getEventStoreStatsTool(es.state, uac));
+        List.add(tools, getFailedEventsTool(es.state, uac));
+        // Write tools — require write=true
+        if (es.write) {
+          List.add(tools, deleteFailedEventsTool(es.state, uac));
+        };
+      };
+      case _ {};
+    };
 
     List.toArray(tools);
   };
@@ -863,7 +879,7 @@ module {
         function = {
           name = "register_agent";
           description = ?"Registers a new agent in the global registry. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens. Category must be one of: admin, planning, research, communication. The default LLM model is gpt_oss_120b.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'work-planning').\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"Agent category.\"},\"llmModel\":{\"type\":\"string\",\"description\":\"LLM model to use. Currently: gpt_oss_120b. Omit to use the default.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackSigningSecret\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names to block for this agent. Omit for none.\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Knowledge source URLs or references for this agent. Omit for none.\"}},\"required\":[\"name\",\"category\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'work-planning').\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"Agent category.\"},\"llmModel\":{\"type\":\"string\",\"description\":\"LLM model to use. Currently: gpt_oss_120b. Omit to use the default.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names to block for this agent. Omit for none.\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Knowledge source URLs or references for this agent. Omit for none.\"}},\"required\":[\"name\",\"category\"]}";
         };
       };
       handler = func(args : Text) : async Text {
@@ -883,7 +899,7 @@ module {
         function = {
           name = "update_agent";
           description = ?"Updates an existing agent's configuration. Provide the agent 'id' and only the fields you want to change; omitted fields are left unchanged.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"New category (optional).\"},\"llmModel\":{\"type\":\"string\",\"description\":\"New LLM model (optional). Currently: gpt_oss_120b.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackSigningSecret\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New tools blocklist (optional).\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New knowledge sources (optional).\"}},\"required\":[\"id\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"New category (optional).\"},\"llmModel\":{\"type\":\"string\",\"description\":\"New LLM model (optional). Currently: gpt_oss_120b.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New tools blocklist (optional).\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New knowledge sources (optional).\"}},\"required\":[\"id\"]}";
         };
       };
       handler = func(args : Text) : async Text {
@@ -1009,8 +1025,8 @@ module {
         tool_type = "function";
         function = {
           name = "store_secret";
-          description = ?"Encrypts and stores a secret for a workspace. Slack secrets (slackSigningSecret, slackBotToken) require org-admin access. LLM API keys (groqApiKey, openaiApiKey) can be stored by workspace admins.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to store the secret for.\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackSigningSecret\",\"slackBotToken\"],\"description\":\"The type of secret to store.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"workspaceId\",\"secretId\",\"secretValue\"]}";
+          description = ?"Encrypts and stores a secret for a workspace. The Slack bot token (slackBotToken) requires org-admin access. LLM API keys (groqApiKey, openaiApiKey) can be stored by workspace admins.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to store the secret for.\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"],\"description\":\"The type of secret to store.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"workspaceId\",\"secretId\",\"secretValue\"]}";
         };
       };
       handler = func(args : Text) : async Text {
@@ -1030,11 +1046,75 @@ module {
         function = {
           name = "delete_secret";
           description = ?"Removes a stored secret from a workspace. Slack secrets require org-admin access. LLM API keys can be deleted by workspace admins.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace.\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackSigningSecret\",\"slackBotToken\"],\"description\":\"The type of secret to delete.\"}},\"required\":[\"workspaceId\",\"secretId\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace.\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"],\"description\":\"The type of secret to delete.\"}},\"required\":[\"workspaceId\",\"secretId\"]}";
         };
       };
       handler = func(args : Text) : async Text {
         await DeleteSecretHandler.handle(map, uac, args);
+      };
+    };
+  };
+
+  // ============================================
+  // EVENT STORE TOOL IMPLEMENTATIONS
+  // ============================================
+
+  /// Get event store stats tool — requires eventStore resource + user identity
+  private func getEventStoreStatsTool(
+    state : EventStoreModel.EventStoreState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_event_store_stats";
+          description = ?"Get event queue statistics: counts of unprocessed, processed, and failed events.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{}}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetEventStoreStatsHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Get failed events tool — requires eventStore resource + user identity
+  private func getFailedEventsTool(
+    state : EventStoreModel.EventStoreState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_failed_events";
+          description = ?"List all failed events with their event IDs, error messages, and timestamps.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{}}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetFailedEventsHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Delete failed events tool — requires eventStore resource with write + user identity
+  private func deleteFailedEventsTool(
+    state : EventStoreModel.EventStoreState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "delete_failed_events";
+          description = ?"Delete failed event(s). Provide eventId to delete one specific event, or omit to delete all failed events.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"eventId\":{\"type\":\"string\",\"description\":\"ID of a specific failed event to delete (e.g. 'slack_Ev0123'). Omit to delete all failed events.\"}}}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await DeleteFailedEventsHandler.handle(state, uac, args);
       };
     };
   };
