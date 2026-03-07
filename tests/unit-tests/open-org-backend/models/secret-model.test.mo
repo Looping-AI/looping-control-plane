@@ -59,7 +59,7 @@ suite(
       "storeSecret stores a secret for a workspace and secret ID",
       func() {
         let workspaceId = 0;
-        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackSigningSecret; #slackBotToken }, SecretModel.EncryptedSecret>>();
+        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackBotToken }, SecretModel.EncryptedSecret>>();
         let secretId = #groqApiKey;
         let secret = "test-key-123";
 
@@ -88,7 +88,7 @@ suite(
       "getSecret returns latest value after update",
       func() {
         let workspaceId = 0;
-        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackSigningSecret; #slackBotToken }, SecretModel.EncryptedSecret>>();
+        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackBotToken }, SecretModel.EncryptedSecret>>();
         let secretId = #groqApiKey;
 
         // Store first secret
@@ -137,12 +137,12 @@ suite(
       "getWorkspaceSecrets returns list of stored secret IDs",
       func() {
         let workspaceId = 0;
-        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackSigningSecret; #slackBotToken }, SecretModel.EncryptedSecret>>();
+        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackBotToken }, SecretModel.EncryptedSecret>>();
 
         // Store multiple secrets
         ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #groqApiKey, "key-1");
         ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #openaiApiKey, "key-2");
-        ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #slackSigningSecret, "signing-secret");
+        ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #slackBotToken, "bot-token");
 
         let result = SecretModel.getWorkspaceSecrets(secrets, workspaceId);
         switch (result) {
@@ -160,7 +160,7 @@ suite(
       "deleteSecret removes the specified secret",
       func() {
         let workspaceId = 0;
-        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackSigningSecret; #slackBotToken }, SecretModel.EncryptedSecret>>();
+        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackBotToken }, SecretModel.EncryptedSecret>>();
         let secretId = #groqApiKey;
 
         // Store a secret
