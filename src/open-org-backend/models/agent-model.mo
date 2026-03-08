@@ -375,9 +375,9 @@ module {
   /// workspace-admin agent (category = #admin, Groq gpt_oss_120b).
   ///
   /// The default admin agent is granted access to the org-level (workspace 0)
-  /// Groq API key and Slack bot token, matching the orgAdmin.json template.
+  /// Groq API key and Slack bot token, required for critical administrative tasks.
   ///
-  /// Called once during canister initialisation in main.mo.
+  /// Called once during canister initialization in main.mo.
   public func defaultState() : AgentRegistryState {
     let state = emptyState();
     ignore register(
