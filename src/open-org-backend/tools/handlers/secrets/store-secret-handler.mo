@@ -67,6 +67,18 @@ module {
               case (#ok(())) {};
             };
 
+            // slackBotToken and slackSigningSecret are org secrets; they must only
+            // be stored on workspace 0. Allowing non-zero workspaces would be
+            // meaningless (those workspaces never read these values).
+            switch (secretId) {
+              case (#slackBotToken or #slackSigningSecret) {
+                if (wsId != 0) {
+                  return Helpers.buildErrorResponse("slackBotToken and slackSigningSecret can only be set on workspace 0.");
+                };
+              };
+              case _ {};
+            };
+
             // Validate secret is not empty
             if (Text.trim(secretValue, #char ' ') == "") {
               return Helpers.buildErrorResponse("Secret cannot be empty.");

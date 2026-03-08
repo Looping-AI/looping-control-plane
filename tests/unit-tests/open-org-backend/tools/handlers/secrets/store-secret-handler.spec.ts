@@ -234,6 +234,47 @@ describe("StoreSecretHandler", () => {
       expect(response.success).toBe(false);
       expect(response.error).toContain("Workspace not found");
     });
+
+    it("should reject slackBotToken on non-zero workspace", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 1,
+          secretId: "slackBotToken",
+          secretValue: "xoxb-test",
+        }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(false);
+      expect(response.error).toContain("workspace 0");
+    });
+
+    it("should reject slackSigningSecret on non-zero workspace", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 1,
+          secretId: "slackSigningSecret",
+          secretValue: "signing-secret",
+        }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(false);
+      expect(response.error).toContain("workspace 0");
+    });
+
+    it("should allow LLM keys on non-zero workspaces", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 1,
+          secretId: "groqApiKey",
+          secretValue: "sk-test",
+        }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
+    });
   });
 
   describe("happy path", () => {
