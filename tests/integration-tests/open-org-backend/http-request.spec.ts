@@ -3,7 +3,7 @@ import type { PocketIc, Actor } from "@dfinity/pic";
 import type { _SERVICE } from "../../setup.ts";
 import { createBackendCanister } from "../../setup.ts";
 
-describe("HTTP Requests", () => {
+describe("HTTP Request", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
 
@@ -78,51 +78,6 @@ describe("HTTP Requests", () => {
       const decoder = new TextDecoder();
       const bodyText = decoder.decode(new Uint8Array(response.body));
       expect(bodyText).toBe("Bad Request");
-    });
-  });
-
-  describe("http_request_update (update)", () => {
-    it("should accept POST webhook and return success", async () => {
-      // Create a valid Slack url_verification payload (doesn't require signature)
-      const encoder = new TextEncoder();
-      const payload = encoder.encode(
-        JSON.stringify({
-          type: "url_verification",
-          challenge: "test-challenge-12345",
-        }),
-      );
-
-      const response = await actor.http_request_update({
-        method: "POST",
-        url: "/webhook/slack",
-        headers: [["content-type", "application/json"]],
-        body: payload,
-      });
-
-      expect(response.status_code).toBe(200);
-      expect(response.upgrade).toEqual([]);
-      expect(response.headers).toEqual([["content-type", "text/plain"]]);
-
-      const decoder = new TextDecoder();
-      const bodyText = decoder.decode(new Uint8Array(response.body));
-      // url_verification responses return the challenge value
-      expect(bodyText).toBe("test-challenge-12345");
-    });
-
-    it("should handle empty POST body", async () => {
-      const response = await actor.http_request_update({
-        method: "POST",
-        url: "/webhook/slack",
-        headers: [],
-        body: new Uint8Array([]),
-      });
-
-      // Empty body should fail JSON parsing (empty string is not valid JSON)
-      expect(response.status_code).toBe(400);
-
-      const decoder = new TextDecoder();
-      const bodyText = decoder.decode(new Uint8Array(response.body));
-      expect(bodyText).toStartWith("Invalid payload");
     });
   });
 });

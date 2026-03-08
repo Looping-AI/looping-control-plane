@@ -84,6 +84,12 @@ describe("Slack Webhook", () => {
         TEST_SIGNING_SECRET,
       ),
     );
+    // Align PocketIC's internal clock to TEST_TIMESTAMP so verifyTimestamp
+    // always sees the fixed test timestamp as "recently issued" (30s ago).
+    // Without this alignment, canister-setup rounds advance IC time by a
+    // variable amount, causing flaky 401s when time drifts past ±300s.
+    await pic.setTime((parseInt(TEST_TIMESTAMP) + 30) * 1000);
+    await pic.tick();
   });
 
   afterEach(async () => {
@@ -307,8 +313,6 @@ describe("Slack Webhook", () => {
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
-
-      // TODO: verify enqueue count via agent tool once getEventStoreStats is wired as a tool call
     });
 
     it("should deduplicate events with the same event_id", async () => {
@@ -320,8 +324,6 @@ describe("Slack Webhook", () => {
 
       const response2 = await sendSignedWebhook(actor, body);
       expect(response2.status_code).toBe(200);
-
-      // TODO: verify deduplication via agent tool once getEventStoreStats is wired as a tool call
     });
 
     it("should enqueue an app_mention event", async () => {
@@ -330,8 +332,6 @@ describe("Slack Webhook", () => {
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
-
-      // TODO: verify enqueue count via agent tool once getEventStoreStats is wired as a tool call
     });
 
     // -----------------------------------------------------------------------
@@ -360,8 +360,6 @@ describe("Slack Webhook", () => {
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
-
-      // TODO: verify enqueue count via agent tool once getEventStoreStats is wired as a tool call
     });
 
     it("should NOT enqueue own-bot message with bot_message subtype", async () => {
@@ -370,8 +368,6 @@ describe("Slack Webhook", () => {
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
-
-      // TODO: verify zero enqueues via agent tool once getEventStoreStats is wired as a tool call
     });
 
     it("should NOT enqueue bot_message from a third-party bot (legacy event, discarded)", async () => {
@@ -382,8 +378,6 @@ describe("Slack Webhook", () => {
       const response = await sendSignedWebhook(actor, body);
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
-
-      // TODO: verify zero enqueues via agent tool once getEventStoreStats is wired as a tool call
     });
 
     it("should skip unhandled message subtypes gracefully", async () => {
@@ -408,8 +402,6 @@ describe("Slack Webhook", () => {
       // Should return 200 even for skipped events (don't trigger Slack retries)
       expect(response.status_code).toBe(200);
       expect(decodeBody(response)).toBe("ok");
-
-      // TODO: verify zero enqueues via agent tool once getEventStoreStats is wired as a tool call
     });
   });
 
