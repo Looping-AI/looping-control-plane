@@ -8,7 +8,7 @@ import {
 import { withCassette } from "../../../lib/cassette";
 
 // ===========================================================================
-// Typed helpers for the summary returned by testWeeklyReconciliation.
+// Typed helpers for the summary returned by testWeeklyReconciliationRunner.
 // (The DID type is inferred from the Motoko source; we assert it here for
 // readability and to keep tests self-documenting.)
 // ===========================================================================
@@ -102,6 +102,14 @@ const slackChannelNotFoundError = { ok: false, error: "channel_not_found" };
 // Mock-driving helpers
 // ===========================================================================
 
+/** Unwrap a Result variant returned by testWeeklyReconciliationRunner. */
+function expectSummary(raw: unknown): ReconciliationSummary {
+  const r = raw as { ok?: ReconciliationSummary; err?: string };
+  if ("err" in (r as object))
+    throw new Error(`Reconciliation run failed: ${r.err}`);
+  return r.ok!;
+}
+
 /**
  * Drive a sequence of HTTPS outcall interactions:
  * 1. Tick to let the canister process the initial message.
@@ -115,7 +123,7 @@ async function mockSequentialResponses(
   pic: PocketIc,
   call: () => Promise<unknown>,
   responses: object[],
-): Promise<unknown> {
+): Promise<ReconciliationSummary> {
   await pic.tick(5);
 
   for (let i = 0; i < responses.length; i++) {
@@ -146,14 +154,14 @@ async function mockSequentialResponses(
     );
   }
 
-  return call();
+  return expectSummary(await call());
 }
 
 // ===========================================================================
 // Tests
 // ===========================================================================
 
-describe("Weekly Reconciliation Service Unit Tests", () => {
+describe("Weekly Reconciliation Runner Unit Tests", () => {
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
 
@@ -224,7 +232,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
 
   describe("user refresh", () => {
     it("should abort reconciliation when users.list fails", async () => {
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         "xoxb-invalid",
         none,
       );
@@ -250,7 +258,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         { id: "U_ADMIN", name: "admin", isAdmin: true },
       ];
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -277,7 +285,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         { id: "U003", name: "carol" },
       ];
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -304,7 +312,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       // users.list returns the same user — reconciliation must NOT clobber isOrgAdmin.
       const membersFromSlack = [{ id: "U_ADMIN", name: "admin-new" }];
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -337,7 +345,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       });
 
       // users.list returns nobody — U_STALE is no longer in Slack.
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -358,7 +366,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
     it("should not upsert users marked as deleted in users.list", async () => {
       await resetCache();
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -385,7 +393,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
     it("should set isBot flag when users.list indicates a bot user", async () => {
       await resetCache();
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -421,7 +429,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
     it("should skip org admin sync when no channel is configured", async () => {
       await resetCache();
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none, // no org admin channel
       );
@@ -456,7 +464,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: false,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -497,7 +505,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: true,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -529,7 +537,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: false,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -559,7 +567,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: false,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -581,7 +589,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       await resetCache();
       // No primary owner seeded — users.list returns no primary owner either.
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -611,7 +619,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: false,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -636,7 +644,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       await resetCache();
       // No primary owner — warning DM cannot be sent.
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -664,7 +672,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
     it("should check all configured workspaces (including those without channels)", async () => {
       await resetCache();
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -681,7 +689,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
     it("should mark workspace admin channel as gone when getChannelMembers fails", async () => {
       await resetCache();
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -703,7 +711,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
     it("should mark workspace member channel as gone when getChannelMembers fails", async () => {
       await resetCache();
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -739,7 +747,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: false,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -783,7 +791,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       });
       await seedWorkspaceMembership("U_EX_WS_ADMIN", 1n, "admin");
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -816,7 +824,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       });
       await seedWorkspaceMembership("U_EX_WS_MEM", 1n, "member");
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -848,7 +856,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: false,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -891,7 +899,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: false,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -936,7 +944,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
         isOrgAdmin: false,
       });
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -1004,7 +1012,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       await pic.tick(3);
 
       // Run first reconciliation — this seeds log entries at startTimeMs.
-      const call1 = await testCanister.testWeeklyReconciliation(
+      const call1 = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -1019,7 +1027,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
       await pic.tick(3);
 
       // Run second reconciliation — should detect and purge the old entries.
-      const call2 = await testCanister.testWeeklyReconciliation(
+      const call2 = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         none,
       );
@@ -1040,7 +1048,7 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
     it("should return zero goneChannels and errors on a clean run", async () => {
       await resetCache();
 
-      const call = await testCanister.testWeeklyReconciliation(
+      const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
         some(ORG_ADMIN_CHANNEL_ID),
       );
@@ -1076,12 +1084,13 @@ describe("Weekly Reconciliation Service Unit Tests", () => {
     it("should complete reconciliation with real Slack responses", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/open-org-backend/services/weekly-reconciliation-service/full-run",
-        () => testCanister.testWeeklyReconciliation(SLACK_TEST_TOKEN, none),
+        "unit-tests/open-org-backend/timers/weekly-reconciliation-runner/full-run",
+        () =>
+          testCanister.testWeeklyReconciliationRunner(SLACK_TEST_TOKEN, none),
         { ticks: 5, maxRounds: 20 },
       );
 
-      const summary = (await result) as ReconciliationSummary;
+      const summary = expectSummary(result);
 
       expect(summary.usersUpdated).toBeGreaterThan(0n);
       expect(summary.workspacesChecked).toBeGreaterThanOrEqual(0n);

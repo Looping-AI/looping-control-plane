@@ -25,10 +25,14 @@ import EventStoreModel "./models/event-store-model";
 import EventRouter "./events/event-router";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
-import WeeklyReconciliationService "./services/weekly-reconciliation-service";
+import ClearKeyCacheRunner "./timers/clear-key-cache-runner";
+import MetricRetentionRunner "./timers/metric-retention-runner";
+import ProcessedEventsCleanupRunner "./timers/processed-events-cleanup-runner";
+import WeeklyReconciliationRunner "./timers/weekly-reconciliation-runner";
+import ConversationPruneRunner "./timers/conversation-prune-runner";
 import SlackEventIntakeService "./services/slack-event-intake-service";
 
-persistent actor class OpenOrgBackend() = this {
+persistent actor class OpenOrgBackend() {
   // ============================================
   // State
   // ============================================
@@ -65,71 +69,136 @@ persistent actor class OpenOrgBackend() = this {
   var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
   var lastConversationPruneTimestamp : Int = Time.now(); // Track last time conversation store was pruned
 
+  // Scheduled timer tracking — transient so it resets on upgrade (matching IC timer wipe).
+  // Populated by scheduleAll() during init and postupgrade.
+  // Key = Timer.TimerId (unique), value = entry metadata.
+  transient let timerSchedule = Map.empty<Nat, { name : Text; expectedRunNs : Int }>();
+
   // ============================================
   // Timer Management
   // ============================================
 
   // Timer registry — each entry defines a recurring timer with its interval,
-  // last-run timestamp reader, and callback. To add a new timer, append an
-  // entry here and create the corresponding callback + timestamp variable.
-  // Init and postupgrade iterate this list automatically.
-  private func timerRegistry() : [{
+  // last-run timestamp reader/writer, and a wrappedRun closure that calls the
+  // runner with the right arguments and returns a normalized Result.
+  // To add a new timer: append an entry here and create the timestamp variable.
+  // Init and postupgrade iterate this list automatically via scheduleAll().
+  private type TimerRegistryEntry = {
+    name : Text;
     interval : Nat;
     getLastRun : () -> Int;
-    callback : () -> async ();
-  }] {
+    setLastRun : (Int) -> ();
+    wrappedRun : () -> async { #ok; #err : Text };
+  };
+
+  private func timerRegistry() : [TimerRegistryEntry] {
     [
       {
+        name = "clear-key-cache";
         interval = Constants.THIRTY_DAYS_NS;
         getLastRun = func() : Int { lastClearTimestamp };
-        callback = clearKeyCacheTimer;
+        setLastRun = func(t : Int) { lastClearTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          switch (ClearKeyCacheRunner.run()) {
+            case (#ok(cache)) { keyCache := cache; #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
       },
       {
+        name = "metric-retention";
         interval = Constants.THIRTY_DAYS_NS;
         getLastRun = func() : Int { lastRetentionCleanupTimestamp };
-        callback = metricRetentionCleanupTimer;
+        setLastRun = func(t : Int) { lastRetentionCleanupTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          switch (MetricRetentionRunner.run(metricDatapoints, metricsRegistry)) {
+            case (#ok(_)) { #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
       },
       {
+        name = "processed-events-cleanup";
         interval = Constants.SEVEN_DAYS_NS;
         getLastRun = func() : Int { lastProcessedCleanupTimestamp };
-        callback = processedEventsCleanupTimer;
+        setLastRun = func(t : Int) { lastProcessedCleanupTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          ProcessedEventsCleanupRunner.run(eventStore);
+        };
       },
       {
+        name = "weekly-reconciliation";
         interval = Constants.SEVEN_DAYS_NS;
         getLastRun = func() : Int { lastWeeklyReconciliationTimestamp };
-        callback = weeklyReconciliationTimer;
+        setLastRun = func(t : Int) { lastWeeklyReconciliationTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          switch (await WeeklyReconciliationRunner.run(keyCache, secrets, slackUsers, workspaces)) {
+            case (#ok(_)) { #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
       },
       {
+        name = "conversation-prune";
         interval = Constants.SEVEN_DAYS_NS;
         getLastRun = func() : Int { lastConversationPruneTimestamp };
-        callback = conversationPruneTimer;
+        setLastRun = func(t : Int) { lastConversationPruneTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          ConversationPruneRunner.run(conversationStore);
+        };
       },
     ];
   };
 
-  // Clear Cache Timer function
-  private func clearKeyCacheTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.THIRTY_DAYS_NS),
-      clearKeyCacheTimer,
-    );
-
-    keyCache := KeyDerivationService.clearCache();
-    lastClearTimestamp := Time.now();
+  /// Build a recurring timer callback from a registry entry.
+  /// The callback reschedules itself before doing work (trap-safe),
+  /// records the new timer ID, runs the runner, and updates the timestamp.
+  private func makeTimerCallback(config : TimerRegistryEntry) : () -> async () {
+    func cb() : async () {
+      let id = Timer.setTimer<system>(#nanoseconds(config.interval), cb);
+      recordTimer(id, config.name, config.interval);
+      switch (await config.wrappedRun()) {
+        case (#ok) {};
+        case (#err(e)) {
+          Logger.log(#error, ?"TimerRunner", "Runner '" # config.name # "' failed: " # e);
+        };
+      };
+      config.setLastRun(Time.now());
+    };
+    cb;
   };
 
-  // Metric Datapoints Retention Cleanup Timer
-  // Runs monthly to purge datapoints older than their metric's retention period
-  private func metricRetentionCleanupTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.THIRTY_DAYS_NS),
-      metricRetentionCleanupTimer,
+  /// Record a timer ID in the transient schedule.
+  private func recordTimer(timerId : Nat, name : Text, intervalNs : Nat) {
+    Map.add(
+      timerSchedule,
+      Nat.compare,
+      timerId,
+      {
+        name;
+        expectedRunNs = Time.now() + intervalNs;
+      },
     );
+  };
 
-    ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
-    lastRetentionCleanupTimestamp := Time.now();
+  /// Schedule all recurring timers. Used by both init and postupgrade.
+  /// `delayFn` computes the initial delay per entry (full interval for init,
+  /// remaining time for postupgrade).
+  private func scheduleAll<system>(delayFn : (TimerRegistryEntry) -> Nat) {
+    for (config in timerRegistry().vals()) {
+      let delay = delayFn(config);
+      let cb = makeTimerCallback(config);
+      let id = Timer.setTimer<system>(#nanoseconds(delay), cb);
+      Map.add(
+        timerSchedule,
+        Nat.compare,
+        id,
+        {
+          name = config.name;
+          expectedRunNs = Time.now() + delay;
+        },
+      );
+    };
   };
 
   // Register HTTP paths that skip response verification
@@ -156,95 +225,6 @@ persistent actor class OpenOrgBackend() = this {
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
 
-  // Processed Events Cleanup Timer
-  // Runs every 7 days to:
-  //   1. Detect unprocessed events stuck for > 1h and move them to failed
-  //   2. Purge old processed events (> 7 days)
-  //   3. Purge old failed events (> 30 days)
-  private func processedEventsCleanupTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.SEVEN_DAYS_NS),
-      processedEventsCleanupTimer,
-    );
-
-    // 1. Detect and fail stale unprocessed events (enqueuedAt > 1 hour ago)
-    let staleIds = EventStoreModel.failStaleUnprocessed(eventStore);
-    if (staleIds.size() > 0) {
-      let idList = Array.foldLeft<Text, Text>(
-        staleIds,
-        "",
-        func(acc, id) {
-          if (acc == "") id else acc # ", " # id;
-        },
-      );
-      Logger.log(#warn, ?"EventStore", "Failed " # Nat.toText(staleIds.size()) # " stale unprocessed event(s): " # idList);
-    };
-
-    // 2. Purge old processed events (> 7 days)
-    ignore EventStoreModel.purgeProcessed(eventStore);
-
-    // 3. Purge old failed events (> 30 days)
-    ignore EventStoreModel.purgeOldFailed(eventStore);
-
-    lastProcessedCleanupTimestamp := Time.now();
-  };
-
-  // Weekly Reconciliation Timer
-  // Runs every 7 days (aligned with Sunday if the first deployment happens on a Sunday).
-  // Performs a full users.list + conversations.members sweep and verifies all tracked
-  // channel anchors. Notifies admins / the Primary Owner about any channels that have
-  // gone missing since the last run.
-  private func weeklyReconciliationTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.SEVEN_DAYS_NS),
-      weeklyReconciliationTimer,
-    );
-
-    // Resolve the bot token from workspace 0 secrets (global Slack integration secret).
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
-    switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
-      case (null) {
-        Logger.log(
-          #warn,
-          ?"WeeklyReconciliation",
-          "No Slack bot token found for workspace 0 — skipping weekly reconciliation.",
-        );
-      };
-      case (?token) {
-        // Ignore summary since service already has logging
-        ignore await WeeklyReconciliationService.run(
-          token,
-          slackUsers,
-          workspaces,
-        );
-      };
-    };
-
-    lastWeeklyReconciliationTimestamp := Time.now();
-  };
-
-  // Conversation Store Prune Timer (Phase 1.4)
-  // Runs every 7 days. Drops timeline entries where ALL messages are older than
-  // CONVERSATION_RETENTION_SECS (30 days). The old-thread grace rule preserves
-  // a thread entry if any message in it falls within the retention window.
-  private func conversationPruneTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.SEVEN_DAYS_NS),
-      conversationPruneTimer,
-    );
-
-    let nowSecs : Nat = Int.abs(Time.now() / 1_000_000_000);
-    let cutoffSecs : Nat = if (nowSecs > Constants.CONVERSATION_RETENTION_SECS) {
-      Nat.sub(nowSecs, Constants.CONVERSATION_RETENTION_SECS);
-    } else { 0 };
-    ConversationModel.pruneAll(conversationStore, cutoffSecs);
-    lastConversationPruneTimestamp := Time.now();
-  };
-
   // ============================================
   // Canister Init and Postupgrade
   // ============================================
@@ -254,22 +234,21 @@ persistent actor class OpenOrgBackend() = this {
 
   // Schedule all recurring timers on first install.
   // Subsequent upgrades will wipe these timers; postupgrade re-creates them.
-  for (config in timerRegistry().vals()) {
-    ignore Timer.setTimer<system>(#nanoseconds(config.interval), config.callback);
-  };
+  scheduleAll<system>(func(config : TimerRegistryEntry) : Nat { config.interval });
 
   // System hook called after every upgrade
   system func postupgrade() {
     let now = Time.now();
 
     // Restart each recurring timer with its remaining time
-    for (config in timerRegistry().vals()) {
-      let elapsed = now - config.getLastRun();
-      let delay : Nat = if (elapsed >= config.interval) { 0 } else {
-        Nat.fromInt(config.interval - elapsed);
-      };
-      ignore Timer.setTimer<system>(#nanoseconds(delay), config.callback);
-    };
+    scheduleAll<system>(
+      func(config : TimerRegistryEntry) : Nat {
+        let elapsed = now - config.getLastRun();
+        if (elapsed >= config.interval) { 0 } else {
+          Nat.fromInt(config.interval - elapsed);
+        };
+      }
+    );
 
     // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
@@ -289,19 +268,8 @@ persistent actor class OpenOrgBackend() = this {
     #err : Text;
   } {
     // Authorize by checking that the caller is a controller of this canister
-    let ic = actor "aaaaa-aa" : actor {
-      canister_status : ({ canister_id : Principal }) -> async {
-        settings : { controllers : [Principal] };
-      };
-    };
-    let status = await ic.canister_status({
-      canister_id = Principal.fromActor(this);
-    });
-    switch (Array.find<Principal>(status.settings.controllers, func(p) { Principal.equal(p, caller) })) {
-      case (null) {
-        return #err("Unauthorized: caller is not a canister controller.");
-      };
-      case (?_) {};
+    if (not Principal.isController(caller)) {
+      return #err("Unauthorized: caller is not a canister controller.");
     };
     if (Text.trim(value, #char ' ') == "") {
       return #err("Secret value cannot be empty.");
@@ -311,6 +279,32 @@ persistent actor class OpenOrgBackend() = this {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) { #ok(()) };
     };
+  };
+
+  // ============================================
+  // Timer Observability
+  // ============================================
+
+  /// Return the current timer schedule. Controller-only.
+  public shared query ({ caller }) func getScheduledTimers() : async {
+    #ok : [{ timerId : Nat; name : Text; expectedRunNs : Int }];
+    #err : Text;
+  } {
+    if (not Principal.isController(caller)) {
+      return #err("Unauthorized: caller is not a canister controller.");
+    };
+    #ok(
+      Array.map<(Nat, { name : Text; expectedRunNs : Int }), { timerId : Nat; name : Text; expectedRunNs : Int }>(
+        Map.toArray(timerSchedule),
+        func((id, entry)) {
+          {
+            timerId = id;
+            name = entry.name;
+            expectedRunNs = entry.expectedRunNs;
+          };
+        },
+      )
+    );
   };
 
   // ============================================

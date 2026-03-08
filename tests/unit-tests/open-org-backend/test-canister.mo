@@ -2,6 +2,7 @@ import Error "mo:core/Error";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
+import Text "mo:core/Text";
 
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
@@ -57,7 +58,11 @@ import DeleteSecretHandler "../../../src/open-org-backend/tools/handlers/secrets
 import GetEventStoreStatsHandler "../../../src/open-org-backend/tools/handlers/events/get-event-store-stats-handler";
 import GetFailedEventsHandler "../../../src/open-org-backend/tools/handlers/events/get-failed-events-handler";
 import DeleteFailedEventsHandler "../../../src/open-org-backend/tools/handlers/events/delete-failed-events-handler";
-import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
+import WeeklyReconciliationRunner "../../../src/open-org-backend/timers/weekly-reconciliation-runner";
+import ClearKeyCacheRunner "../../../src/open-org-backend/timers/clear-key-cache-runner";
+import MetricRetentionRunner "../../../src/open-org-backend/timers/metric-retention-runner";
+import ProcessedEventsCleanupRunner "../../../src/open-org-backend/timers/processed-events-cleanup-runner";
+import ConversationPruneRunner "../../../src/open-org-backend/timers/conversation-prune-runner";
 import SlackEventIntakeService "../../../src/open-org-backend/services/slack-event-intake-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
@@ -151,6 +156,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // through the testSeedFailedEvent helper and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
   let testEventStore = EventStoreModel.empty();
+
+  // Conversation store for conversation-prune runner tests.
+  let testConversationStore = ConversationModel.empty();
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -714,45 +722,136 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     };
   };
 
-  /// Run the weekly reconciliation service against the shared test cache and
+  /// Run the weekly reconciliation runner against the shared test cache and
   /// the pre-seeded test workspace state.
   ///
   /// @param token               Decrypted Slack bot token (or mock value)
   /// @param orgAdminChannelId   Optional org-admin channel ID — when provided, sets workspace 0's
-  ///                            adminChannelId before the run so the service treats it as the org-admin channel
-  public shared ({ caller }) func testWeeklyReconciliation(
+  ///                            adminChannelId before the run so the runner treats it as the org-admin channel
+  public shared ({ caller }) func testWeeklyReconciliationRunner(
     token : Text,
     orgAdminChannelId : ?Text,
-  ) : async WeeklyReconciliationService.ReconciliationSummary {
+  ) : async {
+    #ok : WeeklyReconciliationRunner.ReconciliationSummary;
+    #err : Text;
+  } {
     assert caller == parent;
-    // Set workspace 0's adminChannelId so the reconciliation service treats it as the org-admin channel.
+    // Set workspace 0's adminChannelId so the reconciliation runner treats it as the org-admin channel.
     switch (orgAdminChannelId) {
       case (null) {};
       case (?channelId) {
         ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, channelId);
       };
     };
-    await WeeklyReconciliationService.run(
-      token,
+    // Seed the token into testSecretsMap so the runner can resolve it.
+    ignore SecretModel.storeSecret(testSecretsMap, TestHelpers.dummyKey, 0, #slackBotToken, token);
+    await WeeklyReconciliationRunner.run(
+      testSecretsKeyCache,
+      testSecretsMap,
       slackUsers,
       testWorkspacesState,
     );
   };
 
   // ============================================
+  // Timer Runner Test Methods
+  // ============================================
+
+  /// Run the clear-key-cache runner and apply the result to testKeyCache.
+  /// Returns the cache size after the run.
+  public shared ({ caller }) func testClearKeyCacheRunner() : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    assert caller == parent;
+    switch (ClearKeyCacheRunner.run()) {
+      case (#ok(cache)) {
+        testKeyCache := cache;
+        #ok(KeyDerivationService.getCacheSize(testKeyCache));
+      };
+      case (#err(e)) { #err(e) };
+    };
+  };
+
+  /// Run the metric-retention runner against testMetricDatapoints/testMetricsRegistry.
+  /// Returns the number of remaining datapoint entries.
+  public shared ({ caller }) func testMetricRetentionRunner() : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    switch (MetricRetentionRunner.run(testMetricDatapoints, testMetricsRegistry)) {
+      case (#ok(_)) { #ok };
+      case (#err(e)) { #err(e) };
+    };
+  };
+
+  /// Run the processed-events-cleanup runner against testEventStore.
+  public shared ({ caller }) func testProcessedEventsCleanupRunner() : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    ProcessedEventsCleanupRunner.run(testEventStore);
+  };
+
+  /// Run the conversation-prune runner against testConversationStore.
+  public shared ({ caller }) func testConversationPruneRunner() : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    ConversationPruneRunner.run(testConversationStore);
+  };
+
+  /// Seed a message directly into testConversationStore for prune runner tests.
+  /// The ts string format must be "SECONDS.MICROSECONDS" (e.g. "1700000000.000001").
+  /// Pass null for threadTs to store as a top-level post.
+  public shared ({ caller }) func testSeedConversationMessage(
+    channelId : Text,
+    ts : Text,
+    threadTs : ?Text,
+  ) : async () {
+    assert caller == parent;
+    ConversationModel.addMessage(
+      testConversationStore,
+      channelId,
+      {
+        ts;
+        userAuthContext = null;
+        text = "test message";
+        agentMetadata = null;
+      },
+      threadTs,
+    );
+  };
+
+  /// Returns the number of top-level timeline entries for the given channel
+  /// in testConversationStore. Returns 0 if the channel does not exist.
+  public shared query ({ caller }) func testGetConversationEntryCount(channelId : Text) : async Nat {
+    assert caller == parent;
+    switch (Map.get(testConversationStore, Text.compare, channelId)) {
+      case (null) { 0 };
+      case (?ch) { Map.size(ch.timeline) };
+    };
+  };
+
+  // ============================================
   // Slack Adapter Test Methods
   // ============================================
 
-  public query func testSlackSignatureVerification(
+  public shared query ({ caller }) func testSlackSignatureVerification(
     signingSecret : Text,
     signature : Text,
     timestamp : Text,
     body : Text,
   ) : async Bool {
+    assert caller == parent;
     SlackAdapter.verifySignature(signingSecret, signature, timestamp, body);
   };
 
-  public query func testSlackTimestampVerification(timestamp : Text) : async Bool {
+  public shared query ({ caller }) func testSlackTimestampVerification(timestamp : Text) : async Bool {
+    assert caller == parent;
     SlackAdapter.verifyTimestamp(timestamp);
   };
 
@@ -761,7 +860,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // ============================================
 
   /// Returns the current number of entries in the persistent test key cache.
-  public query func testGetKeyCacheSize() : async Nat {
+  public shared query ({ caller }) func testGetKeyCacheSize() : async Nat {
+    assert caller == parent;
     KeyDerivationService.getCacheSize(testKeyCache);
   };
 
@@ -1419,6 +1519,37 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     };
     ignore EventStoreModel.enqueue(testEventStore, event);
     EventStoreModel.markFailed(testEventStore, "slack_" # eventId, errorMsg);
+  };
+
+  /// Seed a processed event into testEventStore for cleanup runner tests.
+  /// Enqueues a minimal event then immediately marks it as processed.
+  /// The processedAt timestamp is stamped with Time.now() inside EventStoreModel,
+  /// so call this while pic.setTime() is set to the desired past/present time.
+  public shared ({ caller }) func testSeedProcessedEvent(eventId : Text) : async () {
+    assert caller == parent;
+    let event : NormalizedEventTypes.Event = {
+      source = #slack;
+      idempotencyKey = eventId;
+      eventId = "slack_" # eventId;
+      timestamp = 0;
+      payload = #message({
+        user = "U_TEST";
+        text = "test";
+        channel = "C_TEST";
+        ts = "1700000000.000001";
+        threadTs = null;
+        isBotMessage = false;
+        agentMetadata = null;
+      });
+      enqueuedAt = 0;
+      claimedAt = null;
+      processedAt = null;
+      failedAt = null;
+      failedError = "";
+      processingLog = [];
+    };
+    ignore EventStoreModel.enqueue(testEventStore, event);
+    EventStoreModel.markProcessed(testEventStore, "slack_" # eventId, []);
   };
 
   /// Test the GetEventStoreStatsHandler in isolation.

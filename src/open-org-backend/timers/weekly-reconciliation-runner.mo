@@ -1,5 +1,5 @@
-/// Weekly Reconciliation Service
-/// Runs on Sundays to sync the Slack user cache and verify all tracked channel anchors.
+/// Weekly Reconciliation Runner
+/// Runs every 7 days to sync the Slack user cache and verify all tracked channel anchors.
 ///
 /// Full sweep (three parts):
 ///
@@ -45,6 +45,9 @@ import SlackUserModel "../models/slack-user-model";
 import WorkspaceModel "../models/workspace-model";
 import SlackWrapper "../wrappers/slack-wrapper";
 import Logger "../utilities/logger";
+import KeyDerivationService "../services/key-derivation-service";
+import SecretModel "../models/secret-model";
+import Types "../types";
 
 module {
 
@@ -297,15 +300,30 @@ module {
 
   /// Run the full weekly reconciliation.
   ///
-  /// @param token          Decrypted Slack bot token (xoxb-...)
+  /// Resolves the Slack bot token from workspace 0 secrets, then performs
+  /// a full users.list + conversations.members sweep and verifies all tracked
+  /// channel anchors.
+  ///
+  /// @param keyCache       Encryption key cache (for decrypting the bot token)
+  /// @param secrets        Encrypted secrets store (workspace ID → secrets map)
   /// @param slackUsers     Slack user state (mutated in-place; changes are auto-logged)
   /// @param workspaces     Workspace registry (read-only during reconciliation)
-  /// @returns Summary of user updates, channel syncs, and any errors encountered
+  /// @returns #ok with reconciliation summary, or #err if token is missing
   public func run(
-    token : Text,
+    keyCache : KeyDerivationService.KeyCache,
+    secrets : Map.Map<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>,
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
-  ) : async ReconciliationSummary {
+  ) : async { #ok : ReconciliationSummary; #err : Text } {
+    // Resolve the bot token from workspace 0 secrets (global Slack integration secret).
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
+    let token = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
+      case (null) {
+        return #err("No Slack bot token found for workspace 0");
+      };
+      case (?t) { t };
+    };
     // Workspace 0 is the org workspace. Its adminChannelId IS the org-admin channel anchor.
     let orgAdminChannelId : ?Text = switch (Map.get(workspaces.workspaces, Nat.compare, 0)) {
       case (null) { null };
@@ -323,7 +341,7 @@ module {
       case (#err(e)) {
         let msg = "Failed to fetch org users from Slack — aborting reconciliation: " # e;
         Logger.log(#error, ?"WeeklyReconciliation", msg);
-        return {
+        return #ok({
           usersUpdated = 0;
           orgAdminChannelOk = false;
           workspacesChecked = 0;
@@ -334,7 +352,7 @@ module {
           workspaceScopeChanges = [];
           staleUsersRemoved = [];
           logsPurged = 0;
-        };
+        });
       };
       case (#ok(allUsers)) {
         // Build a set of all IDs from users.list for stale user pruning later
@@ -667,7 +685,7 @@ module {
       Nat.toText(audit.staleUsersRemoved.size()) # " stale user(s) removed.",
     );
 
-    {
+    #ok({
       usersUpdated;
       orgAdminChannelOk;
       workspacesChecked;
@@ -678,6 +696,6 @@ module {
       workspaceScopeChanges = audit.workspaceScopeChanges;
       staleUsersRemoved = audit.staleUsersRemoved;
       logsPurged;
-    };
+    });
   };
 };
