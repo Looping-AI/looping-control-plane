@@ -58,6 +58,7 @@ import GetEventStoreStatsHandler "../../../src/open-org-backend/tools/handlers/e
 import GetFailedEventsHandler "../../../src/open-org-backend/tools/handlers/events/get-failed-events-handler";
 import DeleteFailedEventsHandler "../../../src/open-org-backend/tools/handlers/events/delete-failed-events-handler";
 import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
+import SlackEventIntakeService "../../../src/open-org-backend/services/slack-event-intake-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
 import MetricModel "../../../src/open-org-backend/models/metric-model";
@@ -1460,5 +1461,24 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await DeleteFailedEventsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the SlackEventIntakeService in isolation.
+  /// Parses the raw JSON body, normalizes and enqueues the event into testEventStore.
+  /// Returns a plain-text discriminant:
+  ///   "enqueued:<eventId>" — event was normalized and stored
+  ///   "duplicate"          — event already present in the store
+  ///   "skipped:<reason>"   — event was recognized but intentionally dropped
+  ///   "notEventCallback"   — envelope is not an event_callback
+  ///   "parseError:<msg>"   — JSON parsing or validation failed
+  public shared ({ caller }) func testSlackEventIntakeService(body : Text) : async Text {
+    assert caller == parent;
+    switch (SlackEventIntakeService.processEventBody(testEventStore, body)) {
+      case (#enqueued(eventId)) { "enqueued:" # eventId };
+      case (#duplicate) { "duplicate" };
+      case (#skipped(reason)) { "skipped:" # reason };
+      case (#notEventCallback) { "notEventCallback" };
+      case (#parseError(msg)) { "parseError:" # msg };
+    };
   };
 };

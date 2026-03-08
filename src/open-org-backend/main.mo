@@ -26,6 +26,7 @@ import EventRouter "./events/event-router";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
 import WeeklyReconciliationService "./services/weekly-reconciliation-service";
+import SlackEventIntakeService "./services/slack-event-intake-service";
 
 persistent actor class OpenOrgBackend() = this {
   // ============================================
@@ -424,34 +425,28 @@ persistent actor class OpenOrgBackend() = this {
       case (#url_verification(_)) {
         Runtime.unreachable(); // handled before and returned
       };
-      case (#event_callback(callback)) {
-        // Normalize and enqueue the event
-        switch (SlackAdapter.normalizeEvent(callback)) {
-          case (#err(reason)) {
-            Logger.log(#_debug, ?"SlackWebhook", "Skipping event: " # reason);
-            // Still return 200 so Slack doesn't retry
-            respondWithText(200, "ok");
+      case (#event_callback(_)) {
+        switch (SlackEventIntakeService.processEventBody(eventStore, bodyText)) {
+          case (#skipped(_) or #duplicate) {};
+          case (#enqueued(eid)) {
+            // Schedule a per-event timer to process immediately
+            ignore Timer.setTimer<system>(
+              #seconds 0,
+              func() : async () {
+                await makeEventProcessor(eid);
+              },
+            );
           };
-          case (#ok(event)) {
-            switch (EventStoreModel.enqueue(eventStore, event)) {
-              case (#duplicate) {
-                Logger.log(#_debug, ?"EventStore", "Duplicate event: " # event.eventId);
-              };
-              case (#ok) {
-                Logger.log(#_debug, ?"EventStore", "Enqueued event: " # event.eventId);
-                // Schedule a per-event timer to process immediately
-                let eid = event.eventId;
-                ignore Timer.setTimer<system>(
-                  #seconds 0,
-                  func() : async () {
-                    await makeEventProcessor(eid);
-                  },
-                );
-              };
-            };
-            respondWithText(200, "ok");
+          case (#parseError(e)) {
+            // Should not happen (envelope already parsed above), but handle defensively
+            Logger.log(#error, ?"SlackWebhook", "Unexpected parse error in intake: " # e);
+          };
+          case (#notEventCallback) {
+            // Should not happen (we matched #event_callback above)
+            Logger.log(#warn, ?"SlackWebhook", "Unexpected non-event-callback in event_callback branch");
           };
         };
+        respondWithText(200, "ok");
       };
       case (#app_rate_limited(rateLimited)) {
         let minuteStr = Int.toText(rateLimited.minute_rate_limited);
