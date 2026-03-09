@@ -219,7 +219,7 @@ module {
     let now = Time.now();
 
     // Collect keys to remove without modifying the map during iteration
-    var keysToRemove = List.empty<Text>();
+    let keysToRemove = List.empty<Text>();
     for ((eventId, event) in Map.entries(state.processed)) {
       switch (event.processedAt) {
         case (null) {};
@@ -253,7 +253,7 @@ module {
     let oneHourInNanos = Int.fromNat(Constants.ONE_HOUR_NS);
     let now = Time.now();
 
-    var staleIds = List.empty<Text>();
+    let staleIds = List.empty<Text>();
     for ((eventId, event) in Map.entries(state.unprocessed)) {
       if (now - event.enqueuedAt > oneHourInNanos) {
         List.add(staleIds, eventId);
@@ -292,7 +292,7 @@ module {
     let thirtyDaysInNanos = Int.fromNat(Constants.THIRTY_DAYS_NS);
     let now = Time.now();
 
-    var keysToRemove = List.empty<Text>();
+    let keysToRemove = List.empty<Text>();
     for ((eventId, event) in Map.entries(state.failed)) {
       switch (event.failedAt) {
         case (null) {};

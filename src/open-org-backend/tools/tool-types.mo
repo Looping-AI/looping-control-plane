@@ -1,9 +1,14 @@
+import Map "mo:core/Map";
 import GroqWrapper "../wrappers/groq-wrapper";
 import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
 import ObjectiveModel "../models/objective-model";
 import WorkspaceModel "../models/workspace-model";
+import AgentModel "../models/agent-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
+import SecretModel "../models/secret-model";
+import KeyDerivationService "../services/key-derivation-service";
+import EventStoreModel "../models/event-store-model";
 
 module {
   // ============================================
@@ -66,6 +71,36 @@ module {
     // write=true enables create_workspace, set_workspace_admin_channel, set_workspace_member_channel.
     workspaces : ?{
       state : WorkspaceModel.WorkspacesState;
+      write : Bool;
+    };
+
+    // Agent Registry - if provided, agent-management tools are available.
+    // write=true enables register_agent, update_agent, unregister_agent.
+    agentRegistry : ?{
+      state : AgentModel.AgentRegistryState;
+      write : Bool;
+    };
+
+    // MCP Tool Registry - if provided, MCP tool management tools are available.
+    // write=true enables register_mcp_tool, unregister_mcp_tool.
+    mcpToolRegistry : ?{
+      state : Map.Map<Text, McpToolRegistration>;
+      write : Bool;
+    };
+
+    // Secrets store - if provided, secrets-management tools are available.
+    // write=true enables store_secret and delete_secret.
+    // store_secret additionally requires the workspaces resource to validate workspace existence.
+    secrets : ?{
+      map : SecretModel.SecretsMap;
+      keyCache : KeyDerivationService.KeyCache;
+      write : Bool;
+    };
+
+    // Event store - if provided, event queue management tools are available.
+    // write=true enables delete_failed_events.
+    eventStore : ?{
+      state : EventStoreModel.EventStoreState;
       write : Bool;
     };
   };

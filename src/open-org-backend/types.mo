@@ -19,8 +19,16 @@ module {
   public type SecretId = {
     #groqApiKey;
     #openaiApiKey;
-    #slackSigningSecret;
     #slackBotToken;
+    #slackSigningSecret;
+  };
+
+  /// Subset of SecretId for org-critical secrets manageable only by the org owner
+  /// via the storeOrgCriticalSecrets canister method
+  public type OrgCriticalSecretId = {
+    #groqApiKey;
+    #slackBotToken;
+    #slackSigningSecret;
   };
 
   // ============================================

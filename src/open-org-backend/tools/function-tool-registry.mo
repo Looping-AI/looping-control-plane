@@ -7,26 +7,53 @@ import MetricModel "../models/metric-model";
 import ObjectiveModel "../models/objective-model";
 import WorkspaceModel "../models/workspace-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
-import SaveValueStreamHandler "./handlers/save-value-stream-handler";
+import SaveValueStreamHandler "./handlers/value-streams/save-value-stream-handler";
 import SavePlanHandler "./handlers/save-plan-handler";
-import ListWorkspacesHandler "./handlers/list-workspaces-handler";
-import CreateWorkspaceHandler "./handlers/create-workspace-handler";
-import SetWorkspaceAdminChannelHandler "./handlers/set-workspace-admin-channel-handler";
-import SetWorkspaceMemberChannelHandler "./handlers/set-workspace-member-channel-handler";
+import ListValueStreamsHandler "./handlers/value-streams/list-value-streams-handler";
+import GetValueStreamHandler "./handlers/value-streams/get-value-stream-handler";
+import DeleteValueStreamHandler "./handlers/value-streams/delete-value-stream-handler";
+import ListWorkspacesHandler "./handlers/workspaces/list-workspaces-handler";
+import CreateWorkspaceHandler "./handlers/workspaces/create-workspace-handler";
+import SetWorkspaceAdminChannelHandler "./handlers/workspaces/set-workspace-admin-channel-handler";
+import SetWorkspaceMemberChannelHandler "./handlers/workspaces/set-workspace-member-channel-handler";
 import WebSearchHandler "./handlers/web-search-handler";
-import CreateMetricHandler "./handlers/create-metric-handler";
-import UpdateMetricHandler "./handlers/update-metric-handler";
-import GetMetricDatapointsHandler "./handlers/get-metric-datapoints-handler";
-import ListMetricsHandler "./handlers/list-metrics-handler";
-import GetMetricHandler "./handlers/get-metric-handler";
-import DeleteMetricHandler "./handlers/delete-metric-handler";
-import GetLatestMetricDatapointHandler "./handlers/get-latest-metric-datapoint-handler";
-import RecordMetricDatapointHandler "./handlers/record-metric-datapoint-handler";
-import CreateObjectiveHandler "./handlers/create-objective-handler";
-import UpdateObjectiveHandler "./handlers/update-objective-handler";
-import ArchiveObjectiveHandler "./handlers/archive-objective-handler";
-import RecordObjectiveDatapointHandler "./handlers/record-objective-datapoint-handler";
-import AddImpactReviewHandler "./handlers/add-impact-review-handler";
+import CreateMetricHandler "./handlers/metrics/create-metric-handler";
+import UpdateMetricHandler "./handlers/metrics/update-metric-handler";
+import GetMetricDatapointsHandler "./handlers/metrics/get-metric-datapoints-handler";
+import ListMetricsHandler "./handlers/metrics/list-metrics-handler";
+import GetMetricHandler "./handlers/metrics/get-metric-handler";
+import DeleteMetricHandler "./handlers/metrics/delete-metric-handler";
+import GetLatestMetricDatapointHandler "./handlers/metrics/get-latest-metric-datapoint-handler";
+import RecordMetricDatapointHandler "./handlers/metrics/record-metric-datapoint-handler";
+import CreateObjectiveHandler "./handlers/objectives/create-objective-handler";
+import UpdateObjectiveHandler "./handlers/objectives/update-objective-handler";
+import ArchiveObjectiveHandler "./handlers/objectives/archive-objective-handler";
+import RecordObjectiveDatapointHandler "./handlers/objectives/record-objective-datapoint-handler";
+import AddImpactReviewHandler "./handlers/objectives/add-impact-review-handler";
+import ListObjectivesHandler "./handlers/objectives/list-objectives-handler";
+import GetObjectiveHandler "./handlers/objectives/get-objective-handler";
+import GetObjectiveHistoryHandler "./handlers/objectives/get-objective-history-handler";
+import AddObjectiveDatapointCommentHandler "./handlers/objectives/add-objective-datapoint-comment-handler";
+import GetImpactReviewsHandler "./handlers/objectives/get-impact-reviews-handler";
+import RegisterAgentHandler "./handlers/agents/register-agent-handler";
+import ListAgentsHandler "./handlers/agents/list-agents-handler";
+import GetAgentHandler "./handlers/agents/get-agent-handler";
+import UpdateAgentHandler "./handlers/agents/update-agent-handler";
+import UnregisterAgentHandler "./handlers/agents/unregister-agent-handler";
+import RegisterMcpToolHandler "./handlers/mcp/register-mcp-tool-handler";
+import UnregisterMcpToolHandler "./handlers/mcp/unregister-mcp-tool-handler";
+import ListMcpToolsHandler "./handlers/mcp/list-mcp-tools-handler";
+import StoreSecretHandler "./handlers/secrets/store-secret-handler";
+import GetWorkspaceSecretsHandler "./handlers/secrets/get-workspace-secrets-handler";
+import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
+import GetEventStoreStatsHandler "./handlers/events/get-event-store-stats-handler";
+import GetFailedEventsHandler "./handlers/events/get-failed-events-handler";
+import DeleteFailedEventsHandler "./handlers/events/delete-failed-events-handler";
+import AgentModel "../models/agent-model";
+import McpToolRegistry "./mcp-tool-registry";
+import SecretModel "../models/secret-model";
+import KeyDerivationService "../services/key-derivation-service";
+import EventStoreModel "../models/event-store-model";
 
 module {
   // ============================================
@@ -73,15 +100,25 @@ module {
     };
 
     // ==========================================
-    // VALUE STREAM TOOLS - require workspaceId + valueStreams with write access
+    // VALUE STREAM TOOLS - require workspaceId + valueStreams
     // ==========================================
     switch (resources.workspaceId, resources.valueStreams) {
       case (?wsId, ?vs) {
+        // Read tools — always available when resource is present
+        List.add(tools, listValueStreamsTool(wsId, vs.map));
+        List.add(tools, getValueStreamTool(wsId, vs.map));
+        // Write tools — require write access
         if (vs.write) {
           List.add(tools, saveValueStreamTool(wsId, vs.map));
           List.add(tools, savePlanTool(wsId, vs.map));
+          // Delete also cleans up objectives; only wire when objectives map is available
+          switch (resources.objectives) {
+            case (?obj) {
+              List.add(tools, deleteValueStreamTool(wsId, vs.map, obj.map));
+            };
+            case (null) {};
+          };
         };
-        // Future: if read access, add getValueStreamsTool
       };
       case _ {};
     };
@@ -108,18 +145,24 @@ module {
     };
 
     // ==========================================
-    // OBJECTIVE TOOLS - require workspaceId + objectives with write access
+    // OBJECTIVE TOOLS - require workspaceId + objectives resource
     // ==========================================
     switch (resources.workspaceId, resources.objectives) {
       case (?wsId, ?obj) {
+        // Read tools — always available when resource is present
+        List.add(tools, listObjectivesTool(wsId, obj.map));
+        List.add(tools, getObjectiveTool(wsId, obj.map));
+        List.add(tools, getObjectiveHistoryTool(wsId, obj.map));
+        List.add(tools, getImpactReviewsTool(wsId, obj.map));
+        // Write tools — require write access
         if (obj.write) {
           List.add(tools, createObjectiveTool(wsId, obj.map));
           List.add(tools, updateObjectiveTool(wsId, obj.map));
           List.add(tools, archiveObjectiveTool(wsId, obj.map));
           List.add(tools, recordObjectiveDatapointTool(wsId, obj.map));
           List.add(tools, addImpactReviewTool(wsId, obj.map));
+          List.add(tools, addObjectiveDatapointCommentTool(wsId, obj.map));
         };
-        // Future: if read access, add read-only objective tools
       };
       case _ {};
     };
@@ -148,8 +191,86 @@ module {
     };
 
     // ==========================================
-    // ADD NEW TOOL CATEGORIES BELOW
+    // AGENT REGISTRY TOOLS - require agentRegistry resource
     // ==========================================
+    switch (resources.agentRegistry) {
+      case (?ar) {
+        // Read tools — always available when resource is present
+        List.add(tools, listAgentsTool(ar.state));
+        List.add(tools, getAgentTool(ar.state));
+        // Write tools — require write access and a resolved user identity
+        switch (resources.userAuthContext) {
+          case (?uac) {
+            if (ar.write) {
+              List.add(tools, registerAgentTool(ar.state, uac));
+              List.add(tools, updateAgentTool(ar.state, uac));
+              List.add(tools, unregisterAgentTool(ar.state, uac));
+            };
+          };
+          case (null) {};
+        };
+      };
+      case (null) {};
+    };
+
+    // ==========================================
+    // MCP TOOL MANAGEMENT TOOLS - require mcpToolRegistry resource
+    // ==========================================
+    switch (resources.mcpToolRegistry) {
+      case (?mcp) {
+        // Read tools — always available when resource is present
+        List.add(tools, listMcpToolsTool(mcp.state));
+        // Write tools — require write=true AND a resolved user identity
+        if (mcp.write) {
+          switch (resources.userAuthContext) {
+            case (?uac) {
+              List.add(tools, registerMcpToolTool(mcp.state, uac));
+              List.add(tools, unregisterMcpToolTool(mcp.state, uac));
+            };
+            case (null) {};
+          };
+        };
+      };
+      case (null) {};
+    };
+
+    // ==========================================
+    // SECRETS MANAGEMENT TOOLS - require secrets resource + userAuthContext
+    // ==========================================
+    switch (resources.secrets, resources.userAuthContext) {
+      case (?sec, ?uac) {
+        // Read tools — always available when resource and user identity are present
+        List.add(tools, getWorkspaceSecretsTool(sec.map, uac));
+        // Write tools — require write=true
+        if (sec.write) {
+          // store_secret additionally needs workspaces resource for workspace existence check
+          switch (resources.workspaces) {
+            case (?ws) {
+              List.add(tools, storeSecretTool(sec.map, sec.keyCache, ws.state, uac));
+            };
+            case (null) {};
+          };
+          List.add(tools, deleteSecretTool(sec.map, uac));
+        };
+      };
+      case _ {};
+    };
+
+    // ==========================================
+    // EVENT STORE TOOLS - require eventStore resource + userAuthContext
+    // ==========================================
+    switch (resources.eventStore, resources.userAuthContext) {
+      case (?es, ?uac) {
+        // Read tools — always available when resource and user identity are present
+        List.add(tools, getEventStoreStatsTool(es.state, uac));
+        List.add(tools, getFailedEventsTool(es.state, uac));
+        // Write tools — require write=true
+        if (es.write) {
+          List.add(tools, deleteFailedEventsTool(es.state, uac));
+        };
+      };
+      case _ {};
+    };
 
     List.toArray(tools);
   };
@@ -190,6 +311,61 @@ module {
       handler = func(args : Text) : async Text {
         // Simply return the arguments as-is
         args;
+      };
+    };
+  };
+
+  /// List value streams tool - requires workspaceId + valueStreams (read)
+  private func listValueStreamsTool(workspaceId : Nat, valueStreamsMap : ValueStreamModel.ValueStreamsMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_value_streams";
+          description = ?"Lists all value streams in the current workspace showing their IDs, names, problems, goals, statuses, and whether a plan exists.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ListValueStreamsHandler.handle(workspaceId, valueStreamsMap, args);
+      };
+    };
+  };
+
+  /// Get value stream tool - requires workspaceId + valueStreams (read)
+  private func getValueStreamTool(workspaceId : Nat, valueStreamsMap : ValueStreamModel.ValueStreamsMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_value_stream";
+          description = ?"Gets the full details of a value stream by ID, including its plan if one exists.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream to retrieve\"}},\"required\":[\"valueStreamId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetValueStreamHandler.handle(workspaceId, valueStreamsMap, args);
+      };
+    };
+  };
+
+  /// Delete value stream tool - requires workspaceId + valueStreams with write + objectives
+  private func deleteValueStreamTool(
+    workspaceId : Nat,
+    valueStreamsMap : ValueStreamModel.ValueStreamsMap,
+    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "delete_value_stream";
+          description = ?"Permanently deletes a value stream and all its objectives. This action cannot be undone. Use only when the value stream is no longer needed.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream to delete\"}},\"required\":[\"valueStreamId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await DeleteValueStreamHandler.handle(workspaceId, valueStreamsMap, workspaceObjectivesMap, args);
       };
     };
   };
@@ -484,6 +660,91 @@ module {
   // OBJECTIVE TOOLS
   // ============================================
 
+  /// List objectives tool - read access sufficient
+  private func listObjectivesTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_objectives";
+          description = ?"Lists all objectives for a value stream, including their current values, targets, and status.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream to list objectives for\"}},\"required\":[\"valueStreamId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ListObjectivesHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  /// Get objective tool - read access sufficient
+  private func getObjectiveTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_objective";
+          description = ?"Gets the full details of a single objective by ID, including its target definition, current value, and status.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective to retrieve\"}},\"required\":[\"valueStreamId\",\"objectiveId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetObjectiveHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  /// Get objective history tool - read access sufficient
+  private func getObjectiveHistoryTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_objective_history";
+          description = ?"Returns the full datapoint history for an objective in chronological order. Use this to review progress over time or before adding a comment to a specific entry.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective\"}},\"required\":[\"valueStreamId\",\"objectiveId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetObjectiveHistoryHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  /// Get impact reviews tool - read access sufficient
+  private func getImpactReviewsTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_impact_reviews";
+          description = ?"Returns all impact reviews for an objective. Use this to understand the history of perceived impact assessments before adding a new review.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective\"}},\"required\":[\"valueStreamId\",\"objectiveId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetImpactReviewsHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  /// Add objective datapoint comment tool - requires write access
+  private func addObjectiveDatapointCommentTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "add_objective_datapoint_comment";
+          description = ?"Adds a comment to a specific datapoint in an objective's history. Use get_objective_history first to confirm the correct historyIndex (0 = oldest entry).";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"valueStreamId\":{\"type\":\"number\",\"description\":\"ID of the value stream\"},\"objectiveId\":{\"type\":\"number\",\"description\":\"ID of the objective\"},\"historyIndex\":{\"type\":\"number\",\"description\":\"Index of the history entry to comment on (0 = oldest)\"},\"message\":{\"type\":\"string\",\"description\":\"The comment text\"},\"author\":{\"type\":\"string\",\"description\":\"Optional. Author name for the comment. Defaults to 'assistant'\"}},\"required\":[\"valueStreamId\",\"objectiveId\",\"historyIndex\",\"message\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await AddObjectiveDatapointCommentHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
   /// Create objective tool - requires workspaceId + objectives with write
   private func createObjectiveTool(workspaceId : Nat, workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap) : FunctionTool {
     {
@@ -565,6 +826,295 @@ module {
       };
       handler = func(args : Text) : async Text {
         await AddImpactReviewHandler.handle(workspaceId, workspaceObjectivesMap, args);
+      };
+    };
+  };
+
+  // ============================================
+  // AGENT REGISTRY TOOL IMPLEMENTATIONS
+  // ============================================
+
+  /// List agents tool — always available when agentRegistry resource is present
+  private func listAgentsTool(state : AgentModel.AgentRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_agents";
+          description = ?"Lists all registered agents with their IDs, names, categories, LLM models, and configuration.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ListAgentsHandler.handle(state, args);
+      };
+    };
+  };
+
+  /// Get agent tool — always available when agentRegistry resource is present
+  private func getAgentTool(state : AgentModel.AgentRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_agent";
+          description = ?"Looks up a registered agent by its ID (number) or name (string). Provide either 'id' or 'name'.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Agent ID to look up.\"},\"name\":{\"type\":\"string\",\"description\":\"Agent name to look up (case-insensitive).\"}},\"required\":[]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetAgentHandler.handle(state, args);
+      };
+    };
+  };
+
+  /// Register agent tool — requires agentRegistry resource with write + user identity
+  private func registerAgentTool(
+    state : AgentModel.AgentRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "register_agent";
+          description = ?"Registers a new agent in the global registry. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens. Category must be one of: admin, planning, research, communication. The default LLM model is gpt_oss_120b.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'work-planning').\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"Agent category.\"},\"llmModel\":{\"type\":\"string\",\"description\":\"LLM model to use. Currently: gpt_oss_120b. Omit to use the default.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names to block for this agent. Omit for none.\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Knowledge source URLs or references for this agent. Omit for none.\"}},\"required\":[\"name\",\"category\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await RegisterAgentHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Update agent tool — requires agentRegistry resource with write + user identity
+  private func updateAgentTool(
+    state : AgentModel.AgentRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "update_agent";
+          description = ?"Updates an existing agent's configuration. Provide the agent 'id' and only the fields you want to change; omitted fields are left unchanged.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"New category (optional).\"},\"llmModel\":{\"type\":\"string\",\"description\":\"New LLM model (optional). Currently: gpt_oss_120b.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New tools blocklist (optional).\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New knowledge sources (optional).\"}},\"required\":[\"id\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await UpdateAgentHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Unregister agent tool — requires agentRegistry resource with write + user identity
+  private func unregisterAgentTool(
+    state : AgentModel.AgentRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "unregister_agent";
+          description = ?"Permanently removes an agent from the registry. This action cannot be undone. Any active sessions referencing this agent will fail after removal.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to unregister.\"}},\"required\":[\"id\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await UnregisterAgentHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  // ============================================
+  // MCP TOOL MANAGEMENT IMPLEMENTATIONS
+  // ============================================
+
+  /// List MCP tools tool — always available when mcpToolRegistry resource is present
+  private func listMcpToolsTool(state : McpToolRegistry.McpToolRegistryState) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "list_mcp_tools";
+          description = ?"Lists all registered MCP tools including their names, descriptions, server IDs, and parameter schemas.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ListMcpToolsHandler.handle(state, args);
+      };
+    };
+  };
+
+  /// Register MCP tool tool — requires mcpToolRegistry resource with write + user identity
+  private func registerMcpToolTool(
+    state : McpToolRegistry.McpToolRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "register_mcp_tool";
+          description = ?"Registers a new MCP tool in the registry. The tool will be available for use in agent conversations. Tool names must be unique.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Unique tool name (used as the function name in tool calls)\"},\"description\":{\"type\":\"string\",\"description\":\"What this tool does\"},\"parameters\":{\"type\":\"string\",\"description\":\"JSON schema string for the tool's parameters (optional)\"},\"serverId\":{\"type\":\"string\",\"description\":\"ID of the MCP server that hosts this tool\"},\"remoteName\":{\"type\":\"string\",\"description\":\"Tool name on the remote server if different from the registered name (optional)\"}},\"required\":[\"name\",\"serverId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await RegisterMcpToolHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Unregister MCP tool tool — requires mcpToolRegistry resource with write + user identity
+  private func unregisterMcpToolTool(
+    state : McpToolRegistry.McpToolRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "unregister_mcp_tool";
+          description = ?"Removes an MCP tool from the registry by name. Returns whether the tool was found and removed.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Name of the MCP tool to remove\"}},\"required\":[\"name\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await UnregisterMcpToolHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  // ============================================
+  // SECRETS MANAGEMENT TOOL IMPLEMENTATIONS
+  // ============================================
+
+  /// Get workspace secrets tool — always available when secrets resource + user identity are present
+  private func getWorkspaceSecretsTool(
+    map : SecretModel.SecretsMap,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_workspace_secrets";
+          description = ?"Lists the secret identifiers stored for a workspace. Secret values are never returned — only the names of which secrets have been stored.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to list secrets for.\"}},\"required\":[\"workspaceId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetWorkspaceSecretsHandler.handle(map, uac, args);
+      };
+    };
+  };
+
+  /// Store secret tool — requires secrets resource with write + workspaces resource + user identity
+  private func storeSecretTool(
+    map : SecretModel.SecretsMap,
+    keyCache : KeyDerivationService.KeyCache,
+    workspacesState : WorkspaceModel.WorkspacesState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "store_secret";
+          description = ?"Encrypts and stores a secret for a workspace. The Slack bot token (slackBotToken) requires org-admin access. LLM API keys (groqApiKey, openaiApiKey) can be stored by workspace admins.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to store the secret for.\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"],\"description\":\"The type of secret to store.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"workspaceId\",\"secretId\",\"secretValue\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await StoreSecretHandler.handle(map, keyCache, workspacesState, uac, args);
+      };
+    };
+  };
+
+  /// Delete secret tool — requires secrets resource with write + user identity
+  private func deleteSecretTool(
+    map : SecretModel.SecretsMap,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "delete_secret";
+          description = ?"Removes a stored secret from a workspace. Slack secrets require org-admin access. LLM API keys can be deleted by workspace admins.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace.\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"],\"description\":\"The type of secret to delete.\"}},\"required\":[\"workspaceId\",\"secretId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await DeleteSecretHandler.handle(map, uac, args);
+      };
+    };
+  };
+
+  // ============================================
+  // EVENT STORE TOOL IMPLEMENTATIONS
+  // ============================================
+
+  /// Get event store stats tool — requires eventStore resource + user identity
+  private func getEventStoreStatsTool(
+    state : EventStoreModel.EventStoreState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_event_store_stats";
+          description = ?"Get event queue statistics: counts of unprocessed, processed, and failed events.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{}}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetEventStoreStatsHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Get failed events tool — requires eventStore resource + user identity
+  private func getFailedEventsTool(
+    state : EventStoreModel.EventStoreState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "get_failed_events";
+          description = ?"List all failed events with their event IDs, error messages, and timestamps.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{}}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await GetFailedEventsHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Delete failed events tool — requires eventStore resource with write + user identity
+  private func deleteFailedEventsTool(
+    state : EventStoreModel.EventStoreState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "delete_failed_events";
+          description = ?"Delete failed event(s). Provide eventId to delete one specific event, or omit to delete all failed events.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"eventId\":{\"type\":\"string\",\"description\":\"ID of a specific failed event to delete (e.g. 'slack_Ev0123'). Omit to delete all failed events.\"}}}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await DeleteFailedEventsHandler.handle(state, uac, args);
       };
     };
   };

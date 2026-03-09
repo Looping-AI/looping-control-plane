@@ -9,6 +9,9 @@
  * 3. Seeds the canister with necessary secrets (Groq API key, Slack credentials)
  * 4. Prints the Candid UI link for easy access
  *
+ * Note: the default workspace-admin agent is seeded automatically at canister
+ * deploy time via AgentModel.defaultState() — no manual registration needed.
+ *
  * Usage:
  *   1. First start the dfx network: bun run dev:start
  *   2. Then run this setup: bun run dev:setup
@@ -19,60 +22,6 @@
 import { spawn, spawnSync } from "child_process";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-
-// ============================================
-// Agent Template Types
-// ============================================
-
-interface AgentTemplate {
-  name: string;
-  category: "admin" | "research" | "communication";
-  model: {
-    provider: "groq";
-    variant: string;
-  };
-  secretsAllowed: Array<{ workspaceId: number; secret: string }>;
-  toolsDisallowed: string[];
-  toolsMisconfigured: string[];
-  sources: string[];
-}
-
-function loadAgentTemplate(templateName: string): AgentTemplate {
-  const templatePath = resolve(
-    process.cwd(),
-    "templates",
-    "agents",
-    `${templateName}.json`,
-  );
-  const content = readFileSync(templatePath, "utf-8");
-  return JSON.parse(content) as AgentTemplate;
-}
-
-function buildRegisterAgentArgs(template: AgentTemplate): string {
-  const modelCandid = `variant { ${template.model.provider} = variant { ${template.model.variant} } }`;
-
-  const secretsCandid =
-    template.secretsAllowed.length === 0
-      ? "vec {}"
-      : `vec { ${template.secretsAllowed.map((s) => `record { ${s.workspaceId} : nat; variant { ${s.secret} } }`).join("; ")} }`;
-
-  const toolsDisallowedCandid =
-    template.toolsDisallowed.length === 0
-      ? "vec {}"
-      : `vec { ${template.toolsDisallowed.map((t) => `"${t}"`).join("; ")} }`;
-
-  const toolsMisconfiguredCandid =
-    template.toolsMisconfigured.length === 0
-      ? "vec {}"
-      : `vec { ${template.toolsMisconfigured.map((t) => `"${t}"`).join("; ")} }`;
-
-  const sourcesCandid =
-    template.sources.length === 0
-      ? "vec {}"
-      : `vec { ${template.sources.map((s) => `"${s}"`).join("; ")} }`;
-
-  return `("${template.name}", variant { ${template.category} }, ${modelCandid}, ${secretsCandid}, ${toolsDisallowedCandid}, ${toolsMisconfiguredCandid}, ${sourcesCandid})`;
-}
 
 // ANSI color codes for terminal output
 const colors = {
@@ -90,7 +39,7 @@ function log(message: string, color: string = colors.reset) {
 }
 
 function logStep(step: number, message: string) {
-  log(`\n[${step}/7] ${message}`, colors.bright + colors.cyan);
+  log(`\n[${step}/4] ${message}`, colors.bright + colors.cyan);
 }
 
 function logSuccess(message: string) {
@@ -187,26 +136,13 @@ function checkDfxNetwork(): void {
 }
 
 /**
- * Get the current dfx identity principal
- */
-async function getDfxIdentityPrincipal(): Promise<string> {
-  const output = await execCommand("dfx", ["identity", "get-principal"]);
-  return output.trim();
-}
-
-/**
  * Deploy canisters
  */
-async function deployCanisters(deployerPrincipal: string): Promise<void> {
+async function deployCanisters(): Promise<void> {
   logStep(2, "Deploying canisters...");
 
   log("Deploying open-org-backend...", colors.blue);
-  await execCommand("dfx", [
-    "deploy",
-    "--argument",
-    `(principal "${deployerPrincipal}")`,
-    "open-org-backend",
-  ]);
+  await execCommand("dfx", ["deploy", "open-org-backend"]);
   logSuccess("open-org-backend deployed");
 
   log("Deploying internet_identity...", colors.blue);
@@ -215,27 +151,9 @@ async function deployCanisters(deployerPrincipal: string): Promise<void> {
 }
 
 /**
- * Add an org admin to the canister
- */
-async function addOrgAdmin(adminPrincipal: string): Promise<void> {
-  logStep(3, "Adding org admin...");
-
-  log(`Adding ${adminPrincipal} as org admin...`, colors.blue);
-  await execCommand("dfx", [
-    "canister",
-    "call",
-    "open-org-backend",
-    "addOrgAdmin",
-    `(principal "${adminPrincipal}")`,
-  ]);
-  logSuccess("Org admin added");
-}
-
-/**
  * Store a secret in the canister
  */
 async function storeSecret(
-  workspaceId: number,
   secretType: string,
   secretValue: string,
 ): Promise<void> {
@@ -243,8 +161,8 @@ async function storeSecret(
     "canister",
     "call",
     "open-org-backend",
-    "storeSecret",
-    `(${workspaceId} : nat, variant { ${secretType} }, "${secretValue}")`,
+    "storeOrgCriticalSecrets",
+    `(variant { ${secretType} }, "${secretValue}")`,
   ]);
 
   // Check if the response is an error variant
@@ -262,65 +180,26 @@ async function storeSecret(
  * Seed the canister with secrets
  */
 async function seedSecrets(envVars: Record<string, string>): Promise<void> {
-  logStep(4, "Seeding secrets...");
-
-  const workspaceId = 0;
+  logStep(3, "Seeding secrets...");
 
   log("Storing Groq API key...", colors.blue);
-  await storeSecret(workspaceId, "groqApiKey", envVars.GROQ_DEV_KEY);
+  await storeSecret("groqApiKey", envVars.GROQ_DEV_KEY);
   logSuccess("Groq API key stored");
 
   log("Storing Slack signing secret...", colors.blue);
-  await storeSecret(
-    workspaceId,
-    "slackSigningSecret",
-    envVars.SLACK_APP_SIGNING_SECRET,
-  );
+  await storeSecret("slackSigningSecret", envVars.SLACK_APP_SIGNING_SECRET);
   logSuccess("Slack signing secret stored");
 
   log("Storing Slack bot token...", colors.blue);
-  await storeSecret(workspaceId, "slackBotToken", envVars.SLACK_APP_BOT_TOKEN);
+  await storeSecret("slackBotToken", envVars.SLACK_APP_BOT_TOKEN);
   logSuccess("Slack bot token stored");
-}
-
-/**
- * Register the default admin agent in the registry
- */
-async function registerAdminAgent(): Promise<void> {
-  logStep(5, "Registering admin agent...");
-
-  const template = loadAgentTemplate("orgAdmin");
-  const candid = buildRegisterAgentArgs(template);
-
-  const output = await execCommand("dfx", [
-    "canister",
-    "call",
-    "open-org-backend",
-    "registerAgent",
-    candid,
-  ]);
-
-  const trimmedOutput = output.trim();
-  if (/variant\s*\{\s*err/s.test(trimmedOutput)) {
-    const errorMatch = trimmedOutput.match(/err\s*=\s*"([^"]*)"/s);
-    const errorMessage = errorMatch ? errorMatch[1] : trimmedOutput;
-    // If agent already exists (e.g. re-running setup), treat as non-fatal
-    if (errorMessage.includes("already registered")) {
-      logWarning(`Admin agent already registered, skipping: ${errorMessage}`);
-      return;
-    }
-    throw new Error(`Failed to register admin agent: ${errorMessage}`);
-  }
-  logSuccess(
-    `Admin agent "${template.name}" registered (${template.model.provider} / ${template.model.variant})`,
-  );
 }
 
 /**
  * Get canister IDs and construct Candid UI link
  */
 async function printCandidUILink(): Promise<void> {
-  logStep(6, "Retrieving canister IDs...");
+  logStep(4, "Retrieving canister IDs...");
 
   try {
     const backendId = (
@@ -342,7 +221,7 @@ async function printCandidUILink(): Promise<void> {
       candidUiId = "bd3sg-teaaa-aaaaa-qaaba-cai";
     }
 
-    logStep(7, "Setup complete!");
+    logStep(4, "Setup complete!");
 
     log("\n" + "=".repeat(80), colors.bright);
     log("Candid UI Links:", colors.bright + colors.green);
@@ -381,7 +260,6 @@ async function main() {
     // Validate required environment variables
     const requiredVars = [
       "NGROK_DEV_DOMAIN",
-      "ADMIN_PRINCIPAL",
       "GROQ_DEV_KEY",
       "SLACK_APP_SIGNING_SECRET",
       "SLACK_APP_BOT_TOKEN",
@@ -400,21 +278,11 @@ async function main() {
     // Check if dfx network is running
     checkDfxNetwork();
 
-    // Get the current dfx identity principal (for deployment)
-    const dfxPrincipal = await getDfxIdentityPrincipal();
-    log(`Using dfx identity: ${dfxPrincipal}`, colors.blue);
-
     // Deploy canisters
-    await deployCanisters(dfxPrincipal);
-
-    // Add the admin principal as org admin
-    await addOrgAdmin(envVars.ADMIN_PRINCIPAL);
+    await deployCanisters();
 
     // Seed secrets
     await seedSecrets(envVars);
-
-    // Register admin agent
-    await registerAdminAgent();
 
     // Print Candid UI link
     await printCandidUILink();

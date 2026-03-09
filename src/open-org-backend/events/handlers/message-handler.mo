@@ -510,8 +510,12 @@ module {
       case (#admin) {
         #admin({
           workspaces = ctx.workspaces;
+          agentRegistry = ctx.agentRegistry;
           slackBotToken = ?botToken;
           userAuthContext = activeCtxOpt;
+          secrets = ctx.secrets;
+          keyCache = ctx.keyCache;
+          eventStore = ctx.eventStore;
         });
       };
       case (#planning) {

@@ -207,7 +207,7 @@ module {
   /// Other errors are appended separately.
   private func formatErrors(messages : [Text]) : Text {
     var roles : [Text] = [];
-    var workspaceErrors : Map.Map<Nat, [Text]> = Map.empty<Nat, [Text]>();
+    let workspaceErrors : Map.Map<Nat, [Text]> = Map.empty<Nat, [Text]>();
     var otherErrors : [Text] = [];
 
     for (error in messages.vals()) {

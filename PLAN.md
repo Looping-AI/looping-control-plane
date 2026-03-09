@@ -321,7 +321,7 @@ Verify.
 
 ---
 
-**Step 4 — Add missing handlers + remove endpoints: Value Streams API**
+~~**Step 4 — Add missing handlers + remove endpoints: Value Streams API**~~
 
 _Methods to delete from `main.mo`:_ `createValueStream`, `getValueStream`, `listValueStreams`, `updateValueStream`, `deleteValueStream`, `setValueStreamPlan`.
 
@@ -341,7 +341,7 @@ Verify.
 
 ---
 
-**Step 5 — Add missing handlers + remove endpoints: Objectives API**
+~~**Step 5 — Add missing handlers + remove endpoints: Objectives API**~~
 
 _Methods to delete from `main.mo`:_ `addObjective`, `getObjective`, `listObjectives`, `updateObjective`, `archiveObjective`, `recordObjectiveDatapoint`, `getObjectiveHistory`, `addObjectiveDatapointComment`, `addImpactReview`, `getImpactReviews`.
 
@@ -363,7 +363,7 @@ Verify.
 
 ---
 
-**Step 6 — Migrate to tools: Agent Registry**
+~~**Step 6 — Migrate to tools: Agent Registry**~~
 
 _Methods to delete from `main.mo`:_ `registerAgent`, `getRegisteredAgent`, `updateRegisteredAgent`, `unregisterAgent`, `getRegisteredAgentById`, `listRegisteredAgents`, `setAgentWorkspaceSecrets`.
 
@@ -383,7 +383,7 @@ Verify.
 
 ---
 
-**Step 7 — Migrate to tools: MCP Tool Management**
+~~**Step 7 — Migrate to tools: MCP Tool Management**~~
 
 _Methods to delete from `main.mo`:_ `registerMcpTool`, `unregisterMcpTool`, `listMcpTools`.
 
@@ -401,7 +401,7 @@ Verify.
 
 ---
 
-**Step 8 — Migrate to tools: Secrets Management**
+~~**Step 8 — Migrate to tools: Secrets Management**~~
 
 _Methods to delete from `main.mo`:_ `storeSecret`, `getWorkspaceSecrets`, `deleteSecret`.
 
@@ -419,7 +419,7 @@ Verify.
 
 ---
 
-**Step 9 — Delete: Key Cache Management**
+~~**Step 9 — Delete: Key Cache Management**~~
 
 _Methods to delete from `main.mo`:_ `clearKeyCache`, `getKeyCacheStats`.
 
@@ -430,7 +430,7 @@ _Methods to delete from `main.mo`:_ `clearKeyCache`, `getKeyCacheStats`.
 
 ---
 
-**Step 10 — Migrate to tools: Event Queue Stats & Management**
+~~**Step 10 — Migrate to tools: Event Queue Stats & Management**~~
 
 _Methods to delete from `main.mo`:_ `getEventStoreStats`, `getFailedEvents`, `deleteFailedEvents`.
 
@@ -448,13 +448,19 @@ Verify.
 
 ---
 
+**Step 11 — Improve Timers & Cleanup AuthMiddleware test**
+
+- ?
+
+---
+
 **Test Steps**
 
 After all 10 steps, the only remaining integration tests that exercise `main.mo` public methods are:
 
 - `http-requests.spec.ts` — `http_request` (GET/non-POST) query endpoint.
 - `slack-webhook.spec.ts` — full Slack webhook pipeline through `http_request_update`.
-- `timers.spec.ts` — timer callback behaviour.
+- `timers.spec.ts` — timer callback behavior.
 - `encryption.spec.ts` — key derivation (cache parts removed in Step 9).
 
 Run `bun run test:unit` to confirm all unit tests pass. Run `bun run tsc --noEmit` to confirm no TypeScript regressions in the test suite.

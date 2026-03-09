@@ -441,7 +441,7 @@ module {
     };
 
     // Collect datapoints from all buckets
-    var allDatapoints = List.empty<MetricDatapoint>();
+    let allDatapoints = List.empty<MetricDatapoint>();
 
     switch (since) {
       case (null) {
@@ -553,7 +553,7 @@ module {
           let cutoffBucketKey = calculateBucketKey(cutoffTimestamp);
 
           // Collect bucket keys to remove (buckets entirely before cutoff)
-          var bucketsToRemove = List.empty<Nat>();
+          let bucketsToRemove = List.empty<Nat>();
 
           for ((bucketKey, timeBucket) in Map.entries(buckets)) {
             if (bucketKey < cutoffBucketKey) {
@@ -561,7 +561,7 @@ module {
               List.add(bucketsToRemove, bucketKey);
             } else if (bucketKey == cutoffBucketKey) {
               // Boundary bucket - filter datapoints within it
-              var filteredBucket = List.empty<MetricDatapoint>();
+              let filteredBucket = List.empty<MetricDatapoint>();
               let bucketArray = List.toArray(timeBucket);
 
               for (dp in bucketArray.vals()) {

@@ -4,6 +4,9 @@ import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import Result "mo:core/Result";
 import SecretModel "../../../../src/open-org-backend/models/secret-model";
+import Types "../../../../src/open-org-backend/types";
+
+type SecretId = Types.SecretId;
 
 // Test key (32 bytes) - simulates a SHA256-hashed Schnorr signature
 let testKey : [Nat8] = [
@@ -59,7 +62,7 @@ suite(
       "storeSecret stores a secret for a workspace and secret ID",
       func() {
         let workspaceId = 0;
-        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackSigningSecret; #slackBotToken }, SecretModel.EncryptedSecret>>();
+        let secrets = Map.empty<Nat, Map.Map<SecretId, SecretModel.EncryptedSecret>>();
         let secretId = #groqApiKey;
         let secret = "test-key-123";
 
@@ -88,7 +91,7 @@ suite(
       "getSecret returns latest value after update",
       func() {
         let workspaceId = 0;
-        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackSigningSecret; #slackBotToken }, SecretModel.EncryptedSecret>>();
+        let secrets = Map.empty<Nat, Map.Map<SecretId, SecretModel.EncryptedSecret>>();
         let secretId = #groqApiKey;
 
         // Store first secret
@@ -137,12 +140,12 @@ suite(
       "getWorkspaceSecrets returns list of stored secret IDs",
       func() {
         let workspaceId = 0;
-        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackSigningSecret; #slackBotToken }, SecretModel.EncryptedSecret>>();
+        let secrets = Map.empty<Nat, Map.Map<SecretId, SecretModel.EncryptedSecret>>();
 
         // Store multiple secrets
         ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #groqApiKey, "key-1");
         ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #openaiApiKey, "key-2");
-        ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #slackSigningSecret, "signing-secret");
+        ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #slackBotToken, "bot-token");
 
         let result = SecretModel.getWorkspaceSecrets(secrets, workspaceId);
         switch (result) {
@@ -160,7 +163,7 @@ suite(
       "deleteSecret removes the specified secret",
       func() {
         let workspaceId = 0;
-        var secrets = Map.empty<Nat, Map.Map<{ #groqApiKey; #openaiApiKey; #slackSigningSecret; #slackBotToken }, SecretModel.EncryptedSecret>>();
+        let secrets = Map.empty<Nat, Map.Map<SecretId, SecretModel.EncryptedSecret>>();
         let secretId = #groqApiKey;
 
         // Store a secret

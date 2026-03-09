@@ -9,7 +9,6 @@ import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
 import Types "./types";
-import AuthMiddleware "./middleware/auth-middleware";
 import AgentModel "./models/agent-model";
 import ConversationModel "./models/conversation-model";
 import SlackUserModel "./models/slack-user-model";
@@ -17,7 +16,6 @@ import WorkspaceModel "./models/workspace-model";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
 import McpToolRegistry "./tools/mcp-tool-registry";
-import ToolTypes "./tools/tool-types";
 import Constants "./constants";
 import MetricModel "./models/metric-model";
 import ValueStreamModel "./models/value-stream-model";
@@ -25,133 +23,182 @@ import ObjectiveModel "./models/objective-model";
 import HttpCertification "./utilities/http-certification";
 import EventStoreModel "./models/event-store-model";
 import EventRouter "./events/event-router";
-import NormalizedEventTypes "./events/types/normalized-event-types";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
-import WeeklyReconciliationService "./services/weekly-reconciliation-service";
-import AdminModel "./models/admin-model";
+import ClearKeyCacheRunner "./timers/clear-key-cache-runner";
+import MetricRetentionRunner "./timers/metric-retention-runner";
+import ProcessedEventsCleanupRunner "./timers/processed-events-cleanup-runner";
+import WeeklyReconciliationRunner "./timers/weekly-reconciliation-runner";
+import ConversationPruneRunner "./timers/conversation-prune-runner";
+import SlackEventIntakeService "./services/slack-event-intake-service";
 
-persistent actor class OpenOrgBackend(owner : Principal) {
+persistent actor class OpenOrgBackend() {
   // ============================================
   // State
   // ============================================
 
-  var orgOwner : Principal = owner;
-  var orgAdmins : [Principal] = [owner];
   // Channel-keyed conversation store (Phase 1.4): replaces the old (workspaceId, agentId)-keyed
   // `conversations` map and the workspaceId-keyed `adminConversations` map.
-  var conversationStore = ConversationModel.empty();
-  var secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>(); // Encrypted secrets per workspace
+  let conversationStore = ConversationModel.empty();
+  let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>(); // Encrypted secrets per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
-  var workspaceAdmins = Map.fromArray<Nat, [Principal]>([(0, [owner])], Nat.compare); // Workspace exists only if ID is present here
-  var workspaceMembers = Map.fromArray<Nat, [Principal]>([(0, [])], Nat.compare); // Members of each workspace
-  var agentRegistry = AgentModel.emptyState(); // Global agent registry state (ID → AgentRecord, name lookup)
-  var mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
+  let agentRegistry = AgentModel.defaultState(); // Global agent registry state, pre-seeded with the default workspace-admin agent
+  let mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
   // Slack user state (cache: Slack user ID → SlackUserEntry; changeLog: audit trail)
-  var slackUsers = SlackUserModel.emptyState();
+  let slackUsers = SlackUserModel.emptyState();
 
   // Workspace channel anchors (workspace ID → WorkspaceRecord with admin/member Slack channel IDs)
   // Workspace 0 is the org workspace; its adminChannelId IS the org-admin channel anchor.
-  var workspaces = WorkspaceModel.emptyState();
+  let workspaces = WorkspaceModel.emptyState();
 
   // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
-  var metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
-  var metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
-  var workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
-  var workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
+  let metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
+  let metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
+  let workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
+  let workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
 
   // HTTP certification state (skip-certification for query responses)
   var httpCertStore = HttpCertification.initStore();
 
   // Event store state (Slack events, per-event timer dispatch)
-  var eventStore = EventStoreModel.empty();
+  let eventStore = EventStoreModel.empty();
   var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
   var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
   var lastConversationPruneTimestamp : Int = Time.now(); // Track last time conversation store was pruned
 
-  // ============================================
-  // Auth Helper
-  // ============================================
-
-  private func authContext(caller : Principal, workspaceId : ?Nat) : AuthMiddleware.AuthContext {
-    {
-      caller;
-      workspaceId;
-      orgOwner;
-      orgAdmins;
-      workspaceAdmins;
-      workspaceMembers;
-    };
-  };
+  // Scheduled timer tracking — transient so it resets on upgrade (matching IC timer wipe).
+  // Populated by scheduleAll() during init and postupgrade.
+  // Key = Timer.TimerId (unique), value = entry metadata.
+  transient let timerSchedule = Map.empty<Nat, { name : Text; expectedRunNs : Int }>();
 
   // ============================================
   // Timer Management
   // ============================================
 
   // Timer registry — each entry defines a recurring timer with its interval,
-  // last-run timestamp reader, and callback. To add a new timer, append an
-  // entry here and create the corresponding callback + timestamp variable.
-  // Init and postupgrade iterate this list automatically.
-  private func timerRegistry() : [{
+  // last-run timestamp reader/writer, and a wrappedRun closure that calls the
+  // runner with the right arguments and returns a normalized Result.
+  // To add a new timer: append an entry here and create the timestamp variable.
+  // Init and postupgrade iterate this list automatically via scheduleAll().
+  private type TimerRegistryEntry = {
+    name : Text;
     interval : Nat;
     getLastRun : () -> Int;
-    callback : () -> async ();
-  }] {
+    setLastRun : (Int) -> ();
+    wrappedRun : () -> async { #ok; #err : Text };
+  };
+
+  private func timerRegistry() : [TimerRegistryEntry] {
     [
       {
+        name = "clear-key-cache";
         interval = Constants.THIRTY_DAYS_NS;
         getLastRun = func() : Int { lastClearTimestamp };
-        callback = clearKeyCacheTimer;
+        setLastRun = func(t : Int) { lastClearTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          switch (ClearKeyCacheRunner.run()) {
+            case (#ok(cache)) { keyCache := cache; #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
       },
       {
+        name = "metric-retention";
         interval = Constants.THIRTY_DAYS_NS;
         getLastRun = func() : Int { lastRetentionCleanupTimestamp };
-        callback = metricRetentionCleanupTimer;
+        setLastRun = func(t : Int) { lastRetentionCleanupTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          switch (MetricRetentionRunner.run(metricDatapoints, metricsRegistry)) {
+            case (#ok(_)) { #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
       },
       {
+        name = "processed-events-cleanup";
         interval = Constants.SEVEN_DAYS_NS;
         getLastRun = func() : Int { lastProcessedCleanupTimestamp };
-        callback = processedEventsCleanupTimer;
+        setLastRun = func(t : Int) { lastProcessedCleanupTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          ProcessedEventsCleanupRunner.run(eventStore);
+        };
       },
       {
+        name = "weekly-reconciliation";
         interval = Constants.SEVEN_DAYS_NS;
         getLastRun = func() : Int { lastWeeklyReconciliationTimestamp };
-        callback = weeklyReconciliationTimer;
+        setLastRun = func(t : Int) { lastWeeklyReconciliationTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          switch (await WeeklyReconciliationRunner.run(keyCache, secrets, slackUsers, workspaces)) {
+            case (#ok(_)) { #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
       },
       {
+        name = "conversation-prune";
         interval = Constants.SEVEN_DAYS_NS;
         getLastRun = func() : Int { lastConversationPruneTimestamp };
-        callback = conversationPruneTimer;
+        setLastRun = func(t : Int) { lastConversationPruneTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          ConversationPruneRunner.run(conversationStore);
+        };
       },
     ];
   };
 
-  // Clear Cache Timer function
-  private func clearKeyCacheTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.THIRTY_DAYS_NS),
-      clearKeyCacheTimer,
-    );
-
-    keyCache := KeyDerivationService.clearCache();
-    lastClearTimestamp := Time.now();
+  /// Build a recurring timer callback from a registry entry.
+  /// The callback reschedules itself before doing work (trap-safe),
+  /// records the new timer ID, runs the runner, and updates the timestamp.
+  private func makeTimerCallback(config : TimerRegistryEntry) : () -> async () {
+    func cb() : async () {
+      let id = Timer.setTimer<system>(#nanoseconds(config.interval), cb);
+      recordTimer(id, config.name, config.interval);
+      switch (await config.wrappedRun()) {
+        case (#ok) {};
+        case (#err(e)) {
+          Logger.log(#error, ?"TimerRunner", "Runner '" # config.name # "' failed: " # e);
+        };
+      };
+      config.setLastRun(Time.now());
+    };
+    cb;
   };
 
-  // Metric Datapoints Retention Cleanup Timer
-  // Runs monthly to purge datapoints older than their metric's retention period
-  private func metricRetentionCleanupTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.THIRTY_DAYS_NS),
-      metricRetentionCleanupTimer,
+  /// Record a timer ID in the transient schedule.
+  private func recordTimer(timerId : Nat, name : Text, intervalNs : Nat) {
+    Map.add(
+      timerSchedule,
+      Nat.compare,
+      timerId,
+      {
+        name;
+        expectedRunNs = Time.now() + intervalNs;
+      },
     );
+  };
 
-    ignore MetricModel.purgeOldDatapoints(metricDatapoints, metricsRegistry);
-    lastRetentionCleanupTimestamp := Time.now();
+  /// Schedule all recurring timers. Used by both init and postupgrade.
+  /// `delayFn` computes the initial delay per entry (full interval for init,
+  /// remaining time for postupgrade).
+  private func scheduleAll<system>(delayFn : (TimerRegistryEntry) -> Nat) {
+    for (config in timerRegistry().vals()) {
+      let delay = delayFn(config);
+      let cb = makeTimerCallback(config);
+      let id = Timer.setTimer<system>(#nanoseconds(delay), cb);
+      Map.add(
+        timerSchedule,
+        Nat.compare,
+        id,
+        {
+          name = config.name;
+          expectedRunNs = Time.now() + delay;
+        },
+      );
+    };
   };
 
   // Register HTTP paths that skip response verification
@@ -173,97 +220,9 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       metricDatapoints;
       slackUsers;
       workspaces;
+      eventStore;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
-  };
-
-  // Processed Events Cleanup Timer
-  // Runs every 7 days to:
-  //   1. Detect unprocessed events stuck for > 1h and move them to failed
-  //   2. Purge old processed events (> 7 days)
-  //   3. Purge old failed events (> 30 days)
-  private func processedEventsCleanupTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.SEVEN_DAYS_NS),
-      processedEventsCleanupTimer,
-    );
-
-    // 1. Detect and fail stale unprocessed events (enqueuedAt > 1 hour ago)
-    let staleIds = EventStoreModel.failStaleUnprocessed(eventStore);
-    if (staleIds.size() > 0) {
-      let idList = Array.foldLeft<Text, Text>(
-        staleIds,
-        "",
-        func(acc, id) {
-          if (acc == "") id else acc # ", " # id;
-        },
-      );
-      Logger.log(#warn, ?"EventStore", "Failed " # Nat.toText(staleIds.size()) # " stale unprocessed event(s): " # idList);
-    };
-
-    // 2. Purge old processed events (> 7 days)
-    ignore EventStoreModel.purgeProcessed(eventStore);
-
-    // 3. Purge old failed events (> 30 days)
-    ignore EventStoreModel.purgeOldFailed(eventStore);
-
-    lastProcessedCleanupTimestamp := Time.now();
-  };
-
-  // Weekly Reconciliation Timer
-  // Runs every 7 days (aligned with Sunday if the first deployment happens on a Sunday).
-  // Performs a full users.list + conversations.members sweep and verifies all tracked
-  // channel anchors. Notifies admins / the Primary Owner about any channels that have
-  // gone missing since the last run.
-  private func weeklyReconciliationTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.SEVEN_DAYS_NS),
-      weeklyReconciliationTimer,
-    );
-
-    // Resolve the bot token from workspace 0 secrets (global Slack integration secret).
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
-    switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
-      case (null) {
-        Logger.log(
-          #warn,
-          ?"WeeklyReconciliation",
-          "No Slack bot token found for workspace 0 — skipping weekly reconciliation.",
-        );
-      };
-      case (?token) {
-        // Ignore summary since service already has logging
-        ignore await WeeklyReconciliationService.run(
-          token,
-          slackUsers,
-          workspaces,
-        );
-      };
-    };
-
-    lastWeeklyReconciliationTimestamp := Time.now();
-  };
-
-  // Conversation Store Prune Timer (Phase 1.4)
-  // Runs every 7 days. Drops timeline entries where ALL messages are older than
-  // CONVERSATION_RETENTION_SECS (30 days). The old-thread grace rule preserves
-  // a thread entry if any message in it falls within the retention window.
-  private func conversationPruneTimer() : async () {
-    // Reschedule before doing work so the timer survives a trap
-    ignore Timer.setTimer<system>(
-      #nanoseconds(Constants.SEVEN_DAYS_NS),
-      conversationPruneTimer,
-    );
-
-    let nowSecs : Nat = Int.abs(Time.now() / 1_000_000_000);
-    let cutoffSecs : Nat = if (nowSecs > Constants.CONVERSATION_RETENTION_SECS) {
-      Nat.sub(nowSecs, Constants.CONVERSATION_RETENTION_SECS);
-    } else { 0 };
-    ConversationModel.pruneAll(conversationStore, cutoffSecs);
-    lastConversationPruneTimestamp := Time.now();
   };
 
   // ============================================
@@ -275,22 +234,21 @@ persistent actor class OpenOrgBackend(owner : Principal) {
 
   // Schedule all recurring timers on first install.
   // Subsequent upgrades will wipe these timers; postupgrade re-creates them.
-  for (config in timerRegistry().vals()) {
-    ignore Timer.setTimer<system>(#nanoseconds(config.interval), config.callback);
-  };
+  scheduleAll<system>(func(config : TimerRegistryEntry) : Nat { config.interval });
 
   // System hook called after every upgrade
   system func postupgrade() {
     let now = Time.now();
 
     // Restart each recurring timer with its remaining time
-    for (config in timerRegistry().vals()) {
-      let elapsed = now - config.getLastRun();
-      let delay : Nat = if (elapsed >= config.interval) { 0 } else {
-        Nat.fromInt(config.interval - elapsed);
-      };
-      ignore Timer.setTimer<system>(#nanoseconds(delay), config.callback);
-    };
+    scheduleAll<system>(
+      func(config : TimerRegistryEntry) : Nat {
+        let elapsed = now - config.getLastRun();
+        if (elapsed >= config.interval) { 0 } else {
+          Nat.fromInt(config.interval - elapsed);
+        };
+      }
+    );
 
     // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
@@ -299,746 +257,54 @@ persistent actor class OpenOrgBackend(owner : Principal) {
   };
 
   // ============================================
-  // OrgAdmin Management
+  // Org-Critical Secrets
   // ============================================
 
-  // Add a new organization admin
-  public shared ({ caller }) func addOrgAdmin(newAdmin : Principal) : async {
+  /// Store an org-critical secret (encrypted at rest). Only the org owner may call this.
+  /// Secrets are stored under workspace 0 (the org workspace) using the workspace
+  /// encryption key derived from ICP's Threshold Schnorr signatures.
+  public shared ({ caller }) func storeOrgCriticalSecrets(secretId : Types.SecretId, value : Text) : async {
     #ok : ();
     #err : Text;
   } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner])) {
+    // Authorize by checking that the caller is a controller of this canister
+    if (not Principal.isController(caller)) {
+      return #err("Unauthorized: caller is not a canister controller.");
+    };
+    if (Text.trim(value, #char ' ') == "") {
+      return #err("Secret value cannot be empty.");
+    };
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    switch (SecretModel.storeSecret(secrets, encryptionKey, 0, secretId, value)) {
       case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        // Business validation
-        let validation = AdminModel.validateNewAdmin(newAdmin, orgAdmins);
-        switch (validation) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(())) {
-            orgAdmins := AdminModel.addAdminToList(newAdmin, orgAdmins);
-            #ok(());
+      case (#ok(())) { #ok(()) };
+    };
+  };
+
+  // ============================================
+  // Timer Observability
+  // ============================================
+
+  /// Return the current timer schedule. Controller-only.
+  public shared query ({ caller }) func getScheduledTimers() : async {
+    #ok : [{ timerId : Nat; name : Text; expectedRunNs : Int }];
+    #err : Text;
+  } {
+    if (not Principal.isController(caller)) {
+      return #err("Unauthorized: caller is not a canister controller.");
+    };
+    #ok(
+      Array.map<(Nat, { name : Text; expectedRunNs : Int }), { timerId : Nat; name : Text; expectedRunNs : Int }>(
+        Map.toArray(timerSchedule),
+        func((id, entry)) {
+          {
+            timerId = id;
+            name = entry.name;
+            expectedRunNs = entry.expectedRunNs;
           };
-        };
-      };
-    };
-  };
-
-  // Get list of organization admins
-  public query func getOrgAdmins() : async [Principal] {
-    orgAdmins;
-  };
-
-  // Check if caller is an organization admin
-  public shared ({ caller }) func isCallerOrgAdmin() : async Bool {
-    AdminModel.isAdmin(caller, orgAdmins);
-  };
-
-  // Add a new workspace admin
-  public shared ({ caller }) func addWorkspaceAdmin(workspaceId : Nat, newAdmin : Principal) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceAdmins, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?admins) {
-            // Business validation
-            let validation = AdminModel.validateNewAdmin(newAdmin, admins);
-            switch (validation) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(())) {
-                let newAdmins = AdminModel.addAdminToList(newAdmin, admins);
-                Map.add(workspaceAdmins, Nat.compare, workspaceId, newAdmins);
-                #ok(());
-              };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  // Add a new workspace member
-  public shared ({ caller }) func addWorkspaceMember(workspaceId : Nat, newMember : Principal) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?members) {
-            // Business validation
-            let validation = AdminModel.validateNewMember(newMember, members);
-            switch (validation) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(())) {
-                let newMembers = AdminModel.addMemberToList(newMember, members);
-                Map.add(workspaceMembers, Nat.compare, workspaceId, newMembers);
-                #ok(());
-              };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  // Get workspace members (workspace admins and above can view)
-  public shared ({ caller }) func getWorkspaceMembers(workspaceId : Nat) : async {
-    #ok : [Principal];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin, #IsWorkspaceMember])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-          case (null) { #err("Workspace not found.") };
-          case (?members) { #ok(members) };
-        };
-      };
-    };
-  };
-
-  // Check if caller is a workspace member
-  public shared ({ caller }) func isCallerWorkspaceMember(workspaceId : Nat) : async Bool {
-    switch (Map.get(workspaceMembers, Nat.compare, workspaceId)) {
-      case (null) { false };
-      case (?members) { AdminModel.isMember(caller, members) };
-    };
-  };
-
-  // ============================================
-  // Agent Registry
-  // ============================================
-
-  // Register a new agent in the global registry.
-  public shared ({ caller }) func registerAgent(
-    name : Text,
-    category : AgentModel.AgentCategory,
-    llmModel : AgentModel.LlmModel,
-    secretsAllowed : [(Nat, Types.SecretId)],
-    toolsDisallowed : [Text],
-    toolsMisconfigured : [Text],
-    sources : [Text],
-  ) : async {
-    #ok : Nat;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        AgentModel.register(
-          name,
-          category,
-          llmModel,
-          secretsAllowed,
-          toolsDisallowed,
-          toolsMisconfigured,
-          Map.empty<Text, AgentModel.ToolState>(),
-          sources,
-          agentRegistry,
-        );
-      };
-    };
-  };
-
-  // Look up a registered agent by name (case-insensitive).
-  public query func getRegisteredAgent(name : Text) : async ?AgentModel.AgentRecordView {
-    switch (AgentModel.lookupByName(name, agentRegistry)) {
-      case (null) { null };
-      case (?record) { ?AgentModel.toView(record) };
-    };
-  };
-
-  // Update an agent's configuration in the registry.
-  public shared ({ caller }) func updateRegisteredAgent(
-    id : Nat,
-    newName : ?Text,
-    newCategory : ?AgentModel.AgentCategory,
-    newLlmModel : ?AgentModel.LlmModel,
-    newSecretsAllowed : ?[(Nat, Types.SecretId)],
-    newToolsDisallowed : ?[Text],
-    newToolsMisconfigured : ?[Text],
-    newSources : ?[Text],
-  ) : async {
-    #ok : Bool;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        AgentModel.updateById(
-          id,
-          newName,
-          newCategory,
-          newLlmModel,
-          newSecretsAllowed,
-          newToolsDisallowed,
-          newToolsMisconfigured,
-          null,
-          newSources,
-          agentRegistry,
-        );
-      };
-    };
-  };
-
-  // Unregister an agent.
-  public shared ({ caller }) func unregisterAgent(id : Nat) : async {
-    #ok : Bool;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        AgentModel.unregisterById(id, agentRegistry);
-      };
-    };
-  };
-
-  // Get a registered agent by ID.
-  public query func getRegisteredAgentById(id : Nat) : async ?AgentModel.AgentRecordView {
-    switch (AgentModel.lookupById(id, agentRegistry)) {
-      case (null) { null };
-      case (?record) { ?AgentModel.toView(record) };
-    };
-  };
-
-  // List all registered agents.
-  public query func listRegisteredAgents() : async [AgentModel.AgentRecordView] {
-    let records = AgentModel.listAgents(agentRegistry);
-    Array.map<AgentModel.AgentRecord, AgentModel.AgentRecordView>(records, AgentModel.toView);
-  };
-
-  // Grant (or replace) the full secretsAllowed whitelist for an agent.
-  // Each tuple is (workspaceId, secretId). Passing [] revokes all secret access.
-  public shared ({ caller }) func setAgentWorkspaceSecrets(agentId : Nat, secretsAllowed : [(Nat, Types.SecretId)]) : async {
-    #ok : Bool;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        AgentModel.updateById(agentId, null, null, null, ?secretsAllowed, null, null, null, null, agentRegistry);
-      };
-    };
-  };
-
-  // ============================================
-  // MCP Tool Management
-  // ============================================
-
-  // Register a new MCP tool
-  // Only org owner and org admins can register MCP tools
-  public shared ({ caller }) func registerMcpTool(tool : ToolTypes.McpToolRegistration) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (McpToolRegistry.register(mcpToolRegistry, tool)) {
-          case (#ok) { #ok(()) };
-          case (#err(msg)) { #err(msg) };
-        };
-      };
-    };
-  };
-
-  // Unregister an MCP tool by name
-  // Only org owner and org admins can unregister MCP tools
-  public shared ({ caller }) func unregisterMcpTool(toolName : Text) : async {
-    #ok : Bool;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let removed = McpToolRegistry.unregister(mcpToolRegistry, toolName);
-        #ok(removed);
-      };
-    };
-  };
-
-  // Get all registered MCP tools
-  // Only org owner and org admins can view MCP tools
-  public shared ({ caller }) func listMcpTools() : async {
-    #ok : [ToolTypes.McpToolRegistration];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin, #AnyWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok(McpToolRegistry.getAll(mcpToolRegistry));
-      };
-    };
-  };
-
-  // ============================================
-  // Secrets Management
-  // ============================================
-
-  // Store a secret in a workspace (encrypted at rest)
-  // Workspace admins can store LLM API keys; org owner/admins can store integration secrets
-  public shared ({ caller }) func storeSecret(workspaceId : Nat, secretId : Types.SecretId, secret : Text) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    // Integration secrets (Slack) require org-level auth; LLM keys require workspace admin
-    let requiredRoles = switch (secretId) {
-      case (#slackSigningSecret or #slackBotToken) {
-        [#IsOrgOwner, #IsOrgAdmin];
-      };
-      case (#groqApiKey or #openaiApiKey) {
-        [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin];
-      };
-    };
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), requiredRoles)) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        if (Text.trim(secret, #char ' ') == "") {
-          return #err("Secret cannot be empty.");
-        };
-        // Verify workspace exists
-        switch (Map.get(workspaces.workspaces, Nat.compare, workspaceId)) {
-          case (null) { return #err("Workspace not found.") };
-          case (?_) {};
-        };
-
-        // Derive encryption key for this workspace
-        let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-
-        SecretModel.storeSecret(secrets, encryptionKey, workspaceId, secretId, secret);
-      };
-    };
-  };
-
-  // Get stored secret identifiers for a workspace (does not return the secret values)
-  // Only workspace admins can view stored secrets
-  public shared ({ caller }) func getWorkspaceSecrets(workspaceId : Nat) : async {
-    #ok : [Types.SecretId];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        SecretModel.getWorkspaceSecrets(secrets, workspaceId);
-      };
-    };
-  };
-
-  // Delete a secret for a specific secret ID in a workspace
-  // Workspace admins can delete LLM API keys; org owner/admins can delete integration secrets
-  public shared ({ caller }) func deleteSecret(workspaceId : Nat, secretId : Types.SecretId) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    let requiredRoles = switch (secretId) {
-      case (#slackSigningSecret or #slackBotToken) {
-        [#IsOrgOwner, #IsOrgAdmin];
-      };
-      case (#groqApiKey or #openaiApiKey) {
-        [#IsOrgOwner, #IsOrgAdmin, #IsWorkspaceAdmin];
-      };
-    };
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), requiredRoles)) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        SecretModel.deleteSecret(secrets, workspaceId, secretId);
-      };
-    };
-  };
-
-  // ============================================
-  // Key Cache Management
-  // ============================================
-
-  // Manually clear the key cache (admin only)
-  public shared ({ caller }) func clearKeyCache() : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        keyCache := KeyDerivationService.clearCache();
-        #ok(());
-      };
-    };
-  };
-
-  // Get cache statistics (admin only)
-  public shared ({ caller }) func getKeyCacheStats() : async {
-    #ok : { size : Nat };
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok({ size = KeyDerivationService.getCacheSize(keyCache) });
-      };
-    };
-  };
-
-  // ============================================
-  // ============================================
-  // Value Streams API (Workspace-Scoped)
-  // ============================================
-
-  /// Create a new value stream in a workspace
-  public shared ({ caller }) func createValueStream(
-    workspaceId : Nat,
-    input : ValueStreamModel.ValueStreamInput,
-  ) : async {
-    #ok : ValueStreamModel.ShareableValueStream;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (ValueStreamModel.createValueStream(workspaceValueStreams, workspaceId, input)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(id)) {
-            switch (ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, id)) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(vs)) { #ok(ValueStreamModel.toShareable(vs)) };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  /// Get a value stream by ID
-  public shared ({ caller }) func getValueStream(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-  ) : async {
-    #ok : ValueStreamModel.ShareableValueStream;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(vs)) { #ok(ValueStreamModel.toShareable(vs)) };
-        };
-      };
-    };
-  };
-
-  /// List all value streams in a workspace
-  public shared ({ caller }) func listValueStreams(workspaceId : Nat) : async {
-    #ok : [ValueStreamModel.ShareableValueStream];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (ValueStreamModel.listValueStreams(workspaceValueStreams, workspaceId)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(streams)) {
-            #ok(
-              Array.map<ValueStreamModel.ValueStream, ValueStreamModel.ShareableValueStream>(
-                streams,
-                ValueStreamModel.toShareable,
-              )
-            );
-          };
-        };
-      };
-    };
-  };
-
-  /// Update a value stream
-  public shared ({ caller }) func updateValueStream(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    newName : ?Text,
-    newProblem : ?Text,
-    newGoal : ?Text,
-    newStatus : ?ValueStreamModel.ValueStreamStatus,
-  ) : async {
-    #ok : ValueStreamModel.ShareableValueStream;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (ValueStreamModel.updateValueStream(workspaceValueStreams, workspaceId, valueStreamId, newName, newProblem, newGoal, newStatus)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(())) {
-            switch (ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId)) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(vs)) { #ok(ValueStreamModel.toShareable(vs)) };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  /// Delete a value stream
-  public shared ({ caller }) func deleteValueStream(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-  ) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        // Also delete objectives for this value stream
-        ObjectiveModel.deleteValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
-        ValueStreamModel.deleteValueStream(workspaceValueStreams, workspaceId, valueStreamId);
-      };
-    };
-  };
-
-  /// Set or update the plan for a value stream
-  public shared ({ caller }) func setValueStreamPlan(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    input : ValueStreamModel.PlanInput,
-    diff : Text,
-  ) : async {
-    #ok : ValueStreamModel.ShareableValueStream;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let author : ValueStreamModel.PlanChangeAuthor = #principal(caller);
-        switch (ValueStreamModel.setPlan(workspaceValueStreams, workspaceId, valueStreamId, input, author, diff)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(())) {
-            switch (ValueStreamModel.getValueStream(workspaceValueStreams, workspaceId, valueStreamId)) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(vs)) { #ok(ValueStreamModel.toShareable(vs)) };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  // ============================================
-  // Objectives API (Workspace-Scoped, within Value Streams)
-  // ============================================
-
-  /// Add an objective to a value stream
-  public shared ({ caller }) func addObjective(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    input : ObjectiveModel.ObjectiveInput,
-  ) : async {
-    #ok : ObjectiveModel.ShareableObjective;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        // Initialize objectives state for value stream if not exists
-        ObjectiveModel.initValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
-        switch (ObjectiveModel.addObjective(workspaceObjectives, workspaceId, valueStreamId, input)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(id)) {
-            switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, id)) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  /// Get an objective by ID
-  public shared ({ caller }) func getObjective(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    objectiveId : Nat,
-  ) : async {
-    #ok : ObjectiveModel.ShareableObjective;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
-        };
-      };
-    };
-  };
-
-  /// List all objectives for a value stream
-  public shared ({ caller }) func listObjectives(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-  ) : async {
-    #ok : [ObjectiveModel.ShareableObjective];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        // Initialize objectives state for value stream if not exists
-        ObjectiveModel.initValueStreamObjectives(workspaceObjectives, workspaceId, valueStreamId);
-        switch (ObjectiveModel.listObjectives(workspaceObjectives, workspaceId, valueStreamId)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(objs)) {
-            #ok(Array.map<ObjectiveModel.Objective, ObjectiveModel.ShareableObjective>(objs, ObjectiveModel.toShareable));
-          };
-        };
-      };
-    };
-  };
-
-  /// Update an objective
-  public shared ({ caller }) func updateObjective(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    objectiveId : Nat,
-    newName : ?Text,
-    newDescription : ??Text,
-    newObjectiveType : ?ObjectiveModel.ObjectiveType,
-    newMetricIds : ?[Nat],
-    newComputation : ?Text,
-    newTarget : ?ObjectiveModel.ObjectiveTarget,
-    newTargetDate : ??Int,
-    newStatus : ?ObjectiveModel.ObjectiveStatus,
-  ) : async {
-    #ok : ObjectiveModel.ShareableObjective;
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        switch (ObjectiveModel.updateObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId, newName, newDescription, newObjectiveType, newMetricIds, newComputation, newTarget, newTargetDate, newStatus)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok(())) {
-            switch (ObjectiveModel.getObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId)) {
-              case (#err(msg)) { #err(msg) };
-              case (#ok(obj)) { #ok(ObjectiveModel.toShareable(obj)) };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  /// Archive an objective
-  public shared ({ caller }) func archiveObjective(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    objectiveId : Nat,
-  ) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        ObjectiveModel.archiveObjective(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
-      };
-    };
-  };
-
-  /// Record a datapoint for an objective
-  public shared ({ caller }) func recordObjectiveDatapoint(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    objectiveId : Nat,
-    datapoint : ObjectiveModel.ObjectiveDatapoint,
-  ) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        ObjectiveModel.recordObjectiveDatapoint(workspaceObjectives, workspaceId, valueStreamId, objectiveId, datapoint);
-      };
-    };
-  };
-
-  /// Get the history of an objective as an array
-  public shared ({ caller }) func getObjectiveHistory(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    objectiveId : Nat,
-  ) : async {
-    #ok : [ObjectiveModel.ObjectiveDatapoint];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        ObjectiveModel.getHistoryArray(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
-      };
-    };
-  };
-
-  /// Add a comment to a datapoint in an objective's history
-  public shared ({ caller }) func addObjectiveDatapointComment(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    objectiveId : Nat,
-    historyIndex : Nat,
-    comment : ObjectiveModel.ObjectiveDatapointComment,
-  ) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        ObjectiveModel.addCommentToHistoryDatapoint(workspaceObjectives, workspaceId, valueStreamId, objectiveId, historyIndex, comment);
-      };
-    };
-  };
-
-  /// Add an impact review to an objective
-  public shared ({ caller }) func addImpactReview(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    objectiveId : Nat,
-    review : ObjectiveModel.ImpactReview,
-  ) : async {
-    #ok : ();
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        ObjectiveModel.addImpactReview(workspaceObjectives, workspaceId, valueStreamId, objectiveId, review);
-      };
-    };
-  };
-
-  /// Get impact reviews for an objective
-  public shared query ({ caller }) func getImpactReviews(
-    workspaceId : Nat,
-    valueStreamId : Nat,
-    objectiveId : Nat,
-  ) : async {
-    #ok : [ObjectiveModel.ImpactReview];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, ?workspaceId), [#IsWorkspaceAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        ObjectiveModel.getImpactReviews(workspaceObjectives, workspaceId, valueStreamId, objectiveId);
-      };
-    };
+        },
+      )
+    );
   };
 
   // ============================================
@@ -1117,36 +383,35 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case _ {};
     };
 
-    // For all other event types, verify the Slack signature
-    // Retrieve the signing secret from workspace
-    let workspaceId = 0; // TODO: Support multiple workspaces in the future
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-    let signingSecret = SecretModel.getSecret(secrets, encryptionKey, workspaceId, #slackSigningSecret);
-
-    switch (signingSecret) {
+    // For all other event types, verify the Slack signature.
+    // Check headers first (fast path), then derive the encryption key to read
+    // the signing secret from the encrypted store (workspace 0).
+    let signature = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Signature")) {
       case (null) {
-        Logger.log(#error, ?"SlackWebhook", "No signing secret configured for workspace " # Nat.toText(workspaceId));
+        return respondWithText(401, "Missing signature");
+      };
+      case (?sig) { sig };
+    };
+    let timestamp = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Request-Timestamp")) {
+      case (null) {
+        return respondWithText(401, "Missing timestamp");
+      };
+      case (?ts) { ts };
+    };
+
+    let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
+    let signingSecret = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackSigningSecret)) {
+      case (null) {
+        Logger.log(#error, ?"SlackWebhook", "No Slack signing secret configured");
         return respondWithText(401, "Slack signing secret not configured");
       };
-      case (?secret) {
-        let signature = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Signature")) {
-          case (null) {
-            return respondWithText(401, "Missing signature");
-          };
-          case (?sig) { sig };
-        };
-        let timestamp = switch (SlackAdapter.getHeader(req.headers, "X-Slack-Request-Timestamp")) {
-          case (null) {
-            return respondWithText(401, "Missing timestamp");
-          };
-          case (?ts) { ts };
-        };
+      case (?secret) { secret };
+    };
 
-        if (not SlackAdapter.verifySignature(secret, signature, timestamp, bodyText)) {
-          Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
-          return respondWithText(401, "Invalid signature");
-        };
-      };
+    if (not SlackAdapter.verifySignature(signingSecret, signature, timestamp, bodyText)) {
+      Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
+      return respondWithText(401, "Invalid signature");
     };
 
     // Signature verified — process the envelope
@@ -1154,34 +419,28 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#url_verification(_)) {
         Runtime.unreachable(); // handled before and returned
       };
-      case (#event_callback(callback)) {
-        // Normalize and enqueue the event
-        switch (SlackAdapter.normalizeEvent(callback)) {
-          case (#err(reason)) {
-            Logger.log(#_debug, ?"SlackWebhook", "Skipping event: " # reason);
-            // Still return 200 so Slack doesn't retry
-            respondWithText(200, "ok");
+      case (#event_callback(_)) {
+        switch (SlackEventIntakeService.processEventBody(eventStore, bodyText)) {
+          case (#skipped(_) or #duplicate) {};
+          case (#enqueued(eid)) {
+            // Schedule a per-event timer to process immediately
+            ignore Timer.setTimer<system>(
+              #seconds 0,
+              func() : async () {
+                await makeEventProcessor(eid);
+              },
+            );
           };
-          case (#ok(event)) {
-            switch (EventStoreModel.enqueue(eventStore, event)) {
-              case (#duplicate) {
-                Logger.log(#_debug, ?"EventStore", "Duplicate event: " # event.eventId);
-              };
-              case (#ok) {
-                Logger.log(#_debug, ?"EventStore", "Enqueued event: " # event.eventId);
-                // Schedule a per-event timer to process immediately
-                let eid = event.eventId;
-                ignore Timer.setTimer<system>(
-                  #seconds 0,
-                  func() : async () {
-                    await makeEventProcessor(eid);
-                  },
-                );
-              };
-            };
-            respondWithText(200, "ok");
+          case (#parseError(e)) {
+            // Should not happen (envelope already parsed above), but handle defensively
+            Logger.log(#error, ?"SlackWebhook", "Unexpected parse error in intake: " # e);
+          };
+          case (#notEventCallback) {
+            // Should not happen (we matched #event_callback above)
+            Logger.log(#warn, ?"SlackWebhook", "Unexpected non-event-callback in event_callback branch");
           };
         };
+        respondWithText(200, "ok");
       };
       case (#app_rate_limited(rateLimited)) {
         let minuteStr = Int.toText(rateLimited.minute_rate_limited);
@@ -1192,55 +451,6 @@ persistent actor class OpenOrgBackend(owner : Principal) {
       case (#unknown(envelopeType)) {
         Logger.log(#warn, ?"SlackWebhook", "Unknown envelope type: " # envelopeType);
         respondWithText(200, "ok");
-      };
-    };
-  };
-
-  // ============================================
-  // Event Queue Stats & Management (Admin)
-  // ============================================
-
-  /// Get event queue statistics (admin only)
-  public shared ({ caller }) func getEventStoreStats() : async {
-    #ok : { unprocessedEvents : Nat; processedEvents : Nat; failedEvents : Nat };
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let stats = EventStoreModel.sizes(eventStore);
-        #ok({
-          unprocessedEvents = stats.unprocessed;
-          processedEvents = stats.processed;
-          failedEvents = stats.failed;
-        });
-      };
-    };
-  };
-
-  /// Get all failed events (admin only)
-  public shared ({ caller }) func getFailedEvents() : async {
-    #ok : [NormalizedEventTypes.Event];
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        #ok(EventStoreModel.listFailed(eventStore));
-      };
-    };
-  };
-
-  /// Delete failed event(s) — null deletes all, ?id deletes specific
-  public shared ({ caller }) func deleteFailedEvents(eventId : ?Text) : async {
-    #ok : { deleted : Nat };
-    #err : Text;
-  } {
-    switch (AuthMiddleware.authorize(authContext(caller, null), [#IsOrgOwner, #IsOrgAdmin])) {
-      case (#err(msg)) { #err(msg) };
-      case (#ok(())) {
-        let deleted = EventStoreModel.deleteFailed(eventStore, eventId);
-        #ok({ deleted });
       };
     };
   };

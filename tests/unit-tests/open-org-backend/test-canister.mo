@@ -2,6 +2,7 @@ import Error "mo:core/Error";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
+import Text "mo:core/Text";
 
 import HttpWrapper "../../../src/open-org-backend/wrappers/http-wrapper";
 import GroqWrapper "../../../src/open-org-backend/wrappers/groq-wrapper";
@@ -16,32 +17,67 @@ import MemberJoinedChannelHandler "../../../src/open-org-backend/events/handlers
 import MemberLeftChannelHandler "../../../src/open-org-backend/events/handlers/member-left-channel-handler";
 import NormalizedEventTypes "../../../src/open-org-backend/events/types/normalized-event-types";
 import SlackAdapter "../../../src/open-org-backend/events/slack-adapter";
-import EventProcessingContextTypes "../../../src/open-org-backend/events/types/event-processing-context";
-import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
-import SetWorkspaceAdminChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-admin-channel-handler";
-import SetWorkspaceMemberChannelHandler "../../../src/open-org-backend/tools/handlers/set-workspace-member-channel-handler";
-import CreateWorkspaceHandler "../../../src/open-org-backend/tools/handlers/create-workspace-handler";
-import ListWorkspacesHandler "../../../src/open-org-backend/tools/handlers/list-workspaces-handler";
-import CreateMetricHandler "../../../src/open-org-backend/tools/handlers/create-metric-handler";
-import UpdateMetricHandler "../../../src/open-org-backend/tools/handlers/update-metric-handler";
-import GetMetricHandler "../../../src/open-org-backend/tools/handlers/get-metric-handler";
-import ListMetricsHandler "../../../src/open-org-backend/tools/handlers/list-metrics-handler";
-import DeleteMetricHandler "../../../src/open-org-backend/tools/handlers/delete-metric-handler";
-import RecordMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/record-metric-datapoint-handler";
-import GetMetricDatapointsHandler "../../../src/open-org-backend/tools/handlers/get-metric-datapoints-handler";
-import GetLatestMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/get-latest-metric-datapoint-handler";
-import AgentModel "../../../src/open-org-backend/models/agent-model";
-import WeeklyReconciliationService "../../../src/open-org-backend/services/weekly-reconciliation-service";
+import SetWorkspaceAdminChannelHandler "../../../src/open-org-backend/tools/handlers/workspaces/set-workspace-admin-channel-handler";
+import SetWorkspaceMemberChannelHandler "../../../src/open-org-backend/tools/handlers/workspaces/set-workspace-member-channel-handler";
+import CreateWorkspaceHandler "../../../src/open-org-backend/tools/handlers/workspaces/create-workspace-handler";
+import ListWorkspacesHandler "../../../src/open-org-backend/tools/handlers/workspaces/list-workspaces-handler";
+import CreateMetricHandler "../../../src/open-org-backend/tools/handlers/metrics/create-metric-handler";
+import UpdateMetricHandler "../../../src/open-org-backend/tools/handlers/metrics/update-metric-handler";
+import GetMetricHandler "../../../src/open-org-backend/tools/handlers/metrics/get-metric-handler";
+import ListMetricsHandler "../../../src/open-org-backend/tools/handlers/metrics/list-metrics-handler";
+import DeleteMetricHandler "../../../src/open-org-backend/tools/handlers/metrics/delete-metric-handler";
+import RecordMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/metrics/record-metric-datapoint-handler";
+import GetMetricDatapointsHandler "../../../src/open-org-backend/tools/handlers/metrics/get-metric-datapoints-handler";
+import GetLatestMetricDatapointHandler "../../../src/open-org-backend/tools/handlers/metrics/get-latest-metric-datapoint-handler";
+import SaveValueStreamHandler "../../../src/open-org-backend/tools/handlers/value-streams/save-value-stream-handler";
+import SavePlanHandler "../../../src/open-org-backend/tools/handlers/save-plan-handler";
+import ListValueStreamsHandler "../../../src/open-org-backend/tools/handlers/value-streams/list-value-streams-handler";
+import GetValueStreamHandler "../../../src/open-org-backend/tools/handlers/value-streams/get-value-stream-handler";
+import DeleteValueStreamHandler "../../../src/open-org-backend/tools/handlers/value-streams/delete-value-stream-handler";
+import CreateObjectiveHandler "../../../src/open-org-backend/tools/handlers/objectives/create-objective-handler";
+import UpdateObjectiveHandler "../../../src/open-org-backend/tools/handlers/objectives/update-objective-handler";
+import ArchiveObjectiveHandler "../../../src/open-org-backend/tools/handlers/objectives/archive-objective-handler";
+import RecordObjectiveDatapointHandler "../../../src/open-org-backend/tools/handlers/objectives/record-objective-datapoint-handler";
+import AddImpactReviewHandler "../../../src/open-org-backend/tools/handlers/objectives/add-impact-review-handler";
+import ListObjectivesHandler "../../../src/open-org-backend/tools/handlers/objectives/list-objectives-handler";
+import GetObjectiveHandler "../../../src/open-org-backend/tools/handlers/objectives/get-objective-handler";
+import GetObjectiveHistoryHandler "../../../src/open-org-backend/tools/handlers/objectives/get-objective-history-handler";
+import AddObjectiveDatapointCommentHandler "../../../src/open-org-backend/tools/handlers/objectives/add-objective-datapoint-comment-handler";
+import GetImpactReviewsHandler "../../../src/open-org-backend/tools/handlers/objectives/get-impact-reviews-handler";
+import RegisterAgentHandler "../../../src/open-org-backend/tools/handlers/agents/register-agent-handler";
+import ListAgentsHandler "../../../src/open-org-backend/tools/handlers/agents/list-agents-handler";
+import GetAgentHandler "../../../src/open-org-backend/tools/handlers/agents/get-agent-handler";
+import UpdateAgentHandler "../../../src/open-org-backend/tools/handlers/agents/update-agent-handler";
+import UnregisterAgentHandler "../../../src/open-org-backend/tools/handlers/agents/unregister-agent-handler";
+import RegisterMcpToolHandler "../../../src/open-org-backend/tools/handlers/mcp/register-mcp-tool-handler";
+import UnregisterMcpToolHandler "../../../src/open-org-backend/tools/handlers/mcp/unregister-mcp-tool-handler";
+import ListMcpToolsHandler "../../../src/open-org-backend/tools/handlers/mcp/list-mcp-tools-handler";
+import StoreSecretHandler "../../../src/open-org-backend/tools/handlers/secrets/store-secret-handler";
+import GetWorkspaceSecretsHandler "../../../src/open-org-backend/tools/handlers/secrets/get-workspace-secrets-handler";
+import DeleteSecretHandler "../../../src/open-org-backend/tools/handlers/secrets/delete-secret-handler";
+import GetEventStoreStatsHandler "../../../src/open-org-backend/tools/handlers/events/get-event-store-stats-handler";
+import GetFailedEventsHandler "../../../src/open-org-backend/tools/handlers/events/get-failed-events-handler";
+import DeleteFailedEventsHandler "../../../src/open-org-backend/tools/handlers/events/delete-failed-events-handler";
+import WeeklyReconciliationRunner "../../../src/open-org-backend/timers/weekly-reconciliation-runner";
+import ClearKeyCacheRunner "../../../src/open-org-backend/timers/clear-key-cache-runner";
+import MetricRetentionRunner "../../../src/open-org-backend/timers/metric-retention-runner";
+import ProcessedEventsCleanupRunner "../../../src/open-org-backend/timers/processed-events-cleanup-runner";
+import ConversationPruneRunner "../../../src/open-org-backend/timers/conversation-prune-runner";
+import SlackEventIntakeService "../../../src/open-org-backend/services/slack-event-intake-service";
 import ValueStreamModel "../../../src/open-org-backend/models/value-stream-model";
 import ObjectiveModel "../../../src/open-org-backend/models/objective-model";
 import MetricModel "../../../src/open-org-backend/models/metric-model";
 import ConversationModel "../../../src/open-org-backend/models/conversation-model";
-import SecretModel "../../../src/open-org-backend/models/secret-model";
 import SlackUserModel "../../../src/open-org-backend/models/slack-user-model";
 import SlackAuthMiddleware "../../../src/open-org-backend/middleware/slack-auth-middleware";
 import WorkspaceModel "../../../src/open-org-backend/models/workspace-model";
+import AgentModel "../../../src/open-org-backend/models/agent-model";
+import McpToolRegistry "../../../src/open-org-backend/tools/mcp-tool-registry";
 import KeyDerivationService "../../../src/open-org-backend/services/key-derivation-service";
+import SecretModel "../../../src/open-org-backend/models/secret-model";
+import EventStoreModel "../../../src/open-org-backend/models/event-store-model";
 import Types "../../../src/open-org-backend/types";
+import TestHelpers "./test-helpers";
 
 // ============================================
 // Test Canister
@@ -80,218 +116,49 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Persistent metric state for handler tests. Starts empty; tests
   // create metrics through handler calls and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
-  var testMetricsRegistry = MetricModel.emptyRegistry();
-  var testMetricDatapoints = MetricModel.emptyDatapoints();
+  let testMetricsRegistry = MetricModel.emptyRegistry();
+  let testMetricDatapoints = MetricModel.emptyDatapoints();
 
-  // ============================================
-  // Test Helpers
-  // ============================================
-
-  /// The deterministic 32-byte all-zeros key used for every workspace in unit tests.
-  /// Seeding keyCache with this key avoids live Schnorr threshold-key calls.
-  private let testDummyKey : [Nat8] = [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-  ];
-
-  /// Creates an empty EventProcessingContext suitable for unit tests.
-  /// Secrets are not populated so handlers that require them will return graceful
-  /// error steps rather than crashing.
-  /// Uses the persistent slackUserCache so state changes persist across handler calls.
-  private func emptyCtx() : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    {
-      secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = AgentModel.emptyState();
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
+  // Persistent value stream state for handler tests. Workspace 0 is pre-initialised
+  // so create/list/get/delete tests can run directly against it.
+  let testValueStreamsMap = do {
+    let m = ValueStreamModel.emptyValueStreamsMap();
+    Map.add(m, Nat.compare, 0, ValueStreamModel.emptyWorkspaceState());
+    m;
   };
+  let testValueStreamWorkspaceId : Nat = 0;
 
-  /// Creates an EventProcessingContext pre-seeded with a Slack bot token and a Groq
-  /// API key, both encrypted with the deterministic dummy key used across unit tests.
-  /// This lets message-handler tests reach the Slack-posting code path without live
-  /// Schnorr key derivation or a real secret-store call.
-  ///
-  /// Secrets are stored for workspace IDs 0, 1, and 42.
-  /// Uses the persistent slackUserCache so state changes persist across handler calls.
-  private func ctxWithSecrets(botToken : Text, groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-    for (wsId in [0, 1, 42].vals()) {
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
-    };
-    // Register an admin agent permitted to access groqApiKey for workspaces 0, 1, and 42
-    let registry = AgentModel.emptyState();
-    ignore AgentModel.register(
-      "unit-test-admin",
-      #admin,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    {
-      secrets;
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
+  // Per-workspace objectives map for delete handler cleanup tests.
+  let testWorkspaceObjectivesMap = ObjectiveModel.emptyWorkspaceObjectivesMap();
 
-  /// Like `ctxWithSecrets`, but stores the Groq API key ONLY — no Slack bot token.
-  ///
-  /// Use this for guard tests (e.g. MAX_AGENT_ROUNDS, force-termination guards) that
-  /// run on a non-deferred actor without cassette support.  When there is no
-  /// `#slackBotToken` secret for the workspace, `resolveWorkspaceBotToken` returns
-  /// null so `postTerminationIfTokenAvailable` is a no-op and no outgoing HTTPS call
-  /// is attempted.  This avoids the pending-outcall problem in non-cassette tests.
-  private func ctxWithGroqOnlySecrets(groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-    for (wsId in [0, 1, 42].vals()) {
-      // NOTE: #slackBotToken intentionally absent — keeps postTerminationPrompt a no-op.
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
-    };
-    let registry = AgentModel.emptyState();
-    ignore AgentModel.register(
-      "unit-test-admin",
-      #admin,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    {
-      secrets;
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
+  // Agent registry state for agent handler tests. Starts empty; tests
+  // register agents through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  let testAgentRegistry = AgentModel.emptyState();
 
-  /// Like `ctxWithSecrets`, but also registers a `unit-test-research` agent with
-  /// `#research` category alongside the existing `unit-test-admin`.
-  ///
-  /// Use this context when a test needs to exercise primary agent resolution via
-  /// an explicit `::unit-test-research` reference.
-  private func ctxWithSecretsAndResearch(botToken : Text, groqApiKey : Text) : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-    for (wsId in [0, 1, 42].vals()) {
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #groqApiKey, groqApiKey);
-    };
-    let registry = AgentModel.emptyState();
-    // Admin agent (same as ctxWithSecrets)
-    ignore AgentModel.register(
-      "unit-test-admin",
-      #admin,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    // Research agent — no real secret needed; route(#research) returns a stub error
-    // without making any HTTP calls, so a dummy secret entry is sufficient.
-    ignore AgentModel.register(
-      "unit-test-research",
-      #research,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    {
-      secrets;
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
+  // MCP tool registry state for MCP handler tests. Starts empty; tests
+  // register tools through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  let testMcpToolRegistry = McpToolRegistry.empty();
+
+  // Secrets map and key cache for secrets handler tests. Starts empty; tests
+  // store/delete secrets through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  // The key cache is pre-seeded with the all-zeros dummy key for workspaces 0, 1, 2
+  // to avoid live Schnorr calls during unit tests.
+  let testSecretsMap = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+  let testSecretsKeyCache : KeyDerivationService.KeyCache = Map.fromArray<Nat, [Nat8]>(
+    [(0, TestHelpers.dummyKey), (1, TestHelpers.dummyKey), (2, TestHelpers.dummyKey)],
+    Nat.compare,
+  );
+
+  // Event store state for event handler tests. Starts empty; tests seed events
+  // through the testSeedFailedEvent helper and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  let testEventStore = EventStoreModel.empty();
+
+  // Conversation store for conversation-prune runner tests.
+  let testConversationStore = ConversationModel.empty();
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -418,7 +285,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   // ============================================
-  // Handler Test Methods
+  // Events Handler Test Methods
   // ============================================
 
   public shared ({ caller }) func testMessageHandler(
@@ -433,7 +300,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, emptyCtx());
+    await MessageHandler.handle(msg, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   /// Like testMessageHandler, but pre-seeds the context with a real Slack bot token
@@ -453,7 +320,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     groqApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, ctxWithSecrets(botToken, groqApiKey));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, groqApiKey));
   };
 
   /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
@@ -484,7 +351,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     parentForceTerminated : Bool,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = ctxWithSecrets(botToken, groqApiKey);
+    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, groqApiKey);
     // Seed the parent message with a UserAuthContext at the requested roundCount.
     // workspaceScopes is empty — the bot-path guard only checks roundCount / forceTerminated.
     //
@@ -547,7 +414,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     parentForceTerminated : Bool,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = ctxWithGroqOnlySecrets(groqApiKey);
+    let ctx = TestHelpers.ctxWithGroqOnlySecrets(slackUsers, testWorkspacesState, groqApiKey);
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
@@ -601,64 +468,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     groqApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, ctxWithSecretsAndResearch(botToken, groqApiKey));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, groqApiKey));
   };
 
-  /// Like `ctxWithSecretsAndResearch`, but does NOT seed a Groq API key secret.
-  /// When the admin route tries to decrypt the groqApiKey it finds null and returns
-  /// #err immediately, without issuing any HTTPS outcall.
-  ///
-  /// Use for non-deferred primary-agent resolution tests that need to verify the
-  /// fallback-to-admin path without triggering a live (or cassette-dependent) LLM call.
-  private func ctxWithSecretsAndResearchNoGroq(botToken : Text) : EventProcessingContextTypes.EventProcessingContext {
-    let keyCache = Map.fromArray<Nat, [Nat8]>(
-      [(0, testDummyKey), (1, testDummyKey), (42, testDummyKey)],
-      Nat.compare,
-    );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
-    for (wsId in [0, 1, 42].vals()) {
-      // NOTE: #groqApiKey intentionally absent — keeps admin route a sync no-op.
-      ignore SecretModel.storeSecret(secrets, testDummyKey, wsId, #slackBotToken, botToken);
-    };
-    let registry = AgentModel.emptyState();
-    ignore AgentModel.register(
-      "unit-test-admin",
-      #admin,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    ignore AgentModel.register(
-      "unit-test-research",
-      #research,
-      #groq(#gpt_oss_120b),
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      registry,
-    );
-    {
-      secrets;
-      keyCache;
-      conversationStore = ConversationModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
-      agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
-      slackUsers;
-      workspaces = testWorkspacesState;
-    };
-  };
-
-  /// Like `testMessageHandlerWithResearchAgent`, but uses `ctxWithSecretsAndResearchNoGroq`
+  /// Like `testMessageHandlerWithResearchAgent`, but uses `TestHelpers.ctxWithSecretsAndResearchNoGroq`
   /// so the admin route short-circuits at key resolution (#err) without any HTTP outcall.
   ///
   /// Use for primary-agent fallback tests on a non-deferred actor where you only need
@@ -676,7 +489,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     botToken : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, ctxWithSecretsAndResearchNoGroq(botToken));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoGroq(slackUsers, testWorkspacesState, botToken));
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
@@ -686,7 +499,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageDeletedHandler.handle(deleted, emptyCtx());
+    await MessageDeletedHandler.handle(deleted, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testMessageEditedHandler(
@@ -699,7 +512,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageEditedHandler.handle(edited, emptyCtx());
+    await MessageEditedHandler.handle(edited, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testAssistantThreadEventHandler(
@@ -713,7 +526,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await AssistantThreadHandler.handle(thread, emptyCtx());
+    await AssistantThreadHandler.handle(thread, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testTeamJoinHandler(
@@ -727,7 +540,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await TeamJoinHandler.handle(event, emptyCtx());
+    await TeamJoinHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testMemberJoinedChannelHandler(
@@ -740,7 +553,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MemberJoinedChannelHandler.handle(event, emptyCtx());
+    await MemberJoinedChannelHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   public shared ({ caller }) func testMemberLeftChannelHandler(
@@ -753,7 +566,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     }
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MemberLeftChannelHandler.handle(event, emptyCtx());
+    await MemberLeftChannelHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
   };
 
   // ============================================
@@ -909,45 +722,136 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     };
   };
 
-  /// Run the weekly reconciliation service against the shared test cache and
+  /// Run the weekly reconciliation runner against the shared test cache and
   /// the pre-seeded test workspace state.
   ///
   /// @param token               Decrypted Slack bot token (or mock value)
   /// @param orgAdminChannelId   Optional org-admin channel ID — when provided, sets workspace 0's
-  ///                            adminChannelId before the run so the service treats it as the org-admin channel
-  public shared ({ caller }) func testWeeklyReconciliation(
+  ///                            adminChannelId before the run so the runner treats it as the org-admin channel
+  public shared ({ caller }) func testWeeklyReconciliationRunner(
     token : Text,
     orgAdminChannelId : ?Text,
-  ) : async WeeklyReconciliationService.ReconciliationSummary {
+  ) : async {
+    #ok : WeeklyReconciliationRunner.ReconciliationSummary;
+    #err : Text;
+  } {
     assert caller == parent;
-    // Set workspace 0's adminChannelId so the reconciliation service treats it as the org-admin channel.
+    // Set workspace 0's adminChannelId so the reconciliation runner treats it as the org-admin channel.
     switch (orgAdminChannelId) {
       case (null) {};
       case (?channelId) {
         ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, channelId);
       };
     };
-    await WeeklyReconciliationService.run(
-      token,
+    // Seed the token into testSecretsMap so the runner can resolve it.
+    ignore SecretModel.storeSecret(testSecretsMap, TestHelpers.dummyKey, 0, #slackBotToken, token);
+    await WeeklyReconciliationRunner.run(
+      testSecretsKeyCache,
+      testSecretsMap,
       slackUsers,
       testWorkspacesState,
     );
   };
 
   // ============================================
+  // Timer Runner Test Methods
+  // ============================================
+
+  /// Run the clear-key-cache runner and apply the result to testKeyCache.
+  /// Returns the cache size after the run.
+  public shared ({ caller }) func testClearKeyCacheRunner() : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    assert caller == parent;
+    switch (ClearKeyCacheRunner.run()) {
+      case (#ok(cache)) {
+        testKeyCache := cache;
+        #ok(KeyDerivationService.getCacheSize(testKeyCache));
+      };
+      case (#err(e)) { #err(e) };
+    };
+  };
+
+  /// Run the metric-retention runner against testMetricDatapoints/testMetricsRegistry.
+  /// Returns the number of remaining datapoint entries.
+  public shared ({ caller }) func testMetricRetentionRunner() : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    switch (MetricRetentionRunner.run(testMetricDatapoints, testMetricsRegistry)) {
+      case (#ok(_)) { #ok };
+      case (#err(e)) { #err(e) };
+    };
+  };
+
+  /// Run the processed-events-cleanup runner against testEventStore.
+  public shared ({ caller }) func testProcessedEventsCleanupRunner() : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    ProcessedEventsCleanupRunner.run(testEventStore);
+  };
+
+  /// Run the conversation-prune runner against testConversationStore.
+  public shared ({ caller }) func testConversationPruneRunner() : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    ConversationPruneRunner.run(testConversationStore);
+  };
+
+  /// Seed a message directly into testConversationStore for prune runner tests.
+  /// The ts string format must be "SECONDS.MICROSECONDS" (e.g. "1700000000.000001").
+  /// Pass null for threadTs to store as a top-level post.
+  public shared ({ caller }) func testSeedConversationMessage(
+    channelId : Text,
+    ts : Text,
+    threadTs : ?Text,
+  ) : async () {
+    assert caller == parent;
+    ConversationModel.addMessage(
+      testConversationStore,
+      channelId,
+      {
+        ts;
+        userAuthContext = null;
+        text = "test message";
+        agentMetadata = null;
+      },
+      threadTs,
+    );
+  };
+
+  /// Returns the number of top-level timeline entries for the given channel
+  /// in testConversationStore. Returns 0 if the channel does not exist.
+  public shared query ({ caller }) func testGetConversationEntryCount(channelId : Text) : async Nat {
+    assert caller == parent;
+    switch (Map.get(testConversationStore, Text.compare, channelId)) {
+      case (null) { 0 };
+      case (?ch) { Map.size(ch.timeline) };
+    };
+  };
+
+  // ============================================
   // Slack Adapter Test Methods
   // ============================================
 
-  public query func testSlackSignatureVerification(
+  public shared query ({ caller }) func testSlackSignatureVerification(
     signingSecret : Text,
     signature : Text,
     timestamp : Text,
     body : Text,
   ) : async Bool {
+    assert caller == parent;
     SlackAdapter.verifySignature(signingSecret, signature, timestamp, body);
   };
 
-  public query func testSlackTimestampVerification(timestamp : Text) : async Bool {
+  public shared query ({ caller }) func testSlackTimestampVerification(timestamp : Text) : async Bool {
+    assert caller == parent;
     SlackAdapter.verifyTimestamp(timestamp);
   };
 
@@ -956,7 +860,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // ============================================
 
   /// Returns the current number of entries in the persistent test key cache.
-  public query func testGetKeyCacheSize() : async Nat {
+  public shared query ({ caller }) func testGetKeyCacheSize() : async Nat {
+    assert caller == parent;
     KeyDerivationService.getCacheSize(testKeyCache);
   };
 
@@ -1187,5 +1092,524 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await GetLatestMetricDatapointHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
+  };
+
+  // ============================================
+  // Value Stream Handler Test Methods
+  // ============================================
+
+  /// Test the SaveValueStreamHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ id?, name, problem, goal, activate? }).
+  public shared ({ caller }) func testSaveValueStreamHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await SaveValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
+  };
+
+  /// Test the SavePlanHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, summary, currentState, targetState, steps, risks, resources }).
+  public shared ({ caller }) func testSavePlanHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await SavePlanHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
+  };
+
+  /// Test the ListValueStreamsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  public shared ({ caller }) func testListValueStreamsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListValueStreamsHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
+  };
+
+  /// Test the GetValueStreamHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
+  public shared ({ caller }) func testGetValueStreamHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
+  };
+
+  /// Test the DeleteValueStreamHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
+  public shared ({ caller }) func testDeleteValueStreamHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await DeleteValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, testWorkspaceObjectivesMap, args);
+  };
+
+  // ============================================
+  // Objective Handler Test Methods
+  //
+  // All objective handlers run against testWorkspaceObjectivesMap
+  // (workspace ID 0, shared with value-stream cleanup tests).
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Test the CreateObjectiveHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, name, objectiveType, metricIds, computation, targetType, ... }).
+  public shared ({ caller }) func testCreateObjectiveHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await CreateObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the ListObjectivesHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
+  public shared ({ caller }) func testListObjectivesHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListObjectivesHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the GetObjectiveHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
+  public shared ({ caller }) func testGetObjectiveHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the UpdateObjectiveHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, name?, description?, ... }).
+  public shared ({ caller }) func testUpdateObjectiveHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await UpdateObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the ArchiveObjectiveHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
+  public shared ({ caller }) func testArchiveObjectiveHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ArchiveObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the RecordObjectiveDatapointHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, value, ... }).
+  public shared ({ caller }) func testRecordObjectiveDatapointHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await RecordObjectiveDatapointHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the GetObjectiveHistoryHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
+  public shared ({ caller }) func testGetObjectiveHistoryHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetObjectiveHistoryHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the AddObjectiveDatapointCommentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, historyIndex, message, author? }).
+  public shared ({ caller }) func testAddObjectiveDatapointCommentHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await AddObjectiveDatapointCommentHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the AddImpactReviewHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, perceivedImpact, comment?, author? }).
+  public shared ({ caller }) func testAddImpactReviewHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await AddImpactReviewHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  /// Test the GetImpactReviewsHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
+  public shared ({ caller }) func testGetImpactReviewsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetImpactReviewsHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
+  };
+
+  // ============================================
+  // Agent Handler Test Methods
+  //
+  // All agent handlers run against testAgentRegistry (starts empty).
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Build a UserAuthContext for agent handler tests.
+  private func agentHandlerUac(isPrimaryOwner : Bool, isOrgAdmin : Bool) : SlackAuthMiddleware.UserAuthContext {
+    {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner;
+      isOrgAdmin;
+      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+  };
+
+  /// Test the RegisterAgentHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ name, category, llmModel?, secretsAllowed?, toolsDisallowed?, sources? }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Agents registered here persist for the lifetime of this PocketIC canister
+  /// so subsequent calls to testListAgentsHandler / testGetAgentHandler see them.
+  public shared ({ caller }) func testRegisterAgentHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the ListAgentsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  public shared ({ caller }) func testListAgentsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListAgentsHandler.handle(testAgentRegistry, args);
+  };
+
+  /// Test the GetAgentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ id } or { name }).
+  public shared ({ caller }) func testGetAgentHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await GetAgentHandler.handle(testAgentRegistry, args);
+  };
+
+  /// Test the UpdateAgentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ id, name?, category?, llmModel?, secretsAllowed?, toolsDisallowed?, sources? }).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testUpdateAgentHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await UpdateAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the UnregisterAgentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ id }).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testUnregisterAgentHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await UnregisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  // ============================================
+  // MCP Tool Handler Test Methods
+  //
+  // All MCP handlers run against testMcpToolRegistry (starts empty).
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Test the RegisterMcpToolHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ name, serverId, description?, parameters?, remoteName? }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Tools registered here persist for the lifetime of this PocketIC canister
+  /// so subsequent calls to testListMcpToolsHandler see them.
+  public shared ({ caller }) func testRegisterMcpToolHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await RegisterMcpToolHandler.handle(testMcpToolRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the UnregisterMcpToolHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ name }).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testUnregisterMcpToolHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await UnregisterMcpToolHandler.handle(testMcpToolRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the ListMcpToolsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  public shared ({ caller }) func testListMcpToolsHandler(
+    args : Text
+  ) : async Text {
+    assert caller == parent;
+    await ListMcpToolsHandler.handle(testMcpToolRegistry, args);
+  };
+
+  // ============================================
+  // Secrets Handler Test Methods
+  //
+  // All secrets handlers run against testSecretsMap (starts empty).
+  // testSecretsKeyCache is pre-seeded with the all-zeros dummy key for
+  // workspaces 0, 1, and 2, avoiding live Schnorr calls.
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Test the StoreSecretHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId, secretId, secretValue }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Secrets stored here persist for the lifetime of this PocketIC canister
+  /// so subsequent calls to testGetWorkspaceSecretsHandler see them.
+  public shared ({ caller }) func testStoreSecretHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await StoreSecretHandler.handle(testSecretsMap, testSecretsKeyCache, testWorkspacesState, uac, args);
+  };
+
+  /// Test the GetWorkspaceSecretsHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId }).
+  /// @param auth  Simplified auth context.
+  public shared ({ caller }) func testGetWorkspaceSecretsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, args);
+  };
+
+  /// Test the DeleteSecretHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId, secretId }).
+  /// @param auth  Simplified auth context.
+  public shared ({ caller }) func testDeleteSecretHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      workspaceScopes;
+      roundCount = 0;
+      forceTerminated = false;
+      parentRef = null;
+    };
+    await DeleteSecretHandler.handle(testSecretsMap, uac, args);
+  };
+
+  // ============================================
+  // Event Store Handler Test Methods
+  //
+  // All event store handlers run against testEventStore (starts empty).
+  // Use testSeedFailedEvent to inject a failed event before calling the handlers.
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Seed a failed event into testEventStore for handler tests.
+  /// Enqueues a minimal event then immediately marks it as failed with the given error.
+  public shared ({ caller }) func testSeedFailedEvent(
+    eventId : Text,
+    errorMsg : Text,
+  ) : async () {
+    assert caller == parent;
+    let event : NormalizedEventTypes.Event = {
+      source = #slack;
+      idempotencyKey = eventId;
+      eventId = "slack_" # eventId;
+      timestamp = 0;
+      payload = #message({
+        user = "U_TEST";
+        text = "test";
+        channel = "C_TEST";
+        ts = "1700000000.000001";
+        threadTs = null;
+        isBotMessage = false;
+        agentMetadata = null;
+      });
+      enqueuedAt = 0;
+      claimedAt = null;
+      processedAt = null;
+      failedAt = null;
+      failedError = "";
+      processingLog = [];
+    };
+    ignore EventStoreModel.enqueue(testEventStore, event);
+    EventStoreModel.markFailed(testEventStore, "slack_" # eventId, errorMsg);
+  };
+
+  /// Seed a processed event into testEventStore for cleanup runner tests.
+  /// Enqueues a minimal event then immediately marks it as processed.
+  /// The processedAt timestamp is stamped with Time.now() inside EventStoreModel,
+  /// so call this while pic.setTime() is set to the desired past/present time.
+  public shared ({ caller }) func testSeedProcessedEvent(eventId : Text) : async () {
+    assert caller == parent;
+    let event : NormalizedEventTypes.Event = {
+      source = #slack;
+      idempotencyKey = eventId;
+      eventId = "slack_" # eventId;
+      timestamp = 0;
+      payload = #message({
+        user = "U_TEST";
+        text = "test";
+        channel = "C_TEST";
+        ts = "1700000000.000001";
+        threadTs = null;
+        isBotMessage = false;
+        agentMetadata = null;
+      });
+      enqueuedAt = 0;
+      claimedAt = null;
+      processedAt = null;
+      failedAt = null;
+      failedError = "";
+      processingLog = [];
+    };
+    ignore EventStoreModel.enqueue(testEventStore, event);
+    EventStoreModel.markProcessed(testEventStore, "slack_" # eventId, []);
+  };
+
+  /// Test the GetEventStoreStatsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testGetEventStoreStatsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await GetEventStoreStatsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the GetFailedEventsHandler in isolation.
+  /// @param args JSON-encoded tool arguments (unused by this handler).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testGetFailedEventsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await GetFailedEventsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the DeleteFailedEventsHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ eventId? }).
+  /// @param auth Simplified auth context.
+  public shared ({ caller }) func testDeleteFailedEventsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await DeleteFailedEventsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the SlackEventIntakeService in isolation.
+  /// Parses the raw JSON body, normalizes and enqueues the event into testEventStore.
+  /// Returns a plain-text discriminant:
+  ///   "enqueued:<eventId>" — event was normalized and stored
+  ///   "duplicate"          — event already present in the store
+  ///   "skipped:<reason>"   — event was recognized but intentionally dropped
+  ///   "notEventCallback"   — envelope is not an event_callback
+  ///   "parseError:<msg>"   — JSON parsing or validation failed
+  public shared ({ caller }) func testSlackEventIntakeService(body : Text) : async Text {
+    assert caller == parent;
+    switch (SlackEventIntakeService.processEventBody(testEventStore, body)) {
+      case (#enqueued(eventId)) { "enqueued:" # eventId };
+      case (#duplicate) { "duplicate" };
+      case (#skipped(reason)) { "skipped:" # reason };
+      case (#notEventCallback) { "notEventCallback" };
+      case (#parseError(msg)) { "parseError:" # msg };
+    };
   };
 };

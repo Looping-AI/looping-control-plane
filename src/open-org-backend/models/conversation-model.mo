@@ -531,7 +531,7 @@ module {
       case (?ch) {
         // Collect root ts values to drop (can't mutate while iterating).
         // Use List instead of Array to avoid O(n²) cost from repeated Array.concat.
-        var toRemove : List.List<Text> = List.empty<Text>();
+        let toRemove : List.List<Text> = List.empty<Text>();
         for ((rootTs, entry) in Map.entries(ch.timeline)) {
           switch (entry) {
             case (#post msg) {

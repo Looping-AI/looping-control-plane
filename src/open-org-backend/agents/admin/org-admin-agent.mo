@@ -17,6 +17,9 @@ import ToolTypes "../../tools/tool-types";
 import AgentHelpers "../helpers";
 import WorkspaceModel "../../models/workspace-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
+import SecretModel "../../models/secret-model";
+import KeyDerivationService "../../services/key-derivation-service";
+import EventStoreModel "../../models/event-store-model";
 
 module {
 
@@ -29,12 +32,20 @@ module {
   /// All org-admin data the org-admin agent needs at execution time.
   /// Carries the full workspace state so the agent can list, create,
   /// and configure workspaces and their channel anchors.
+  /// Also carries the agent registry so the agent can register and manage agents.
   public type AdminCtx = {
     workspaces : WorkspaceModel.WorkspacesState;
+    agentRegistry : AgentModel.AgentRegistryState;
     // Slack bot token — used to verify channel existence before anchoring
     slackBotToken : ?Text;
     // Resolved Slack user identity — used for authorization checks in write tools
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
+    // Encrypted secrets store — used by secrets-management tools
+    secrets : SecretModel.SecretsMap;
+    // Key derivation cache — passed to StoreSecretHandler for encryption
+    keyCache : KeyDerivationService.KeyCache;
+    // Event store — used by event queue management tools
+    eventStore : EventStoreModel.EventStoreState;
   };
 
   /// ProcessResult mirrors the WorkPlanningAgent return type so the orchestrator
@@ -65,7 +76,7 @@ module {
     message : Text,
     apiKey : Text,
   ) : async ProcessResult {
-    var steps : List.List<Types.ProcessingStep> = List.empty();
+    let steps : List.List<Types.ProcessingStep> = List.empty();
 
     // Derive model text from the agent's llmModel — not a caller-supplied param
     let modelText = AgentModel.llmModelToText(agent.llmModel);
@@ -73,7 +84,7 @@ module {
     // Build instructions driven by agent configuration
     let instructions = buildInstructions(agent);
 
-    // Build tool resources — only workspace-management tools for this agent
+    // Build tool resources — workspace-management, agent registry, and MCP tool management
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = null; // org-admin tools operate on entire WorkspacesState, not a single workspace
       groqApiKey = ?apiKey;
@@ -84,6 +95,23 @@ module {
       objectives = null;
       workspaces = ?{
         state = ctx.workspaces;
+        write = true;
+      };
+      agentRegistry = ?{
+        state = ctx.agentRegistry;
+        write = true;
+      };
+      mcpToolRegistry = ?{
+        state = mcpToolRegistry;
+        write = true;
+      };
+      secrets = ?{
+        map = ctx.secrets;
+        keyCache = ctx.keyCache;
+        write = true;
+      };
+      eventStore = ?{
+        state = ctx.eventStore;
         write = true;
       };
     };
