@@ -160,7 +160,9 @@ module {
             };
           };
           case (null) { 0 }; // default to org workspace (0)
-          case _ { return Helpers.buildErrorResponse("workspaceId must be a number") };
+          case _ {
+            return Helpers.buildErrorResponse("workspaceId must be a number");
+          };
         };
 
         let executionType = switch (Json.get(json, "executionType")) {
@@ -176,7 +178,10 @@ module {
           };
           case (null) {
             // default for new user-created agents
-            #runtime { hosting = #codespace; framework = #openClaw { deployedVersion = null } };
+            #runtime {
+              hosting = #codespace;
+              framework = #openClaw { deployedVersion = null };
+            };
           };
         };
 

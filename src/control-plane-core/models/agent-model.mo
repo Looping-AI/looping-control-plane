@@ -33,7 +33,7 @@ module {
   /// The execution type of an agent — determines whether work is done inside the
   /// canister or delegated to a remote runtime.
   public type AgentExecutionType = {
-    #api;                          // In-canister LLM loop; calls OpenRouter directly
+    #api; // In-canister LLM loop; calls OpenRouter directly
     #runtime : RuntimeAgentConfig; // Delegated to a remote runtime environment
   };
 
@@ -409,7 +409,10 @@ module {
           targetWorkspaceId,
           original.category,
           original.llmModel,
-          switch (executionType) { case (?et) et; case null original.executionType },
+          switch (executionType) {
+            case (?et) et;
+            case null original.executionType;
+          },
           secretsAllowed,
           original.toolsDisallowed,
           [], // toolsMisconfigured resets — these are workspace-specific operator errors
