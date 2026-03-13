@@ -1,6 +1,6 @@
-# bot-agent-testing
+# looping-control-plane
 
-Testing repo for learning more about bot and AI agents.
+The Looping AI Control Plane — an ICP canister that acts as the agentic control layer for the Looping AI platform.
 
 Link for backend with Internet Identity login button working: http://127.0.0.1:4943/?canisterId=uzt4z-lp777-77774-qaabq-cai&id=uxrrr-q7777-77774-qaaaq-cai&ii=http://u6s2n-gx777-77774-qaaba-cai.localhost:4943/
 

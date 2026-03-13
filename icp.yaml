@@ -1,18 +1,18 @@
 # yaml-language-server: $schema=http://raw.githubusercontent.com/dfinity/icp-cli/refs/tags/v0.2.0/docs/schemas/icp-yaml-schema.json
 
 canisters:
-  - name: open-org-backend
+  - name: control-plane-core
     recipe:
       type: "@dfinity/motoko@v4.1.0"
       configuration:
-        main: src/open-org-backend/main.mo
+        main: src/control-plane-core/main.mo
         args: ""
 
   - name: test-canister
     recipe:
       type: "@dfinity/motoko@v4.1.0"
       configuration:
-        main: tests/unit-tests/open-org-backend/test-canister.mo
+        main: tests/unit-tests/control-plane-core/test-canister.mo
         args: ""
 
 networks:
@@ -23,7 +23,7 @@ networks:
 environments:
   - name: local
     network: local
-    canisters: [open-org-backend]
+    canisters: [control-plane-core]
 
   - name: test
     network: local
