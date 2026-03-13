@@ -65,6 +65,36 @@ module {
     ?List.toArray(buffer);
   };
 
+  private func parseExecutionType(json : Json.Json) : ?AgentModel.AgentExecutionType {
+    let typeStr = switch (Json.get(json, "type")) {
+      case (?#string(s)) { s };
+      case _ { return null };
+    };
+    switch (typeStr) {
+      case ("api") { ?#api };
+      case ("runtime") {
+        let hostingStr = switch (Json.get(json, "hosting")) {
+          case (?#string(s)) { s };
+          case _ { return null };
+        };
+        let frameworkStr = switch (Json.get(json, "framework")) {
+          case (?#string(s)) { s };
+          case _ { return null };
+        };
+        switch (hostingStr, frameworkStr) {
+          case ("codespace", "openClaw") {
+            ?#runtime {
+              hosting = #codespace;
+              framework = #openClaw { deployedVersion = null };
+            };
+          };
+          case _ { null };
+        };
+      };
+      case _ { null };
+    };
+  };
+
   public func handle(
     state : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
@@ -195,12 +225,27 @@ module {
           };
         };
 
+        let newExecutionType = switch (Json.get(json, "executionType")) {
+          case (?etJson) {
+            switch (parseExecutionType(etJson)) {
+              case (?et) { ?et };
+              case null {
+                return Helpers.buildErrorResponse(
+                  "Invalid executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
+                );
+              };
+            };
+          };
+          case (null) { null };
+        };
+
         switch (
           AgentModel.updateById(
             id,
             newName,
             newCategory,
             newLlmModel,
+            newExecutionType,
             newSecretsAllowed,
             newToolsDisallowed,
             newToolsMisconfigured,

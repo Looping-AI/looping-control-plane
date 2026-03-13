@@ -117,8 +117,10 @@ module {
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
       "unit-test-admin",
+      0,
       #admin,
       #groq(#gpt_oss_120b),
+      #api,
       [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
       [],
       [],
@@ -166,8 +168,10 @@ module {
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
       "unit-test-admin",
+      0,
       #admin,
       #groq(#gpt_oss_120b),
+      #api,
       [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
       [],
       [],
@@ -215,8 +219,10 @@ module {
     // Admin agent (same as ctxWithSecrets)
     ignore AgentModel.register(
       "unit-test-admin",
+      0,
       #admin,
       #groq(#gpt_oss_120b),
+      #api,
       [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
       [],
       [],
@@ -228,8 +234,10 @@ module {
     // without making any HTTP calls, so a dummy secret entry is sufficient.
     ignore AgentModel.register(
       "unit-test-research",
+      0,
       #research,
       #groq(#gpt_oss_120b),
+      #api,
       [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
       [],
       [],
@@ -276,8 +284,10 @@ module {
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
       "unit-test-admin",
+      0,
       #admin,
       #groq(#gpt_oss_120b),
+      #api,
       [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
       [],
       [],
@@ -287,8 +297,10 @@ module {
     );
     ignore AgentModel.register(
       "unit-test-research",
+      0,
       #research,
       #groq(#gpt_oss_120b),
+      #api,
       [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
       [],
       [],

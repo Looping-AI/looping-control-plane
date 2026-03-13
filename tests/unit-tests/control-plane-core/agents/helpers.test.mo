@@ -19,8 +19,10 @@ func makeAgent(
   {
     id = 0;
     name;
+    workspaceId = 0;
     category;
     llmModel = #groq(#gpt_oss_120b);
+    executionType = #api;
     secretsAllowed = [];
     toolsDisallowed;
     toolsMisconfigured;

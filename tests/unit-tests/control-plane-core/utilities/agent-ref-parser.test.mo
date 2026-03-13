@@ -16,8 +16,10 @@ func registerSimple(
   switch (
     AgentModel.register(
       name,
+      0,
       #admin,
       #groq(#gpt_oss_120b),
+      #api,
       [],
       [],
       [],

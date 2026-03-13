@@ -44,8 +44,10 @@ func isNoneRecord(x : ?AgentModel.AgentRecord) : Bool {
 func registerSimple(state : AgentModel.AgentRegistryState, name : Text, category : AgentModel.AgentCategory) : Result.Result<Nat, Text> {
   AgentModel.register(
     name,
+    0,
     category,
     #groq(#gpt_oss_120b),
+    #api,
     [],
     [],
     [],
@@ -183,8 +185,10 @@ suite(
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           "info-bot",
+          0,
           #research,
           #groq(#gpt_oss_120b),
+          #api,
           [],
           ["web_search"],
           [],
@@ -295,6 +299,7 @@ suite(
           null,
           null,
           null,
+          null,
           state,
         );
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
@@ -320,7 +325,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentModel.updateById(id, null, ?#research, null, null, null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, ?#research, null, null, null, null, null, null, null, state);
 
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
@@ -339,7 +344,7 @@ suite(
         };
 
         // Update name to new-bot
-        let result = AgentModel.updateById(id, ?"new-bot", null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"new-bot", null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Old name should no longer resolve
@@ -370,7 +375,7 @@ suite(
         ignore registerSimple(state, "bot-two", #research);
 
         // Try to rename bot-one to bot-two (which already exists)
-        let result = AgentModel.updateById(id1, ?"bot-two", null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id1, ?"bot-two", null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // bot-one should still have its original name
@@ -391,7 +396,7 @@ suite(
         };
 
         // Update with the same name (case variation)
-        let result = AgentModel.updateById(id, ?"BOT", null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"BOT", null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Lookup should still work
@@ -409,7 +414,7 @@ suite(
         };
 
         // Try to update with invalid name (starting with digit)
-        let result = AgentModel.updateById(id, ?"1invalid", null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"1invalid", null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // Original name should still be intact
@@ -424,7 +429,7 @@ suite(
       "returns error for non-existent agent",
       func() {
         let state = AgentModel.emptyState();
-        let result = AgentModel.updateById(999, null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(999, null, null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
       },
     );
@@ -515,8 +520,10 @@ suite(
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           "secure-bot",
+          0,
           #admin,
           #groq(#gpt_oss_120b),
+          #api,
           [(1, #groqApiKey), (2, #openaiApiKey)],
           [],
           [],
@@ -543,7 +550,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        let result = AgentModel.updateById(id, null, null, null, ?[(0, #groqApiKey)], null, null, null, null, state);
+        let result = AgentModel.updateById(id, null, null, null, null, ?[(0, #groqApiKey)], null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         switch (AgentModel.lookupById(id, state)) {
@@ -561,8 +568,10 @@ suite(
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           "bot",
+          0,
           #admin,
           #groq(#gpt_oss_120b),
+          #api,
           [(1, #groqApiKey)],
           [],
           [],
@@ -572,7 +581,7 @@ suite(
         );
         let id = 0;
 
-        ignore AgentModel.updateById(id, null, null, null, ?[], null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, null, null, null, ?[], null, null, null, null, state);
 
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };

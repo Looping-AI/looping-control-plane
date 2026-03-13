@@ -68,6 +68,36 @@ module {
     ?List.toArray(buffer);
   };
 
+  private func parseExecutionType(json : Json.Json) : ?AgentModel.AgentExecutionType {
+    let typeStr = switch (Json.get(json, "type")) {
+      case (?#string(s)) { s };
+      case _ { return null };
+    };
+    switch (typeStr) {
+      case ("api") { ?#api };
+      case ("runtime") {
+        let hostingStr = switch (Json.get(json, "hosting")) {
+          case (?#string(s)) { s };
+          case _ { return null };
+        };
+        let frameworkStr = switch (Json.get(json, "framework")) {
+          case (?#string(s)) { s };
+          case _ { return null };
+        };
+        switch (hostingStr, frameworkStr) {
+          case ("codespace", "openClaw") {
+            ?#runtime {
+              hosting = #codespace;
+              framework = #openClaw { deployedVersion = null };
+            };
+          };
+          case _ { null };
+        };
+      };
+      case _ { null };
+    };
+  };
+
   public func handle(
     state : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
@@ -121,6 +151,33 @@ module {
           };
           case (null) { #groq(#gpt_oss_120b) };
           case _ { return Helpers.buildErrorResponse("Invalid llmModel field") };
+        };
+
+        let workspaceId = switch (Json.get(json, "workspaceId")) {
+          case (?#number(#int n)) {
+            if (n >= 0) { Int.abs(n) } else {
+              return Helpers.buildErrorResponse("workspaceId must be a non-negative integer");
+            };
+          };
+          case (null) { 0 }; // default to org workspace (0)
+          case _ { return Helpers.buildErrorResponse("workspaceId must be a number") };
+        };
+
+        let executionType = switch (Json.get(json, "executionType")) {
+          case (?etJson) {
+            switch (parseExecutionType(etJson)) {
+              case (?et) { et };
+              case null {
+                return Helpers.buildErrorResponse(
+                  "Invalid executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
+                );
+              };
+            };
+          };
+          case (null) {
+            // default for new user-created agents
+            #runtime { hosting = #codespace; framework = #openClaw { deployedVersion = null } };
+          };
         };
 
         let secretsAllowed = switch (Json.get(json, "secretsAllowed")) {
@@ -188,8 +245,10 @@ module {
         switch (
           AgentModel.register(
             name,
+            workspaceId,
             category,
             llmModel,
+            executionType,
             secretsAllowed,
             toolsDisallowed,
             toolsMisconfigured,

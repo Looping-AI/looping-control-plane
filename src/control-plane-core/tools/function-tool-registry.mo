@@ -39,6 +39,7 @@ import RegisterAgentHandler "./handlers/agents/register-agent-handler";
 import ListAgentsHandler "./handlers/agents/list-agents-handler";
 import GetAgentHandler "./handlers/agents/get-agent-handler";
 import UpdateAgentHandler "./handlers/agents/update-agent-handler";
+import ForkAgentHandler "./handlers/agents/fork-agent-handler";
 import UnregisterAgentHandler "./handlers/agents/unregister-agent-handler";
 import RegisterMcpToolHandler "./handlers/mcp/register-mcp-tool-handler";
 import UnregisterMcpToolHandler "./handlers/mcp/unregister-mcp-tool-handler";
@@ -204,6 +205,7 @@ module {
             if (ar.write) {
               List.add(tools, registerAgentTool(ar.state, uac));
               List.add(tools, updateAgentTool(ar.state, uac));
+              List.add(tools, forkAgentTool(ar.state, uac));
               List.add(tools, unregisterAgentTool(ar.state, uac));
             };
           };
@@ -904,6 +906,26 @@ module {
       };
       handler = func(args : Text) : async Text {
         await UpdateAgentHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Fork agent tool — requires agentRegistry resource with write + user identity
+  private func forkAgentTool(
+    state : AgentModel.AgentRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "fork_agent";
+          description = ?"Forks an existing agent into a new workspace. Inherits category, llmModel, toolsDisallowed, toolsState.knowHow, and sources. Resets usageCount and toolsMisconfigured. Secrets are workspace-scoped and must be provided explicitly for the new workspace.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"originalId\":{\"type\":\"number\",\"description\":\"ID of the agent to fork from.\"},\"newName\":{\"type\":\"string\",\"description\":\"Name for the new agent (kebab-case).\"},\"targetWorkspaceId\":{\"type\":\"number\",\"description\":\"Workspace that will own the new agent.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets for the new workspace. Omit for none.\"},\"executionType\":{\"type\":\"object\",\"description\":\"Override execution type. Omit to inherit from original.\"}},\"required\":[\"originalId\",\"newName\",\"targetWorkspaceId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ForkAgentHandler.handle(state, uac, args);
       };
     };
   };

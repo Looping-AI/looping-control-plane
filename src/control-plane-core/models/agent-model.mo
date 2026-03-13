@@ -30,6 +30,35 @@ module {
     #groq : GroqModel;
   };
 
+  /// The execution type of an agent — determines whether work is done inside the
+  /// canister or delegated to a remote runtime.
+  public type AgentExecutionType = {
+    #api;                          // In-canister LLM loop; calls OpenRouter directly
+    #runtime : RuntimeAgentConfig; // Delegated to a remote runtime environment
+  };
+
+  /// Configuration for an agent that runs in a remote runtime.
+  /// Combines a hosting choice (where the runtime runs) with a framework
+  /// choice (which agent framework drives execution).
+  public type RuntimeAgentConfig = {
+    hosting : HostingConfig;
+    framework : AgentFrameworkConfig;
+  };
+
+  /// Where the runtime environment is hosted.
+  /// Only #codespace is supported in v0.3; the workspace's linked codespace
+  /// (from codespace-model.mo) is resolved via the agent's workspaceId.
+  public type HostingConfig = {
+    #codespace; // extensible: future hosting solutions added here
+  };
+
+  /// Which agent framework drives execution inside the runtime.
+  /// deployedVersion is null until the sidecar health check runs at deploy time
+  /// (Phase C.1). Pinned after that until an explicit admin upgrade.
+  public type AgentFrameworkConfig = {
+    #openClaw : { deployedVersion : ?Text }; // extensible: future frameworks added here
+  };
+
   /// Per-tool runtime state: how many times the tool has been invoked and
   /// any accumulated operational knowledge the agent has built up about it.
   public type ToolState = {
@@ -42,8 +71,11 @@ module {
   /// Fields:
   ///   id              — stable unique identifier (assigned by the registry).
   ///   name            — kebab-case identifier, must be unique and match the `::name` syntax.
+  ///   workspaceId     — the workspace that owns this agent. Immutable after creation.
+  ///                     Agents owned by workspace 0 are org-wide (e.g. workspace-admin).
   ///   category        — determines the available tool catalogue and prompt strategy.
   ///   llmModel        — provider and model variant (e.g. #groq(#gpt_oss_120b)).
+  ///   executionType   — #api runs in-canister; #runtime delegates to a remote environment.
   ///   secretsAllowed  — explicit whitelist of (workspaceId, SecretId) pairs this agent may access.
   ///   toolsDisallowed — blocklist of tool names to exclude from LLM tool set (by function name).
   ///   toolsMisconfigured — tools excluded due to operator errors; cleared after investigation.
@@ -52,8 +84,10 @@ module {
   public type AgentRecord = {
     id : Nat;
     name : Text;
+    workspaceId : Nat;
     category : AgentCategory;
     llmModel : LlmModel;
+    executionType : AgentExecutionType;
     secretsAllowed : [(Nat, Types.SecretId)];
     toolsDisallowed : [Text];
     toolsMisconfigured : [Text];
@@ -168,8 +202,10 @@ module {
   /// The name is lower-cased before storage so that lookups are case-insensitive.
   public func register(
     name : Text,
+    workspaceId : Nat,
     category : AgentCategory,
     llmModel : LlmModel,
+    executionType : AgentExecutionType,
     secretsAllowed : [(Nat, Types.SecretId)],
     toolsDisallowed : [Text],
     toolsMisconfigured : [Text],
@@ -191,8 +227,10 @@ module {
     let record : AgentRecord = {
       id;
       name = normalized;
+      workspaceId;
       category;
       llmModel;
+      executionType;
       secretsAllowed;
       toolsDisallowed;
       toolsMisconfigured;
@@ -230,6 +268,7 @@ module {
     newName : ?Text,
     newCategory : ?AgentCategory,
     newLlmModel : ?LlmModel,
+    newExecutionType : ?AgentExecutionType,
     newSecretsAllowed : ?[(Nat, Types.SecretId)],
     newToolsDisallowed : ?[Text],
     newToolsMisconfigured : ?[Text],
@@ -263,6 +302,7 @@ module {
         let updated : AgentRecord = {
           id = existing.id;
           name = finalName;
+          workspaceId = existing.workspaceId; // immutable — ownership cannot be transferred
           category = switch (newCategory) {
             case (null) { existing.category };
             case (?c) { c };
@@ -270,6 +310,10 @@ module {
           llmModel = switch (newLlmModel) {
             case (null) { existing.llmModel };
             case (?m) { m };
+          };
+          executionType = switch (newExecutionType) {
+            case (null) { existing.executionType };
+            case (?et) { et };
           };
           secretsAllowed = switch (newSecretsAllowed) {
             case (null) { existing.secretsAllowed };
@@ -329,6 +373,54 @@ module {
     };
   };
 
+  /// Fork an existing agent into a new workspace.
+  ///
+  /// Creates a new agent record inheriting the strategic configuration of the
+  /// original (category, llmModel, toolsDisallowed, toolsState.knowHow, sources)
+  /// while resetting workspace-specific state:
+  ///   - toolsState.usageCount resets to 0 (metrics are workspace-specific).
+  ///   - toolsMisconfigured resets to [] (operator errors are workspace-specific).
+  ///
+  /// The caller provides the new name, target workspace, secrets (old secrets are
+  /// workspace-scoped and not portable), and optionally an execution type override.
+  /// If executionType is null, the original's execution type is inherited.
+  ///
+  /// Note: `state` is the first parameter — follow this convention for all new model functions.
+  public func forkAgent(
+    state : AgentRegistryState,
+    originalId : Nat,
+    newName : Text,
+    targetWorkspaceId : Nat,
+    secretsAllowed : [(Nat, Types.SecretId)],
+    executionType : ?AgentExecutionType,
+  ) : Result.Result<Nat, Text> {
+    switch (Map.get(state.agentsById, Nat.compare, originalId)) {
+      case (null) {
+        #err("Agent with ID " # Nat.toText(originalId) # " not found.");
+      };
+      case (?original) {
+        // Carry over knowHow per tool; reset usageCount (workspace-specific metrics).
+        let forkedToolsState = Map.empty<Text, ToolState>();
+        for ((toolName, ts) in Map.entries(original.toolsState)) {
+          Map.add(forkedToolsState, Text.compare, toolName, { usageCount = 0; knowHow = ts.knowHow });
+        };
+        register(
+          newName,
+          targetWorkspaceId,
+          original.category,
+          original.llmModel,
+          switch (executionType) { case (?et) et; case null original.executionType },
+          secretsAllowed,
+          original.toolsDisallowed,
+          [], // toolsMisconfigured resets — these are workspace-specific operator errors
+          forkedToolsState,
+          original.sources,
+          state,
+        );
+      };
+    };
+  };
+
   /// Unregister an agent by ID.
   /// Returns `#err` if the agent is not found.
   public func unregisterById(id : Nat, state : AgentRegistryState) : Result.Result<Bool, Text> {
@@ -382,8 +474,10 @@ module {
     let state = emptyState();
     ignore register(
       "workspace-admin",
+      0, // owned by workspace 0 — org-wide agent
       #admin,
       #groq(#gpt_oss_120b),
+      #api, // in-canister LLM loop
       [(0, #groqApiKey), (0, #slackBotToken)],
       [],
       [],
@@ -428,8 +522,10 @@ module {
   public type AgentRecordView = {
     id : Nat;
     name : Text;
+    workspaceId : Nat;
     category : AgentCategory;
     llmModel : LlmModel;
+    executionType : AgentExecutionType;
     secretsAllowed : [(Nat, Types.SecretId)];
     toolsDisallowed : [Text];
     toolsMisconfigured : [Text];
@@ -442,8 +538,10 @@ module {
     {
       id = record.id;
       name = record.name;
+      workspaceId = record.workspaceId;
       category = record.category;
       llmModel = record.llmModel;
+      executionType = record.executionType;
       secretsAllowed = record.secretsAllowed;
       toolsDisallowed = record.toolsDisallowed;
       toolsMisconfigured = record.toolsMisconfigured;
