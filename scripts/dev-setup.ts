@@ -5,7 +5,7 @@
  *
  * This script automates the local ICP development environment setup:
  * 1. Checks that the local dfx network is running (requires: bun run dev:start)
- * 2. Deploys canisters (open-org-backend and internet_identity)
+ * 2. Deploys canisters (control-plane-core and internet_identity)
  * 3. Seeds the canister with necessary secrets (Groq API key, Slack credentials)
  * 4. Prints the Candid UI link for easy access
  *
@@ -141,9 +141,9 @@ function checkDfxNetwork(): void {
 async function deployCanisters(): Promise<void> {
   logStep(2, "Deploying canisters...");
 
-  log("Deploying open-org-backend...", colors.blue);
-  await execCommand("dfx", ["deploy", "open-org-backend"]);
-  logSuccess("open-org-backend deployed");
+  log("Deploying control-plane-core...", colors.blue);
+  await execCommand("dfx", ["deploy", "control-plane-core"]);
+  logSuccess("control-plane-core deployed");
 
   log("Deploying internet_identity...", colors.blue);
   await execCommand("dfx", ["deploy", "internet_identity"]);
@@ -160,7 +160,7 @@ async function storeSecret(
   const output = await execCommand("dfx", [
     "canister",
     "call",
-    "open-org-backend",
+    "control-plane-core",
     "storeOrgCriticalSecrets",
     `(variant { ${secretType} }, "${secretValue}")`,
   ]);
@@ -203,7 +203,7 @@ async function printCandidUILink(): Promise<void> {
 
   try {
     const backendId = (
-      await execCommand("dfx", ["canister", "id", "open-org-backend"])
+      await execCommand("dfx", ["canister", "id", "control-plane-core"])
     ).trim();
     const internetIdentityId = (
       await execCommand("dfx", ["canister", "id", "internet_identity"])
@@ -235,7 +235,7 @@ async function printCandidUILink(): Promise<void> {
 
     log("\n" + "=".repeat(80), colors.bright);
     log("\nCanister IDs:", colors.bright);
-    log(`  open-org-backend:    ${backendId}`, colors.blue);
+    log(`  control-plane-core:  ${backendId}`, colors.blue);
     log(`  internet_identity:   ${internetIdentityId}`, colors.blue);
     log(`  __Candid_UI:         ${candidUiId}`, colors.blue);
     log("=".repeat(80) + "\n", colors.bright);

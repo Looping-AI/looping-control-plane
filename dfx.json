@@ -11,8 +11,8 @@
         }
       }
     },
-    "open-org-backend": {
-      "main": "src/open-org-backend/main.mo",
+    "control-plane-core": {
+      "main": "src/control-plane-core/main.mo",
       "type": "motoko"
     }
   },

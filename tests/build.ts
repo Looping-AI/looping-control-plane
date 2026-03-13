@@ -5,7 +5,7 @@ import { join, relative } from "path";
 
 /**
  * Build script for Motoko files
- * Compiles test-canister.mo and open-org-backend.mo using mops toolchain and generates Candid interfaces
+ * Compiles test-canister.mo and control-plane-core.mo using mops toolchain and generates Candid interfaces
  */
 
 // Configuration for different build targets
@@ -16,15 +16,15 @@ const BUILD_TARGETS = {
       process.cwd(),
       "tests",
       "unit-tests",
-      "open-org-backend",
+      "control-plane-core",
       "test-canister.mo",
     ),
     outputPrefix: "test-canister",
   },
-  "open-org-backend": {
-    name: "open-org-backend canister",
-    sourceFile: join(process.cwd(), "src", "open-org-backend", "main.mo"),
-    outputPrefix: "open-org-backend",
+  "control-plane-core": {
+    name: "control-plane-core canister",
+    sourceFile: join(process.cwd(), "src", "control-plane-core", "main.mo"),
+    outputPrefix: "control-plane-core",
   },
 } as const;
 
@@ -150,12 +150,12 @@ async function buildTarget(target: keyof typeof BUILD_TARGETS) {
 
 // Public API functions for backward compatibility
 export const buildTestCanister = () => compileToWasm("test");
-export const buildOpenOrgBackendCanister = () =>
-  compileToWasm("open-org-backend");
+export const buildControlPlaneCoreCanister = () =>
+  compileToWasm("control-plane-core");
 export const generateTestCandidInterface = () =>
   generateCandidInterface("test");
-export const generateOpenOrgBackendCandidInterface = () =>
-  generateCandidInterface("open-org-backend");
+export const generateControlPlaneCoreCandidInterface = () =>
+  generateCandidInterface("control-plane-core");
 
 /**
  * Complete build process: compiles both test and main canisters and generates Candid interfaces
@@ -166,7 +166,7 @@ export async function buildAll() {
   await buildTarget("test");
   console.log();
 
-  await buildTarget("open-org-backend");
+  await buildTarget("control-plane-core");
   console.log();
 
   console.log("🎉 Complete build process finished successfully!");

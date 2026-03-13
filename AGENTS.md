@@ -4,7 +4,7 @@
 
 This is an **ICP (Internet Computer Protocol)** decentralized application built with:
 
-- **Motoko** for smart contract backend (`src/open-org-backend/`)
+- **Motoko** for smart contract backend (`src/control-plane-core/`)
 - **TypeScript** for tests (`tests/`) using PocketIC for local testing
 - **Bun** as the package manager and runtime
 
@@ -33,13 +33,13 @@ Examples:
 
 ```bash
 # Run a specific test file
-bun test tests/integration-tests/open-org-backend/workspace-admin-talk.spec.ts
+bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts
 
 # Run a specific test case by name (using -t flag)
-bun test tests/integration-tests/open-org-backend/workspace-admin-talk.spec.ts -t "should accept message from workspace admin"
+bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts -t "should accept message from workspace admin"
 
 # Record cassettes for a specific test file
-RECORD_CASSETTES=true bun test tests/integration-tests/open-org-backend/workspace-admin-talk.spec.ts
+RECORD_CASSETTES=true bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts
 ```
 
 ## Library Dependencies
@@ -141,7 +141,7 @@ Use dfx build with the `--check` flag to verify Motoko src code without creating
 
 ```bash
 # Check Motoko files for compilation errors
-dfx build open-org-backend --check
+dfx build control-plane-core --check
 ```
 
 If it's tests written in Motoko you modified, run the mops test instead:

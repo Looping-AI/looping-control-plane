@@ -50,7 +50,7 @@ Automated local ICP development environment setup script.
 
 1. **Checks that the local dfx network is running** (you must run `bun run dev:start` first)
 2. **Deploys canisters**:
-   - `open-org-backend` (with admin principal)
+   - `control-plane-core` (with admin principal)
    - `internet_identity`
 3. **Seeds secrets** into the canister:
    3 - Groq API key
@@ -104,7 +104,7 @@ When successful, the script will:
 **Deployment fails:**
 
 - Verify the `ADMIN_PRINCIPAL` is a valid principal ID
-- Ensure all Motoko code compiles (`dfx build --check open-org-backend`)
+- Ensure all Motoko code compiles (`dfx build --check control-plane-core`)
 
 **Secrets fail to store:**
 

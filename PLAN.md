@@ -63,7 +63,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 - The pre-seeded "workspace-admin" agent remains `#api`. New user-created agents default to `#runtime(#openClaw)` but can be `#api` if the admin chooses.
 - `openClawVersion` inside `#openClaw` is captured at deploy time from the sidecar health check and stored with the agent. It stays pinned until an explicit upgrade.
 
-**Verification**: `dfx build open-org-backend --check`. Unit tests for type construction and router branching.
+**Verification**: `dfx build control-plane-core --check`. Unit tests for type construction and router branching.
 
 ### A.1 — Refactor Groq → OpenRouter
 
@@ -78,7 +78,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 - Update all references across agents, orchestrators, services.
 - Pre-seeded agent: secretsAllowed changes to `#openRouterApiKey`.
 
-**Verification**: `dfx build open-org-backend --check`, re-record integration test cassettes with OpenRouter.
+**Verification**: `dfx build control-plane-core --check`, re-record integration test cassettes with OpenRouter.
 
 ### A.2 — Secrets Hardening: Changelog + Access Log
 
@@ -341,42 +341,42 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 **Core types + models**:
 
-- `src/open-org-backend/types.mo` — SecretId, LlmProvider additions
-- `src/open-org-backend/constants.mo` — Provider, secret, environment constants
-- `src/open-org-backend/models/secret-model.mo` — Changelog, access log, #custom secrets
-- `src/open-org-backend/models/agent-model.mo` — workspaceId, invocationScope, secretMappings, usageStats, templates, `AgentExecutionType` (#api | #runtime(#openClaw))
-- New: `src/open-org-backend/models/codespace-model.mo`
+- `src/control-plane-core/types.mo` — SecretId, LlmProvider additions
+- `src/control-plane-core/constants.mo` — Provider, secret, environment constants
+- `src/control-plane-core/models/secret-model.mo` — Changelog, access log, #custom secrets
+- `src/control-plane-core/models/agent-model.mo` — workspaceId, invocationScope, secretMappings, usageStats, templates, `AgentExecutionType` (#api | #runtime(#openClaw))
+- New: `src/control-plane-core/models/codespace-model.mo`
 
 **Wrappers**:
 
-- `src/open-org-backend/wrappers/groq-wrapper.mo` → rename to `openrouter-wrapper.mo`
-- New: `src/open-org-backend/wrappers/github-wrapper.mo`
-- New: `src/open-org-backend/wrappers/sidecar-wrapper.mo`
+- `src/control-plane-core/wrappers/groq-wrapper.mo` → rename to `openrouter-wrapper.mo`
+- New: `src/control-plane-core/wrappers/github-wrapper.mo`
+- New: `src/control-plane-core/wrappers/sidecar-wrapper.mo`
 
 **Events system**:
 
-- `src/open-org-backend/events/slack-adapter.mo` — Refactor for multi-source webhook routing
-- `src/open-org-backend/events/event-router.mo` — New event types + handlers
-- New: `src/open-org-backend/events/github-adapter.mo`
-- New: `src/open-org-backend/events/openclaw-adapter.mo`
-- `src/open-org-backend/events/types/normalized-event-types.mo` — New event payload variants
+- `src/control-plane-core/events/slack-adapter.mo` — Refactor for multi-source webhook routing
+- `src/control-plane-core/events/event-router.mo` — New event types + handlers
+- New: `src/control-plane-core/events/github-adapter.mo`
+- New: `src/control-plane-core/events/openclaw-adapter.mo`
+- `src/control-plane-core/events/types/normalized-event-types.mo` — New event payload variants
 
 **Agents + tools**:
 
-- `src/open-org-backend/agents/admin/org-admin-agent.mo` — New codespace + config tools
-- `src/open-org-backend/tools/tool-types.mo` — New tool resources
-- New handlers under `src/open-org-backend/tools/handlers/`
+- `src/control-plane-core/agents/admin/org-admin-agent.mo` — New codespace + config tools
+- `src/control-plane-core/tools/tool-types.mo` — New tool resources
+- New handlers under `src/control-plane-core/tools/handlers/`
 
 **Services**:
 
-- New: `src/open-org-backend/services/openclaw-config-service.mo`
-- New: `src/open-org-backend/services/credential-resolver-service.mo`
+- New: `src/control-plane-core/services/openclaw-config-service.mo`
+- New: `src/control-plane-core/services/credential-resolver-service.mo`
 
 ---
 
 ## Verification
 
-1. `dfx build open-org-backend --check` after each phase.
+1. `dfx build control-plane-core --check` after each phase.
 2. `bun run tsc --noEmit` for TypeScript test code.
 3. `mops test` for Motoko unit tests.
 4. `bun run test:unit` + `bun run test:integration` for full test suite.
