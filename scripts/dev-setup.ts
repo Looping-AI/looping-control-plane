@@ -4,16 +4,13 @@
  * Local Development Setup Script
  *
  * This script automates the local ICP development environment setup:
- * 1. Checks that the local network is running (requires: bun run dev:start)
- * 2. Deploys canisters (control-plane-core and internet_identity)
+ * 1. Checks that the local network is running (requires: `icp network start`)
+ * 2. Deploys canisters (control-plane-core)
  * 3. Seeds the canister with necessary secrets (Groq API key, Slack credentials)
  * 4. Prints the Candid UI link for easy access
  *
- * Note: the default workspace-admin agent is seeded automatically at canister
- * deploy time via AgentModel.defaultState() — no manual registration needed.
- *
  * Usage:
- *   1. First start the ICP network: bun run dev:start
+ *   1. First start the ICP network: icp network start
  *   2. Then run this setup: bun run dev:setup
  *
  * Note: reads from `.env` by default. You can copy from `.env.example` file and update with real values.

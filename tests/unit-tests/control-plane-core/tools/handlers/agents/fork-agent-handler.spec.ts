@@ -40,7 +40,11 @@ async function seedAgent(
   name = "source-agent",
 ): Promise<number> {
   const result = await testCanister.testRegisterAgentHandler(
-    JSON.stringify({ name, category: "admin" }),
+    JSON.stringify({
+      name,
+      category: "admin",
+      executionType: { type: "api" },
+    }),
     PRIMARY_OWNER,
   );
   return parseResponse(result).id!;
