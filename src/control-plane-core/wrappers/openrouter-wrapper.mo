@@ -11,7 +11,7 @@ import { str; int; float; bool; obj; arr } "mo:json";
 
 module {
   // ============================================
-  // Types for Groq API
+  // Types for OpenRouter API
   // ============================================
 
   /// Tracking identifier for attribution and usage monitoring
@@ -34,7 +34,7 @@ module {
     content : Text;
   };
 
-  /// Request payload for Groq chat completions
+  /// Request payload for OpenRouter chat completions
   public type ChatCompletionRequest = {
     model : Text;
     messages : [ChatMessage];
@@ -44,7 +44,7 @@ module {
     stream : ?Bool;
   };
 
-  /// Request payload for Groq compound chat completions with built-in tools
+  /// Request payload for OpenRouter chat completions with web plugin support
   public type CompoundChatCompletionRequest = {
     model : Text;
     messages : [ChatMessage];
@@ -55,21 +55,21 @@ module {
     search_settings : ?SearchSettings;
   };
 
-  /// Choice from Groq response
+  /// Choice from OpenRouter response
   public type ChatChoice = {
     index : Nat;
     message : ChatMessage;
     finish_reason : ?Text;
   };
 
-  /// Usage statistics from Groq response
+  /// Usage statistics from OpenRouter response
   public type Usage = {
     prompt_tokens : Nat;
     completion_tokens : Nat;
     total_tokens : Nat;
   };
 
-  /// Response payload from Groq chat completions
+  /// Response payload from OpenRouter chat completions
   public type ChatCompletionResponse = {
     id : Text;
     created : Nat;
@@ -78,18 +78,16 @@ module {
     usage : ?Usage;
   };
 
-  /// Search settings for web search built-in tool
+  /// Search settings for the OpenRouter web search plugin
   public type SearchSettings = {
-    exclude_domains : ?[Text]; // Domains to exclude from search (supports wildcards like *.com)
-    include_domains : ?[Text]; // Restrict search to only these domains (supports wildcards)
-    country : ?Text; // Boost results from specific country. See full list: https://docs.tavily.com/documentation/api-reference/endpoint/search#body-country
+    max_results : ?Nat; // Maximum number of search results to return
   };
 
   /// Built-in tool selection with tool-specific configuration
-  /// Each variant represents a specific Groq built-in tool with its configuration
+  /// Each variant represents an OpenRouter plugin tool or plain request type
   public type BuiltInTool = {
-    #web_search : { searchSettings : ?SearchSettings }; // Web search with optional domain/country filters
-    #visit_website; // Visit and analyze website content from a URL in the message
+    #web_search : { searchSettings : ?SearchSettings }; // Web search using the OpenRouter web plugin
+    #visit_website; // Plain request without web plugin (not directly supported by OpenRouter)
     // Future tools will be added here:
     // #browser_automation : { ... };
     // #code_interpreter : { ... };
@@ -143,13 +141,13 @@ module {
     #developer;
   };
 
-  /// Input message for Groq Responses API
+  /// Input message for OpenRouter Responses API
   public type ResponseInputMessage = {
     role : ResponseInputRole;
     content : Text;
   };
 
-  /// Input for Groq Responses API (array of messages)
+  /// Input for OpenRouter Responses API (array of messages)
   public type ResponseInput = [ResponseInputMessage];
 
   /// Reasoning configuration for Responses API
@@ -200,7 +198,7 @@ module {
     #err : Text;
   };
 
-  /// Request payload for Groq Responses API
+  /// Request payload for OpenRouter Responses API
   public type ResponseRequest = {
     input : ResponseInput;
     model : Text;
@@ -251,7 +249,7 @@ module {
     total_tokens : Nat;
   };
 
-  /// Response payload from Groq Responses API
+  /// Response payload from OpenRouter Responses API
   public type ResponseData = {
     id : Text;
     objectType : Text; // "response"
@@ -283,8 +281,8 @@ module {
   // Constants
   // ============================================
 
-  /// Groq API base URL
-  private let GROQ_API_BASE_URL : Text = "https://api.groq.com/openai/v1";
+  /// OpenRouter API base URL
+  private let OPENROUTER_API_BASE_URL : Text = "https://openrouter.ai/api/v1";
 
   // ============================================
   // Helper Functions
@@ -490,29 +488,15 @@ module {
     Json.stringify(obj(List.toArray(requestFields)), null);
   };
 
-  /// Serialize SearchSettings to JSON
-  private func searchSettingsToJson(settings : SearchSettings) : Json.Json {
+  /// Serialize SearchSettings as an OpenRouter plugin JSON object.
+  /// Format: {"id": "web", "max_results": N}
+  private func searchSettingsToPluginJson(settings : SearchSettings) : Json.Json {
     let fields = List.empty<(Text, Json.Json)>();
-
-    switch (settings.exclude_domains) {
-      case (?domains) {
-        List.add(fields, ("exclude_domains", arr(Array.map<Text, Json.Json>(domains, func(d : Text) : Json.Json { str(d) }))));
-      };
+    List.add(fields, ("id", str("web")));
+    switch (settings.max_results) {
+      case (?n) { List.add(fields, ("max_results", int(n))) };
       case (null) {};
     };
-
-    switch (settings.include_domains) {
-      case (?domains) {
-        List.add(fields, ("include_domains", arr(Array.map<Text, Json.Json>(domains, func(d : Text) : Json.Json { str(d) }))));
-      };
-      case (null) {};
-    };
-
-    switch (settings.country) {
-      case (?c) { List.add(fields, ("country", str(c))) };
-      case (null) {};
-    };
-
     obj(List.toArray(fields));
   };
 
@@ -546,7 +530,7 @@ module {
 
     switch (request.search_settings) {
       case (?settings) {
-        List.add(requestFields, ("search_settings", searchSettingsToJson(settings)));
+        List.add(requestFields, ("plugins", arr([searchSettingsToPluginJson(settings)])));
       };
       case (null) {};
     };
@@ -595,9 +579,9 @@ module {
     Json.stringify(obj(List.toArray(requestFields)), null);
   };
 
-  /// Parse Groq Responses API response for tool calls or text content
+  /// Parse OpenRouter Responses API response for tool calls or text content
   ///
-  /// @param responseBody - Raw JSON response from Groq Responses API
+  /// @param responseBody - Raw JSON response from OpenRouter Responses API
   /// @returns ReasonWithToolsResult indicating text response, tool calls, or error
   private func parseResponsesApiWithToolCalls(responseBody : Text) : ReasonWithToolsResult {
     switch (Json.parse(responseBody)) {
@@ -909,13 +893,13 @@ module {
     };
   };
 
-  /// Parse Groq API response and extract the assistant's message content
+  /// Parse OpenRouter API response and extract the assistant's message content
   ///
   /// Uses the JSON library for robust parsing
   ///
-  /// @param responseBody - Raw JSON response from Groq API
+  /// @param responseBody - Raw JSON response from OpenRouter API
   /// @returns Result with extracted content or error message
-  private func parseGroqResponse(responseBody : Text) : {
+  private func parseOpenRouterResponse(responseBody : Text) : {
     #ok : Text;
     #err : Text;
   } {
@@ -948,9 +932,9 @@ module {
   // Private Functions
   // ============================================
 
-  /// Create response using Groq Responses API
+  /// Create response using OpenRouter Responses API
   ///
-  /// @param apiKey - The Groq API key
+  /// @param apiKey - The OpenRouter API key
   /// @param input - Input text or array of texts
   /// @param model - Model name
   /// @param instructions - Optional system instructions
@@ -994,11 +978,13 @@ module {
     };
 
     let requestBody = serializeResponseRequest(request);
-    let url = GROQ_API_BASE_URL # "/responses";
+    let url = OPENROUTER_API_BASE_URL # "/responses";
 
     let headers : [HttpWrapper.HttpHeader] = [
       { name = "Authorization"; value = "Bearer " # apiKey },
       { name = "Content-Type"; value = "application/json" },
+      { name = "HTTP-Referer"; value = "https://loopingai.app" },
+      { name = "X-Title"; value = "Looping AI" },
     ];
 
     // Make the HTTP POST request
@@ -1014,15 +1000,15 @@ module {
           parseResponsesApiWithToolCalls(responseBody);
         } else {
           // Return error with status and response details
-          #err("Groq Responses API returned status " # Nat.toText(status) # ": " # responseBody # ".");
+          #err("OpenRouter Responses API returned status " # Nat.toText(status) # ": " # responseBody # ".");
         };
       };
     };
   };
 
-  /// Chat completion using Groq API
+  /// Chat completion using OpenRouter API
   ///
-  /// @param apiKey - The Groq API key
+  /// @param apiKey - The OpenRouter API key
   /// @param messages - Array of chat messages
   /// @param model - Model name
   /// @param temperature - Optional temperature setting (0.0-1.0)
@@ -1048,11 +1034,13 @@ module {
     };
 
     let requestBody = serializeChatCompletionRequest(request);
-    let url = GROQ_API_BASE_URL # "/chat/completions";
+    let url = OPENROUTER_API_BASE_URL # "/chat/completions";
 
     let headers : [HttpWrapper.HttpHeader] = [
       { name = "Authorization"; value = "Bearer " # apiKey },
       { name = "Content-Type"; value = "application/json" },
+      { name = "HTTP-Referer"; value = "https://loopingai.app" },
+      { name = "X-Title"; value = "Looping AI" },
     ];
 
     // Make the HTTP POST request
@@ -1065,10 +1053,10 @@ module {
       case (#ok((status, responseBody))) {
         if (status == 200) {
           // Parse successful response
-          parseGroqResponse(responseBody);
+          parseOpenRouterResponse(responseBody);
         } else {
           // Return error with status and response details
-          #err("Groq API returned status " # Nat.toText(status) # ": " # responseBody # ".");
+          #err("OpenRouter API returned status " # Nat.toText(status) # ": " # responseBody # ".");
         };
       };
     };
@@ -1078,14 +1066,14 @@ module {
   // Public Functions
   // ============================================
 
-  /// Generate reasoning response using Groq Responses API
+  /// Generate reasoning response using OpenRouter Responses API
   ///
   /// Returns a variant indicating whether the LLM:
   /// - Returned a text response (#ok(#textResponse))
   /// - Wants to call one or more tools (#ok(#toolCalls))
   /// - Encountered an error (#err)
   ///
-  /// @param apiKey - The Groq API key
+  /// @param apiKey - The OpenRouter API key
   /// @param input - Array of input messages with role and content
   /// @param model - Model name (should support reasoning)
   /// @param trackId - Tracking identifier for attribution and usage monitoring
@@ -1132,7 +1120,7 @@ module {
 
   /// Simple chat function with just message content
   ///
-  /// @param apiKey - The Groq API key
+  /// @param apiKey - The OpenRouter API key
   /// @param userMessage - The user's message
   /// @param model - Optional model name
   /// @returns Result with assistant's response or error message
@@ -1155,19 +1143,19 @@ module {
 
   /// Private function for compound model chat completion with built-in tools
   ///
-  /// Calls the Groq chat completions endpoint with the compound model (groq/compound or groq/compound-mini).
+  /// Calls the OpenRouter chat completions endpoint with the web plugin.
   /// The compound model has access to built-in tools like web search and website visiting.
   ///
   /// Important limitations:
   /// - Only ONE URL will be visited per request (if multiple URLs are provided, only the first is processed)
   /// - Web search and website visiting are performed automatically by the model when needed
   ///
-  /// @param apiKey - The Groq API key
+  /// @param apiKey - The OpenRouter API key
   /// @param messages - Array of chat messages
-  /// @param model - Model name (should be "groq/compound" or "groq/compound-mini")
+  /// @param model - Model name
   /// @param temperature - Optional temperature setting (0.0-1.0)
   /// @param maxTokens - Optional maximum tokens in response
-  /// @param searchSettings - Optional search settings for web search (exclude/include domains, country)
+  /// @param searchSettings - Optional search settings for the web plugin
   /// @returns Result with compound response including content, reasoning, and executed tools, or error message
   private func compound(
     apiKey : Text,
@@ -1191,12 +1179,13 @@ module {
     };
 
     let requestBody = serializeCompoundChatCompletionRequest(request);
-    let url = GROQ_API_BASE_URL # "/chat/completions";
+    let url = OPENROUTER_API_BASE_URL # "/chat/completions";
 
     let headers : [HttpWrapper.HttpHeader] = [
       { name = "Authorization"; value = "Bearer " # apiKey },
       { name = "Content-Type"; value = "application/json" },
-      { name = "Groq-Model-Version"; value = "latest" },
+      { name = "HTTP-Referer"; value = "https://loopingai.app" },
+      { name = "X-Title"; value = "Looping AI" },
     ];
 
     let httpResult = await HttpWrapper.post(url, headers, requestBody);
@@ -1209,33 +1198,29 @@ module {
         if (status == 200) {
           parseCompoundResponse(responseBody);
         } else {
-          #err("Groq API returned status " # Nat.toText(status) # ": " # responseBody # ".");
+          #err("OpenRouter API returned status " # Nat.toText(status) # ": " # responseBody # ".");
         };
       };
     };
   };
 
-  /// Use built-in tools with Groq compound model
+  /// Use built-in tools with OpenRouter web search plugin
   ///
-  /// This function enables the use of Groq's compound model with built-in tools.
-  /// The tool parameter explicitly specifies which tool to use and its configuration:
+  /// This function enables the use of OpenRouter's web search plugin.
+  /// The tool parameter specifies which tool to use and its configuration:
   ///
-  /// - #web_search: Searches the web with optional domain filtering and country boosting
-  ///   - searchSettings.exclude_domains: Domains to exclude (supports wildcards like *.com)
-  ///   - searchSettings.include_domains: Restrict search to specific domains
-  ///   - searchSettings.country: Boost results from a specific country (e.g., "us", "gb")
+  /// - #web_search: Searches the web using the OpenRouter web plugin
+  ///   - searchSettings.max_results: Maximum number of results to return
   ///
-  /// - #visit_website: Visits and analyzes website content from URLs in the message
-  ///   - Important: Only ONE URL will be visited per request
-  ///   - If multiple URLs are provided, only the first is processed
+  /// - #visit_website: Plain request without web plugin (not directly supported)
   ///
   /// The response includes:
   /// - content: The final synthesized answer from the model
   /// - reasoning: The internal decision-making process (optional)
-  /// - executed_tools: Details about which tools were used (search results, visited URLs, etc.)
+  /// - executed_tools: Details about which tools were used (search results, etc.)
   ///
-  /// @param apiKey - The Groq API key
-  /// @param userMessage - The user's message (may include URLs for website visiting)
+  /// @param apiKey - The OpenRouter API key
+  /// @param userMessage - The user's message
   /// @param tool - The built-in tool to use with its specific configuration
   /// @returns Result with compound response or error message
   public func useBuiltInTool(
@@ -1260,7 +1245,7 @@ module {
     await compound(
       apiKey,
       messages,
-      "groq/compound", // Use the compound model
+      "openai/gpt-oss-120b", // Use the standard model with OpenRouter web plugin
       null, // temperature
       null, // maxTokens
       searchSettings,

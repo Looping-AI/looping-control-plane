@@ -7,7 +7,7 @@ import Text "mo:core/Text";
 import Types "../../types";
 import ConversationModel "../../models/conversation-model";
 import AgentModel "../../models/agent-model";
-import GroqWrapper "../../wrappers/groq-wrapper";
+import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
 import InstructionComposer "../../instructions/instruction-composer";
 import InstructionTypes "../../instructions/instruction-types";
 import FunctionToolRegistry "../../tools/function-tool-registry";
@@ -87,7 +87,7 @@ module {
     // Build tool resources — workspace-management, agent registry, and MCP tool management
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = null; // org-admin tools operate on entire WorkspacesState, not a single workspace
-      groqApiKey = ?apiKey;
+      openRouterApiKey = ?apiKey;
       slackBotToken = ctx.slackBotToken;
       userAuthContext = ctx.userAuthContext;
       valueStreams = null;
@@ -124,7 +124,7 @@ module {
     // Apply blocklist filtering via the public helper
     let filteredTools = AgentHelpers.applyToolBlocklist(agent, allTools);
 
-    let toolsOpt : ?[GroqWrapper.Tool] = if (filteredTools.size() == 0) null else ?filteredTools;
+    let toolsOpt : ?[OpenRouterWrapper.Tool] = if (filteredTools.size() == 0) null else ?filteredTools;
 
     // Build LLM context from persistent conversation history.
     // Tool call / tool response artifacts are appended to inputMessages during the
@@ -138,8 +138,8 @@ module {
     var iteration = 0;
 
     loop {
-      // groqApiKey is used as the model key; org-admin context is workspace-0 scoped
-      let groqResult = await GroqWrapper.reason(
+      // openRouterApiKey is used as the model key; org-admin context is workspace-0 scoped
+      let llmResult = await OpenRouterWrapper.reason(
         apiKey,
         List.toArray(inputMessages),
         modelText,
@@ -149,7 +149,7 @@ module {
         toolsOpt,
       );
 
-      switch (groqResult) {
+      switch (llmResult) {
         case (#ok(#textResponse(response))) {
           List.add(
             steps,
@@ -164,7 +164,7 @@ module {
 
         case (#ok(#toolCalls(calls))) {
           // Format tool call message (ephemeral — not written to conversation store)
-          let toolCallContent = "Using tools: " # Array.foldLeft<GroqWrapper.ToolCall, Text>(
+          let toolCallContent = "Using tools: " # Array.foldLeft<OpenRouterWrapper.ToolCall, Text>(
             calls,
             "",
             func(acc, call) {
@@ -216,7 +216,7 @@ module {
         };
 
         case (#err(error)) {
-          let errMsg = "Groq API Error: " # error;
+          let errMsg = "OpenRouter API Error: " # error;
           List.add(
             steps,
             {
@@ -238,12 +238,12 @@ module {
   ///   ConversationMessage.userAuthContext = ?_    → #user       (human message)
   private func buildContextMessages(
     conversationEntry : ?ConversationModel.TimelineEntry
-  ) : List.List<GroqWrapper.ResponseInputMessage> {
-    let inputMessages = List.empty<GroqWrapper.ResponseInputMessage>();
+  ) : List.List<OpenRouterWrapper.ResponseInputMessage> {
+    let inputMessages = List.empty<OpenRouterWrapper.ResponseInputMessage>();
     switch (conversationEntry) {
       case (null) { /* no history — start fresh */ };
       case (?#post msg) {
-        let role : GroqWrapper.MessageRole = switch (msg.userAuthContext) {
+        let role : OpenRouterWrapper.MessageRole = switch (msg.userAuthContext) {
           case (null) { #assistant };
           case (?_) { #user };
         };
@@ -259,7 +259,7 @@ module {
         var i = startIndex;
         while (i < messagesArr.size()) {
           let (_, msg) = messagesArr[i];
-          let role : GroqWrapper.MessageRole = switch (msg.userAuthContext) {
+          let role : OpenRouterWrapper.MessageRole = switch (msg.userAuthContext) {
             case (null) { #assistant };
             case (?_) { #user };
           };

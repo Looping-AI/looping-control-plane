@@ -17,8 +17,8 @@ module {
 
   public func parseLlmModel(s : Text) : ?AgentModel.LlmModel {
     switch (s) {
-      case ("gpt_oss_120b") { ?#groq(#gpt_oss_120b) };
-      case ("groq:gpt_oss_120b") { ?#groq(#gpt_oss_120b) };
+      case ("gpt_oss_120b") { ?#openRouter(#gpt_oss_120b) };
+      case ("openRouter:gpt_oss_120b") { ?#openRouter(#gpt_oss_120b) };
       case _ { null };
     };
   };
@@ -27,7 +27,7 @@ module {
   /// a system-level secret not grantable to agents.
   public func parseAgentSecretId(s : Text) : ?Types.SecretId {
     switch (s) {
-      case ("groqApiKey") { ?#groqApiKey };
+      case ("openRouterApiKey") { ?#openRouterApiKey };
       case ("openaiApiKey") { ?#openaiApiKey };
       case ("slackBotToken") { ?#slackBotToken };
       case _ { null };

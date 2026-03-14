@@ -65,7 +65,7 @@ module {
   /// Convert a SecretId variant to its string name.
   private func secretIdToString(id : Types.SecretId) : Text {
     switch (id) {
-      case (#groqApiKey) { "groqApiKey" };
+      case (#openRouterApiKey) { "openRouterApiKey" };
       case (#openaiApiKey) { "openaiApiKey" };
       case (#slackBotToken) { "slackBotToken" };
       case (#slackSigningSecret) { "slackSigningSecret" };

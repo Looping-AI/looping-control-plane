@@ -14,7 +14,7 @@ module {
   ///
   /// Authorization:
   ///   - Slack secrets (slackBotToken, slackSigningSecret): requires #IsPrimaryOwner or #IsOrgAdmin
-  ///   - LLM keys (groqApiKey, openaiApiKey): requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+  ///   - LLM keys (openRouterApiKey, openaiApiKey): requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
   public func handle(
     secrets : SecretModel.SecretsMap,
     uac : SlackAuthMiddleware.UserAuthContext,
@@ -43,7 +43,7 @@ module {
               case (#slackBotToken or #slackSigningSecret) {
                 [#IsPrimaryOwner, #IsOrgAdmin];
               };
-              case (#groqApiKey or #openaiApiKey) {
+              case (#openRouterApiKey or #openaiApiKey) {
                 [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
               };
             };
@@ -71,7 +71,7 @@ module {
             Helpers.buildErrorResponse("Missing required field: workspaceId");
           };
           case (_, _) {
-            Helpers.buildErrorResponse("Invalid secretId. Must be one of: groqApiKey, openaiApiKey, slackSigningSecret, slackBotToken");
+            Helpers.buildErrorResponse("Invalid secretId. Must be one of: openRouterApiKey, openaiApiKey, slackSigningSecret, slackBotToken");
           };
         };
       };

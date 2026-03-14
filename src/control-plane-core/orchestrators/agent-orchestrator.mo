@@ -126,11 +126,11 @@ module {
 
     // Dispatch to provider-specific agent based on the agent's llmModel
     switch (agent.llmModel) {
-      case (#groq(_)) {
+      case (#openRouter(_)) {
         switch (apiKey) {
           case (null) {
             #err({
-              message = "No Groq API key found for agent talk. Please store the API key first.";
+              message = "No OpenRouter API key found for agent talk. Please store the API key first.";
               steps = [];
             });
           };

@@ -8,7 +8,7 @@ import {
 } from "../../../setup";
 import { withCassette } from "../../../lib/cassette";
 
-describe("Groq Wrapper Unit Tests", () => {
+describe("OpenRouter Wrapper Unit Tests", () => {
   type TrackId = { workspace: bigint } | { workspaceAgent: [bigint, bigint] };
 
   let pic: PocketIc;
@@ -27,7 +27,7 @@ describe("Groq Wrapper Unit Tests", () => {
   describe("Chat Method Tests", () => {
     it("should fail with empty model name", async () => {
       try {
-        await testCanister.groqChat("test-key", "Hello", "");
+        await testCanister.openRouterChat("test-key", "Hello", "");
         expect(false).toBe(true); // Should not reach here
       } catch (error) {
         // Expected to trap due to empty model validation
@@ -37,7 +37,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
     it("should fail with whitespace-only model name", async () => {
       try {
-        await testCanister.groqChat("test-key", "Hello", "   ");
+        await testCanister.openRouterChat("test-key", "Hello", "   ");
         expect(false).toBe(true); // Should not reach here
       } catch (error) {
         // Expected to trap due to whitespace model validation
@@ -48,8 +48,9 @@ describe("Groq Wrapper Unit Tests", () => {
     it("should handle basic chat with valid API key", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/basic-chat",
-        () => testCanister.groqChat(TEST_API_KEY, "Say hello", TEST_MODEL),
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/basic-chat",
+        () =>
+          testCanister.openRouterChat(TEST_API_KEY, "Say hello", TEST_MODEL),
         { ticks: 5 },
       );
 
@@ -67,9 +68,9 @@ describe("Groq Wrapper Unit Tests", () => {
     it("should handle special characters in message", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/special-chars",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/special-chars",
         () =>
-          testCanister.groqChat(
+          testCanister.openRouterChat(
             TEST_API_KEY,
             "Echo this: !@#$%^&*()",
             TEST_MODEL,
@@ -91,9 +92,9 @@ describe("Groq Wrapper Unit Tests", () => {
     it("should handle unicode characters in message", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/unicode",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/unicode",
         () =>
-          testCanister.groqChat(
+          testCanister.openRouterChat(
             TEST_API_KEY,
             "Translate to English: 世界",
             TEST_MODEL,
@@ -119,8 +120,8 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/json-content",
-        () => testCanister.groqChat(TEST_API_KEY, message, TEST_MODEL),
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/json-content",
+        () => testCanister.openRouterChat(TEST_API_KEY, message, TEST_MODEL),
         { ticks: 5 },
       );
 
@@ -140,8 +141,8 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/newlines",
-        () => testCanister.groqChat(TEST_API_KEY, message, TEST_MODEL),
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/newlines",
+        () => testCanister.openRouterChat(TEST_API_KEY, message, TEST_MODEL),
         { ticks: 5 },
       );
 
@@ -160,9 +161,13 @@ describe("Groq Wrapper Unit Tests", () => {
     it("should answer mathematical questions", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/math",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/math",
         () =>
-          testCanister.groqChat(TEST_API_KEY, "What is 7 times 8?", TEST_MODEL),
+          testCanister.openRouterChat(
+            TEST_API_KEY,
+            "What is 7 times 8?",
+            TEST_MODEL,
+          ),
         { ticks: 5 },
       );
 
@@ -187,9 +192,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/reason-basic",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/reason-basic",
         () =>
-          testCanister.groqReason(
+          testCanister.openRouterReason(
             TEST_API_KEY,
             [{ role: { user: null }, content: input }],
             TEST_MODEL,
@@ -228,9 +233,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/reason-longer-completion",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/reason-longer-completion",
           () =>
-            testCanister.groqReason(
+            testCanister.openRouterReason(
               TEST_API_KEY,
               [{ role: { user: null }, content: input }],
               TEST_MODEL,
@@ -272,9 +277,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/reason-no-instructions",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/reason-no-instructions",
         () =>
-          testCanister.groqReason(
+          testCanister.openRouterReason(
             TEST_API_KEY,
             [{ role: { user: null }, content: input }],
             TEST_MODEL,
@@ -314,9 +319,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/reason-math",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/reason-math",
           () =>
-            testCanister.groqReason(
+            testCanister.openRouterReason(
               TEST_API_KEY,
               [{ role: { user: null }, content: input }],
               TEST_MODEL,
@@ -357,7 +362,7 @@ describe("Groq Wrapper Unit Tests", () => {
       const input = "Test input";
 
       try {
-        await testCanister.groqReason(
+        await testCanister.openRouterReason(
           "",
           [{ role: { user: null }, content: input }],
           TEST_MODEL,
@@ -378,7 +383,7 @@ describe("Groq Wrapper Unit Tests", () => {
       const input = "Test input";
 
       try {
-        await testCanister.groqReason(
+        await testCanister.openRouterReason(
           "   ",
           [{ role: { user: null }, content: input }],
           TEST_MODEL,
@@ -398,7 +403,7 @@ describe("Groq Wrapper Unit Tests", () => {
       const trackId: TrackId = { workspaceAgent: [9n, 9n] };
 
       try {
-        await testCanister.groqReason(
+        await testCanister.openRouterReason(
           TEST_API_KEY,
           [],
           TEST_MODEL,
@@ -419,7 +424,7 @@ describe("Groq Wrapper Unit Tests", () => {
       const input = "Test input";
 
       try {
-        await testCanister.groqReason(
+        await testCanister.openRouterReason(
           TEST_API_KEY,
           [{ role: { user: null }, content: input }],
           "",
@@ -473,9 +478,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/tool-single-call",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-single-call",
         () =>
-          testCanister.groqReason(
+          testCanister.openRouterReason(
             TEST_API_KEY,
             [{ role: { user: null }, content: input }],
             TEST_MODEL,
@@ -560,9 +565,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/tool-select-from-multiple",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-select-from-multiple",
         () =>
-          testCanister.groqReason(
+          testCanister.openRouterReason(
             TEST_API_KEY,
             [{ role: { user: null }, content: input }],
             TEST_MODEL,
@@ -623,9 +628,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/tool-not-needed",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-not-needed",
         () =>
-          testCanister.groqReason(
+          testCanister.openRouterReason(
             TEST_API_KEY,
             [{ role: { user: null }, content: input }],
             TEST_MODEL,
@@ -696,9 +701,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/tool-complex-params",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-complex-params",
         () =>
-          testCanister.groqReason(
+          testCanister.openRouterReason(
             TEST_API_KEY,
             [{ role: { user: null }, content: input }],
             TEST_MODEL,
@@ -758,9 +763,9 @@ describe("Groq Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/groq-wrapper/tool-no-params",
+        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-no-params",
         () =>
-          testCanister.groqReason(
+          testCanister.openRouterReason(
             TEST_API_KEY,
             [{ role: { user: null }, content: input }],
             TEST_MODEL,
@@ -800,9 +805,9 @@ describe("Groq Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/built-in-web-search-basic",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-web-search-basic",
           () =>
-            testCanister.groqUseBuiltInTool(
+            testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
               "What happened in AI last week?",
               {
@@ -816,7 +821,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
         if ("ok" in response) {
           expect(response.ok.id).toBeDefined();
-          expect(response.ok.model).toBe("groq/compound");
+          expect(response.ok.model).toBe("openai/gpt-oss-120b");
           expect(response.ok.choices.length).toBeGreaterThan(0);
 
           const choice = response.ok.choices[0];
@@ -849,22 +854,20 @@ describe("Groq Wrapper Unit Tests", () => {
     );
 
     it(
-      "should handle web search with exclude domains",
+      "should handle web search with max_results limit",
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/built-in-web-search-exclude",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-web-search-exclude",
           () =>
-            testCanister.groqUseBuiltInTool(
+            testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
               "Tell me about the history of Bonsai trees in America",
               {
                 web_search: {
                   searchSettings: [
                     {
-                      exclude_domains: [["wikipedia.org"]],
-                      include_domains: [],
-                      country: [],
+                      max_results: [3n],
                     },
                   ],
                 },
@@ -880,15 +883,13 @@ describe("Groq Wrapper Unit Tests", () => {
           const choice = response.ok.choices[0];
           expect(choice.message.content).toContain("Bonsai");
 
-          // Verify wikipedia is not in results if executed_tools present
+          // Verify results came back from the web search
           const executedTools = choice.message.executed_tools[0];
           if (executedTools && executedTools.length > 0) {
             const tool = executedTools[0];
             if (tool && tool.tool_type === "search" && tool.search_results[0]) {
               const searchResults = tool.search_results[0];
-              for (const result of searchResults) {
-                expect(result.url).not.toContain("wikipedia.org");
-              }
+              expect(searchResults.length).toBeGreaterThan(0);
             }
           }
         } else {
@@ -905,18 +906,16 @@ describe("Groq Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/built-in-web-search-include",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-web-search-include",
           () =>
-            testCanister.groqUseBuiltInTool(
+            testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
               "Latest research on quantum computing",
               {
                 web_search: {
                   searchSettings: [
                     {
-                      exclude_domains: [],
-                      include_domains: [["*.edu"]],
-                      country: [],
+                      max_results: [5n],
                     },
                   ],
                 },
@@ -932,19 +931,13 @@ describe("Groq Wrapper Unit Tests", () => {
           const choice = response.ok.choices[0];
           expect(choice.message.content.length).toBeGreaterThan(0);
 
-          // Results should be from .edu domains if search was executed
+          // Results should come back from the web search
           const executedTools = choice.message.executed_tools[0];
           if (executedTools && executedTools.length > 0) {
             const tool = executedTools[0];
             if (tool && tool.tool_type === "search" && tool.search_results[0]) {
               const searchResults = tool.search_results[0];
-              if (searchResults.length > 0) {
-                const hasEduDomain = searchResults.some((result) =>
-                  result.url.includes(".edu"),
-                );
-                // At least some results should be from .edu domains
-                expect(hasEduDomain).toBe(true);
-              }
+              expect(searchResults.length).toBeGreaterThan(0);
             }
           }
         } else {
@@ -961,18 +954,16 @@ describe("Groq Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/built-in-web-search-country",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-web-search-country",
           () =>
-            testCanister.groqUseBuiltInTool(
+            testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
-              "Best universities in the country",
+              "Best universities in the world",
               {
                 web_search: {
                   searchSettings: [
                     {
-                      exclude_domains: [],
-                      include_domains: [],
-                      country: ["united kingdom"],
+                      max_results: [5n],
                     },
                   ],
                 },
@@ -986,15 +977,14 @@ describe("Groq Wrapper Unit Tests", () => {
         if ("ok" in response) {
           expect(response.ok.choices.length).toBeGreaterThan(0);
           const choice = response.ok.choices[0];
-          // Should mention UK universities
+          // Should mention universities in the content
           const lowerContent = choice.message.content.toLowerCase();
-          const hasUKReference =
-            lowerContent.includes("uk") ||
-            lowerContent.includes("british") ||
-            lowerContent.includes("britain") ||
-            lowerContent.includes("oxford") ||
-            lowerContent.includes("cambridge");
-          expect(hasUKReference).toBe(true);
+          expect(lowerContent.length).toBeGreaterThan(0);
+          expect(
+            lowerContent.includes("university") ||
+              lowerContent.includes("college") ||
+              lowerContent.includes("institute"),
+          ).toBe(true);
         } else {
           throw new Error(
             "Expected successful response but got error: " + response.err,
@@ -1009,11 +999,11 @@ describe("Groq Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/built-in-visit-website",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-visit-website",
           () =>
-            testCanister.groqUseBuiltInTool(
+            testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
-              "Summarize the key points of this page: https://groq.com/blog/inside-the-lpu-deconstructing-groq-speed",
+              "Summarize the key points of this page: https://openrouter.ai/docs/overview/principles",
               { visit_website: null },
             ),
           { ticks: 10 },
@@ -1029,7 +1019,8 @@ describe("Groq Wrapper Unit Tests", () => {
           // Should contain summary of the page
           const lowerContent = choice.message.content.toLowerCase();
           expect(
-            lowerContent.includes("lpu") || lowerContent.includes("groq"),
+            lowerContent.includes("openrouter") ||
+              lowerContent.includes("model"),
           ).toBe(true);
 
           // Should have executed visit tool
@@ -1059,9 +1050,9 @@ describe("Groq Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/built-in-visit-website-analyze",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-visit-website-analyze",
           () =>
-            testCanister.groqUseBuiltInTool(
+            testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
               "What are the main features described on https://example.com?",
               { visit_website: null },
@@ -1089,9 +1080,9 @@ describe("Groq Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/built-in-with-reasoning",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-with-reasoning",
           () =>
-            testCanister.groqUseBuiltInTool(
+            testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
               "Compare the latest iPhone and Android flagship phones",
               {
@@ -1126,7 +1117,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
     it("should fail with empty API key", async () => {
       try {
-        await testCanister.groqUseBuiltInTool("", "Test message", {
+        await testCanister.openRouterUseBuiltInTool("", "Test message", {
           web_search: { searchSettings: [] },
         });
         expect(false).toBe(true); // Should not reach here
@@ -1137,7 +1128,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
     it("should fail with whitespace-only API key", async () => {
       try {
-        await testCanister.groqUseBuiltInTool("   ", "Test message", {
+        await testCanister.openRouterUseBuiltInTool("   ", "Test message", {
           visit_website: null,
         });
         expect(false).toBe(true); // Should not reach here
@@ -1148,7 +1139,7 @@ describe("Groq Wrapper Unit Tests", () => {
 
     it("should fail with empty message", async () => {
       try {
-        await testCanister.groqUseBuiltInTool(TEST_API_KEY, "", {
+        await testCanister.openRouterUseBuiltInTool(TEST_API_KEY, "", {
           web_search: { searchSettings: [] },
         });
         expect(false).toBe(true); // Should not reach here
@@ -1162,18 +1153,16 @@ describe("Groq Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/groq-wrapper/built-in-complex-settings",
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-complex-settings",
           () =>
-            testCanister.groqUseBuiltInTool(
+            testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
               "Recent breakthroughs in AI research",
               {
                 web_search: {
                   searchSettings: [
                     {
-                      exclude_domains: [["*.com"]],
-                      include_domains: [["*.edu", "*.org"]],
-                      country: ["united states"],
+                      max_results: [3n],
                     },
                   ],
                 },
@@ -1189,18 +1178,13 @@ describe("Groq Wrapper Unit Tests", () => {
           const choice = response.ok.choices[0];
           expect(choice.message.content.length).toBeGreaterThan(0);
 
-          // Verify search results respect filters if present
+          // Verify search results came back
           const executedTools = choice.message.executed_tools[0];
           if (executedTools && executedTools.length > 0) {
             const tool = executedTools[0];
             if (tool && tool.tool_type === "search" && tool.search_results[0]) {
               const searchResults = tool.search_results[0];
-              for (const result of searchResults) {
-                // Should not be .com domains
-                expect(result.url).not.toMatch(/\.com(?:\/|$)/);
-                // Should be .edu or .org
-                expect(result.url).toMatch(/\.(edu|org)(?:\/|$)/);
-              }
+              expect(searchResults.length).toBeGreaterThan(0);
             }
           }
         } else {

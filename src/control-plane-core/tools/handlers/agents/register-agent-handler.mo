@@ -61,7 +61,7 @@ module {
               };
             };
           };
-          case (null) { #groq(#gpt_oss_120b) };
+          case (null) { #openRouter(#gpt_oss_120b) };
           case _ { return Helpers.buildErrorResponse("Invalid llmModel field") };
         };
 

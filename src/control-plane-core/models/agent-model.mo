@@ -19,15 +19,15 @@ module {
     #communication; // drafting, summarizing, messaging — stub, Phase 5
   };
 
-  /// Groq-specific model variants.
-  public type GroqModel = {
-    #gpt_oss_120b; // Groq: gpt-oss-120b model
+  /// OpenRouter-specific model variants.
+  public type OpenRouterModel = {
+    #gpt_oss_120b; // OpenRouter: gpt-oss-120b
   };
 
   /// LLM provider + model pairing.
   /// Each provider has its own set of supported models.
   public type LlmModel = {
-    #groq : GroqModel;
+    #openRouter : OpenRouterModel;
   };
 
   /// The execution type of an agent — determines whether work is done inside the
@@ -74,7 +74,7 @@ module {
   ///   workspaceId     — the workspace that owns this agent. Immutable after creation.
   ///                     Agents owned by workspace 0 are org-wide (e.g. workspace-admin).
   ///   category        — determines the available tool catalogue and prompt strategy.
-  ///   llmModel        — provider and model variant (e.g. #groq(#gpt_oss_120b)).
+  ///   llmModel        — provider and model variant (e.g. #openRouter(#gpt_oss_120b)).
   ///   executionType   — #api runs in-canister; #runtime delegates to a remote environment.
   ///   secretsAllowed  — explicit whitelist of (workspaceId, SecretId) pairs this agent may access.
   ///   toolsDisallowed — blocklist of tool names to exclude from LLM tool set (by function name).
@@ -467,10 +467,10 @@ module {
   };
 
   /// Create the default agent registry state pre-seeded with the built-in
-  /// workspace-admin agent (category = #admin, Groq gpt_oss_120b).
+  /// workspace-admin agent (category = #admin, OpenRouter gpt_oss_120b).
   ///
   /// The default admin agent is granted access to the org-level (workspace 0)
-  /// Groq API key and Slack bot token, required for critical administrative tasks.
+  /// OpenRouter API key and Slack bot token, required for critical administrative tasks.
   ///
   /// Called once during canister initialization in main.mo.
   public func defaultState() : AgentRegistryState {
@@ -479,9 +479,9 @@ module {
       "workspace-admin",
       0, // owned by workspace 0 — org-wide agent
       #admin,
-      #groq(#gpt_oss_120b),
+      #openRouter(#gpt_oss_120b),
       #api, // in-canister LLM loop
-      [(0, #groqApiKey), (0, #slackBotToken)],
+      [(0, #openRouterApiKey), (0, #slackBotToken)],
       [],
       [],
       Map.empty<Text, ToolState>(),
@@ -494,14 +494,14 @@ module {
   /// Map an LlmModel to the provider-specific model string used in API calls.
   public func llmModelToText(model : LlmModel) : Text {
     switch (model) {
-      case (#groq(#gpt_oss_120b)) { "openai/gpt-oss-120b" };
+      case (#openRouter(#gpt_oss_120b)) { "openai/gpt-oss-120b" };
     };
   };
 
   /// Map an LlmModel to the SecretId that holds the corresponding API key.
   public func llmModelToSecretId(model : LlmModel) : Types.SecretId {
     switch (model) {
-      case (#groq(_)) { #groqApiKey };
+      case (#openRouter(_)) { #openRouterApiKey };
     };
   };
 

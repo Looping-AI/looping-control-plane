@@ -11,7 +11,7 @@ import {
 // This handler:
 //   1. Authorizes the caller via UserAuthContext
 //      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
-//      - LLM keys (groqApiKey, openaiApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+//      - LLM keys (openRouterApiKey, openaiApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
 //   2. Validates input: workspaceId (number), secretId (string enum), secretValue (non-empty string)
 //   3. Verifies the workspace exists
 //   4. Derives encryption key from the key cache (pre-seeded with dummy key)
@@ -70,7 +70,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         NO_AUTH,
@@ -98,7 +98,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         PRIMARY_OWNER,
@@ -124,7 +124,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         WORKSPACE_ADMIN_0,
@@ -161,7 +161,10 @@ describe("StoreSecretHandler", () => {
 
     it("should return error when workspaceId is missing", async () => {
       const result = await testCanister.testStoreSecretHandler(
-        JSON.stringify({ secretId: "groqApiKey", secretValue: "sk-test" }),
+        JSON.stringify({
+          secretId: "openRouterApiKey",
+          secretValue: "sk-test",
+        }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -185,7 +188,7 @@ describe("StoreSecretHandler", () => {
 
     it("should return error when secretValue is missing", async () => {
       const result = await testCanister.testStoreSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "groqApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "openRouterApiKey" }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -197,7 +200,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "",
         }),
         PRIMARY_OWNER,
@@ -211,7 +214,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "   ",
         }),
         PRIMARY_OWNER,
@@ -225,7 +228,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 999,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         PRIMARY_OWNER,
@@ -267,7 +270,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 1,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         PRIMARY_OWNER,
@@ -278,11 +281,11 @@ describe("StoreSecretHandler", () => {
   });
 
   describe("happy path", () => {
-    it("should store a groqApiKey successfully", async () => {
+    it("should store a openRouterApiKey successfully", async () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "gsk-test-key-1",
         }),
         PRIMARY_OWNER,
@@ -336,7 +339,7 @@ describe("StoreSecretHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "first-value",
         }),
         PRIMARY_OWNER,
@@ -345,7 +348,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "second-value",
         }),
         PRIMARY_OWNER,

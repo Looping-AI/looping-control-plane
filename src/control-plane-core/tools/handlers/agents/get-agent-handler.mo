@@ -18,13 +18,13 @@ module {
 
   private func llmModelToText(m : AgentModel.LlmModel) : Text {
     switch (m) {
-      case (#groq(#gpt_oss_120b)) { "gpt_oss_120b" };
+      case (#openRouter(#gpt_oss_120b)) { "gpt_oss_120b" };
     };
   };
 
   private func secretIdToText(s : Types.SecretId) : Text {
     switch (s) {
-      case (#groqApiKey) { "groqApiKey" };
+      case (#openRouterApiKey) { "openRouterApiKey" };
       case (#openaiApiKey) { "openaiApiKey" };
       case (#slackBotToken) { "slackBotToken" };
       case (#slackSigningSecret) { "slackSigningSecret" };

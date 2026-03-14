@@ -11,7 +11,7 @@ import {
 // This handler:
 //   1. Authorizes the caller via UserAuthContext
 //      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
-//      - LLM keys (groqApiKey, openaiApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+//      - LLM keys (openRouterApiKey, openaiApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
 //   2. Parses JSON args for { workspaceId: number, secretId: string }
 //   3. Deletes the specified secret from the secrets map
 //
@@ -64,7 +64,7 @@ describe("DeleteSecretHandler", () => {
   describe("authorization", () => {
     it("should reject unauthorized callers for LLM key deletion", async () => {
       const result = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "groqApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "openRouterApiKey" }),
         NO_AUTH,
       );
       const response = parseResponse(result);
@@ -97,13 +97,13 @@ describe("DeleteSecretHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         PRIMARY_OWNER,
       );
       const result = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "groqApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "openRouterApiKey" }),
         WORKSPACE_ADMIN_0,
       );
       const response = parseResponse(result);
@@ -124,7 +124,7 @@ describe("DeleteSecretHandler", () => {
 
     it("should return error when workspaceId is missing", async () => {
       const result = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ secretId: "groqApiKey" }),
+        JSON.stringify({ secretId: "openRouterApiKey" }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -146,7 +146,7 @@ describe("DeleteSecretHandler", () => {
   describe("not-found errors", () => {
     it("should return error when workspace has no secrets", async () => {
       const result = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "groqApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "openRouterApiKey" }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -164,14 +164,14 @@ describe("DeleteSecretHandler", () => {
         }),
         PRIMARY_OWNER,
       );
-      // Try to delete groqApiKey which was never stored
+      // Try to delete openRouterApiKey which was never stored
       const result = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "groqApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "openRouterApiKey" }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
       expect(response.success).toBe(false);
-      expect(response.error).toContain("groqApiKey");
+      expect(response.error).toContain("openRouterApiKey");
     });
   });
 
@@ -181,7 +181,7 @@ describe("DeleteSecretHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         PRIMARY_OWNER,
@@ -197,7 +197,7 @@ describe("DeleteSecretHandler", () => {
 
       // Delete one
       const deleteResult = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "groqApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "openRouterApiKey" }),
         PRIMARY_OWNER,
       );
       const deleteResponse = parseResponse(deleteResult);
@@ -215,13 +215,13 @@ describe("DeleteSecretHandler", () => {
       expect(listResponse.success).toBe(true);
       expect(listResponse.secretIds).toHaveLength(1);
       expect(listResponse.secretIds).toContain("openaiApiKey");
-      expect(listResponse.secretIds).not.toContain("groqApiKey");
+      expect(listResponse.secretIds).not.toContain("openRouterApiKey");
     });
 
     it("should only delete the specified secret (not all secrets)", async () => {
       // Store all four secrets
       for (const secretId of [
-        "groqApiKey",
+        "openRouterApiKey",
         "openaiApiKey",
         "slackBotToken",
         "slackSigningSecret",
@@ -290,13 +290,13 @@ describe("DeleteSecretHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "old-key",
         }),
         PRIMARY_OWNER,
       );
       await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "groqApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "openRouterApiKey" }),
         PRIMARY_OWNER,
       );
 
@@ -304,7 +304,7 @@ describe("DeleteSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "new-key",
         }),
         PRIMARY_OWNER,

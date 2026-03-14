@@ -11,13 +11,13 @@ module {
   /// LLM Provider
   public type LlmProvider = {
     #openai;
-    #groq;
+    #openRouter;
   };
 
   /// Secret identifier for encrypted-at-rest secrets
   /// Each variant represents a distinct secret that can be stored per workspace
   public type SecretId = {
-    #groqApiKey;
+    #openRouterApiKey;
     #openaiApiKey;
     #slackBotToken;
     #slackSigningSecret;
@@ -26,7 +26,7 @@ module {
   /// Subset of SecretId for org-critical secrets manageable only by the org owner
   /// via the storeOrgCriticalSecrets canister method
   public type OrgCriticalSecretId = {
-    #groqApiKey;
+    #openRouterApiKey;
     #slackBotToken;
     #slackSigningSecret;
   };

@@ -2,7 +2,7 @@ import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
 import Iter "mo:core/Iter";
-import GroqWrapper "../wrappers/groq-wrapper";
+import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
 
 module {
@@ -69,10 +69,10 @@ module {
   };
 
   /// Get all tool definitions (for passing to LLM API)
-  public func getAllDefinitions(registry : McpToolRegistryState) : [GroqWrapper.Tool] {
-    Array.map<ToolTypes.McpToolRegistration, GroqWrapper.Tool>(
+  public func getAllDefinitions(registry : McpToolRegistryState) : [OpenRouterWrapper.Tool] {
+    Array.map<ToolTypes.McpToolRegistration, OpenRouterWrapper.Tool>(
       getAll(registry),
-      func(t : ToolTypes.McpToolRegistration) : GroqWrapper.Tool {
+      func(t : ToolTypes.McpToolRegistration) : OpenRouterWrapper.Tool {
         t.definition;
       },
     );

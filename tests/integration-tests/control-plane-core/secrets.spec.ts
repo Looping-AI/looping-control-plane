@@ -66,10 +66,10 @@ describe("storeOrgCriticalSecrets", () => {
   // ============================================
 
   describe("secret types", () => {
-    it("should store groqApiKey without error", async () => {
+    it("should store openRouterApiKey without error", async () => {
       expectOk(
         await actor.storeOrgCriticalSecrets(
-          { groqApiKey: null },
+          { openRouterApiKey: null },
           "gsk_test_key",
         ),
       );

@@ -372,7 +372,7 @@ describe("ForkAgentHandler", () => {
           newName: "fork-with-secrets",
           targetWorkspaceId: 1,
           secretsAllowed: [
-            { workspaceId: 1, secretId: "groqApiKey" },
+            { workspaceId: 1, secretId: "openRouterApiKey" },
             { workspaceId: 2, secretId: "openaiApiKey" },
           ],
         }),

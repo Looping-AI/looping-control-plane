@@ -46,7 +46,7 @@ func registerSimple(state : AgentModel.AgentRegistryState, name : Text, category
     name,
     0,
     category,
-    #groq(#gpt_oss_120b),
+    #openRouter(#gpt_oss_120b),
     #api,
     [],
     [],
@@ -187,7 +187,7 @@ suite(
           "info-bot",
           0,
           #research,
-          #groq(#gpt_oss_120b),
+          #openRouter(#gpt_oss_120b),
           #api,
           [],
           ["web_search"],
@@ -293,7 +293,7 @@ suite(
           id,
           null,
           null,
-          ?#groq(#gpt_oss_120b),
+          ?#openRouter(#gpt_oss_120b),
           null,
           null,
           null,
@@ -307,10 +307,10 @@ suite(
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            let isGroq = switch (r.llmModel) {
-              case (#groq(_)) true;
+            let isOpenRouter = switch (r.llmModel) {
+              case (#openRouter(_)) true;
             };
-            expect.bool(isGroq).equal(true);
+            expect.bool(isOpenRouter).equal(true);
           };
         };
       },
@@ -522,9 +522,9 @@ suite(
           "secure-bot",
           0,
           #admin,
-          #groq(#gpt_oss_120b),
+          #openRouter(#gpt_oss_120b),
           #api,
-          [(1, #groqApiKey), (2, #openaiApiKey)],
+          [(1, #openRouterApiKey), (2, #openaiApiKey)],
           [],
           [],
           Map.empty<Text, AgentModel.ToolState>(),
@@ -550,7 +550,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        let result = AgentModel.updateById(id, null, null, null, null, ?[(0, #groqApiKey)], null, null, null, null, state);
+        let result = AgentModel.updateById(id, null, null, null, null, ?[(0, #openRouterApiKey)], null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         switch (AgentModel.lookupById(id, state)) {
@@ -570,9 +570,9 @@ suite(
           "bot",
           0,
           #admin,
-          #groq(#gpt_oss_120b),
+          #openRouter(#gpt_oss_120b),
           #api,
-          [(1, #groqApiKey)],
+          [(1, #openRouterApiKey)],
           [],
           [],
           Map.empty<Text, AgentModel.ToolState>(),

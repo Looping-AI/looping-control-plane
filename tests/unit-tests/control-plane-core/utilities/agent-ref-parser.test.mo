@@ -18,7 +18,7 @@ func registerSimple(
       name,
       0,
       #admin,
-      #groq(#gpt_oss_120b),
+      #openRouter(#gpt_oss_120b),
       #api,
       [],
       [],
