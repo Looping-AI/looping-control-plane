@@ -12,6 +12,9 @@ networks:
   - name: local
     mode: managed
     ii: true
+    gateway:
+      domains:
+        - "ngrok-free.dev"
 
 environments:
   - name: local
