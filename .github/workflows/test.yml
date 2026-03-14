@@ -58,5 +58,17 @@ jobs:
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/caffeinelabs/lintoko/releases/download/v0.7.0/lintoko-installer.sh | sh
           bun run lint
 
-      - name: Test
-        run: bun run test
+      - name: Test ICP Cli
+        run: |
+          icp network start --background
+          icp deploy
+          icp network stop
+
+      - name: Test Build
+        run: bun run test:build
+
+      - name: Test Integration
+        run: bun run test:integration
+
+      - name: Test Unit
+        run: bun run test:unit
