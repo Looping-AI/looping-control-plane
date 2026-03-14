@@ -64,11 +64,12 @@ async function compileToWasm(target: keyof typeof BUILD_TARGETS) {
 
     // Gzip-compress the WASM in place. ICP natively accepts gzip-compressed
     // WASMs, and this keeps the file well under PocketIC's 2 MB ingress limit.
-    console.log(`🗜️ ${config.name} built successfully, gzip-compressing...`);
-    const gzipped = new Uint8Array(
-      await $`gzip -c ${outputFile}`.arrayBuffer(),
-    );
-    await Bun.write(outputFile, gzipped);
+    console.log(`🗜️  gzip-compressing...`);
+    const compressedOutputFile = `${outputFile}.tmp`;
+    await $`gzip -c ${outputFile} > ${compressedOutputFile}`.env({
+      ...process.env,
+    });
+    await $`mv ${compressedOutputFile} ${outputFile}`.env({ ...process.env });
 
     console.log(
       `✅ ${config.name} build completed successfully (gzip-compressed)`,
@@ -115,17 +116,6 @@ async function generateCandidInterface(target: keyof typeof BUILD_TARGETS) {
     await $`didc bind ${candidFile} -t js > ${jsBindingsFile}`.env({
       ...process.env,
     });
-
-    // TODO: remove this step when dfx is replaced with icp-cli
-    // didc generates imports from @dfinity/* packages, but @dfinity/pic 0.18+
-    // uses @icp-sdk/core/* for Principal/IDL/ActorMethod. Rewrite the imports
-    // so TypeScript doesn't see two structurally-incompatible versions of the same type.
-    let tsContent = await Bun.file(tsBindingsFile).text();
-    tsContent = tsContent
-      .replace(/from '@dfinity\/principal'/g, "from '@icp-sdk/core/principal'")
-      .replace(/from '@dfinity\/agent'/g, "from '@icp-sdk/core/agent'")
-      .replace(/from '@dfinity\/candid'/g, "from '@icp-sdk/core/candid'");
-    await Bun.write(tsBindingsFile, tsContent);
 
     console.log(
       `✅ Generated TypeScript and Javascript bindings:\n` +
