@@ -24,15 +24,7 @@ environments:
   - name: staging
     network: ic
     canisters: [control-plane-core]
-    settings:
-      control-plane-core:
-        environment_variables:
-          ENV: "staging"
 
   - name: production
     network: ic
     canisters: [control-plane-core]
-    settings:
-      control-plane-core:
-        environment_variables:
-          ENV: "production"
