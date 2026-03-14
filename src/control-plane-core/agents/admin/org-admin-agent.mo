@@ -41,7 +41,7 @@ module {
     // Resolved Slack user identity — used for authorization checks in write tools
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
     // Encrypted secrets store — used by secrets-management tools
-    secrets : SecretModel.SecretsMap;
+    secrets : SecretModel.SecretsState;
     // Key derivation cache — passed to StoreSecretHandler for encryption
     keyCache : KeyDerivationService.KeyCache;
     // Event store — used by event queue management tools
@@ -106,7 +106,7 @@ module {
         write = true;
       };
       secrets = ?{
-        map = ctx.secrets;
+        state = ctx.secrets;
         keyCache = ctx.keyCache;
         write = true;
       };

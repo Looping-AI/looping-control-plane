@@ -80,6 +80,7 @@ module {
     workspaceScopeChanges : [WorkspaceScopeChange];
     staleUsersRemoved : [Text];
     logsPurged : Nat;
+    secretLogsPurged : Nat;
   };
 
   // ============================================
@@ -311,14 +312,13 @@ module {
   /// @returns #ok with reconciliation summary, or #err if token is missing
   public func run(
     keyCache : KeyDerivationService.KeyCache,
-    secrets : Map.Map<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>,
+    secrets : SecretModel.SecretsState,
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
   ) : async { #ok : ReconciliationSummary; #err : Text } {
     // Resolve the bot token from workspace 0 secrets (global Slack integration secret).
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
-    let token = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
+    let token = switch (SecretModel.getSecret(secrets, encryptionKey, 0, #slackBotToken, { slackUserId = null; agentId = null; operation = "weekly-reconciliation" })) {
       case (null) {
         return #err("No Slack bot token found for workspace 0");
       };
@@ -352,6 +352,7 @@ module {
           workspaceScopeChanges = [];
           staleUsersRemoved = [];
           logsPurged = 0;
+          secretLogsPurged = 0;
         });
       };
       case (#ok(allUsers)) {
@@ -672,6 +673,16 @@ module {
       );
     };
 
+    // ---- Step 5: Purge old secret audit log entries ----
+    let secretLogsPurged = SecretModel.purgeAllWorkspaceLogs(secrets, Constants.ACCESS_LOG_RETENTION_NS);
+    if (secretLogsPurged > 0) {
+      Logger.log(
+        #info,
+        ?"WeeklyReconciliation",
+        "Purged " # Nat.toText(secretLogsPurged) # " old secret audit log entries.",
+      );
+    };
+
     // ---- Build audit summary from log entries produced during this run ----
     let audit = buildAuditSummary(slackUsers, runStartTime);
 
@@ -696,6 +707,7 @@ module {
       workspaceScopeChanges = audit.workspaceScopeChanges;
       staleUsersRemoved = audit.staleUsersRemoved;
       logsPurged;
+      secretLogsPurged;
     });
   };
 };

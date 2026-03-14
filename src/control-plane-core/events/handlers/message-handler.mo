@@ -237,11 +237,9 @@ module {
     ctx : EventProcessingContextTypes.EventProcessingContext,
     workspaceId : Nat,
   ) : {
-    workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>;
     workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState;
     workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap;
   } {
-    let workspaceSecrets = Map.get(ctx.secrets, Nat.compare, workspaceId);
     let workspaceValueStreamsState = switch (Map.get(ctx.workspaceValueStreams, Nat.compare, workspaceId)) {
       case (?state) { state };
       case (null) { ValueStreamModel.emptyWorkspaceState() };
@@ -252,7 +250,7 @@ module {
         Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>();
       };
     };
-    { workspaceSecrets; workspaceValueStreamsState; workspaceObjectivesMap };
+    { workspaceValueStreamsState; workspaceObjectivesMap };
   };
 
   /// Build the AgentMessageMetadata attached to every outbound Slack message,
@@ -365,11 +363,12 @@ module {
   /// Resolve the Slack bot token for the given workspace.
   /// Returns null (and logs a warning) when no token secret is configured.
   func resolveWorkspaceBotToken(
-    workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
+    secrets : SecretModel.SecretsState,
     encryptionKey : [Nat8],
     workspaceId : Nat,
+    requester : SecretModel.SecretRequester,
   ) : ?Text {
-    switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackBotToken)) {
+    switch (SecretModel.getSecret(secrets, encryptionKey, workspaceId, #slackBotToken, requester)) {
       case (null) {
         Logger.log(
           #warn,
@@ -392,9 +391,13 @@ module {
     channel : Text,
     threadTs : ?Text,
   ) : async () {
-    let wsSecrets = Map.get(ctx.secrets, Nat.compare, workspaceId);
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
-    switch (resolveWorkspaceBotToken(wsSecrets, encryptionKey, workspaceId)) {
+    let requester : SecretModel.SecretRequester = {
+      slackUserId = null;
+      agentId = null;
+      operation = "message-handler:termination-token";
+    };
+    switch (resolveWorkspaceBotToken(ctx.secrets, encryptionKey, workspaceId, requester)) {
       case (?tok) {
         await AgentRouter.postTerminationPrompt(tok, channel, threadTs);
       };
@@ -407,7 +410,7 @@ module {
   func dispatchToAgentRouter(
     primaryAgent : AgentModel.AgentRecord,
     ctx : EventProcessingContextTypes.EventProcessingContext,
-    workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
+    slackUserId : ?Text,
     conversationEntry : ?ConversationModel.TimelineEntry,
     agentCtx : AgentRouter.AgentCtx,
     msgText : Text,
@@ -416,7 +419,8 @@ module {
     let result = await AgentRouter.route(
       primaryAgent,
       ctx.mcpToolRegistry,
-      workspaceSecrets,
+      ctx.secrets,
+      slackUserId,
       conversationEntry,
       agentCtx,
       msgText,
@@ -491,10 +495,19 @@ module {
 
     // ── Orchestration (shared path for user and bot messages) ─────────────────
 
-    let { workspaceSecrets; workspaceValueStreamsState; workspaceObjectivesMap } = scopeWorkspaceData(ctx, workspaceId);
+    let { workspaceValueStreamsState; workspaceObjectivesMap } = scopeWorkspaceData(ctx, workspaceId);
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
 
-    let botToken = switch (resolveWorkspaceBotToken(workspaceSecrets, encryptionKey, workspaceId)) {
+    let slackUserId : ?Text = switch (activeCtxOpt) {
+      case (?c) { ?c.slackUserId };
+      case (null) { null };
+    };
+    let botTokenRequester : SecretModel.SecretRequester = {
+      slackUserId;
+      agentId = ?primaryAgent.id;
+      operation = "message-handler:bot-token";
+    };
+    let botToken = switch (resolveWorkspaceBotToken(ctx.secrets, encryptionKey, workspaceId, botTokenRequester)) {
       case (null) {
         return #ok([{
           action = "post_to_slack";
@@ -535,7 +548,7 @@ module {
     let (llmSteps, replyTextOpt) = await dispatchToAgentRouter(
       primaryAgent,
       ctx,
-      workspaceSecrets,
+      slackUserId,
       conversationEntry,
       agentCtx,
       msg.text,

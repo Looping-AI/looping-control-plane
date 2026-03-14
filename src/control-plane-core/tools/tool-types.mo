@@ -92,7 +92,7 @@ module {
     // write=true enables store_secret and delete_secret.
     // store_secret additionally requires the workspaces resource to validate workspace existence.
     secrets : ?{
-      map : SecretModel.SecretsMap;
+      state : SecretModel.SecretsState;
       keyCache : KeyDerivationService.KeyCache;
       write : Bool;
     };

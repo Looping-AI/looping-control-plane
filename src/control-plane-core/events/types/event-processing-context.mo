@@ -11,7 +11,6 @@
 /// extra import.
 
 import Map "mo:core/Map";
-import Types "../../types";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ConversationModel "../../models/conversation-model";
@@ -35,8 +34,8 @@ module {
   /// The handler is responsible for scoping org-wide maps down to the relevant
   /// workspace before passing data into lower-level services/orchestrators.
   public type EventProcessingContext = {
-    /// Encrypted secrets for all workspaces — scope to workspaceId before use
-    secrets : Map.Map<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>;
+    /// Encrypted secrets and audit logs for all workspaces
+    secrets : SecretModel.SecretsState;
     /// Async key-derivation cache — pass to KeyDerivationService.getOrDeriveKey
     keyCache : KeyDerivationService.KeyCache;
     /// Channel-keyed conversation store (Phase 1.4) — handlers call ConversationModel

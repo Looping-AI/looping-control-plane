@@ -15,7 +15,7 @@ module {
   ///
   /// Authorization: requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
   public func handle(
-    secrets : SecretModel.SecretsMap,
+    secrets : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
     args : Text,
   ) : async Text {
