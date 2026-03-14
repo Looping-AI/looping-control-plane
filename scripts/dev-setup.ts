@@ -125,7 +125,7 @@ function checkIcpNetwork(): void {
   if (result.status !== 0) {
     logError("ICP network is not running!");
     log("\nPlease start the ICP network first by running:", colors.yellow);
-    log("  bun run dev:start\n", colors.bright + colors.cyan);
+    log("  icp network start\n", colors.bright + colors.cyan);
     throw new Error("ICP network not running");
   }
 

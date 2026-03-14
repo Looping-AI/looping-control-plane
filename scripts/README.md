@@ -6,12 +6,11 @@ Automated local ICP development environment setup script.
 
 ### What it does
 
-1. **Checks that the local ICP network is running** (you must run `bun run dev:start` first)
+1. **Checks that the local ICP network is running** (you must run `icp network start` first)
 2. **Deploys canisters**:
    - `control-plane-core` (with admin principal)
-   - `internet_identity`
 3. **Seeds secrets** into the canister:
-   - OpenRouter API key
+   - Groq API key
    - Slack signing secret
    - Slack bot token
 4. **Prints Candid UI links** for easy access to the canister interface
@@ -28,7 +27,7 @@ Before running the script, ensure you have:
 
 ```bash
 # First, start the ICP network
-bun run dev:start
+icp network start
 
 # Then in another terminal, run the setup
 bun run dev:setup
