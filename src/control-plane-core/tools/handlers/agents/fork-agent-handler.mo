@@ -1,72 +1,13 @@
 import Json "mo:json";
 import { str; obj; int; bool } "mo:json";
-import List "mo:core/List";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
-import Types "../../../types";
+import AgentParsers "../parsers/agent-parsers";
 
 module {
-  private func parseSecretId(s : Text) : ?Types.SecretId {
-    switch (s) {
-      case ("groqApiKey") { ?#groqApiKey };
-      case ("openaiApiKey") { ?#openaiApiKey };
-      case ("slackBotToken") { ?#slackBotToken };
-      case _ { null };
-    };
-  };
-
-  private func parseSecretsAllowed(items : [Json.Json]) : ?[(Nat, Types.SecretId)] {
-    let buffer = List.empty<(Nat, Types.SecretId)>();
-    for (item in items.vals()) {
-      let wsIdOpt = switch (Json.get(item, "workspaceId")) {
-        case (?#number(#int n)) { if (n >= 0) ?Int.abs(n) else null };
-        case _ { null };
-      };
-      let sidOpt = switch (Json.get(item, "secretId")) {
-        case (?#string(s)) { parseSecretId(s) };
-        case _ { null };
-      };
-      switch (wsIdOpt, sidOpt) {
-        case (?wsId, ?sid) { List.add(buffer, (wsId, sid)) };
-        case _ { return null };
-      };
-    };
-    ?List.toArray(buffer);
-  };
-
-  private func parseExecutionType(json : Json.Json) : ?AgentModel.AgentExecutionType {
-    let typeStr = switch (Json.get(json, "type")) {
-      case (?#string(s)) { s };
-      case _ { return null };
-    };
-    switch (typeStr) {
-      case ("api") { ?#api };
-      case ("runtime") {
-        let hostingStr = switch (Json.get(json, "hosting")) {
-          case (?#string(s)) { s };
-          case _ { return null };
-        };
-        let frameworkStr = switch (Json.get(json, "framework")) {
-          case (?#string(s)) { s };
-          case _ { return null };
-        };
-        switch (hostingStr, frameworkStr) {
-          case ("codespace", "openClaw") {
-            ?#runtime {
-              hosting = #codespace;
-              framework = #openClaw { deployedVersion = null };
-            };
-          };
-          case _ { null };
-        };
-      };
-      case _ { null };
-    };
-  };
-
   public func handle(
     state : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
@@ -115,7 +56,7 @@ module {
 
         let secretsAllowed = switch (Json.get(json, "secretsAllowed")) {
           case (?#array(items)) {
-            switch (parseSecretsAllowed(items)) {
+            switch (AgentParsers.parseSecretsAllowed(items)) {
               case (?sa) { sa };
               case null {
                 return Helpers.buildErrorResponse(
@@ -132,7 +73,7 @@ module {
 
         let executionType = switch (Json.get(json, "executionType")) {
           case (?etJson) {
-            switch (parseExecutionType(etJson)) {
+            switch (AgentParsers.parseExecutionType(etJson)) {
               case (?et) { ?et };
               case null {
                 return Helpers.buildErrorResponse(

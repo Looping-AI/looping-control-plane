@@ -49,6 +49,7 @@ import ListAgentsHandler "../../../src/control-plane-core/tools/handlers/agents/
 import GetAgentHandler "../../../src/control-plane-core/tools/handlers/agents/get-agent-handler";
 import UpdateAgentHandler "../../../src/control-plane-core/tools/handlers/agents/update-agent-handler";
 import UnregisterAgentHandler "../../../src/control-plane-core/tools/handlers/agents/unregister-agent-handler";
+import ForkAgentHandler "../../../src/control-plane-core/tools/handlers/agents/fork-agent-handler";
 import RegisterMcpToolHandler "../../../src/control-plane-core/tools/handlers/mcp/register-mcp-tool-handler";
 import UnregisterMcpToolHandler "../../../src/control-plane-core/tools/handlers/mcp/unregister-mcp-tool-handler";
 import ListMcpToolsHandler "../../../src/control-plane-core/tools/handlers/mcp/list-mcp-tools-handler";
@@ -1324,6 +1325,23 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await UnregisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  /// Test the ForkAgentHandler in isolation.
+  /// @param args JSON-encoded tool arguments ({ originalId, newName, targetWorkspaceId, secretsAllowed?, executionType? }).
+  /// @param auth Simplified auth context.
+  ///
+  /// The forked agent is registered into testAgentRegistry alongside the original,
+  /// so subsequent calls to testGetAgentHandler / testListAgentsHandler see it.
+  public shared ({ caller }) func testForkAgentHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+    },
+  ) : async Text {
+    assert caller == parent;
+    await ForkAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
   };
 
   // ============================================

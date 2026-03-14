@@ -4,17 +4,9 @@ import Array "mo:core/Array";
 import Nat "mo:core/Nat";
 import ValueStreamModel "../../../models/value-stream-model";
 import Helpers "../handler-helpers";
+import ValueStreamParsers "../parsers/value-stream-parsers";
 
 module {
-  private func statusToText(status : ValueStreamModel.ValueStreamStatus) : Text {
-    switch (status) {
-      case (#draft) { "draft" };
-      case (#active) { "active" };
-      case (#paused) { "paused" };
-      case (#archived) { "archived" };
-    };
-  };
-
   public func handle(
     workspaceId : Nat,
     valueStreamsMap : ValueStreamModel.ValueStreamsMap,
@@ -32,7 +24,7 @@ module {
                 ("name", str(vs.name)),
                 ("problem", str(vs.problem)),
                 ("goal", str(vs.goal)),
-                ("status", str(statusToText(vs.status))),
+                ("status", str(ValueStreamParsers.statusToText(vs.status))),
                 ("hasPlan", bool(vs.plan != null)),
                 ("createdAt", int(vs.createdAt)),
                 ("updatedAt", int(vs.updatedAt)),

@@ -2,10 +2,10 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
-import Float "mo:core/Float";
 import Map "mo:core/Map";
 import ObjectiveModel "../../../models/objective-model";
 import Helpers "../handler-helpers";
+import ObjectiveParsers "../parsers/objective-parsers";
 
 module {
   public func handle(
@@ -49,10 +49,7 @@ module {
             };
 
             let objectiveTypeOpt = switch (Json.get(json, "objectiveType")) {
-              case (?#string("target")) { ?#target };
-              case (?#string("contributing")) { ?#contributing };
-              case (?#string("prerequisite")) { ?#prerequisite };
-              case (?#string("guardrail")) { ?#guardrail };
+              case (?#string(s)) { ObjectiveParsers.parseObjectiveType(s) };
               case _ { null };
             };
 
@@ -67,49 +64,8 @@ module {
             };
 
             let targetOpt : ?ObjectiveModel.ObjectiveTarget = switch (Json.get(json, "targetType")) {
-              case (?#string("percentage")) {
-                switch (Json.get(json, "targetValue")) {
-                  case (?#number(#float f)) { ?#percentage({ target = f }) };
-                  case (?#number(#int i)) {
-                    ?#percentage({ target = Float.fromInt(i) });
-                  };
-                  case _ { null };
-                };
-              };
-              case (?#string("count")) {
-                let targetValueOpt = switch (Json.get(json, "targetValue")) {
-                  case (?#number(#float f)) { ?f };
-                  case (?#number(#int i)) { ?Float.fromInt(i) };
-                  case _ { null };
-                };
-                let directionOpt = switch (Json.get(json, "targetDirection")) {
-                  case (?#string("increase")) { ?#increase };
-                  case (?#string("decrease")) { ?#decrease };
-                  case _ { null };
-                };
-                switch (targetValueOpt, directionOpt) {
-                  case (?target, ?direction) { ?#count({ target; direction }) };
-                  case _ { null };
-                };
-              };
-              case (?#string("threshold")) {
-                let minOpt = switch (Json.get(json, "targetValue")) {
-                  case (?#number(#float f)) { ?f };
-                  case (?#number(#int i)) { ?Float.fromInt(i) };
-                  case _ { null };
-                };
-                let maxOpt = switch (Json.get(json, "targetMax")) {
-                  case (?#number(#float f)) { ?f };
-                  case (?#number(#int i)) { ?Float.fromInt(i) };
-                  case _ { null };
-                };
-                ?#threshold({ min = minOpt; max = maxOpt });
-              };
-              case (?#string("boolean")) {
-                switch (Json.get(json, "targetBoolean")) {
-                  case (?#bool(b)) { ?#boolean(b) };
-                  case _ { null };
-                };
+              case (?#string(s)) {
+                ObjectiveParsers.parseObjectiveTarget(json, s);
               };
               case _ { null };
             };

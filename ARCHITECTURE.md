@@ -156,7 +156,7 @@ Queued work items that may involve awaits (LLM calls, tool use, function calling
 
 All write operations enter the canister through verified webhook endpoints:
 
-- **Slack Events API** (`http_request_update` at `/slack/events`): messages, app mentions, channel membership changes, interactive message callbacks. HMAC-SHA256 with Slack signing secret + timestamp replay protection.
+- **Slack Events API** (`http_request_update` at `/webhook/slack`): messages, app mentions, channel membership changes, interactive message callbacks. HMAC-SHA256 with Slack signing secret + timestamp replay protection.
 - **GitHub Webhooks** (`http_request_update` at `/github/webhook`): codespace lifecycle events (`created`, `started`, `stopped`, `deleted`). HMAC-SHA256 with `X-Hub-Signature-256` header using a stored GitHub webhook secret.
 - **OpenClaw Webhooks** (`http_request_update` at `/openclaw/webhook`): structured agent response payloads from the Express sidecar. HMAC-SHA256 using the per-workspace `sidecarSecret`.
 - **Slack API** (outbound HTTP outcalls): the canister calls Slack to post messages, read user lists, and read channel memberships.
