@@ -55,7 +55,11 @@ describe("GetAgentHandler", () => {
   describe("lookup by id", () => {
     it("should return the agent when found by id", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "admin-bot", category: "admin" }),
+        JSON.stringify({
+          name: "admin-bot",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -88,7 +92,11 @@ describe("GetAgentHandler", () => {
   describe("lookup by name", () => {
     it("should return the agent when found by name", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "plan-bot", category: "planning" }),
+        JSON.stringify({
+          name: "plan-bot",
+          category: "planning",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 

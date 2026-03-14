@@ -38,7 +38,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ## Phase A — Foundation Refactors (no new features, unblocks everything)
 
-### A.0 — Agent Execution Types
+~~### A.0 — Agent Execution Types~~
 
 **What**: Introduce the concept of two fundamentally different agent execution types.
 

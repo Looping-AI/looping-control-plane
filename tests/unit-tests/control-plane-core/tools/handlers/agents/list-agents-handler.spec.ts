@@ -44,11 +44,19 @@ describe("ListAgentsHandler", () => {
 
   it("should return all registered agents after seeding", async () => {
     await testCanister.testRegisterAgentHandler(
-      JSON.stringify({ name: "admin-bot", category: "admin" }),
+      JSON.stringify({
+        name: "admin-bot",
+        category: "admin",
+        executionType: { type: "api" },
+      }),
       PRIMARY_OWNER,
     );
     await testCanister.testRegisterAgentHandler(
-      JSON.stringify({ name: "plan-bot", category: "planning" }),
+      JSON.stringify({
+        name: "plan-bot",
+        category: "planning",
+        executionType: { type: "api" },
+      }),
       PRIMARY_OWNER,
     );
 
@@ -70,6 +78,7 @@ describe("ListAgentsHandler", () => {
       JSON.stringify({
         name: "full-agent",
         category: "research",
+        executionType: { type: "api" },
         llmModel: "gpt_oss_120b",
         toolsDisallowed: ["web_search"],
         sources: ["https://example.com"],
