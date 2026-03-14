@@ -8,13 +8,6 @@ canisters:
         main: src/control-plane-core/main.mo
         args: ""
 
-  - name: test-canister
-    recipe:
-      type: "@dfinity/motoko@v4.1.0"
-      configuration:
-        main: tests/unit-tests/control-plane-core/test-canister.mo
-        args: ""
-
 networks:
   - name: local
     mode: managed
@@ -25,6 +18,18 @@ environments:
     network: local
     canisters: [control-plane-core]
 
-  - name: test
-    network: local
-    canisters: [test-canister]
+  - name: staging
+    network: ic
+    canisters: [control-plane-core]
+    settings:
+      control-plane-core:
+        environment_variables:
+          ENV: "staging"
+
+  - name: production
+    network: ic
+    canisters: [control-plane-core]
+    settings:
+      control-plane-core:
+        environment_variables:
+          ENV: "production"

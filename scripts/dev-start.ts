@@ -2,19 +2,19 @@
 
 /**
  * Development server startup script
- * Starts dfx with proper domain configuration
+ * Starts the ICP network with proper domain configuration
  */
 
 const ngrokDomain = process.env.NGROK_DEV_DOMAIN;
 
-const args = ["dfx", "start", "--clean", "--domain", "localhost"];
+const args = ["icp", "network", "start", "--clean", "--domain", "localhost"];
 
 // Only add ngrok domain if it's set
 if (ngrokDomain && ngrokDomain !== "your_ngrok_dev_domain_here") {
   args.push("--domain", ngrokDomain);
 }
 
-console.log("Starting dfx with:", args.slice(1).join(" "));
+console.log("Starting ICP network with:", args.slice(2).join(" "));
 
 const proc = Bun.spawn(args, {
   stdio: ["inherit", "inherit", "inherit"],

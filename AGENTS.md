@@ -137,11 +137,11 @@ Refer to `.mops/test@{version}/README.md` for complete `expect` documentation an
 
 ### For Motoko Code
 
-Use dfx build with the `--check` flag to verify Motoko src code without creating canisters:
+Use icp build to verify Motoko src code without creating canisters:
 
 ```bash
 # Check Motoko files for compilation errors
-dfx build control-plane-core --check
+icp build control-plane-core
 ```
 
 If it's tests written in Motoko you modified, run the mops test instead:

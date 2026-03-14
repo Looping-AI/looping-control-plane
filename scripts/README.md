@@ -2,16 +2,18 @@
 
 ## dev-start.ts
 
-Starts the local dfx network with proper domain configuration and environment variable handling.
+Starts the local ICP network with proper domain configuration and environment variable handling.
 
 ### What it does
 
-Launches `dfx start --clean` with domain configuration:
+Launches `icp network start --domain localhost` with domain configuration:
 
 - Always includes `--domain localhost` (required)
 - Conditionally adds `--domain <NGROK_DEV_DOMAIN>` if the environment variable is set and not a placeholder value
 
 This script solves the issue of shell variable expansion in package.json scripts by handling the environment variable in TypeScript, ensuring the command doesn't fail when `NGROK_DEV_DOMAIN` is unset.
+
+Starts the network in foreground mode (interactive), use Ctrl+C to stop.
 
 ### Usage
 
@@ -29,15 +31,15 @@ bun run scripts/dev-start.ts
 
 ### Notes
 
-- The script forwards SIGINT and SIGTERM signals to properly shut down dfx
+- The script forwards SIGINT and SIGTERM signals to properly shut down the ICP network
 - Uses `--clean` flag to start with a fresh state
-- Runs dfx in the foreground, inheriting stdio for interactive use
+- Runs the network in the foreground, inheriting stdio for interactive use
 
 ### Troubleshooting
 
 **Network fails to start:**
 
-- Ensure no other dfx instances are running (`dfx stop`)
+- Ensure no other ICP network instances are running (`icp network stop`)
 - Check that ports 4943 and 8000 are available
 
 ---
@@ -48,12 +50,12 @@ Automated local ICP development environment setup script.
 
 ### What it does
 
-1. **Checks that the local dfx network is running** (you must run `bun run dev:start` first)
+1. **Checks that the local ICP network is running** (you must run `bun run dev:start` first)
 2. **Deploys canisters**:
    - `control-plane-core` (with admin principal)
    - `internet_identity`
 3. **Seeds secrets** into the canister:
-   3 - Groq API key
+   - OpenRouter API key
    - Slack signing secret
    - Slack bot token
 4. **Prints Candid UI links** for easy access to the canister interface
@@ -62,14 +64,14 @@ Automated local ICP development environment setup script.
 
 Before running the script, ensure you have:
 
-- The local dfx network running (see `dev-start.ts` above)
+- The local ICP network running (see `dev-start.ts` above)
 - `bun` installed
 - A `.env` file with your actual configuration values (copy from `.env.example`)
 
 ### Usage
 
 ```bash
-# First, start the dfx network
+# First, start the ICP network
 bun run dev:start
 
 # Then in another terminal, run the setup
@@ -86,7 +88,7 @@ The script reads from `.env` by default. You can copy from `.env.example` file a
 ```env
 NGROK_DEV_DOMAIN='your-actual-ngrok-domain.ngrok-free.app'
 ADMIN_PRINCIPAL='your-actual-principal-id'
-GROQ_DEV_KEY='gsk_your_actual_groq_api_key'
+OPENROUTER_DEV_KEY='sk-or-your_actual_openrouter_api_key'
 SLACK_APP_SIGNING_SECRET='your_actual_slack_signing_secret'
 SLACK_APP_BOT_TOKEN='xoxb-your-actual-bot-token'
 ```
@@ -104,7 +106,7 @@ When successful, the script will:
 **Deployment fails:**
 
 - Verify the `ADMIN_PRINCIPAL` is a valid principal ID
-- Ensure all Motoko code compiles (`dfx build --check control-plane-core`)
+- Ensure all Motoko code compiles (`icp build control-plane-core`)
 
 **Secrets fail to store:**
 
