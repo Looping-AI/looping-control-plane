@@ -77,7 +77,7 @@ module {
       Nat.compare,
     );
     {
-      secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+      secrets = SecretModel.initState();
       keyCache;
       conversationStore = ConversationModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
@@ -108,10 +108,10 @@ module {
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
       Nat.compare,
     );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+    let secrets = SecretModel.initState();
     for (wsId in [0, 1, 42].vals()) {
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken);
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey);
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken, { slackUserId = null; agentId = null; operation = "test" });
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey, { slackUserId = null; agentId = null; operation = "test" });
     };
     // Register an admin agent permitted to access openRouterApiKey for workspaces 0, 1, and 42
     let registry = AgentModel.emptyState();
@@ -160,10 +160,10 @@ module {
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
       Nat.compare,
     );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+    let secrets = SecretModel.initState();
     for (wsId in [0, 1, 42].vals()) {
       // NOTE: #slackBotToken intentionally absent — keeps postTerminationPrompt a no-op.
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey);
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey, { slackUserId = null; agentId = null; operation = "test" });
     };
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
@@ -210,10 +210,10 @@ module {
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
       Nat.compare,
     );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+    let secrets = SecretModel.initState();
     for (wsId in [0, 1, 42].vals()) {
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken);
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey);
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken, { slackUserId = null; agentId = null; operation = "test" });
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey, { slackUserId = null; agentId = null; operation = "test" });
     };
     let registry = AgentModel.emptyState();
     // Admin agent (same as ctxWithSecrets)
@@ -276,10 +276,10 @@ module {
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
       Nat.compare,
     );
-    let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+    let secrets = SecretModel.initState();
     for (wsId in [0, 1, 42].vals()) {
       // NOTE: #openRouterApiKey intentionally absent — keeps admin route a sync no-op.
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken);
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken, { slackUserId = null; agentId = null; operation = "test" });
     };
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(

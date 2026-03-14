@@ -147,7 +147,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // canister lifetime (but each test creates a fresh PocketIC canister).
   // The key cache is pre-seeded with the all-zeros dummy key for workspaces 0, 1, 2
   // to avoid live Schnorr calls during unit tests.
-  let testSecretsMap = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
+  let testSecretsMap = SecretModel.initState();
   let testSecretsKeyCache : KeyDerivationService.KeyCache = Map.fromArray<Nat, [Nat8]>(
     [(0, TestHelpers.dummyKey), (1, TestHelpers.dummyKey), (2, TestHelpers.dummyKey)],
     Nat.compare,
@@ -745,7 +745,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       };
     };
     // Seed the token into testSecretsMap so the runner can resolve it.
-    ignore SecretModel.storeSecret(testSecretsMap, TestHelpers.dummyKey, 0, #slackBotToken, token);
+    ignore SecretModel.storeSecret(testSecretsMap, TestHelpers.dummyKey, 0, #slackBotToken, token, { slackUserId = null; agentId = null; operation = "test" });
     await WeeklyReconciliationRunner.run(
       testSecretsKeyCache,
       testSecretsMap,

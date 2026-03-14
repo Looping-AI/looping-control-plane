@@ -11,7 +11,6 @@
 /// extra import.
 
 import Map "mo:core/Map";
-import Types "../../types";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ConversationModel "../../models/conversation-model";
