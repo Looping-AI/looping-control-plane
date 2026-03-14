@@ -23,10 +23,9 @@ jobs:
         shell: bash
         run: bun i --frozen-lockfile
 
-      - name: Setup DFX
-        uses: dfinity/setup-dfx@main
-        with:
-          dfx-version: "auto"
+      - name: Setup ICP-CLI
+        shell: bash
+        run: npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm
 
       - name: Setup DIDC
         shell: bash
@@ -45,12 +44,6 @@ jobs:
 
       - name: Install Mops Packages
         run: mops install
-
-      - name: Build
-        run: |
-          dfx start --background
-          dfx deploy
-          dfx stop
 
       - name: Check Format
         run: bun run format:check

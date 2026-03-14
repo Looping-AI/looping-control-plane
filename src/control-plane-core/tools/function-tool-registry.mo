@@ -39,6 +39,7 @@ import RegisterAgentHandler "./handlers/agents/register-agent-handler";
 import ListAgentsHandler "./handlers/agents/list-agents-handler";
 import GetAgentHandler "./handlers/agents/get-agent-handler";
 import UpdateAgentHandler "./handlers/agents/update-agent-handler";
+import ForkAgentHandler "./handlers/agents/fork-agent-handler";
 import UnregisterAgentHandler "./handlers/agents/unregister-agent-handler";
 import RegisterMcpToolHandler "./handlers/mcp/register-mcp-tool-handler";
 import UnregisterMcpToolHandler "./handlers/mcp/unregister-mcp-tool-handler";
@@ -204,6 +205,7 @@ module {
             if (ar.write) {
               List.add(tools, registerAgentTool(ar.state, uac));
               List.add(tools, updateAgentTool(ar.state, uac));
+              List.add(tools, forkAgentTool(ar.state, uac));
               List.add(tools, unregisterAgentTool(ar.state, uac));
             };
           };
@@ -878,8 +880,8 @@ module {
         tool_type = "function";
         function = {
           name = "register_agent";
-          description = ?"Registers a new agent in the global registry. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens. Category must be one of: admin, planning, research, communication. The default LLM model is gpt_oss_120b.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'work-planning').\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"Agent category.\"},\"llmModel\":{\"type\":\"string\",\"description\":\"LLM model to use. Currently: gpt_oss_120b. Omit to use the default.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names to block for this agent. Omit for none.\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Knowledge source URLs or references for this agent. Omit for none.\"}},\"required\":[\"name\",\"category\"]}";
+          description = ?"Registers a new agent in the global registry. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens. Category must be one of: admin, planning, research, communication. Execution type must be specified (api or runtime with codespace hosting and openClaw framework).";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'work-planning').\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"Agent category.\"},\"workspaceId\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"Workspace that will own the agent. Omit to default to org workspace (0).\"},\"llmModel\":{\"type\":\"string\",\"description\":\"LLM model to use. Currently: gpt_oss_120b. Omit to use the default.\"},\"executionType\":{\"type\":\"object\",\"description\":\"Execution type configuration (required).\",\"oneOf\":[{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"api\"]}},\"required\":[\"type\"]},{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"runtime\"]},\"hosting\":{\"type\":\"string\",\"enum\":[\"codespace\"]},\"framework\":{\"type\":\"string\",\"enum\":[\"openClaw\"]}},\"required\":[\"type\",\"hosting\",\"framework\"]}]},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names to block for this agent. Omit for none.\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Knowledge source URLs or references for this agent. Omit for none.\"}},\"required\":[\"name\",\"category\",\"executionType\"]}";
         };
       };
       handler = func(args : Text) : async Text {
@@ -899,11 +901,31 @@ module {
         function = {
           name = "update_agent";
           description = ?"Updates an existing agent's configuration. Provide the agent 'id' and only the fields you want to change; omitted fields are left unchanged.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"New category (optional).\"},\"llmModel\":{\"type\":\"string\",\"description\":\"New LLM model (optional). Currently: gpt_oss_120b.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New tools blocklist (optional).\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New knowledge sources (optional).\"}},\"required\":[\"id\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"New category (optional).\"},\"llmModel\":{\"type\":\"string\",\"description\":\"New LLM model (optional). Currently: gpt_oss_120b.\"},\"executionType\":{\"type\":\"object\",\"description\":\"New execution type configuration (optional).\",\"oneOf\":[{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"api\"]}},\"required\":[\"type\"]},{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"runtime\"]},\"hosting\":{\"type\":\"string\",\"enum\":[\"codespace\"]},\"framework\":{\"type\":\"string\",\"enum\":[\"openClaw\"]}},\"required\":[\"type\",\"hosting\",\"framework\"]}]},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New tools blocklist (optional).\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New knowledge sources (optional).\"}},\"required\":[\"id\"]}";
         };
       };
       handler = func(args : Text) : async Text {
         await UpdateAgentHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Fork agent tool — requires agentRegistry resource with write + user identity
+  private func forkAgentTool(
+    state : AgentModel.AgentRegistryState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "fork_agent";
+          description = ?"Forks an existing agent into a new workspace. Inherits category, llmModel, toolsDisallowed, toolsState.knowHow, and sources. Resets usageCount and toolsMisconfigured. Secrets are workspace-scoped and must be provided explicitly for the new workspace.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"originalId\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"ID of the agent to fork from.\"},\"newName\":{\"type\":\"string\",\"description\":\"Name for the new agent (kebab-case).\"},\"targetWorkspaceId\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"Workspace that will own the new agent.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"integer\",\"minimum\":0},\"secretId\":{\"type\":\"string\",\"enum\":[\"groqApiKey\",\"openaiApiKey\",\"slackBotToken\"]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets for the new workspace. Omit for none.\"},\"executionType\":{\"type\":\"object\",\"description\":\"Override execution type. Omit to inherit from original.\",\"oneOf\":[{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"api\"]}},\"required\":[\"type\"]},{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"runtime\"]},\"hosting\":{\"type\":\"string\",\"enum\":[\"codespace\"]},\"framework\":{\"type\":\"string\",\"enum\":[\"openClaw\"]}},\"required\":[\"type\",\"hosting\",\"framework\"]}]}},\"required\":[\"originalId\",\"newName\",\"targetWorkspaceId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await ForkAgentHandler.handle(state, uac, args);
       };
     };
   };

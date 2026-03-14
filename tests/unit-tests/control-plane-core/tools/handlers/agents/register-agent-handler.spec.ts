@@ -59,7 +59,11 @@ describe("RegisterAgentHandler", () => {
 
     it("should allow primary owner to register an agent", async () => {
       const result = await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "test-agent", category: "admin" }),
+        JSON.stringify({
+          name: "test-agent",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -68,7 +72,11 @@ describe("RegisterAgentHandler", () => {
 
     it("should allow org admin to register an agent", async () => {
       const result = await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "research-agent", category: "research" }),
+        JSON.stringify({
+          name: "research-agent",
+          category: "research",
+          executionType: { type: "api" },
+        }),
         ORG_ADMIN,
       );
       const response = parseResponse(result);
@@ -121,7 +129,11 @@ describe("RegisterAgentHandler", () => {
   describe("happy path", () => {
     it("should register an agent and return id 0 for the first agent", async () => {
       const result = await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "admin-bot", category: "admin" }),
+        JSON.stringify({
+          name: "admin-bot",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -133,11 +145,19 @@ describe("RegisterAgentHandler", () => {
 
     it("should assign incrementing IDs to successive agents", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "first-agent", category: "admin" }),
+        JSON.stringify({
+          name: "first-agent",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
       const result = await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "second-agent", category: "planning" }),
+        JSON.stringify({
+          name: "second-agent",
+          category: "planning",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -150,6 +170,7 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "research-bot",
           category: "research",
+          executionType: { type: "api" },
           llmModel: "gpt_oss_120b",
           toolsDisallowed: ["web_search"],
           sources: ["https://example.com"],
@@ -164,11 +185,19 @@ describe("RegisterAgentHandler", () => {
   describe("duplicate name", () => {
     it("should return error when registering an agent with an existing name", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "unique-agent", category: "admin" }),
+        JSON.stringify({
+          name: "unique-agent",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
       const result = await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "unique-agent", category: "planning" }),
+        JSON.stringify({
+          name: "unique-agent",
+          category: "planning",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);

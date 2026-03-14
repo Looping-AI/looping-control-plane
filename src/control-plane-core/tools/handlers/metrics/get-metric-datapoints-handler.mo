@@ -4,6 +4,7 @@ import Int "mo:core/Int";
 import Array "mo:core/Array";
 import MetricModel "../../../models/metric-model";
 import Helpers "../handler-helpers";
+import MetricParsers "../parsers/metric-parsers";
 
 module {
   public func handle(
@@ -65,12 +66,7 @@ module {
                   Array.map<MetricModel.MetricDatapoint, Json.Json>(
                     limitedDatapoints,
                     func(dp : MetricModel.MetricDatapoint) : Json.Json {
-                      let sourceText = switch (dp.source) {
-                        case (#manual(s)) { "manual: " # s };
-                        case (#integration(s)) { "integration: " # s };
-                        case (#evaluator(s)) { "evaluator: " # s };
-                        case (#other(s)) { "other: " # s };
-                      };
+                      let sourceText = MetricParsers.metricSourceToText(dp.source);
                       obj([
                         ("timestamp", int(dp.timestamp)),
                         ("value", #number(#float(dp.value))),

@@ -24,11 +24,6 @@ module {
   // Retention period for the access change log in SlackUserModel
   public let ACCESS_LOG_RETENTION_NS : Nat = 31_536_000_000_000_000;
 
-  // Admin talk configuration
-  public let ADMIN_TALK_PROVIDER : Types.LlmProvider = #groq;
-  public let ADMIN_TALK_SECRET : Types.SecretId = #groqApiKey;
-  public let ADMIN_TALK_MODEL : Text = "openai/gpt-oss-120b";
-
   // Conversation retention
   // Messages/groups older than this are dropped by the Sunday prune timer.
   // 30 days in seconds (30 * 24 * 3600)

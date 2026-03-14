@@ -43,7 +43,11 @@ describe("UnregisterAgentHandler", () => {
   describe("authorization", () => {
     it("should return error when caller has no permissions", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "AdminBot", category: "admin" }),
+        JSON.stringify({
+          name: "AdminBot",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -58,7 +62,11 @@ describe("UnregisterAgentHandler", () => {
 
     it("should allow primary owner to unregister an agent", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "AdminBot", category: "planning" }),
+        JSON.stringify({
+          name: "AdminBot",
+          category: "planning",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -72,7 +80,11 @@ describe("UnregisterAgentHandler", () => {
 
     it("should allow org admin to unregister an agent", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "AdminBot", category: "planning" }),
+        JSON.stringify({
+          name: "AdminBot",
+          category: "planning",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -119,7 +131,11 @@ describe("UnregisterAgentHandler", () => {
   describe("happy path", () => {
     it("should remove the agent from the registry", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "to-be-deleted", category: "planning" }),
+        JSON.stringify({
+          name: "to-be-deleted",
+          category: "planning",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -143,7 +159,11 @@ describe("UnregisterAgentHandler", () => {
 
     it("should return success message on successful unregistration", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "removable-agent", category: "planning" }),
+        JSON.stringify({
+          name: "removable-agent",
+          category: "planning",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -158,11 +178,19 @@ describe("UnregisterAgentHandler", () => {
 
     it("should reduce the agent count in the list after unregistering", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "agent-one", category: "admin" }),
+        JSON.stringify({
+          name: "agent-one",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "agent-two", category: "planning" }),
+        JSON.stringify({
+          name: "agent-two",
+          category: "planning",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -182,7 +210,11 @@ describe("UnregisterAgentHandler", () => {
 
     it("should prevent deleting the last admin agent", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "sole-admin", category: "admin" }),
+        JSON.stringify({
+          name: "sole-admin",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -197,11 +229,19 @@ describe("UnregisterAgentHandler", () => {
 
     it("should allow deleting a non-last admin agent when another admin exists", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "admin-a", category: "admin" }),
+        JSON.stringify({
+          name: "admin-a",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "admin-b", category: "admin" }),
+        JSON.stringify({
+          name: "admin-b",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 

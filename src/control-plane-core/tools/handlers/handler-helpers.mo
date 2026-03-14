@@ -43,4 +43,16 @@ module {
     };
     List.toArray(buffer);
   };
+
+  /// Parse a JSON array of strings. Returns null if any element is not a string.
+  public func parseStringArray(jsonArray : [Json.Json]) : ?[Text] {
+    let buffer = List.empty<Text>();
+    for (item in jsonArray.vals()) {
+      switch (item) {
+        case (#string(s)) { List.add(buffer, s) };
+        case _ { return null };
+      };
+    };
+    ?List.toArray(buffer);
+  };
 };

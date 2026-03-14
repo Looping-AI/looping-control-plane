@@ -3,6 +3,7 @@ import { str; obj; int; bool } "mo:json";
 import Int "mo:core/Int";
 import MetricModel "../../../models/metric-model";
 import Helpers "../handler-helpers";
+import MetricParsers "../parsers/metric-parsers";
 
 module {
   public func handle(
@@ -37,12 +38,7 @@ module {
                     );
                   };
                   case (?dp) {
-                    let sourceText = switch (dp.source) {
-                      case (#manual(s)) { "manual: " # s };
-                      case (#integration(s)) { "integration: " # s };
-                      case (#evaluator(s)) { "evaluator: " # s };
-                      case (#other(s)) { "other: " # s };
-                    };
+                    let sourceText = MetricParsers.metricSourceToText(dp.source);
                     Json.stringify(
                       obj([
                         ("success", bool(true)),

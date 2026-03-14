@@ -6,6 +6,7 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import MetricModel "../../../models/metric-model";
 import Helpers "../handler-helpers";
+import MetricParsers "../parsers/metric-parsers";
 
 module {
   public func handle(
@@ -37,12 +38,7 @@ module {
               case (?#string(s)) { s };
               case _ { "assistant" };
             };
-            let source : MetricModel.MetricSource = switch (sourceType) {
-              case ("integration") { #integration(sourceLabel) };
-              case ("evaluator") { #evaluator(sourceLabel) };
-              case ("other") { #other(sourceLabel) };
-              case _ { #manual(sourceLabel) };
-            };
+            let source = MetricParsers.parseMetricSource(sourceType, sourceLabel);
             let result = MetricModel.recordDatapoint(
               datapoints,
               registryState,

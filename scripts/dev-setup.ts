@@ -4,16 +4,13 @@
  * Local Development Setup Script
  *
  * This script automates the local ICP development environment setup:
- * 1. Checks that the local dfx network is running (requires: bun run dev:start)
- * 2. Deploys canisters (control-plane-core and internet_identity)
+ * 1. Checks that the local network is running (requires: `icp network start`)
+ * 2. Deploys canisters (control-plane-core)
  * 3. Seeds the canister with necessary secrets (Groq API key, Slack credentials)
  * 4. Prints the Candid UI link for easy access
  *
- * Note: the default workspace-admin agent is seeded automatically at canister
- * deploy time via AgentModel.defaultState() — no manual registration needed.
- *
  * Usage:
- *   1. First start the dfx network: bun run dev:start
+ *   1. First start the ICP network: icp network start
  *   2. Then run this setup: bun run dev:setup
  *
  * Note: reads from `.env` by default. You can copy from `.env.example` file and update with real values.
@@ -116,23 +113,23 @@ function execCommand(command: string, args: string[]): Promise<string> {
 }
 
 /**
- * Check if dfx network is already running
+ * Check if ICP network is already running
  */
-function checkDfxNetwork(): void {
-  logStep(1, "Checking if dfx network is running...");
+function checkIcpNetwork(): void {
+  logStep(1, "Checking if ICP network is running...");
 
-  const result = spawnSync("dfx", ["ping", "local"], {
+  const result = spawnSync("icp", ["network", "ping"], {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
   if (result.status !== 0) {
-    logError("dfx network is not running!");
-    log("\nPlease start the dfx network first by running:", colors.yellow);
-    log("  bun run dev:start\n", colors.bright + colors.cyan);
-    throw new Error("dfx network not running");
+    logError("ICP network is not running!");
+    log("\nPlease start the ICP network first by running:", colors.yellow);
+    log("  icp network start\n", colors.bright + colors.cyan);
+    throw new Error("ICP network not running");
   }
 
-  logSuccess("dfx network is running!");
+  logSuccess("ICP network is running!");
 }
 
 /**
@@ -142,12 +139,8 @@ async function deployCanisters(): Promise<void> {
   logStep(2, "Deploying canisters...");
 
   log("Deploying control-plane-core...", colors.blue);
-  await execCommand("dfx", ["deploy", "control-plane-core"]);
+  await execCommand("icp", ["deploy", "control-plane-core"]);
   logSuccess("control-plane-core deployed");
-
-  log("Deploying internet_identity...", colors.blue);
-  await execCommand("dfx", ["deploy", "internet_identity"]);
-  logSuccess("internet_identity deployed");
 }
 
 /**
@@ -157,7 +150,7 @@ async function storeSecret(
   secretType: string,
   secretValue: string,
 ): Promise<void> {
-  const output = await execCommand("dfx", [
+  const output = await execCommand("icp", [
     "canister",
     "call",
     "control-plane-core",
@@ -202,23 +195,37 @@ async function printCandidUILink(): Promise<void> {
   logStep(4, "Retrieving canister IDs...");
 
   try {
-    const backendId = (
-      await execCommand("dfx", ["canister", "id", "control-plane-core"])
-    ).trim();
-    const internetIdentityId = (
-      await execCommand("dfx", ["canister", "id", "internet_identity"])
-    ).trim();
+    const statusOutput = await execCommand("icp", [
+      "canister",
+      "status",
+      "control-plane-core",
+    ]);
+    const canisterIdMatch = statusOutput.match(/Canister Id:\s*([a-z0-9-]+)/);
+    if (!canisterIdMatch || !canisterIdMatch[1]) {
+      throw new Error(
+        "Could not extract canister ID from canister status output",
+      );
+    }
+    const backendId = canisterIdMatch[1];
 
-    // Get Candid UI canister ID (usually __Candid_UI)
+    // Get Candid UI canister ID from network status
     let candidUiId: string;
     try {
-      candidUiId = (
-        await execCommand("dfx", ["canister", "id", "__Candid_UI"])
-      ).trim();
+      const statusOutput = await execCommand("icp", ["network", "status"]);
+      const candidUiMatch = statusOutput.match(
+        /Candid UI Principal:\s*([a-z0-9-]+)/,
+      );
+      if (candidUiMatch && candidUiMatch[1]) {
+        candidUiId = candidUiMatch[1];
+      } else {
+        throw new Error(
+          "Could not extract Candid UI Principal from network status",
+        );
+      }
     } catch {
-      // If __Candid_UI doesn't exist, use a default known ID
-      logWarning("Could not find __Candid_UI canister, using default ID");
-      candidUiId = "bd3sg-teaaa-aaaaa-qaaba-cai";
+      // Fallback to default known ID
+      logWarning("Could not find Candid UI Principal, using default ID");
+      candidUiId = "tqzl2-p7777-77776-aaaaa-cai";
     }
 
     logStep(4, "Setup complete!");
@@ -227,8 +234,9 @@ async function printCandidUILink(): Promise<void> {
     log("Candid UI Links:", colors.bright + colors.green);
     log("=".repeat(80), colors.bright);
 
-    const candidUrl = `http://127.0.0.1:4943/?canisterId=${candidUiId}&id=${backendId}`;
-    const candidUrlWithII = `${candidUrl}&ii=http://${internetIdentityId}.localhost:4943/`;
+    const candidUrl = `http://127.0.0.1:8000/?canisterId=${candidUiId}&id=${backendId}`;
+    const internetIdentityId = "rdmx6-jaaaa-aaaaa-aaadq-cai"; // Default Internet Identity canister ID in local ICP
+    const candidUrlWithII = `${candidUrl}&ii=http://${internetIdentityId}.localhost:8000/`;
 
     log(`\nWith Internet Identity:`, colors.cyan);
     log(candidUrlWithII, colors.blue);
@@ -236,8 +244,8 @@ async function printCandidUILink(): Promise<void> {
     log("\n" + "=".repeat(80), colors.bright);
     log("\nCanister IDs:", colors.bright);
     log(`  control-plane-core:  ${backendId}`, colors.blue);
-    log(`  internet_identity:   ${internetIdentityId}`, colors.blue);
-    log(`  __Candid_UI:         ${candidUiId}`, colors.blue);
+    log(`  Internet_Identity:   ${internetIdentityId}`, colors.blue);
+    log(`  Candid_UI:           ${candidUiId}`, colors.blue);
     log("=".repeat(80) + "\n", colors.bright);
   } catch (error) {
     logError(`Failed to retrieve canister IDs: ${error}`);
@@ -275,8 +283,8 @@ async function main() {
       );
     }
 
-    // Check if dfx network is running
-    checkDfxNetwork();
+    // Check if ICP network is running
+    checkIcpNetwork();
 
     // Deploy canisters
     await deployCanisters();

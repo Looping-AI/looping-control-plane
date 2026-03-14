@@ -45,7 +45,11 @@ describe("UpdateAgentHandler", () => {
     it("should return error when caller has no permissions", async () => {
       // Register first so there is something to update
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "AdminBot", category: "admin" }),
+        JSON.stringify({
+          name: "AdminBot",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -60,7 +64,11 @@ describe("UpdateAgentHandler", () => {
 
     it("should allow primary owner to update an agent", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "AdminBot", category: "admin" }),
+        JSON.stringify({
+          name: "AdminBot",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -74,7 +82,11 @@ describe("UpdateAgentHandler", () => {
 
     it("should allow org admin to update an agent", async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "AdminBot", category: "admin" }),
+        JSON.stringify({
+          name: "AdminBot",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
 
@@ -121,7 +133,11 @@ describe("UpdateAgentHandler", () => {
   describe("field updates", () => {
     beforeEach(async () => {
       await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "original-name", category: "admin" }),
+        JSON.stringify({
+          name: "original-name",
+          category: "admin",
+          executionType: { type: "api" },
+        }),
         PRIMARY_OWNER,
       );
     });

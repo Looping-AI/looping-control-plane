@@ -199,7 +199,7 @@ No changes needed for the org-admin channel — it is derived from `workspaces` 
 
 11. **`main.mo`**: no changes needed for org-admin channel state — it is stored as workspace 0's `adminChannelId` via `setWorkspaceAdminChannel(0, ...)` (org-owner only guard already enforced).
 
-12. **Verify** — `dfx build control-plane-core --check` — no compilation errors.
+12. **Verify** — `icp build control-plane-core` — no compilation errors.
 
 **Test Steps**
 
@@ -273,7 +273,7 @@ Remove every `public shared` method from `main.mo` that is not `http_request` / 
 
 **Source Steps**
 
-Each step below is an independent, buildable, committable unit. Verify with `dfx build control-plane-core --check` and `bun run tsc --noEmit` after each before committing.
+Each step below is an independent, buildable, committable unit. Verify with `icp build control-plane-core` and `bun run tsc --noEmit` after each before committing.
 
 ---
 

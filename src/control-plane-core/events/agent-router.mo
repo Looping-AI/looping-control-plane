@@ -83,6 +83,23 @@ module {
       });
     };
 
+    // Branch on execution type before dispatching to the category orchestrator.
+    // #api agents run in-canister. #runtime agents are not yet supported.
+    switch (primaryAgent.executionType) {
+      case (#runtime(_)) {
+        let step : Types.ProcessingStep = {
+          action = "route";
+          result = #err("remote runtime not yet supported");
+          timestamp = Time.now();
+        };
+        return #err({
+          message = "Agent uses a remote runtime that is not yet supported in this version.";
+          steps = [step];
+        });
+      };
+      case (#api) {};
+    };
+
     // Forward to the orchestrator with the typed context
     await AgentOrchestrator.orchestrateAgentTalk(
       primaryAgent,

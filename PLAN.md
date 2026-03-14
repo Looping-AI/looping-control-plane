@@ -38,7 +38,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ## Phase A — Foundation Refactors (no new features, unblocks everything)
 
-### A.0 — Agent Execution Types
+~~### A.0 — Agent Execution Types~~
 
 **What**: Introduce the concept of two fundamentally different agent execution types.
 
@@ -63,7 +63,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 - The pre-seeded "workspace-admin" agent remains `#api`. New user-created agents default to `#runtime(#openClaw)` but can be `#api` if the admin chooses.
 - `openClawVersion` inside `#openClaw` is captured at deploy time from the sidecar health check and stored with the agent. It stays pinned until an explicit upgrade.
 
-**Verification**: `dfx build control-plane-core --check`. Unit tests for type construction and router branching.
+**Verification**: `icp build control-plane-core`. Unit tests for type construction and router branching.
 
 ### A.1 — Refactor Groq → OpenRouter
 
@@ -78,7 +78,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 - Update all references across agents, orchestrators, services.
 - Pre-seeded agent: secretsAllowed changes to `#openRouterApiKey`.
 
-**Verification**: `dfx build control-plane-core --check`, re-record integration test cassettes with OpenRouter.
+**Verification**: `icp build control-plane-core`, re-record integration test cassettes with OpenRouter.
 
 ### A.2 — Secrets Hardening: Changelog + Access Log
 
@@ -376,7 +376,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ## Verification
 
-1. `dfx build control-plane-core --check` after each phase.
+1. `icp build control-plane-core` after each phase.
 2. `bun run tsc --noEmit` for TypeScript test code.
 3. `mops test` for Motoko unit tests.
 4. `bun run test:unit` + `bun run test:integration` for full test suite.

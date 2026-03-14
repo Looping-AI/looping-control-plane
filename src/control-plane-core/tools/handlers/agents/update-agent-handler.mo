@@ -1,70 +1,12 @@
 import Json "mo:json";
 import { str; obj; bool } "mo:json";
-import List "mo:core/List";
 import Int "mo:core/Int";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
-import Types "../../../types";
+import AgentParsers "../parsers/agent-parsers";
 
 module {
-  private func parseCategory(s : Text) : ?AgentModel.AgentCategory {
-    switch (s) {
-      case ("admin") { ?#admin };
-      case ("planning") { ?#planning };
-      case ("research") { ?#research };
-      case ("communication") { ?#communication };
-      case _ { null };
-    };
-  };
-
-  private func parseLlmModel(s : Text) : ?AgentModel.LlmModel {
-    switch (s) {
-      case ("gpt_oss_120b") { ?#groq(#gpt_oss_120b) };
-      case ("groq:gpt_oss_120b") { ?#groq(#gpt_oss_120b) };
-      case _ { null };
-    };
-  };
-
-  private func parseSecretId(s : Text) : ?Types.SecretId {
-    switch (s) {
-      case ("groqApiKey") { ?#groqApiKey };
-      case ("openaiApiKey") { ?#openaiApiKey };
-      case ("slackBotToken") { ?#slackBotToken };
-      case _ { null };
-    };
-  };
-
-  private func parseSecretsAllowed(items : [Json.Json]) : ?[(Nat, Types.SecretId)] {
-    let buffer = List.empty<(Nat, Types.SecretId)>();
-    for (item in items.vals()) {
-      let wsIdOpt = switch (Json.get(item, "workspaceId")) {
-        case (?#number(#int n)) { if (n >= 0) ?Int.abs(n) else null };
-        case _ { null };
-      };
-      let sidOpt = switch (Json.get(item, "secretId")) {
-        case (?#string(s)) { parseSecretId(s) };
-        case _ { null };
-      };
-      switch (wsIdOpt, sidOpt) {
-        case (?wsId, ?sid) { List.add(buffer, (wsId, sid)) };
-        case _ { return null };
-      };
-    };
-    ?List.toArray(buffer);
-  };
-
-  private func parseStringArray(items : [Json.Json]) : ?[Text] {
-    let buffer = List.empty<Text>();
-    for (item in items.vals()) {
-      switch (item) {
-        case (#string(s)) { List.add(buffer, s) };
-        case _ { return null };
-      };
-    };
-    ?List.toArray(buffer);
-  };
-
   public func handle(
     state : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
@@ -101,7 +43,7 @@ module {
 
         let newCategory = switch (Json.get(json, "category")) {
           case (?#string(s)) {
-            switch (parseCategory(s)) {
+            switch (AgentParsers.parseCategory(s)) {
               case (?c) { ?c };
               case null {
                 return Helpers.buildErrorResponse(
@@ -118,7 +60,7 @@ module {
 
         let newLlmModel = switch (Json.get(json, "llmModel")) {
           case (?#string(s)) {
-            switch (parseLlmModel(s)) {
+            switch (AgentParsers.parseLlmModel(s)) {
               case (?m) { ?m };
               case null {
                 return Helpers.buildErrorResponse(
@@ -135,7 +77,7 @@ module {
 
         let newSecretsAllowed = switch (Json.get(json, "secretsAllowed")) {
           case (?#array(items)) {
-            switch (parseSecretsAllowed(items)) {
+            switch (AgentParsers.parseSecretsAllowed(items)) {
               case (?sa) { ?sa };
               case null {
                 return Helpers.buildErrorResponse(
@@ -152,7 +94,7 @@ module {
 
         let newToolsDisallowed = switch (Json.get(json, "toolsDisallowed")) {
           case (?#array(items)) {
-            switch (parseStringArray(items)) {
+            switch (Helpers.parseStringArray(items)) {
               case (?a) { ?a };
               case null {
                 return Helpers.buildErrorResponse("toolsDisallowed must be an array of strings");
@@ -167,7 +109,7 @@ module {
 
         let newToolsMisconfigured = switch (Json.get(json, "toolsMisconfigured")) {
           case (?#array(items)) {
-            switch (parseStringArray(items)) {
+            switch (Helpers.parseStringArray(items)) {
               case (?a) { ?a };
               case null {
                 return Helpers.buildErrorResponse("toolsMisconfigured must be an array of strings");
@@ -182,7 +124,7 @@ module {
 
         let newSources = switch (Json.get(json, "sources")) {
           case (?#array(items)) {
-            switch (parseStringArray(items)) {
+            switch (Helpers.parseStringArray(items)) {
               case (?a) { ?a };
               case null {
                 return Helpers.buildErrorResponse("sources must be an array of strings");
@@ -195,12 +137,27 @@ module {
           };
         };
 
+        let newExecutionType = switch (Json.get(json, "executionType")) {
+          case (?etJson) {
+            switch (AgentParsers.parseExecutionType(etJson)) {
+              case (?et) { ?et };
+              case null {
+                return Helpers.buildErrorResponse(
+                  "Invalid executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
+                );
+              };
+            };
+          };
+          case (null) { null };
+        };
+
         switch (
           AgentModel.updateById(
             id,
             newName,
             newCategory,
             newLlmModel,
+            newExecutionType,
             newSecretsAllowed,
             newToolsDisallowed,
             newToolsMisconfigured,

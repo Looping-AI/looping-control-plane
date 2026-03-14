@@ -4,8 +4,8 @@ import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import SecretModel "../../../models/secret-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
-import Types "../../../types";
 import Helpers "../handler-helpers";
+import SecretParsers "../parsers/secret-parsers";
 
 module {
   /// Delete a specific secret from a workspace.
@@ -31,11 +31,8 @@ module {
           };
           case _ { null };
         };
-        let secretIdOpt : ?Types.SecretId = switch (Json.get(json, "secretId")) {
-          case (?#string("groqApiKey")) { ?#groqApiKey };
-          case (?#string("openaiApiKey")) { ?#openaiApiKey };
-          case (?#string("slackBotToken")) { ?#slackBotToken };
-          case (?#string("slackSigningSecret")) { ?#slackSigningSecret };
+        let secretIdOpt = switch (Json.get(json, "secretId")) {
+          case (?#string(s)) { SecretParsers.parseSecretId(s) };
           case _ { null };
         };
 
