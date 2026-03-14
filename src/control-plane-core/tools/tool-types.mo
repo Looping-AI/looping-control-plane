@@ -1,5 +1,5 @@
 import Map "mo:core/Map";
-import GroqWrapper "../wrappers/groq-wrapper";
+import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
 import ObjectiveModel "../models/objective-model";
@@ -38,8 +38,8 @@ module {
     // Current workspace context
     workspaceId : ?Nat;
 
-    // Groq API key - required for web search and other Groq-powered tools
-    groqApiKey : ?Text;
+    // OpenRouter API key - required for web search and other OpenRouter-powered tools
+    openRouterApiKey : ?Text;
 
     // Slack bot token - required for channel verification in workspace anchor tools
     slackBotToken : ?Text;
@@ -111,7 +111,7 @@ module {
 
   /// MCP tool registration - stored in state, runtime configurable
   public type McpToolRegistration = {
-    definition : GroqWrapper.Tool;
+    definition : OpenRouterWrapper.Tool;
     serverId : Text; // Reference to MCP server config
     remoteName : ?Text; // Tool name on server (if different from definition.function.name)
   };

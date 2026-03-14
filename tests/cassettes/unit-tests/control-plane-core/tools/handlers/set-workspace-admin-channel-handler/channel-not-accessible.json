@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "channel-not-accessible",
-  "recordedAt": "2026-03-05T18:08:04.026Z",
+  "recordedAt": "2026-03-14T18:02:15.762Z",
   "interactions": [
     {
       "request": {
@@ -27,7 +27,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "40"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Thu, 05 Mar 2026 18:08:04 GMT"],
+          ["date", "Sat, 14 Mar 2026 18:02:15 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -40,7 +40,7 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-uwkcjzmt,envoy-edge-lhr-ddunkfcr"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-aqnxasjn,envoy-edge-lhr-dkcshkou"
           ],
           [
             "x-accepted-oauth-scopes",
@@ -55,13 +55,13 @@
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-iknhv8zo4qv2"],
+          ["x-server", "slack-www-hhvm-api-iad-2ilwemy7qsms"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
           ["x-slack-failure", "channel_not_found"],
-          ["x-slack-req-id", "d85b863731f49cf090e66415f91aeb77"],
+          ["x-slack-req-id", "d88c2b018c07509ef71c3d133b84acc9"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aanGhOUy6kGKz-0kxCgLLwAAACM"],
+          ["x-slack-unique-id", "abWipxtFn2nFOj76voarvwAAED8"],
           ["x-xss-protection", "0"]
         ],
         "body": "{\"ok\":false,\"error\":\"channel_not_found\"}",

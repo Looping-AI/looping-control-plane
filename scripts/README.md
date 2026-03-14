@@ -8,9 +8,9 @@ Automated local ICP development environment setup script.
 
 1. **Checks that the local ICP network is running** (you must run `icp network start` first)
 2. **Deploys canisters**:
-   - `control-plane-core` (with admin principal)
+   - `control-plane-core`
 3. **Seeds secrets** into the canister:
-   - Groq API key
+   - OpenRouter API key
    - Slack signing secret
    - Slack bot token
 4. **Prints Candid UI links** for easy access to the canister interface
@@ -41,8 +41,7 @@ bun run scripts/dev-setup.ts
 The script reads from `.env` by default. You can copy from `.env.example` file and update with real values:
 
 ```env
-ADMIN_PRINCIPAL='your-actual-principal-id'
-GROQ_DEV_KEY='sk-or-your_actual_groq_api_key'
+OPENROUTER_DEV_KEY='sk-or-your_actual_openrouter_api_key'
 SLACK_APP_SIGNING_SECRET='your_actual_slack_signing_secret'
 SLACK_APP_BOT_TOKEN='xoxb-your-actual-bot-token'
 ```
@@ -59,7 +58,6 @@ When successful, the script will:
 
 **Deployment fails:**
 
-- Verify the `ADMIN_PRINCIPAL` is a valid principal ID
 - Ensure all Motoko code compiles (`icp build control-plane-core`)
 
 **Secrets fail to store:**

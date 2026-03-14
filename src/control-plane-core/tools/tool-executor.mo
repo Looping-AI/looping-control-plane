@@ -1,6 +1,6 @@
 import List "mo:core/List";
 import Error "mo:core/Error";
-import GroqWrapper "../wrappers/groq-wrapper";
+import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
 import FunctionToolRegistry "./function-tool-registry";
 import McpToolRegistry "./mcp-tool-registry";
@@ -22,7 +22,7 @@ module {
   public func execute(
     resources : ToolTypes.ToolResources,
     mcpRegistry : McpToolRegistry.McpToolRegistryState,
-    toolCalls : [GroqWrapper.ToolCall],
+    toolCalls : [OpenRouterWrapper.ToolCall],
   ) : async [ToolTypes.ToolResult] {
     let results = List.empty<ToolTypes.ToolResult>();
 
@@ -38,7 +38,7 @@ module {
   private func executeOne(
     resources : ToolTypes.ToolResources,
     mcpRegistry : McpToolRegistry.McpToolRegistryState,
-    call : GroqWrapper.ToolCall,
+    call : OpenRouterWrapper.ToolCall,
   ) : async ToolTypes.ToolResult {
     // First, check function tools (static registry)
     switch (FunctionToolRegistry.get(resources, call.toolName)) {

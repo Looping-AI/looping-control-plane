@@ -4,7 +4,7 @@ import Text "mo:core/Text";
 import InstructionComposer "../../../../src/control-plane-core/instructions/instruction-composer";
 import AgentHelpers "../../../../src/control-plane-core/agents/helpers";
 import AgentModel "../../../../src/control-plane-core/models/agent-model";
-import GroqWrapper "../../../../src/control-plane-core/wrappers/groq-wrapper";
+import OpenRouterWrapper "../../../../src/control-plane-core/wrappers/openrouter-wrapper";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ func makeAgent(
     name;
     workspaceId = 0;
     category;
-    llmModel = #groq(#gpt_oss_120b);
+    llmModel = #openRouter(#gpt_oss_120b);
     executionType = #api;
     secretsAllowed = [];
     toolsDisallowed;
@@ -31,8 +31,8 @@ func makeAgent(
   };
 };
 
-/// Build a minimal GroqWrapper.Tool with only a name.
-func makeTool(name : Text) : GroqWrapper.Tool {
+/// Build a minimal OpenRouterWrapper.Tool with only a name.
+func makeTool(name : Text) : OpenRouterWrapper.Tool {
   {
     tool_type = "function";
     function = { name; description = null; parameters = null };
@@ -40,7 +40,7 @@ func makeTool(name : Text) : GroqWrapper.Tool {
 };
 
 /// Check whether a tool with the given name exists in the slice.
-func toolExists(tools : [GroqWrapper.Tool], name : Text) : Bool {
+func toolExists(tools : [OpenRouterWrapper.Tool], name : Text) : Bool {
   var found = false;
   for (t in tools.vals()) {
     if (t.function.name == name) { found := true };

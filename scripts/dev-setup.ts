@@ -6,7 +6,7 @@
  * This script automates the local ICP development environment setup:
  * 1. Checks that the local network is running (requires: `icp network start`)
  * 2. Deploys canisters (control-plane-core)
- * 3. Seeds the canister with necessary secrets (Groq API key, Slack credentials)
+ * 3. Seeds the canister with necessary secrets (OpenRouter API key, Slack credentials)
  * 4. Prints the Candid UI link for easy access
  *
  * Usage:
@@ -175,9 +175,9 @@ async function storeSecret(
 async function seedSecrets(envVars: Record<string, string>): Promise<void> {
   logStep(3, "Seeding secrets...");
 
-  log("Storing Groq API key...", colors.blue);
-  await storeSecret("groqApiKey", envVars.GROQ_DEV_KEY);
-  logSuccess("Groq API key stored");
+  log("Storing OpenRouter API key...", colors.blue);
+  await storeSecret("openRouterApiKey", envVars.OPENROUTER_DEV_KEY);
+  logSuccess("OpenRouter API key stored");
 
   log("Storing Slack signing secret...", colors.blue);
   await storeSecret("slackSigningSecret", envVars.SLACK_APP_SIGNING_SECRET);
@@ -267,8 +267,7 @@ async function main() {
 
     // Validate required environment variables
     const requiredVars = [
-      "NGROK_DEV_DOMAIN",
-      "GROQ_DEV_KEY",
+      "OPENROUTER_DEV_KEY",
       "SLACK_APP_SIGNING_SECRET",
       "SLACK_APP_BOT_TOKEN",
     ];

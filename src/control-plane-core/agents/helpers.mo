@@ -1,7 +1,7 @@
 import Array "mo:core/Array";
 import Text "mo:core/Text";
 import AgentModel "../models/agent-model";
-import GroqWrapper "../wrappers/groq-wrapper";
+import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import InstructionTypes "../instructions/instruction-types";
 
 module {
@@ -37,11 +37,11 @@ module {
   /// are enabled by default; admins selectively disable specific ones.
   public func applyToolBlocklist(
     agent : AgentModel.AgentRecord,
-    tools : [GroqWrapper.Tool],
-  ) : [GroqWrapper.Tool] {
-    Array.filter<GroqWrapper.Tool>(
+    tools : [OpenRouterWrapper.Tool],
+  ) : [OpenRouterWrapper.Tool] {
+    Array.filter<OpenRouterWrapper.Tool>(
       tools,
-      func(tool : GroqWrapper.Tool) : Bool {
+      func(tool : OpenRouterWrapper.Tool) : Bool {
         let name = tool.function.name;
         let isDisallowed = Array.any<Text>(
           agent.toolsDisallowed,

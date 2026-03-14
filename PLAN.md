@@ -65,7 +65,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 **Verification**: `icp build control-plane-core`. Unit tests for type construction and router branching.
 
-### A.1 — Refactor Groq → OpenRouter
+~~### A.1 — Refactor Groq → OpenRouter~~
 
 **What**: Replace Groq API integration with OpenRouter. Same OpenAI-compatible chat completions API, same model (`openai/gpt-oss-120b` via Groq provider on OpenRouter).
 

@@ -16,18 +16,18 @@ import messageStandardStub from "../../../../stubs/slack-payloads/message-standa
 //   3. Calls the LLM orchestrator
 //   4. Posts the reply back to Slack
 //
-// All tests use a deferred actor + cassette so that the Groq LLM call and
+// All tests use a deferred actor + cassette so that the OpenRouter LLM call and
 // the Slack HTTP POST are recorded on first run and replayed on CI.
 //
-// Tokens are loaded from .env.test (SLACK_APP_BOT_TOKEN, GROQ_TEST_KEY).
+// Tokens are loaded from .env.test (SLACK_APP_BOT_TOKEN, OPENROUTER_TEST_KEY).
 // All messages are directed to a "specs-only" Slack channel
 // which is dedicated to automated test traffic.
 // ============================================
 
 const BOT_TOKEN =
   process.env["SLACK_APP_BOT_TOKEN"] ?? "not-needed-due-to-cassette";
-const GROQ_API_KEY =
-  process.env["GROQ_TEST_KEY"] ?? "not-needed-due-to-cassette";
+const OPENROUTER_API_KEY =
+  process.env["OPENROUTER_TEST_KEY"] ?? "not-needed-due-to-cassette";
 
 describe("MessageHandler Unit Tests", () => {
   let pic: PocketIc;
@@ -44,8 +44,8 @@ describe("MessageHandler Unit Tests", () => {
   });
 
   // ============================================
-  // Happy-path — bot token + Groq key configured
-  // The cassette records the Groq LLM call and the Slack POST on first run
+  // Happy-path — bot token + OpenRouter key configured
+  // The cassette records the OpenRouter LLM call and the Slack POST on first run
   // and replays them on subsequent runs (CI, offline, etc.).
   // ============================================
 
@@ -72,7 +72,7 @@ describe("MessageHandler Unit Tests", () => {
             agentMetadata: [],
           },
           BOT_TOKEN,
-          GROQ_API_KEY,
+          OPENROUTER_API_KEY,
         ),
       { ticks: 5, maxRounds: 5 },
     );
@@ -111,7 +111,7 @@ describe("MessageHandler Unit Tests", () => {
             agentMetadata: [],
           },
           BOT_TOKEN,
-          GROQ_API_KEY,
+          OPENROUTER_API_KEY,
         ),
       { ticks: 5, maxRounds: 5 },
     );
@@ -144,7 +144,7 @@ describe("MessageHandler Unit Tests", () => {
             agentMetadata: [],
           },
           BOT_TOKEN,
-          GROQ_API_KEY,
+          OPENROUTER_API_KEY,
         ),
       { ticks: 5, maxRounds: 5 },
     );
@@ -177,7 +177,7 @@ describe("MessageHandler Unit Tests", () => {
               agentMetadata: [],
             },
             BOT_TOKEN,
-            GROQ_API_KEY,
+            OPENROUTER_API_KEY,
           ),
         { ticks: 5, maxRounds: 5 },
       );
@@ -213,7 +213,7 @@ describe("MessageHandler Unit Tests", () => {
             agentMetadata: [],
           },
           BOT_TOKEN,
-          GROQ_API_KEY,
+          OPENROUTER_API_KEY,
         ),
       { ticks: 5, maxRounds: 5 },
     );
@@ -265,7 +265,7 @@ describe("MessageHandler Unit Tests", () => {
             ],
           },
           BOT_TOKEN,
-          GROQ_API_KEY,
+          OPENROUTER_API_KEY,
           channel, // parentChannel — same channel as the bot message
           PARENT_TS, // parentTs
           0n, // parentRoundCount = 0 → newRound = 1, well within MAX_AGENT_ROUNDS
@@ -325,7 +325,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
         agentMetadata: [],
       },
       BOT_TOKEN,
-      GROQ_API_KEY,
+      OPENROUTER_API_KEY,
     );
 
     expect("ok" in result).toBe(true);
@@ -348,7 +348,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
         agentMetadata: [],
       },
       BOT_TOKEN,
-      GROQ_API_KEY,
+      OPENROUTER_API_KEY,
     );
 
     expect("ok" in result).toBe(true);
@@ -386,7 +386,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
         ],
       },
       BOT_TOKEN,
-      GROQ_API_KEY,
+      OPENROUTER_API_KEY,
     );
 
     expect("ok" in result).toBe(true);
@@ -421,7 +421,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
         ],
       },
       BOT_TOKEN,
-      GROQ_API_KEY,
+      OPENROUTER_API_KEY,
       "C_ADMIN_CHANNEL", // parentChannel
       "1700000010.000000", // parentTs
       0n, // parentRoundCount
@@ -466,7 +466,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
           },
         ],
       },
-      GROQ_API_KEY,
+      OPENROUTER_API_KEY,
       "C_ADMIN_CHANNEL", // parentChannel
       "1700000010.000000", // parentTs
       9n, // parentRoundCount = 9 → newRound = 10 = MAX_AGENT_ROUNDS
@@ -524,7 +524,7 @@ describe("MessageHandler — primary agent resolution", () => {
         agentMetadata: [] as [],
       },
       BOT_TOKEN,
-      GROQ_API_KEY,
+      OPENROUTER_API_KEY,
     );
 
     expect("ok" in result).toBe(true);
@@ -570,22 +570,23 @@ describe("MessageHandler — primary agent resolution", () => {
 
   it("should fall back to #admin agent for bare user message with no ::ref", async () => {
     // With both admin and research agents registered, a bare message (no ::ref) falls
-    // back to getFirstByCategory(#admin).  The NoGroq variant seeds no groqApiKey so
+    // back to getFirstByCategory(#admin).  The NoOpenRouter variant seeds no openRouterApiKey so
     // the admin route short-circuits at key resolution (#err) without issuing any HTTP
     // outcall — letting a non-deferred actor complete the call synchronously.
     // The important assertion: primary_agent_skip is NOT emitted — the fallback succeeded.
-    const result = await testCanister.testMessageHandlerWithResearchAgentNoGroq(
-      {
-        user: "U_USER",
-        text: "what is the current status",
-        channel: "C_ADMIN_CHANNEL",
-        ts: "1700000010.000012",
-        threadTs: [] as [],
-        isBotMessage: false,
-        agentMetadata: [] as [],
-      },
-      BOT_TOKEN,
-    );
+    const result =
+      await testCanister.testMessageHandlerWithResearchAgentNoOpenRouter(
+        {
+          user: "U_USER",
+          text: "what is the current status",
+          channel: "C_ADMIN_CHANNEL",
+          ts: "1700000010.000012",
+          threadTs: [] as [],
+          isBotMessage: false,
+          agentMetadata: [] as [],
+        },
+        BOT_TOKEN,
+      );
 
     expect("ok" in result).toBe(true);
     if ("ok" in result) {
@@ -655,7 +656,7 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
             ],
           },
           BOT_TOKEN,
-          GROQ_API_KEY,
+          OPENROUTER_API_KEY,
           channel,
           PARENT_TS,
           9n, // parentRoundCount = 9 → terminates on round 10

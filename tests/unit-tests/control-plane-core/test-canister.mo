@@ -5,7 +5,7 @@ import Array "mo:core/Array";
 import Text "mo:core/Text";
 
 import HttpWrapper "../../../src/control-plane-core/wrappers/http-wrapper";
-import GroqWrapper "../../../src/control-plane-core/wrappers/groq-wrapper";
+import OpenRouterWrapper "../../../src/control-plane-core/wrappers/openrouter-wrapper";
 import SlackWrapper "../../../src/control-plane-core/wrappers/slack-wrapper";
 import HttpCertification "../../../src/control-plane-core/utilities/http-certification";
 import MessageHandler "../../../src/control-plane-core/events/handlers/message-handler";
@@ -209,37 +209,37 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     await HttpWrapper.post(url, headers, body);
   };
 
-  public shared ({ caller }) func groqChat(apiKey : Text, userMessage : Text, model : Text) : async {
+  public shared ({ caller }) func openRouterChat(apiKey : Text, userMessage : Text, model : Text) : async {
     #ok : Text;
     #err : Text;
   } {
     assert caller == parent;
-    await GroqWrapper.chat(apiKey, userMessage, model);
+    await OpenRouterWrapper.chat(apiKey, userMessage, model);
   };
 
-  public shared ({ caller }) func groqReason(
+  public shared ({ caller }) func openRouterReason(
     apiKey : Text,
-    input : [GroqWrapper.ResponseInputMessage],
+    input : [OpenRouterWrapper.ResponseInputMessage],
     model : Text,
-    trackId : GroqWrapper.TrackId,
+    trackId : OpenRouterWrapper.TrackId,
     instructions : ?Text,
     temperature : ?Float,
-    tools : ?[GroqWrapper.Tool],
-  ) : async GroqWrapper.ReasonWithToolsResult {
+    tools : ?[OpenRouterWrapper.Tool],
+  ) : async OpenRouterWrapper.ReasonWithToolsResult {
     assert caller == parent;
-    await GroqWrapper.reason(apiKey, input, model, trackId, instructions, temperature, tools);
+    await OpenRouterWrapper.reason(apiKey, input, model, trackId, instructions, temperature, tools);
   };
 
-  public shared ({ caller }) func groqUseBuiltInTool(
+  public shared ({ caller }) func openRouterUseBuiltInTool(
     apiKey : Text,
     userMessage : Text,
-    tool : GroqWrapper.BuiltInTool,
+    tool : OpenRouterWrapper.BuiltInTool,
   ) : async {
-    #ok : GroqWrapper.CompoundChatCompletionResponse;
+    #ok : OpenRouterWrapper.CompoundChatCompletionResponse;
     #err : Text;
   } {
     assert caller == parent;
-    await GroqWrapper.useBuiltInTool(apiKey, userMessage, tool);
+    await OpenRouterWrapper.useBuiltInTool(apiKey, userMessage, tool);
   };
 
   // ============================================
@@ -305,7 +305,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   /// Like testMessageHandler, but pre-seeds the context with a real Slack bot token
-  /// and Groq API key so the full happy-path (LLM call → Slack post) can be exercised
+  /// and OpenRouter API key so the full happy-path (LLM call → Slack post) can be exercised
   /// and captured with the cassette recording system.
   public shared ({ caller }) func testMessageHandlerWithSecrets(
     msg : {
@@ -318,10 +318,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       agentMetadata : ?Types.AgentMessageMetadata;
     },
     botToken : Text,
-    groqApiKey : Text,
+    openRouterApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, groqApiKey));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey));
   };
 
   /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
@@ -345,14 +345,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       agentMetadata : ?Types.AgentMessageMetadata;
     },
     botToken : Text,
-    groqApiKey : Text,
+    openRouterApiKey : Text,
     parentChannel : Text,
     parentTs : Text,
     parentRoundCount : Nat,
     parentForceTerminated : Bool,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, groqApiKey);
+    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey);
     // Seed the parent message with a UserAuthContext at the requested roundCount.
     // workspaceScopes is empty — the bot-path guard only checks roundCount / forceTerminated.
     //
@@ -392,7 +392,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     await MessageHandler.handle(msg, ctx);
   };
 
-  /// Like `testMessageHandlerBotBranch`, but uses `ctxWithGroqOnlySecrets` (no Slack
+  /// Like `testMessageHandlerBotBranch`, but uses `ctxWithOpenRouterOnlySecrets` (no Slack
   /// bot token) so the `postTerminationIfTokenAvailable` call is a no-op.
   ///
   /// Use this for non-deferred guard tests that verify termination logic (e.g.
@@ -408,14 +408,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isBotMessage : Bool;
       agentMetadata : ?Types.AgentMessageMetadata;
     },
-    groqApiKey : Text,
+    openRouterApiKey : Text,
     parentChannel : Text,
     parentTs : Text,
     parentRoundCount : Nat,
     parentForceTerminated : Bool,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = TestHelpers.ctxWithGroqOnlySecrets(slackUsers, testWorkspacesState, groqApiKey);
+    let ctx = TestHelpers.ctxWithOpenRouterOnlySecrets(slackUsers, testWorkspacesState, openRouterApiKey);
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
@@ -466,18 +466,18 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       agentMetadata : ?Types.AgentMessageMetadata;
     },
     botToken : Text,
-    groqApiKey : Text,
+    openRouterApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, groqApiKey));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, openRouterApiKey));
   };
 
-  /// Like `testMessageHandlerWithResearchAgent`, but uses `TestHelpers.ctxWithSecretsAndResearchNoGroq`
+  /// Like `testMessageHandlerWithResearchAgent`, but uses `TestHelpers.ctxWithSecretsAndResearchNoOpenRouter`
   /// so the admin route short-circuits at key resolution (#err) without any HTTP outcall.
   ///
   /// Use for primary-agent fallback tests on a non-deferred actor where you only need
   /// to assert that the agent WAS resolved (i.e. primary_agent_skip is NOT emitted).
-  public shared ({ caller }) func testMessageHandlerWithResearchAgentNoGroq(
+  public shared ({ caller }) func testMessageHandlerWithResearchAgentNoOpenRouter(
     msg : {
       user : Text;
       text : Text;
@@ -490,7 +490,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     botToken : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoGroq(slackUsers, testWorkspacesState, botToken));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoOpenRouter(slackUsers, testWorkspacesState, botToken));
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(

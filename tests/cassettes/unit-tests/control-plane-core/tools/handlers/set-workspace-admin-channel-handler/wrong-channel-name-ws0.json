@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "wrong-channel-name-ws0",
-  "recordedAt": "2026-03-05T18:08:05.610Z",
+  "recordedAt": "2026-03-14T18:02:17.474Z",
   "interactions": [
     {
       "request": {
@@ -27,7 +27,7 @@
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
           ["content-length", "328"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Thu, 05 Mar 2026 18:08:05 GMT"],
+          ["date", "Sat, 14 Mar 2026 18:02:17 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -40,7 +40,7 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-zvxansrr,envoy-edge-lhr-ddunkfcr"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-wllotbmi,envoy-edge-lhr-dkcshkou"
           ],
           [
             "x-accepted-oauth-scopes",
@@ -50,17 +50,17 @@
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "106"],
+          ["x-envoy-upstream-service-time", "122"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-3j87i2f4qxmx"],
+          ["x-server", "slack-www-hhvm-api-iad-m6m1r0x0vud1"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-req-id", "00ffdd6412f40de71373cc9c2e24ea0d"],
+          ["x-slack-req-id", "7f03bf25dd14b222cdd906e72b69aff9"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aanGhWD51yD0wTl1OBuONgAAEC0"],
+          ["x-slack-unique-id", "abWiqYq3vLXWDet0mtlBFwABADQ"],
           ["x-xss-protection", "0"]
         ],
         "body": "{\"ok\":true,\"channel\":{\"id\":\"C0AG99QQAR4\",\"created\":1771664900,\"creator\":\"U0ADJJQMW4T\",\"is_org_shared\":false,\"is_im\":false,\"context_team_id\":\"T0ADR0P92G2\",\"updated\":1771664993612,\"name\":\"specs-only\",\"name_normalized\":\"specs-only\",\"is_channel\":true,\"is_group\":false,\"is_mpim\":false,\"is_private\":false,\"is_archived\":false,\"is_general\":false,\"is_shared\":false,\"is_ext_shared\":false,\"unlinked\":0,\"is_pending_ext_shared\":false,\"pending_shared\":[],\"parent_conversation\":null,\"purpose\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"topic\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"shared_team_ids\":[\"T0ADR0P92G2\"],\"pending_connected_team_ids\":[],\"is_member\":true,\"last_read\":\"1771664900.925249\",\"previous_names\":[\"spec-only-channel\",\"api-test-channel\"]}}",

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "tool-no-params",
+  "recordedAt": "2026-03-14T17:59:36.965Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What time is it right now?\"}],\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_current_time\",\"description\":\"Get the current time\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}],\"user\":\"100_5\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["cf-ray", "9dc52c58dc1a5910-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 14 Mar 2026 17:59:37 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"]
+        ],
+        "body": "{\"id\":\"gen-1773511177-zS5NGtAFjLiisf1L9RMu\",\"object\":\"response\",\"created_at\":1773511177,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1773511177,\"output\":[{\"id\":\"rs_tmp_z390b1edm18\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User asks for current time. We have a function to get current time. Need to call it.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"fc_tmp_mijdeyrtz1\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"call_4b3ad423e0344e5a87dda144\",\"name\":\"get_current_time\",\"arguments\":\"{}\"}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"get_current_time\",\"description\":\"Get the current time\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":null,\"user\":\"100_5\",\"usage\":{\"input_tokens\":119,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":41,\"output_tokens_details\":{\"reasoning_tokens\":21},\"total_tokens\":160,\"cost\":0.00002547,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.00002547,\"upstream_inference_input_cost\":0.00001071,\"upstream_inference_output_cost\":0.00001476}}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

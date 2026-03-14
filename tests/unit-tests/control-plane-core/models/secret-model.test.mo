@@ -63,7 +63,7 @@ suite(
       func() {
         let workspaceId = 0;
         let secrets = Map.empty<Nat, Map.Map<SecretId, SecretModel.EncryptedSecret>>();
-        let secretId = #groqApiKey;
+        let secretId = #openRouterApiKey;
         let secret = "test-key-123";
 
         let result = SecretModel.storeSecret(
@@ -92,7 +92,7 @@ suite(
       func() {
         let workspaceId = 0;
         let secrets = Map.empty<Nat, Map.Map<SecretId, SecretModel.EncryptedSecret>>();
-        let secretId = #groqApiKey;
+        let secretId = #openRouterApiKey;
 
         // Store first secret
         let firstSecret = "original-key-123";
@@ -143,7 +143,7 @@ suite(
         let secrets = Map.empty<Nat, Map.Map<SecretId, SecretModel.EncryptedSecret>>();
 
         // Store multiple secrets
-        ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #groqApiKey, "key-1");
+        ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #openRouterApiKey, "key-1");
         ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #openaiApiKey, "key-2");
         ignore SecretModel.storeSecret(secrets, testKey, workspaceId, #slackBotToken, "bot-token");
 
@@ -164,7 +164,7 @@ suite(
       func() {
         let workspaceId = 0;
         let secrets = Map.empty<Nat, Map.Map<SecretId, SecretModel.EncryptedSecret>>();
-        let secretId = #groqApiKey;
+        let secretId = #openRouterApiKey;
 
         // Store a secret
         ignore SecretModel.storeSecret(secrets, testKey, workspaceId, secretId, "key-to-delete");

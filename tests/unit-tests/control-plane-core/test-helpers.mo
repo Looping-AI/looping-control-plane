@@ -92,7 +92,7 @@ module {
     };
   };
 
-  /// Creates an EventProcessingContext pre-seeded with a Slack bot token and a Groq
+  /// Creates an EventProcessingContext pre-seeded with a Slack bot token and an OpenRouter
   /// API key, both encrypted with the deterministic dummy key used across unit tests.
   /// This lets message-handler tests reach the Slack-posting code path without live
   /// Schnorr key derivation or a real secret-store call.
@@ -102,7 +102,7 @@ module {
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
     botToken : Text,
-    groqApiKey : Text,
+    openRouterApiKey : Text,
   ) : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
@@ -111,17 +111,17 @@ module {
     let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
     for (wsId in [0, 1, 42].vals()) {
       ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken);
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #groqApiKey, groqApiKey);
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey);
     };
-    // Register an admin agent permitted to access groqApiKey for workspaces 0, 1, and 42
+    // Register an admin agent permitted to access openRouterApiKey for workspaces 0, 1, and 42
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
       "unit-test-admin",
       0,
       #admin,
-      #groq(#gpt_oss_120b),
+      #openRouter(#gpt_oss_120b),
       #api,
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
       [],
       Map.empty<Text, AgentModel.ToolState>(),
@@ -144,17 +144,17 @@ module {
     };
   };
 
-  /// Like `ctxWithSecrets`, but stores the Groq API key ONLY — no Slack bot token.
+  /// Like `ctxWithSecrets`, but stores the OpenRouter API key ONLY — no Slack bot token.
   ///
   /// Use this for guard tests (e.g. MAX_AGENT_ROUNDS, force-termination guards) that
   /// run on a non-deferred actor without cassette support.  When there is no
   /// `#slackBotToken` secret for the workspace, `resolveWorkspaceBotToken` returns
   /// null so `postTerminationIfTokenAvailable` is a no-op and no outgoing HTTPS call
   /// is attempted.  This avoids the pending-outcall problem in non-cassette tests.
-  public func ctxWithGroqOnlySecrets(
+  public func ctxWithOpenRouterOnlySecrets(
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
-    groqApiKey : Text,
+    openRouterApiKey : Text,
   ) : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
@@ -163,16 +163,16 @@ module {
     let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
     for (wsId in [0, 1, 42].vals()) {
       // NOTE: #slackBotToken intentionally absent — keeps postTerminationPrompt a no-op.
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #groqApiKey, groqApiKey);
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey);
     };
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
       "unit-test-admin",
       0,
       #admin,
-      #groq(#gpt_oss_120b),
+      #openRouter(#gpt_oss_120b),
       #api,
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
       [],
       Map.empty<Text, AgentModel.ToolState>(),
@@ -204,7 +204,7 @@ module {
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
     botToken : Text,
-    groqApiKey : Text,
+    openRouterApiKey : Text,
   ) : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
@@ -213,7 +213,7 @@ module {
     let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
     for (wsId in [0, 1, 42].vals()) {
       ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken);
-      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #groqApiKey, groqApiKey);
+      ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey);
     };
     let registry = AgentModel.emptyState();
     // Admin agent (same as ctxWithSecrets)
@@ -221,9 +221,9 @@ module {
       "unit-test-admin",
       0,
       #admin,
-      #groq(#gpt_oss_120b),
+      #openRouter(#gpt_oss_120b),
       #api,
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
       [],
       Map.empty<Text, AgentModel.ToolState>(),
@@ -236,9 +236,9 @@ module {
       "unit-test-research",
       0,
       #research,
-      #groq(#gpt_oss_120b),
+      #openRouter(#gpt_oss_120b),
       #api,
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
       [],
       Map.empty<Text, AgentModel.ToolState>(),
@@ -261,13 +261,13 @@ module {
     };
   };
 
-  /// Like `ctxWithSecretsAndResearch`, but does NOT seed a Groq API key secret.
-  /// When the admin route tries to decrypt the groqApiKey it finds null and returns
+  /// Like `ctxWithSecretsAndResearch`, but does NOT seed an OpenRouter API key secret.
+  /// When the admin route tries to decrypt the openRouterApiKey it finds null and returns
   /// #err immediately, without issuing any HTTPS outcall.
   ///
   /// Use for non-deferred primary-agent resolution tests that need to verify the
   /// fallback-to-admin path without triggering a live (or cassette-dependent) LLM call.
-  public func ctxWithSecretsAndResearchNoGroq(
+  public func ctxWithSecretsAndResearchNoOpenRouter(
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
     botToken : Text,
@@ -278,7 +278,7 @@ module {
     );
     let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>();
     for (wsId in [0, 1, 42].vals()) {
-      // NOTE: #groqApiKey intentionally absent — keeps admin route a sync no-op.
+      // NOTE: #openRouterApiKey intentionally absent — keeps admin route a sync no-op.
       ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken);
     };
     let registry = AgentModel.emptyState();
@@ -286,9 +286,9 @@ module {
       "unit-test-admin",
       0,
       #admin,
-      #groq(#gpt_oss_120b),
+      #openRouter(#gpt_oss_120b),
       #api,
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
       [],
       Map.empty<Text, AgentModel.ToolState>(),
@@ -299,9 +299,9 @@ module {
       "unit-test-research",
       0,
       #research,
-      #groq(#gpt_oss_120b),
+      #openRouter(#gpt_oss_120b),
       #api,
-      [(0, #groqApiKey), (1, #groqApiKey), (42, #groqApiKey)],
+      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
       [],
       Map.empty<Text, AgentModel.ToolState>(),

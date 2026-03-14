@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "set-admin-channel-ws0",
-  "recordedAt": "2026-03-05T18:08:02.475Z",
+  "recordedAt": "2026-03-14T18:02:13.947Z",
   "interactions": [
     {
       "request": {
@@ -25,9 +25,9 @@
             "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
           ],
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
-          ["content-length", "310"],
+          ["content-length", "347"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Thu, 05 Mar 2026 18:08:02 GMT"],
+          ["date", "Sat, 14 Mar 2026 18:02:14 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -40,7 +40,7 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-uqjqampg,envoy-edge-lhr-ddunkfcr"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-uyjhlkhk,envoy-edge-lhr-dkcshkou"
           ],
           [
             "x-accepted-oauth-scopes",
@@ -50,20 +50,20 @@
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "107"],
+          ["x-envoy-upstream-service-time", "192"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-t1meyewjfaq1"],
+          ["x-server", "slack-www-hhvm-api-iad-2byvm9xw0gac"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-req-id", "01695311954238bf873722f10907d801"],
+          ["x-slack-req-id", "c526a4c87d4a6937b80161cebd1bfedf"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "aanGgtpWmI8FJJwlnQq3WQAAEAk"],
+          ["x-slack-unique-id", "abWipnjEfuSKmLmeHyOu7wAAABk"],
           ["x-xss-protection", "0"]
         ],
-        "body": "{\"ok\":true,\"channel\":{\"id\":\"C0AJP8DQEHL\",\"created\":1772712955,\"creator\":\"U0ADJJQMW4T\",\"is_org_shared\":false,\"is_im\":false,\"context_team_id\":\"T0ADR0P92G2\",\"updated\":1772712955681,\"name\":\"looping-ai-org-admins\",\"name_normalized\":\"looping-ai-org-admins\",\"is_channel\":true,\"is_group\":false,\"is_mpim\":false,\"is_private\":true,\"is_archived\":false,\"is_general\":false,\"is_shared\":false,\"is_ext_shared\":false,\"unlinked\":0,\"is_pending_ext_shared\":false,\"pending_shared\":[],\"parent_conversation\":null,\"purpose\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"topic\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"shared_team_ids\":[\"T0ADR0P92G2\"],\"pending_connected_team_ids\":[],\"is_member\":true,\"is_open\":true,\"last_read\":\"1772712955.821819\"}}",
+        "body": "{\"ok\":true,\"channel\":{\"id\":\"C0AJP8DQEHL\",\"created\":1772712955,\"creator\":\"U0ADJJQMW4T\",\"is_org_shared\":false,\"is_im\":false,\"context_team_id\":\"T0ADR0P92G2\",\"updated\":1773510689991,\"name\":\"looping-ai-org-admins\",\"name_normalized\":\"looping-ai-org-admins\",\"is_channel\":true,\"is_group\":false,\"is_mpim\":false,\"is_private\":true,\"is_archived\":false,\"is_general\":false,\"is_shared\":false,\"is_ext_shared\":false,\"unlinked\":0,\"is_pending_ext_shared\":false,\"pending_shared\":[],\"parent_conversation\":null,\"purpose\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"topic\":{\"value\":\"Test App\",\"creator\":\"U0ADJJQMW4T\",\"last_set\":1772898581},\"shared_team_ids\":[\"T0ADR0P92G2\"],\"pending_connected_team_ids\":[],\"is_member\":true,\"is_open\":true,\"last_read\":\"1772712955.821819\"}}",
         "bodyEncoding": "text"
       }
     }

@@ -138,7 +138,7 @@ describe("GetWorkspaceSecretsHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         PRIMARY_OWNER,
@@ -151,14 +151,14 @@ describe("GetWorkspaceSecretsHandler", () => {
       const response = parseResponse(result);
       expect(response.success).toBe(true);
       expect(response.secretIds).toHaveLength(1);
-      expect(response.secretIds).toContain("groqApiKey");
+      expect(response.secretIds).toContain("openRouterApiKey");
     });
 
     it("should list multiple stored secrets", async () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-test",
         }),
         PRIMARY_OWNER,
@@ -179,7 +179,7 @@ describe("GetWorkspaceSecretsHandler", () => {
       const response = parseResponse(result);
       expect(response.success).toBe(true);
       expect(response.secretIds).toHaveLength(2);
-      expect(response.secretIds).toContain("groqApiKey");
+      expect(response.secretIds).toContain("openRouterApiKey");
       expect(response.secretIds).toContain("openaiApiKey");
     });
 
@@ -188,7 +188,7 @@ describe("GetWorkspaceSecretsHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue,
         }),
         PRIMARY_OWNER,
@@ -206,7 +206,7 @@ describe("GetWorkspaceSecretsHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 1,
-          secretId: "groqApiKey",
+          secretId: "openRouterApiKey",
           secretValue: "sk-ws1",
         }),
         PRIMARY_OWNER,

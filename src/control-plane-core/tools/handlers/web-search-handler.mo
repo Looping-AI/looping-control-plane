@@ -1,7 +1,7 @@
 import Json "mo:json";
 import { str; obj; bool; arr; float } "mo:json";
 import List "mo:core/List";
-import GroqWrapper "../../wrappers/groq-wrapper";
+import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
 import Helpers "./handler-helpers";
 
 module {
@@ -21,52 +21,9 @@ module {
 
         switch (searchQueryOpt) {
           case (?searchQuery) {
-            let excludeDomains = switch (Json.get(json, "exclude_domains")) {
-              case (?#array(a)) {
-                let domains = List.empty<Text>();
-                for (item in a.vals()) {
-                  switch (item) {
-                    case (#string(s)) { List.add(domains, s) };
-                    case (_) {};
-                  };
-                };
-                let domainsArray = List.toArray(domains);
-                if (domainsArray.size() > 0) { ?domainsArray } else { null };
-              };
-              case (_) { null };
-            };
+            let searchSettings : ?OpenRouterWrapper.SearchSettings = null;
 
-            let includeDomains = switch (Json.get(json, "include_domains")) {
-              case (?#array(a)) {
-                let domains = List.empty<Text>();
-                for (item in a.vals()) {
-                  switch (item) {
-                    case (#string(s)) { List.add(domains, s) };
-                    case (_) {};
-                  };
-                };
-                let domainsArray = List.toArray(domains);
-                if (domainsArray.size() > 0) { ?domainsArray } else { null };
-              };
-              case (_) { null };
-            };
-
-            let country = switch (Json.get(json, "country")) {
-              case (?#string(s)) { ?s };
-              case (_) { null };
-            };
-
-            let searchSettings : ?GroqWrapper.SearchSettings = if (excludeDomains != null or includeDomains != null or country != null) {
-              ?{
-                exclude_domains = excludeDomains;
-                include_domains = includeDomains;
-                country;
-              };
-            } else {
-              null;
-            };
-
-            let result = await GroqWrapper.useBuiltInTool(
+            let result = await OpenRouterWrapper.useBuiltInTool(
               apiKey,
               searchQuery,
               #web_search({ searchSettings }),

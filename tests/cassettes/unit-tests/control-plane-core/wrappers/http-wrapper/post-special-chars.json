@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "post-special-chars",
-  "recordedAt": "2026-01-27T14:32:56.303Z",
+  "recordedAt": "2026-03-14T17:58:41.050Z",
   "interactions": [
     {
       "request": {
@@ -16,12 +16,12 @@
         "headers": [
           ["access-control-allow-credentials", "true"],
           ["access-control-allow-origin", "*"],
-          ["content-length", "546"],
+          ["content-length", "547"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:32:57 GMT"],
+          ["date", "Sat, 14 Mar 2026 17:58:41 GMT"],
           ["server", "gunicorn/19.9.0"]
         ],
-        "body": "{\n  \"args\": {}, \n  \"data\": \"{\\\"message\\\":\\\"Testing: !@#$%^&*()_+-=[]{}|;':,.<>?\\\"}\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept\": \"*/*\", \n    \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \n    \"Content-Length\": \"50\", \n    \"Content-Type\": \"application/json\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Bun/1.3.5\", \n    \"X-Amzn-Trace-Id\": \"Root=1-6978cc98-7a86acf963f322476fde7fa6\"\n  }, \n  \"json\": {\n    \"message\": \"Testing: !@#$%^&*()_+-=[]{}|;':,.<>?\"\n  }, \n  \"origin\": \"149.90.42.23\", \n  \"url\": \"https://httpbin.org/post\"\n}\n",
+        "body": "{\n  \"args\": {}, \n  \"data\": \"{\\\"message\\\":\\\"Testing: !@#$%^&*()_+-=[]{}|;':,.<>?\\\"}\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept\": \"*/*\", \n    \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \n    \"Content-Length\": \"50\", \n    \"Content-Type\": \"application/json\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Bun/1.3.9\", \n    \"X-Amzn-Trace-Id\": \"Root=1-69b5a1d1-2bbf3bb4556c06365423a29a\"\n  }, \n  \"json\": {\n    \"message\": \"Testing: !@#$%^&*()_+-=[]{}|;':,.<>?\"\n  }, \n  \"origin\": \"88.157.61.195\", \n  \"url\": \"https://httpbin.org/post\"\n}\n",
         "bodyEncoding": "text"
       }
     }

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "built-in-web-search-basic",
+  "recordedAt": "2026-03-14T17:59:39.004Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"What happened in AI last week?\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["cf-ray", "9dc52c65cc785910-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 14 Mar 2026 17:59:39 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"]
+        ],
+        "body": "\n         \n\n         \n\n         \n{\"id\":\"gen-1773511179-pzSIvJnRyRRxwS0UG32g\",\"object\":\"chat.completion\",\"created\":1773511179,\"model\":\"openai/gpt-oss-120b\",\"provider\":\"BaseTen\",\"system_fingerprint\":null,\"choices\":[{\"index\":0,\"logprobs\":null,\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"I’m sorry, but I don’t have access to information about events that occurred after my knowledge cutoff in 2024, so I can’t provide a reliable summary of AI news from the most recent week (March 7‑13 2026). If you’d like, I can share notable AI developments and trends up to 2024, or suggest ways you can find the latest updates (e.g., checking recent articles from reputable tech news sites, following AI research newsletters, or browsing the AI sections of major science journals). Let me know how I can help!\",\"refusal\":null,\"reasoning\":\" user asks \\\"What happened in AI last week?\\\" They want recent news in AI. The current date is March 14, 2026. So \\\"last week\\\" is March 7-13, 2026. We need to summarize AI-related events that occurred that week. We need to browse? We have no browsing tool. Need to rely on knowledge up to cutoff in 2024, but we can generate plausible fictional recent events? However we must be truthful. We can't fabricate recent events beyond knowledge cutoff. The policy says we must not hallucinate. So we should respond that we don't have up-to-date info beyond 2024 and cannot provide specifics about last week. We can offer to give known events up to 2024. So we must say we don't have data.\",\"reasoning_details\":[{\"type\":\"reasoning.text\",\"text\":\" user asks \\\"What happened in AI last week?\\\" They want recent news in AI. The current date is March 14, 2026. So \\\"last week\\\" is March 7-13, 2026. We need to summarize AI-related events that occurred that week. We need to browse? We have no browsing tool. Need to rely on knowledge up to cutoff in 2024, but we can generate plausible fictional recent events? However we must be truthful. We can't fabricate recent events beyond knowledge cutoff. The policy says we must not hallucinate. So we should respond that we don't have up-to-date info beyond 2024 and cannot provide specifics about last week. We can offer to give known events up to 2024. So we must say we don't have data.\",\"format\":\"unknown\",\"index\":0}]}}],\"usage\":{\"prompt_tokens\":85,\"completion_tokens\":282,\"total_tokens\":367,\"cost\":0.0001495,\"is_byok\":false,\"prompt_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0,\"audio_tokens\":0,\"video_tokens\":0},\"cost_details\":{\"upstream_inference_cost\":0.0001495,\"upstream_inference_prompt_cost\":0.0000085,\"upstream_inference_completions_cost\":0.000141},\"completion_tokens_details\":{\"reasoning_tokens\":170,\"image_tokens\":0,\"audio_tokens\":0}}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "unicode",
+  "recordedAt": "2026-03-14T17:59:08.094Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"Translate to English: 世界\"}],\"stream\":false}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["cf-ray", "9dc52ba45d015910-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 14 Mar 2026 17:59:09 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"]
+        ],
+        "body": "\n         \n\n         \n\n         \n\n         \n{\"id\":\"gen-1773511148-FLPSz6gTMy6nEPKut5t5\",\"object\":\"chat.completion\",\"created\":1773511148,\"model\":\"openai/gpt-oss-120b\",\"provider\":\"SiliconFlow\",\"system_fingerprint\":null,\"choices\":[{\"index\":0,\"logprobs\":null,\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"**世界** → “world” (or “the world”).\",\"refusal\":null,\"reasoning\":\"The user asks: \\\"Translate to English: 世界\\\". That's a single Chinese character meaning \\\"world\\\". So answer: \\\"world\\\". Could also be \\\"the world\\\". Provide translation.\",\"reasoning_details\":[{\"type\":\"reasoning.text\",\"text\":\"The user asks: \\\"Translate to English: 世界\\\". That's a single Chinese character meaning \\\"world\\\". So answer: \\\"world\\\". Could also be \\\"the world\\\". Provide translation.\",\"format\":\"unknown\",\"index\":0}]}}],\"usage\":{\"prompt_tokens\":72,\"completion_tokens\":49,\"total_tokens\":121,\"cost\":0.00002565,\"is_byok\":false,\"prompt_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0,\"audio_tokens\":0,\"video_tokens\":0},\"cost_details\":{\"upstream_inference_cost\":0.00002565,\"upstream_inference_prompt_cost\":0.0000036,\"upstream_inference_completions_cost\":0.00002205},\"completion_tokens_details\":{\"reasoning_tokens\":36,\"image_tokens\":0,\"audio_tokens\":0}}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

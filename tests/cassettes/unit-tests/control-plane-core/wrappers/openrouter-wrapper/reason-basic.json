@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "reason-basic",
+  "recordedAt": "2026-03-14T17:59:15.556Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What are the key benefits of using renewable energy?\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Provide a clear, structured response with main points.\",\"store\":false,\"stream\":false,\"user\":\"1_1\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["cf-ray", "9dc52bd308225910-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 14 Mar 2026 17:59:16 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"]
+        ],
+        "body": "\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n{\"id\":\"gen-1773511155-wT54RXl7Wd2iq4cjzZLf\",\"object\":\"response\",\"created_at\":1773511155,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1773511159,\"output\":[{\"id\":\"rs_tmp_os4oe33v5af\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to respond with clear, structured response with main points. Probably bullet list or numbered, with headings. Provide key benefits: environmental, economic, energy security, health, job creation, technological innovation, resilience, etc. Also maybe mention challenges? But question: benefits. Provide clear, structured response.\\n\\nWe should follow developer instruction: Provide a clear, structured response with main points. So we can give headings: \\\"Environmental Benefits\\\", \\\"Economic Benefits\\\", \\\"Energy Security\\\", \\\"Health Benefits\\\", \\\"Social and Community Benefits\\\", \\\"Technological Innovation\\\". Use bullet points. Also maybe a brief intro and conclusion.\\n\\nWe should not include any disallowed content. It's straightforward.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"msg_tmp_qrqx5avkj1m\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"**Key Benefits of Using Renewable Energy**\\n\\n| Benefit Category | Main Points |\\n|------------------|-------------|\\n| **1. Environmental Protection** | • **Reduces greenhouse‑gas emissions** – little to no CO₂, CH₄, or N₂O compared with fossil fuels.<br>• **Limits air and water pollution** – no sulfur dioxide, nitrogen oxides, or heavy‑metal runoff.<br>• **Preserves natural habitats** – lower impact from extraction and transport. |\\n| **2. Economic Advantages** | • **Lower operating costs** – fuel (sun, wind, water) is free; maintenance costs are modest.<br>• **Price stability** – not subject to volatile global oil or gas markets.<br>• **Attracts investment** – tax credits, feed‑in tariffs, and green bonds encourage capital flow. |\\n| **3. Energy Security & Reliability** | • **Diversifies the energy mix** – reduces dependence on imported fuels.<br>• **Local generation** – power can be produced close to where it is used, lowering transmission losses.<br>• **Resilience** – distributed renewable systems (e.g., rooftop solar) keep critical services running during grid outages. |\\n| **4. Public Health Improvements** | • **Cleaner air** → fewer respiratory and cardiovascular diseases.<br>• **Reduced water contamination** – no oil spills or coal‑ash discharge.<br>• **Lower noise pollution** – wind and solar are quieter than many conventional plants. |\\n| **5. Job Creation & Social Benefits** | • **New employment sectors** – manufacturing, installation, operation, and maintenance of renewable assets.<br>• **Rural and community development** – farms and small towns can host wind or solar farms that generate local revenue.<br>• **Energy access** – off‑grid solar and micro‑hydro bring electricity to remote areas. |\\n| **6. Technological Innovation** | • **Stimulates R&D** – advances in storage, smart grids, and efficiency.<br>• **Scalable solutions** – from small residential panels to large utility‑scale farms.<br>• **Integration with other sectors** – e.g., electric vehicles, green hydrogen, and district heating. |\\n| **7. Climate Change Mitigation** | • **Helps meet international targets** – supports commitments under the Paris Agreement.<br>• **Enables carbon‑neutral pathways** – when combined with storage and demand‑side management, renewables can supply baseload power. |\\n\\n**Bottom Line:**  \\nRenewable energy delivers a multi‑dimensional set of benefits—cleaner environment, cheaper and more stable electricity, enhanced national security, healthier populations, new jobs, and a catalyst for innovation—all of which contribute to a sustainable and resilient energy future.\",\"annotations\":[],\"logprobs\":[]}]}],\"error\":null,\"incomplete_details\":null,\"tools\":[],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":\"Provide a clear, structured response with main points.\",\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":null,\"user\":\"1_1\",\"usage\":{\"input_tokens\":94,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":717,\"output_tokens_details\":{\"reasoning_tokens\":187},\"total_tokens\":811,\"cost\":0.0002962,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.0002962,\"upstream_inference_input_cost\":0.0000094,\"upstream_inference_output_cost\":0.0002868}}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}
