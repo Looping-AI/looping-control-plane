@@ -1,15 +1,17 @@
 {
   "version": 1,
   "name": "json-content",
-  "recordedAt": "2026-01-27T14:32:23.311Z",
+  "recordedAt": "2026-03-14T17:59:11.563Z",
   "interactions": [
     {
       "request": {
-        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
         "method": "POST",
         "headers": [
           ["Authorization", "[REDACTED]"],
-          ["Content-Type", "application/json"]
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
         ],
         "body": "{\"model\":\"openai/gpt-oss-120b\",\"messages\":[{\"role\":\"user\",\"content\":\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\"}],\"stream\":false}",
         "bodyEncoding": "text"
@@ -17,30 +19,19 @@
       "response": {
         "statusCode": 200,
         "headers": [
-          ["alt-svc", "h3=\":443\"; ma=86400"],
-          [
-            "cache-control",
-            "private, max-age=0, no-store, no-cache, must-revalidate"
-          ],
-          ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c48f58a4eb9b17c-LIS"],
+          ["access-control-allow-origin", "*"],
+          ["cf-ray", "9dc52bba0eda5910-LIS"],
           ["content-type", "application/json"],
-          ["date", "Tue, 27 Jan 2026 14:32:23 GMT"],
+          ["date", "Sat, 14 Mar 2026 17:59:12 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
           ["server", "cloudflare"],
-          ["strict-transport-security", "max-age=15552000"],
-          ["vary", "Origin"],
-          ["via", "1.1 google"],
-          ["x-groq-region", "fra"],
-          ["x-ratelimit-limit-requests", "1000"],
-          ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "984"],
-          ["x-ratelimit-remaining-tokens", "7892"],
-          ["x-ratelimit-reset-requests", "23m2.4s"],
-          ["x-ratelimit-reset-tokens", "810ms"],
-          ["x-request-id", "req_01kfzxxcpbfzn8dyh0dry1akt7"],
-          ["set-cookie", "[REDACTED]"]
+          ["x-content-type-options", "nosniff"]
         ],
-        "body": "{\"id\":\"chatcmpl-3e5ee6c1-539f-4996-b48f-cb665605a60f\",\"object\":\"chat.completion\",\"created\":1769524343,\"model\":\"openai/gpt-oss-120b\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"The second element in the `children` array is `\\\"bar\\\"`.\",\"reasoning\":\"The user asks: \\\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\\\". They want the second child in the \\\"children\\\" array. The array is [\\\"foo\\\",\\\"bar\\\",\\\"xyz\\\"], second child is \\\"bar\\\". So answer \\\"bar\\\".\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"queue_time\":0.017497383,\"prompt_tokens\":99,\"prompt_time\":0.00411929,\"completion_tokens\":90,\"completion_time\":0.203410156,\"total_tokens\":189,\"total_time\":0.207529446,\"completion_tokens_details\":{\"reasoning_tokens\":67}},\"usage_breakdown\":null,\"system_fingerprint\":\"fp_2804ae6b41\",\"x_groq\":{\"id\":\"req_01kfzxxcpbfzn8dyh0dry1akt7\",\"seed\":301419370},\"service_tier\":\"on_demand\"}\n",
+        "body": "\n         \n\n         \n\n         \n\n         \n\n         \n{\"id\":\"gen-1773511151-n7CJz3c3MIKJdp5FrNsg\",\"object\":\"chat.completion\",\"created\":1773511151,\"model\":\"openai/gpt-oss-120b\",\"provider\":\"DeepInfra\",\"system_fingerprint\":null,\"choices\":[{\"index\":0,\"logprobs\":null,\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"The second child is **\\\"bar\\\"**.\",\"refusal\":null,\"reasoning\":\"The user asks: \\\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\\\". They want the second child. In the JSON, the \\\"children\\\" array has [\\\"foo\\\",\\\"bar\\\",\\\"xyz\\\"], the second child is \\\"bar\\\". So answer: \\\"bar\\\". Possibly just output bar.\",\"reasoning_details\":[{\"type\":\"reasoning.text\",\"text\":\"The user asks: \\\"What is the second child in this JSON: {\\\"one\\\": \\\"two\\\", \\\"children\\\": [\\\"foo\\\", \\\"bar\\\", \\\"xyz\\\"]}\\\". They want the second child. In the JSON, the \\\"children\\\" array has [\\\"foo\\\",\\\"bar\\\",\\\"xyz\\\"], the second child is \\\"bar\\\". So answer: \\\"bar\\\". Possibly just output bar.\",\"format\":\"unknown\",\"index\":0}]}}],\"usage\":{\"prompt_tokens\":82,\"completion_tokens\":94,\"total_tokens\":176,\"cost\":0.000021058,\"is_byok\":false,\"prompt_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0,\"audio_tokens\":0,\"video_tokens\":0},\"cost_details\":{\"upstream_inference_cost\":0.000021058,\"upstream_inference_prompt_cost\":0.000003198,\"upstream_inference_completions_cost\":0.00001786},\"completion_tokens_details\":{\"reasoning_tokens\":66,\"image_tokens\":0,\"audio_tokens\":0}}}",
         "bodyEncoding": "text"
       }
     }

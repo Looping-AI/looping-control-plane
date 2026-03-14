@@ -1,15 +1,17 @@
 {
   "version": 1,
   "name": "tool-complex-params",
-  "recordedAt": "2026-01-29T12:29:08.586Z",
+  "recordedAt": "2026-03-14T17:59:33.930Z",
   "interactions": [
     {
       "request": {
-        "url": "https://api.groq.com/openai/v1/responses",
+        "url": "https://openrouter.ai/api/v1/responses",
         "method": "POST",
         "headers": [
           ["Authorization", "[REDACTED]"],
-          ["Content-Type", "application/json"]
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
         ],
         "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Search for JavaScript tutorials published after 2023 with difficulty level beginner\"}],\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"search_tutorials\",\"description\":\"Search for programming tutorials with filters\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"},\"filters\":{\"type\":\"object\",\"properties\":{\"language\":{\"type\":\"string\",\"description\":\"Programming language\"},\"published_after\":{\"type\":\"integer\",\"description\":\"Year published after\"},\"difficulty\":{\"type\":\"string\",\"enum\":[\"beginner\",\"intermediate\",\"advanced\"]}}}},\"required\":[\"query\"]}}],\"user\":\"100_4\"}",
         "bodyEncoding": "text"
@@ -17,30 +19,19 @@
       "response": {
         "statusCode": 200,
         "headers": [
-          ["alt-svc", "h3=\":443\"; ma=86400"],
-          [
-            "cache-control",
-            "private, max-age=0, no-store, no-cache, must-revalidate"
-          ],
-          ["cf-cache-status", "DYNAMIC"],
-          ["cf-ray", "9c58bbc16c31785c-LIS"],
+          ["access-control-allow-origin", "*"],
+          ["cf-ray", "9dc52c45eca25910-LIS"],
           ["content-type", "application/json"],
-          ["date", "Thu, 29 Jan 2026 12:29:09 GMT"],
+          ["date", "Sat, 14 Mar 2026 17:59:34 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
           ["server", "cloudflare"],
-          ["strict-transport-security", "max-age=15552000"],
-          ["vary", "Origin"],
-          ["via", "1.1 google"],
-          ["x-groq-region", "dls"],
-          ["x-ratelimit-limit-requests", "1000"],
-          ["x-ratelimit-limit-tokens", "8000"],
-          ["x-ratelimit-remaining-requests", "991"],
-          ["x-ratelimit-remaining-tokens", "5689"],
-          ["x-ratelimit-reset-requests", "12m57.599s"],
-          ["x-ratelimit-reset-tokens", "17.332s"],
-          ["x-request-id", "req_01kg4vn5adef5tadmtfbaamaqx"],
-          ["set-cookie", "[REDACTED]"]
+          ["x-content-type-options", "nosniff"]
         ],
-        "body": "{\"id\":\"resp_01kg4vn5khef6vpw1r3m0qrhd9\",\"object\":\"response\",\"status\":\"completed\",\"created_at\":1769689749,\"output\":[{\"type\":\"reasoning\",\"id\":\"resp_01kg4vn5khef78mgta2n0rjdc9\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to call the function search_tutorials with appropriate filters: language \\\"JavaScript\\\", difficulty \\\"beginner\\\", published_after 2023. query can be something like \\\"JavaScript tutorial\\\".\"}],\"summary\":[]},{\"type\":\"function_call\",\"id\":\"fc_c7daa99e-e978-4d1d-8843-4bd0d0840ff7\",\"status\":\"completed\",\"call_id\":\"fc_c7daa99e-e978-4d1d-8843-4bd0d0840ff7\",\"name\":\"search_tutorials\",\"arguments\":\"{\\\"filters\\\":{\\\"difficulty\\\":\\\"beginner\\\",\\\"language\\\":\\\"JavaScript\\\",\\\"published_after\\\":2023},\\\"query\\\":\\\"JavaScript tutorial\\\"}\"}],\"previous_response_id\":null,\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"tools\":[{\"type\":\"function\",\"name\":\"search_tutorials\",\"description\":\"Search for programming tutorials with filters\",\"parameters\":{\"properties\":{\"filters\":{\"properties\":{\"difficulty\":{\"enum\":[\"beginner\",\"intermediate\",\"advanced\"],\"type\":\"string\"},\"language\":{\"description\":\"Programming language\",\"type\":\"string\"},\"published_after\":{\"description\":\"Year published after\",\"type\":\"integer\"}},\"type\":\"object\"},\"query\":{\"description\":\"Search query\",\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"},\"strict\":null}],\"tool_choice\":\"auto\",\"truncation\":\"disabled\",\"metadata\":{},\"groq\":null,\"temperature\":1,\"top_p\":1,\"user\":\"100_4\",\"service_tier\":\"default\",\"background\":false,\"error\":null,\"incomplete_details\":null,\"usage\":{\"input_tokens\":182,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":104,\"output_tokens_details\":{\"reasoning_tokens\":41},\"total_tokens\":286},\"parallel_tool_calls\":true,\"store\":false,\"top_logprobs\":null,\"max_tool_calls\":null}\n",
+        "body": "\n         \n\n         \n\n         \n{\"id\":\"gen-1773511174-DjZ3dZ8XKCBMk0XPpWnU\",\"object\":\"response\",\"created_at\":1773511174,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1773511175,\"output\":[{\"id\":\"rs_tmp_hkw783qwup6\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User wants to search for JavaScript tutorials published after 2023 with difficulty beginner. Use the provided function search_tutorials. Need to set filters difficulty \\\"beginner\\\", language \\\"JavaScript\\\", published_after as a timestamp? Probably a Unix timestamp? The spec says number. Provide maybe year 2023 as timestamp? Could be epoch ms. Could use e.g., 1704067200 (Jan 1 2024). Safer to use a timestamp for Jan 1 2024. Let's use 1704067200 (Unix seconds). Query could be \\\"JavaScript tutorial\\\". Use filters accordingly.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"fc_tmp_tf1kqpzrth\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"call_d11fa1a098724cd1b16a234f\",\"name\":\"search_tutorials\",\"arguments\":\"{\\\"filters\\\": {\\\"difficulty\\\": \\\"beginner\\\", \\\"language\\\": \\\"JavaScript\\\", \\\"published_after\\\": 1704067200}, \\\"query\\\": \\\"JavaScript tutorial\\\"}\"}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"search_tutorials\",\"description\":\"Search for programming tutorials with filters\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"},\"filters\":{\"type\":\"object\",\"properties\":{\"language\":{\"type\":\"string\",\"description\":\"Programming language\"},\"published_after\":{\"type\":\"integer\",\"description\":\"Year published after\"},\"difficulty\":{\"type\":\"string\",\"enum\":[\"beginner\",\"intermediate\",\"advanced\"]}}}},\"required\":[\"query\"]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":null,\"user\":\"100_4\",\"usage\":{\"input_tokens\":173,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":191,\"output_tokens_details\":{\"reasoning_tokens\":131},\"total_tokens\":364,\"cost\":0.00008433,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.00008433,\"upstream_inference_input_cost\":0.00001557,\"upstream_inference_output_cost\":0.00006876}}}",
         "bodyEncoding": "text"
       }
     }

@@ -22,11 +22,11 @@ describe("HTTP Wrapper Unit Tests", () => {
   });
 
   describe("HTTP GET", () => {
-    it("should successfully request example.com and return expected content", async () => {
+    it("should successfully request a valid endpoint and return expected content", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/example-com-get",
-        () => testCanister.httpGet("https://example.com", []),
+        "unit-tests/control-plane-core/wrappers/http-wrapper/valid-endpoint-get",
+        () => testCanister.httpGet("https://httpbin.org/html", []),
         { ticks: 5 },
       );
 
@@ -34,7 +34,7 @@ describe("HTTP Wrapper Unit Tests", () => {
       if ("ok" in response) {
         const [status, body] = response.ok;
         expect(Number(status)).toBe(200);
-        expect(body).toContain("Example Domain");
+        expect(body).toContain("Herman Melville - Moby-Dick");
       } else {
         throw new Error(
           "Expected successful response but got error: " + response.err,
@@ -47,7 +47,7 @@ describe("HTTP Wrapper Unit Tests", () => {
       const { result } = await withCassette(
         pic,
         "unit-tests/control-plane-core/wrappers/http-wrapper/get-invalid-url-format",
-        () => testCanister.httpGet("www.example.com", []),
+        () => testCanister.httpGet("httpbin.org/get", []),
         { ticks: 5 },
       );
       const invalidFormatResult = await result;
