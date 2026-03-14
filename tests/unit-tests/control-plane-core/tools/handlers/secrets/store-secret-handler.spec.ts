@@ -281,7 +281,7 @@ describe("StoreSecretHandler", () => {
   });
 
   describe("happy path", () => {
-    it("should store a openRouterApiKey successfully", async () => {
+    it("should store an openRouterApiKey successfully", async () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
