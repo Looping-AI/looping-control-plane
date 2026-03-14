@@ -1,5 +1,4 @@
 import Array "mo:core/Array";
-import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
@@ -59,7 +58,8 @@ module {
   public func orchestrateAgentTalk(
     agent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
-    workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
+    secrets : SecretModel.SecretsState,
+    slackUserId : ?Text,
     conversationEntry : ?ConversationModel.TimelineEntry,
     agentCtx : AgentCtx,
     message : Text,
@@ -122,7 +122,7 @@ module {
     };
 
     // Decrypt the LLM API key using the provided encryption key
-    let apiKey = SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, secretId);
+    let apiKey = SecretModel.getSecret(secrets, encryptionKey, guardWorkspaceId, secretId, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
 
     // Dispatch to provider-specific agent based on the agent's llmModel
     switch (agent.llmModel) {

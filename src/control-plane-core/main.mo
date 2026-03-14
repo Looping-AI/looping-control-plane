@@ -40,7 +40,7 @@ persistent actor class OpenOrgBackend() {
   // Channel-keyed conversation store (Phase 1.4): replaces the old (workspaceId, agentId)-keyed
   // `conversations` map and the workspaceId-keyed `adminConversations` map.
   let conversationStore = ConversationModel.empty();
-  let secrets = Map.empty<Nat, Map.Map<Types.SecretId, SecretModel.EncryptedSecret>>(); // Encrypted secrets per workspace
+  let secrets = SecretModel.initState(); // Encrypted secrets and audit logs per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
@@ -275,7 +275,7 @@ persistent actor class OpenOrgBackend() {
       return #err("Secret value cannot be empty.");
     };
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    switch (SecretModel.storeSecret(secrets, encryptionKey, 0, secretId, value)) {
+    switch (SecretModel.storeSecret(secrets, encryptionKey, 0, secretId, value, { slackUserId = null; agentId = null; operation = "storeOrgCriticalSecrets" })) {
       case (#err(msg)) { #err(msg) };
       case (#ok(())) { #ok(()) };
     };
@@ -400,8 +400,7 @@ persistent actor class OpenOrgBackend() {
     };
 
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let workspaceSecrets = Map.get(secrets, Nat.compare, 0);
-    let signingSecret = switch (SecretModel.getSecretScoped(workspaceSecrets, encryptionKey, #slackSigningSecret)) {
+    let signingSecret = switch (SecretModel.getSecret(secrets, encryptionKey, 0, #slackSigningSecret, { slackUserId = null; agentId = null; operation = "slack-signature-verify" })) {
       case (null) {
         Logger.log(#error, ?"SlackWebhook", "No Slack signing secret configured");
         return respondWithText(401, "Slack signing secret not configured");

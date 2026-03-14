@@ -8,7 +8,6 @@
 ///   - Termination-prompt delivery (MAX_AGENT_ROUNDS)
 ///   - `findPreviousSameAgentReply` for walking the parentRef chain
 
-import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import ConversationModel "../models/conversation-model";
@@ -56,7 +55,8 @@ module {
   public func route(
     primaryAgent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
-    workspaceSecrets : ?Map.Map<Types.SecretId, SecretModel.EncryptedSecret>,
+    secrets : SecretModel.SecretsState,
+    slackUserId : ?Text,
     conversationEntry : ?ConversationModel.TimelineEntry,
     agentCtx : AgentCtx,
     message : Text,
@@ -104,7 +104,8 @@ module {
     await AgentOrchestrator.orchestrateAgentTalk(
       primaryAgent,
       mcpToolRegistry,
-      workspaceSecrets,
+      secrets,
+      slackUserId,
       conversationEntry,
       agentCtx,
       message,

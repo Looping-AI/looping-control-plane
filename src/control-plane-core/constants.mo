@@ -40,4 +40,10 @@ module {
   // this on every weekly run and warns the Primary Owner if the name has changed.
   public let ORG_ADMIN_CHANNEL_NAME : Text = "looping-ai-org-admins";
 
+  // Secrets whose access events are excluded from the audit log when
+  // stored on workspace 0. These high-frequency org-level credentials would
+  // produce too much noise in the log on every request signature check.
+  // Secrets stored on workspace > 0 are always logged regardless of this list.
+  public let SECRET_AUDIT_EXCLUSIONS : [Types.SecretId] = [#slackBotToken, #slackSigningSecret];
+
 };

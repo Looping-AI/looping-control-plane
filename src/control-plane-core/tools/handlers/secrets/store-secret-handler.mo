@@ -20,7 +20,7 @@ module {
   ///   - Slack bot token (slackBotToken): requires #IsPrimaryOwner or #IsOrgAdmin
   ///   - LLM keys (openRouterApiKey, openaiApiKey): requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
   public func handle(
-    secrets : SecretModel.SecretsMap,
+    secrets : SecretModel.SecretsState,
     keyCache : KeyDerivationService.KeyCache,
     workspaces : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
@@ -92,7 +92,7 @@ module {
             // Derive encryption key for this workspace
             let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, wsId);
 
-            switch (SecretModel.storeSecret(secrets, encryptionKey, wsId, secretId, secretValue)) {
+            switch (SecretModel.storeSecret(secrets, encryptionKey, wsId, secretId, secretValue, { slackUserId = ?uac.slackUserId; agentId = null; operation = "store-secret" })) {
               case (#err(msg)) { Helpers.buildErrorResponse(msg) };
               case (#ok(())) {
                 Json.stringify(

@@ -16,7 +16,7 @@ module {
   ///   - Slack secrets (slackBotToken, slackSigningSecret): requires #IsPrimaryOwner or #IsOrgAdmin
   ///   - LLM keys (openRouterApiKey, openaiApiKey): requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
   public func handle(
-    secrets : SecretModel.SecretsMap,
+    secrets : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
     args : Text,
   ) : async Text {
@@ -52,7 +52,7 @@ module {
                 Helpers.buildErrorResponse("Unauthorized: " # msg);
               };
               case (#ok(())) {
-                switch (SecretModel.deleteSecret(secrets, wsId, secretId)) {
+                switch (SecretModel.deleteSecret(secrets, wsId, secretId, { slackUserId = ?uac.slackUserId; agentId = null; operation = "delete-secret" })) {
                   case (#err(msg)) { Helpers.buildErrorResponse(msg) };
                   case (#ok(())) {
                     Json.stringify(

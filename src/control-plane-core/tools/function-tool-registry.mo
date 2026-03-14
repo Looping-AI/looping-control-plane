@@ -242,17 +242,17 @@ module {
     switch (resources.secrets, resources.userAuthContext) {
       case (?sec, ?uac) {
         // Read tools — always available when resource and user identity are present
-        List.add(tools, getWorkspaceSecretsTool(sec.map, uac));
+        List.add(tools, getWorkspaceSecretsTool(sec.state, uac));
         // Write tools — require write=true
         if (sec.write) {
           // store_secret additionally needs workspaces resource for workspace existence check
           switch (resources.workspaces) {
             case (?ws) {
-              List.add(tools, storeSecretTool(sec.map, sec.keyCache, ws.state, uac));
+              List.add(tools, storeSecretTool(sec.state, sec.keyCache, ws.state, uac));
             };
             case (null) {};
           };
-          List.add(tools, deleteSecretTool(sec.map, uac));
+          List.add(tools, deleteSecretTool(sec.state, uac));
         };
       };
       case _ {};
@@ -1017,7 +1017,7 @@ module {
 
   /// Get workspace secrets tool — always available when secrets resource + user identity are present
   private func getWorkspaceSecretsTool(
-    map : SecretModel.SecretsMap,
+    map : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
   ) : FunctionTool {
     {
@@ -1037,7 +1037,7 @@ module {
 
   /// Store secret tool — requires secrets resource with write + workspaces resource + user identity
   private func storeSecretTool(
-    map : SecretModel.SecretsMap,
+    map : SecretModel.SecretsState,
     keyCache : KeyDerivationService.KeyCache,
     workspacesState : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
@@ -1059,7 +1059,7 @@ module {
 
   /// Delete secret tool — requires secrets resource with write + user identity
   private func deleteSecretTool(
-    map : SecretModel.SecretsMap,
+    map : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
   ) : FunctionTool {
     {
