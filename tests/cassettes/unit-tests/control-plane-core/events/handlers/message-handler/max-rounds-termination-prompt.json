@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "name": "max-rounds-termination-prompt",
+  "recordedAt": "2026-03-14T17:41:56.805Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://slack.com/api/chat.postMessage",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"channel\":\"C0AG99QQAR4\",\"text\":\"⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.\",\"thread_ts\":\"1700000010.000100\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "access-control-allow-headers",
+            "slack-route, x-slack-version-ts, x-b3-traceid, x-b3-spanid, x-b3-parentspanid, x-b3-sampled, x-b3-flags"
+          ],
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "x-slack-req-id, retry-after"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
+          ],
+          ["cache-control", "private, no-cache, no-store, must-revalidate"],
+          ["content-length", "511"],
+          ["content-type", "application/json; charset=utf-8"],
+          ["date", "Sat, 14 Mar 2026 17:41:57 GMT"],
+          ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
+          ["pragma", "no-cache"],
+          ["referrer-policy", "no-referrer"],
+          ["server", "Apache"],
+          [
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains; preload"
+          ],
+          ["timing-allow-origin", "*"],
+          ["vary", "Accept-Encoding"],
+          [
+            "via",
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-xrffzodp,envoy-edge-lhr-ymwdvqsm"
+          ],
+          ["x-accepted-oauth-scopes", "chat:write"],
+          ["x-backend", "api_normal"],
+          ["x-content-type-options", "nosniff"],
+          ["x-edge-backend", "envoy-www"],
+          ["x-envoy-attempt-count", "1"],
+          ["x-envoy-upstream-service-time", "236"],
+          [
+            "x-oauth-scopes",
+            "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
+          ],
+          ["x-server", "slack-www-hhvm-api-iad-265660mzgq0u"],
+          ["x-slack-backend", "r"],
+          ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-req-id", "09cc7a424b14e9b3a2d2ff1d9f0a721a"],
+          ["x-slack-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-unique-id", "abWd5YO7a-1GwsA8uHG2bAAAACE"],
+          ["x-xss-protection", "0"]
+        ],
+        "body": "{\"ok\":true,\"channel\":\"C0AG99QQAR4\",\"ts\":\"1773510117.158089\",\"message\":{\"user\":\"U0ADWN7P3DY\",\"type\":\"message\",\"ts\":\"1773510117.158089\",\"bot_id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"text\":\":warning: I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.\",\"team\":\"T0ADR0P92G2\",\"bot_profile\":{\"id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"user_id\":\"U0ADWN7P3DY\",\"name\":\"Looping AI (T)\",\"icons\":{\"image_36\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg\"},\"deleted\":false,\"updated\":1772839412,\"team_id\":\"T0ADR0P92G2\"},\"blocks\":[{\"type\":\"rich_text\",\"block_id\":\"EbyD\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"emoji\",\"name\":\"warning\",\"unicode\":\"26a0-fe0f\"},{\"type\":\"text\",\"text\":\" I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.\"}]}]}]},\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

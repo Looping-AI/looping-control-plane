@@ -9,7 +9,7 @@
 
 # dfx/icp temporary files
 .dfx/
-.icp/
+.icp/cache/
 
 # generated files
 **/declarations/

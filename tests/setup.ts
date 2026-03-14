@@ -7,8 +7,8 @@ import {
   type DeferredActor,
 } from "@dfinity/pic";
 import { Principal } from "@icp-sdk/core/principal";
-import type { _SERVICE } from "./builds/open-org-backend.did.d.ts";
-import { idlFactory } from "./builds/open-org-backend.did.js";
+import type { _SERVICE } from "./builds/control-plane-core.did.d.ts";
+import { idlFactory } from "./builds/control-plane-core.did.js";
 import type { _SERVICE as TestCanisterService } from "./builds/test-canister.did.d.ts";
 import { idlFactory as testCanisterIdlFactory } from "./builds/test-canister.did.js";
 
@@ -18,7 +18,7 @@ export type { _SERVICE, TestCanisterService };
 
 // Test constants for unit tests
 export const TEST_API_KEY =
-  process.env["GROQ_TEST_KEY"] || "not-needed-due-to-cassette";
+  process.env["OPENROUTER_TEST_KEY"] || "not-needed-due-to-cassette";
 export const TEST_MODEL = "openai/gpt-oss-120b";
 export const SLACK_TEST_TOKEN =
   process.env["SLACK_APP_BOT_TOKEN"] || "not-needed-due-to-cassette";
@@ -59,7 +59,7 @@ export function generateTestPrincipal(seed: number): Principal {
 export const WASM_PATH = resolve(
   import.meta.dir,
   "builds",
-  "open-org-backend.wasm",
+  "control-plane-core.wasm",
 );
 
 // Define the path to the test canister's WASM file

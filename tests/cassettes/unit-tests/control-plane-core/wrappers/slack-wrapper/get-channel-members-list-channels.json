@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "name": "get-channel-members-list-channels",
+  "recordedAt": "2026-03-14T17:38:28.073Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://slack.com/api/conversations.list?limit=200",
+        "method": "GET",
+        "headers": [["Authorization", "[REDACTED]"]],
+        "body": "",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "access-control-allow-headers",
+            "slack-route, x-slack-version-ts, x-b3-traceid, x-b3-spanid, x-b3-parentspanid, x-b3-sampled, x-b3-flags"
+          ],
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "x-slack-req-id, retry-after"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
+          ],
+          ["cache-control", "private, no-cache, no-store, must-revalidate"],
+          ["content-length", "875"],
+          ["content-type", "application/json; charset=utf-8"],
+          ["date", "Sat, 14 Mar 2026 17:38:28 GMT"],
+          ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
+          ["pragma", "no-cache"],
+          ["referrer-policy", "no-referrer"],
+          ["server", "Apache"],
+          [
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains; preload"
+          ],
+          ["timing-allow-origin", "*"],
+          ["vary", "Accept-Encoding"],
+          [
+            "via",
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-viuvcagi,envoy-edge-lhr-ymwdvqsm"
+          ],
+          [
+            "x-accepted-oauth-scopes",
+            "channels:read,groups:read,mpim:read,im:read,read"
+          ],
+          ["x-backend", "api_normal"],
+          ["x-content-type-options", "nosniff"],
+          ["x-edge-backend", "envoy-www"],
+          ["x-envoy-attempt-count", "1"],
+          ["x-envoy-upstream-service-time", "114"],
+          [
+            "x-oauth-scopes",
+            "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
+          ],
+          ["x-server", "slack-www-hhvm-api-iad-6b97tyg4iryt"],
+          ["x-slack-backend", "r"],
+          ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-req-id", "a11aed06c7de0fcc093cb1e4cc4c23ed"],
+          ["x-slack-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-unique-id", "abWdFOD7nuYjC8qhUVPK0QAAADg"],
+          ["x-xss-protection", "0"]
+        ],
+        "body": "{\"ok\":true,\"channels\":[{\"id\":\"C0AD9H06LHM\",\"created\":1770571020,\"creator\":\"U0ADJJQMW4T\",\"is_org_shared\":false,\"is_im\":false,\"context_team_id\":\"T0ADR0P92G2\",\"updated\":1773388530916,\"name\":\"announcements\",\"name_normalized\":\"announcements\",\"is_channel\":true,\"is_group\":false,\"is_mpim\":false,\"is_private\":false,\"is_archived\":false,\"is_general\":true,\"is_shared\":false,\"is_ext_shared\":false,\"unlinked\":0,\"is_pending_ext_shared\":false,\"pending_shared\":[],\"parent_conversation\":null,\"purpose\":{\"value\":\"Share announcements and updates about company news, upcoming events, or teammates who deserve some kudos. \\u2b50\",\"creator\":\"U0ADJJQMW4T\",\"last_set\":1770571020},\"topic\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"shared_team_ids\":[\"T0ADR0P92G2\"],\"pending_connected_team_ids\":[],\"is_member\":false,\"num_members\":1,\"properties\":{\"posting_restricted_to\":{\"type\":[\"admin\"]},\"threads_restricted_to\":{\"type\":[\"admin\"]},\"tabs\":[{\"label\":\"Canvas\",\"type\":\"channel_canvas\",\"is_disabled\":true,\"id\":\"channel_canvas\"}],\"tabz\":[{\"label\":\"Canvas\",\"type\":\"channel_canvas\",\"is_disabled\":true}],\"who_can_manage_tabs\":\"managers\",\"use_case\":\"welcome\",\"is_dormant\":true},\"previous_names\":[\"all-looping-ai\",\"all-loopingai\"]},{\"id\":\"C0AD9H3DVTR\",\"created\":1770571124,\"creator\":\"U0ADJJQMW4T\",\"is_org_shared\":false,\"is_im\":false,\"context_team_id\":\"T0ADR0P92G2\",\"updated\":1773388531026,\"name\":\"general\",\"name_normalized\":\"general\",\"is_channel\":true,\"is_group\":false,\"is_mpim\":false,\"is_private\":false,\"is_archived\":false,\"is_general\":false,\"is_shared\":false,\"is_ext_shared\":false,\"unlinked\":0,\"is_pending_ext_shared\":false,\"pending_shared\":[],\"parent_conversation\":null,\"purpose\":{\"value\":\"This channel is for everything <#C0AD9H3DVTR>. Hold meetings, share docs, and make decisions together with your team.\",\"creator\":\"U0ADJJQMW4T\",\"last_set\":1770648171},\"topic\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"shared_team_ids\":[\"T0ADR0P92G2\"],\"pending_connected_team_ids\":[],\"is_member\":false,\"num_members\":1,\"properties\":{\"use_case\":\"project\",\"is_dormant\":true},\"previous_names\":[\"announcements\",\"new-channel\"]},{\"id\":\"C0AE3TXD8DP\",\"created\":1770571020,\"creator\":\"U0ADJJQMW4T\",\"is_org_shared\":false,\"is_im\":false,\"context_team_id\":\"T0ADR0P92G2\",\"updated\":1773388531183,\"name\":\"social\",\"name_normalized\":\"social\",\"is_channel\":true,\"is_group\":false,\"is_mpim\":false,\"is_private\":false,\"is_archived\":false,\"is_general\":false,\"is_shared\":false,\"is_ext_shared\":false,\"unlinked\":0,\"is_pending_ext_shared\":false,\"pending_shared\":[],\"parent_conversation\":null,\"purpose\":{\"value\":\"Other channels are for work. This one\\u2019s just for fun. Get to know your teammates and show your lighter side. \\ud83c\\udf88\",\"creator\":\"U0ADJJQMW4T\",\"last_set\":1770571020},\"topic\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"shared_team_ids\":[\"T0ADR0P92G2\"],\"pending_connected_team_ids\":[],\"is_member\":false,\"num_members\":1,\"properties\":{\"use_case\":\"random\",\"is_dormant\":true},\"previous_names\":[]},{\"id\":\"C0AG99QQAR4\",\"created\":1771664900,\"creator\":\"U0ADJJQMW4T\",\"is_org_shared\":false,\"is_im\":false,\"context_team_id\":\"T0ADR0P92G2\",\"updated\":1771664993612,\"name\":\"specs-only\",\"name_normalized\":\"specs-only\",\"is_channel\":true,\"is_group\":false,\"is_mpim\":false,\"is_private\":false,\"is_archived\":false,\"is_general\":false,\"is_shared\":false,\"is_ext_shared\":false,\"unlinked\":0,\"is_pending_ext_shared\":false,\"pending_shared\":[],\"parent_conversation\":null,\"purpose\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"topic\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"shared_team_ids\":[\"T0ADR0P92G2\"],\"pending_connected_team_ids\":[],\"is_member\":true,\"num_members\":2,\"previous_names\":[\"spec-only-channel\",\"api-test-channel\"]},{\"id\":\"C0AL6TS23FD\",\"created\":1773389032,\"creator\":\"U0ADJJQMW4T\",\"is_org_shared\":false,\"is_im\":false,\"context_team_id\":\"T0ADR0P92G2\",\"updated\":1773389032595,\"name\":\"customer-research\",\"name_normalized\":\"customer-research\",\"is_channel\":true,\"is_group\":false,\"is_mpim\":false,\"is_private\":false,\"is_archived\":false,\"is_general\":false,\"is_shared\":false,\"is_ext_shared\":false,\"unlinked\":0,\"is_pending_ext_shared\":false,\"pending_shared\":[],\"parent_conversation\":null,\"purpose\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"topic\":{\"value\":\"\",\"creator\":\"\",\"last_set\":0},\"shared_team_ids\":[\"T0ADR0P92G2\"],\"pending_connected_team_ids\":[],\"is_member\":true,\"num_members\":3,\"previous_names\":[]}],\"response_metadata\":{\"next_cursor\":\"\"}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

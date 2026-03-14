@@ -43,7 +43,7 @@ Read until "Core Flows" for a high-level view of what exists today and where the
 - API keys and secrets encrypted at rest using workspace-scoped derived keys (ICP Threshold Schnorr).
 - LLM provider integration via HTTP outcalls (migrating from Groq to OpenRouter).
 
-Primary code entrypoint: [src/open-org-backend/main.mo](src/open-org-backend/main.mo)
+Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
 ### Target direction (what this architecture file plans for)
 
@@ -75,6 +75,10 @@ Primary code entrypoint: [src/open-org-backend/main.mo](src/open-org-backend/mai
 - Auditable: the system should be auditable (events, session tracking, and conversation history).
 - Avoid LLM Obedience: be resilient to prompt injection and spoofed events (Through Slack signature verification, data classes, and policies).
 - Agent isolation: an agent service must never directly invoke another agent service. Inter-agent communication always flows through a Slack `postMessage` that triggers a new event, ensuring every hop is auditable and budget-checkable.
+
+## Motoko Conventions
+
+- **Model function parameter order**: new model functions must place the state/collection parameter **first**. This aligns with `mo:core` idioms (e.g. `Map.get(map, compare, key)`) and makes partial application natural. Example: `forkAgent(state, originalId, ...)`. Existing functions that pre-date this convention (`register`, `updateById`, etc.) have state last and will be migrated in a future cleanup pass.
 
 ## Core Concepts
 
@@ -152,7 +156,7 @@ Queued work items that may involve awaits (LLM calls, tool use, function calling
 
 All write operations enter the canister through verified webhook endpoints:
 
-- **Slack Events API** (`http_request_update` at `/slack/events`): messages, app mentions, channel membership changes, interactive message callbacks. HMAC-SHA256 with Slack signing secret + timestamp replay protection.
+- **Slack Events API** (`http_request_update` at `/webhook/slack`): messages, app mentions, channel membership changes, interactive message callbacks. HMAC-SHA256 with Slack signing secret + timestamp replay protection.
 - **GitHub Webhooks** (`http_request_update` at `/github/webhook`): codespace lifecycle events (`created`, `started`, `stopped`, `deleted`). HMAC-SHA256 with `X-Hub-Signature-256` header using a stored GitHub webhook secret.
 - **OpenClaw Webhooks** (`http_request_update` at `/openclaw/webhook`): structured agent response payloads from the Express sidecar. HMAC-SHA256 using the per-workspace `sidecarSecret`.
 - **Slack API** (outbound HTTP outcalls): the canister calls Slack to post messages, read user lists, and read channel memberships.
@@ -268,10 +272,10 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 ### Current persistent state
 
-See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
+See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 
 - `agentRegistry`: global agent registry with dual index by ID and name (Phase 1.1, implemented).
-- `conversationStore`: channel-keyed, timeline-structured message history with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Round tracking is embedded here — each `ConversationMessage` carries a `userAuthContext` field (`roundCount`, `forceTerminated`) so no separate round-context store is needed. See [src/open-org-backend/middleware/slack-auth-middleware.mo](src/open-org-backend/middleware/slack-auth-middleware.mo) for the `UserAuthContext` type.
+- `conversationStore`: channel-keyed, timeline-structured message history with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Round tracking is embedded here — each `ConversationMessage` carries a `userAuthContext` field (`roundCount`, `forceTerminated`) so no separate round-context store is needed. See [src/control-plane-core/middleware/slack-auth-middleware.mo](src/control-plane-core/middleware/slack-auth-middleware.mo) for the `UserAuthContext` type.
 - `slackUsers`: Slack user cache (`SlackUserEntry` records indexed by Slack user ID); populated by event-driven membership events and weekly reconciliation.
 - `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId` / `memberChannelId`). Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor.
 - `secrets`: encrypted secrets per workspace.
@@ -285,12 +289,12 @@ See [src/open-org-backend/main.mo](src/open-org-backend/main.mo).
 
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId, memberChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`. Backed by `SlackUserModel`.
-- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, executionType: #api | #runtime(#openClaw({ openClawVersion })), workspaceId, llmModel, secretsAllowed: [(workspaceId, SecretId)], secretMappings: [(Text, SecretId)], invocationScope: #membersOnly | #orgWide, toolsAllowed, toolsState: Map<Text, ToolState>, usageStats, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/open-org-backend/models/agent-model.mo](src/open-org-backend/models/agent-model.mo).
-- **Codespace store**: `Map<workspaceId, CodespaceRecord>` where `CodespaceRecord = { workspaceId, codespaceName, repoFullName, status: #creating | #running | #stopped | #deleted | #unknown, sidecarUrl, sidecarSecret, createdAt, lastHealthCheck }`. One codespace per workspace. File: `src/open-org-backend/models/codespace-model.mo` (new).
+- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, executionType: #api | #runtime(#openClaw({ openClawVersion })), workspaceId, llmModel, secretsAllowed: [(workspaceId, SecretId)], secretMappings: [(Text, SecretId)], invocationScope: #membersOnly | #orgWide, toolsAllowed, toolsState: Map<Text, ToolState>, usageStats, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
+- **Codespace store**: `Map<workspaceId, CodespaceRecord>` where `CodespaceRecord = { workspaceId, codespaceName, repoFullName, status: #creating | #running | #stopped | #deleted | #unknown, sidecarUrl, sidecarSecret, createdAt, lastHealthCheck }`. One codespace per workspace. File: `src/control-plane-core/models/codespace-model.mo` (new).
 - **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace. Includes `#custom(Text)` secret types for flexible credential mapping. Per-workspace audit state: `SecretAuditState = { changeLog: List<SecretChangeEntry>, accessLog: List<SecretAccessEntry> }` tracking stores, deletes, and accesses with timestamps and sources.
-- **Conversations**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/open-org-backend/models/conversation-model.mo](src/open-org-backend/models/conversation-model.mo) for the `ConversationStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
+- **Conversations**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/control-plane-core/models/conversation-model.mo](src/control-plane-core/models/conversation-model.mo) for the `ConversationStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
 - **Event store**: event lifecycle with timer dispatch (existing, retained).
 - **Metrics / Value Streams / Objectives**: existing models retained.
 - **Tool registries**: function tool registry (static) and MCP tool registry (dynamic), with new per-agent `toolsAllowed` and `toolsState`.
@@ -499,7 +503,7 @@ Design rules (planned and recommended for any new code):
 - Processed events cleanup timer (7 days): fails stale unprocessed events, purges old processed/failed events.
 - Keep timer state minimal and upgrade-safe (store "next run time" and reschedule in `postupgrade`).
 
-Relevant code: [src/open-org-backend/main.mo](src/open-org-backend/main.mo)
+Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
 ### Planned
 
@@ -512,10 +516,10 @@ Relevant code: [src/open-org-backend/main.mo](src/open-org-backend/main.mo)
 
 ### Current
 
-- **Function tool registry**: static, resource-gated. Tools are available based on provided resources (e.g., `web_search` needs API key, `save_value_stream` needs workspace + write flag). See [src/open-org-backend/tools/function-tool-registry.mo](src/open-org-backend/tools/function-tool-registry.mo).
+- **Function tool registry**: static, resource-gated. Tools are available based on provided resources (e.g., `web_search` needs API key, `save_value_stream` needs workspace + write flag). See [src/control-plane-core/tools/function-tool-registry.mo](src/control-plane-core/tools/function-tool-registry.mo).
 - **MCP tool registry**: dynamic, runtime-configurable. Registration/unregistration supported; execution not yet implemented.
 - **Tool executor**: routes tool calls from LLM responses to function tools or MCP tools.
-- **SlackWrapper**: outbound Slack API calls (`postMessage`). See [src/open-org-backend/wrappers](src/open-org-backend/wrappers).
+- **SlackWrapper**: outbound Slack API calls (`postMessage`). See [src/control-plane-core/wrappers](src/control-plane-core/wrappers).
 
 ### Planned
 
@@ -535,12 +539,12 @@ Relevant code: [src/open-org-backend/main.mo](src/open-org-backend/main.mo)
 
 ## LLM Providers and Wrappers
 
-- Providers are represented by a tagged enum (`LlmProvider = #openRouter`). See [src/open-org-backend/types.mo](src/open-org-backend/types.mo).
+- Providers are represented by a tagged enum (`LlmProvider = #openRouter`). See [src/control-plane-core/types.mo](src/control-plane-core/types.mo).
 - **OpenRouter** is the canister's LLM provider (replacing Groq). Same OpenAI-compatible API surface, same model (`openai/gpt-oss-120b` via Groq provider on OpenRouter). URL: `openrouter.ai/api/v1`.
 - **Anthropic** keys are used by OpenClaw agents only (pushed to codespace via credential cascade). The canister itself never calls Anthropic directly.
 - Wrappers isolate HTTP request/response formatting, headers, retries, and error mapping.
 
-Wrappers live in: [src/open-org-backend/wrappers](src/open-org-backend/wrappers)
+Wrappers live in: [src/control-plane-core/wrappers](src/control-plane-core/wrappers)
 
 ## Secrets, API Keys, and Encryption
 
@@ -552,8 +556,8 @@ Wrappers live in: [src/open-org-backend/wrappers](src/open-org-backend/wrappers)
 
 Deep dive entrypoints:
 
-- [src/open-org-backend/models/secret-model.mo](src/open-org-backend/models/secret-model.mo)
-- [src/open-org-backend/services/key-derivation-service.mo](src/open-org-backend/services/key-derivation-service.mo)
+- [src/control-plane-core/models/secret-model.mo](src/control-plane-core/models/secret-model.mo)
+- [src/control-plane-core/services/key-derivation-service.mo](src/control-plane-core/services/key-derivation-service.mo)
 
 ### Credential Cascade
 
@@ -643,12 +647,12 @@ See:
 
 ## Deep Dives
 
-- Controller layer: [src/open-org-backend/main.mo](src/open-org-backend/main.mo)
-- Services: [src/open-org-backend/services](src/open-org-backend/services)
-- Wrappers and outcalls: [src/open-org-backend/wrappers](src/open-org-backend/wrappers)
-- Event system: [src/open-org-backend/events](src/open-org-backend/events)
-- Tools: [src/open-org-backend/tools](src/open-org-backend/tools)
-- Models: [src/open-org-backend/models](src/open-org-backend/models)
+- Controller layer: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
+- Services: [src/control-plane-core/services](src/control-plane-core/services)
+- Wrappers and outcalls: [src/control-plane-core/wrappers](src/control-plane-core/wrappers)
+- Event system: [src/control-plane-core/events](src/control-plane-core/events)
+- Tools: [src/control-plane-core/tools](src/control-plane-core/tools)
+- Models: [src/control-plane-core/models](src/control-plane-core/models)
 - Cassette system: [tests/lib](tests/lib) and [tests/cassettes](tests/cassettes)
 
 ## Glossary

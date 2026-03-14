@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "query-parameters",
+  "recordedAt": "2026-03-14T17:58:32.304Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://httpbin.org/get?param1=value1&param2=value2",
+        "method": "GET",
+        "headers": [],
+        "body": "",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-credentials", "true"],
+          ["access-control-allow-origin", "*"],
+          ["content-length", "383"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 14 Mar 2026 17:58:32 GMT"],
+          ["server", "gunicorn/19.9.0"]
+        ],
+        "body": "{\n  \"args\": {\n    \"param1\": \"value1\", \n    \"param2\": \"value2\"\n  }, \n  \"headers\": {\n    \"Accept\": \"*/*\", \n    \"Accept-Encoding\": \"gzip, deflate, br, zstd\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Bun/1.3.9\", \n    \"X-Amzn-Trace-Id\": \"Root=1-69b5a1c8-745bd6953ca107966193143e\"\n  }, \n  \"origin\": \"88.157.61.195\", \n  \"url\": \"https://httpbin.org/get?param1=value1&param2=value2\"\n}\n",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

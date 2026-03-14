@@ -199,16 +199,16 @@ No changes needed for the org-admin channel — it is derived from `workspaces` 
 
 11. **`main.mo`**: no changes needed for org-admin channel state — it is stored as workspace 0's `adminChannelId` via `setWorkspaceAdminChannel(0, ...)` (org-owner only guard already enforced).
 
-12. **Verify** — `dfx build open-org-backend --check` — no compilation errors.
+12. **Verify** — `icp build control-plane-core` — no compilation errors.
 
 **Test Steps**
 
-_Unit tests — new file `tests/unit-tests/open-org-backend/agents/planning/work-planning-agent.test.mo`_:
+_Unit tests — new file `tests/unit-tests/control-plane-core/agents/planning/work-planning-agent.test.mo`_:
 
 - **Category-to-role**: `#planning` → `#customAgent` with `"work planning specialist"` persona.
 - Existing planning-domain tool-filtering and instruction-building tests ported here.
 
-_Unit tests — updated `tests/unit-tests/open-org-backend/agents/admin/org-admin-agent.test.mo`_:
+_Unit tests — updated `tests/unit-tests/control-plane-core/agents/admin/org-admin-agent.test.mo`_:
 
 - **No planning tools in tool set**: `list_workspaces` is present; `save_value_stream` is absent.
 - **`buildInstructions`**: no value-stream or metrics blocks; org-admin persona block present.
@@ -217,7 +217,7 @@ _Unit tests — updated `tests/unit-tests/open-org-backend/agents/admin/org-admi
 - **`set_workspace_admin_channel` tool**: sets `adminChannelId` on the target workspace.
 - **`get_org_admin_channel` tool**: reads workspace 0's `adminChannelId`; returns null when unset, returns the channel ID when set.
 
-_Unit tests — updated `tests/unit-tests/open-org-backend/events/agent-router.test.mo`_:
+_Unit tests — updated `tests/unit-tests/control-plane-core/events/agent-router.test.mo`_:
 
 - **`#admin` category + `#admin` ctx → dispatches to org-admin agent** (orchestrator stub returns `#ok`).
 - **`#planning` category + `#planning` ctx → dispatches to work-planning agent**.
@@ -225,7 +225,7 @@ _Unit tests — updated `tests/unit-tests/open-org-backend/events/agent-router.t
 - **`#research` → `#err("category not implemented")`**.
 - **`#communication` → `#err("category not implemented")`**.
 
-_Integration tests — updated `tests/integration-tests/open-org-backend/workspace-admin-talk.spec.ts`_:
+_Integration tests — updated `tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts`_:
 
 - Existing planning-flow tests migrated to register a `#planning` agent; all assertions unchanged.
 - **New — org-admin workspace list**: register a `#admin` agent; send `"list my workspaces"` → `list_workspaces` step appears; response enumerates workspace names.
@@ -273,7 +273,7 @@ Remove every `public shared` method from `main.mo` that is not `http_request` / 
 
 **Source Steps**
 
-Each step below is an independent, buildable, committable unit. Verify with `dfx build open-org-backend --check` and `bun run tsc --noEmit` after each before committing.
+Each step below is an independent, buildable, committable unit. Verify with `icp build control-plane-core` and `bun run tsc --noEmit` after each before committing.
 
 ---
 
@@ -283,7 +283,7 @@ _Methods to delete from `main.mo`:_ `addOrgAdmin`, `getOrgAdmins`, `isCallerOrgA
 
 - These are Principal-based auth helpers that will be fully removed in Task 2.6. They serve no architectural purpose after 2.6 and have no LLM-agent utility.
 - Delete the entire `// OrgAdmin Management` section from `main.mo`.
-- Delete `tests/integration-tests/open-org-backend/admin.spec.ts` (it exclusively tests these methods).
+- Delete `tests/integration-tests/control-plane-core/admin.spec.ts` (it exclusively tests these methods).
 - Verify.
 
 ---
@@ -294,8 +294,8 @@ _Methods to delete from `main.mo`:_ `createWorkspace`, `listWorkspaces`, `setWor
 
 - Tool handlers for all four already exist (`create-workspace-handler.mo`, `list-workspaces-handler.mo`, `set-workspace-admin-channel-handler.mo`, `set-workspace-member-channel-handler.mo`) and are wired into `org-admin-agent.mo` since Task 1.8.
 - Delete the entire `// Workspace Channel-Anchor Management` section from `main.mo`.
-- Migrate test coverage: port the meaningful cases from `tests/integration-tests/open-org-backend/workspace-channels.spec.ts` into unit tests under `tests/unit-tests/open-org-backend/tools/handlers/` that call the handler functions directly with a `WorkspacesState`. These are pure functional tests — no actor needed.
-- Delete `tests/integration-tests/open-org-backend/workspace-channels.spec.ts`.
+- Migrate test coverage: port the meaningful cases from `tests/integration-tests/control-plane-core/workspace-channels.spec.ts` into unit tests under `tests/unit-tests/control-plane-core/tools/handlers/` that call the handler functions directly with a `WorkspacesState`. These are pure functional tests — no actor needed.
+- Delete `tests/integration-tests/control-plane-core/workspace-channels.spec.ts`.
 - Verify.
 
 ---
@@ -316,7 +316,7 @@ _New handlers to create in `tools/handlers/`:_
 
 Wire all new handlers into `work-planning-agent.mo` via `FunctionToolRegistry`.
 
-Migrate test coverage: port cases from `tests/integration-tests/open-org-backend/metrics.spec.ts` into unit tests under `tests/unit-tests/open-org-backend/tools/handlers/metrics/`. Delete `metrics.spec.ts`.
+Migrate test coverage: port cases from `tests/integration-tests/control-plane-core/metrics.spec.ts` into unit tests under `tests/unit-tests/control-plane-core/tools/handlers/metrics/`. Delete `metrics.spec.ts`.
 
 Verify.
 
@@ -336,7 +336,7 @@ _New handlers to create:_
 
 Wire new handlers into `work-planning-agent.mo`.
 
-Migrate: port `value-streams.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/value-streams/`. Delete `value-streams.spec.ts`.
+Migrate: port `value-streams.spec.ts` → unit tests under `tests/unit-tests/control-plane-core/tools/handlers/value-streams/`. Delete `value-streams.spec.ts`.
 
 Verify.
 
@@ -358,7 +358,7 @@ _New handlers to create:_
 
 Wire new handlers into `work-planning-agent.mo`.
 
-Migrate: port `objectives.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/objectives/`. Delete `objectives.spec.ts`.
+Migrate: port `objectives.spec.ts` → unit tests under `tests/unit-tests/control-plane-core/tools/handlers/objectives/`. Delete `objectives.spec.ts`.
 
 Verify.
 
@@ -378,7 +378,7 @@ _New handlers to create in `tools/handlers/agents/`:_
 
 Wire all into `org-admin-agent.mo`.
 
-Add unit tests under `tests/unit-tests/open-org-backend/tools/handlers/agents/` covering each handler's happy path and key error paths.
+Add unit tests under `tests/unit-tests/control-plane-core/tools/handlers/agents/` covering each handler's happy path and key error paths.
 
 Verify.
 
@@ -396,7 +396,7 @@ _New handlers to create in `tools/handlers/mcp/`:_
 
 Wire into `org-admin-agent.mo`.
 
-Migrate: port `mcp-tools.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/mcp/`. Delete `mcp-tools.spec.ts`.
+Migrate: port `mcp-tools.spec.ts` → unit tests under `tests/unit-tests/control-plane-core/tools/handlers/mcp/`. Delete `mcp-tools.spec.ts`.
 
 Verify.
 
@@ -414,7 +414,7 @@ _New handlers to create in `tools/handlers/secrets/`:_
 
 Wire into `org-admin-agent.mo`. The auth guard (only org admins may store Slack secrets; workspace admins may store LLM keys) must be enforced inside each handler, not just in main.mo.
 
-Migrate: port `secrets.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/secrets/`. Delete `secrets.spec.ts`.
+Migrate: port `secrets.spec.ts` → unit tests under `tests/unit-tests/control-plane-core/tools/handlers/secrets/`. Delete `secrets.spec.ts`.
 
 Verify.
 
@@ -426,7 +426,7 @@ _Methods to delete from `main.mo`:_ `clearKeyCache`, `getKeyCacheStats`.
 
 - The 30-day timer already handles cache clearing. No agent needs to inspect or clear the cache on demand; these are purely internal maintenance methods.
 - Remove the `// Key Cache Management` section from `main.mo`.
-- Remove the two test cases for `clearKeyCache` / `getKeyCacheStats` from `tests/integration-tests/open-org-backend/encryption.spec.ts` (keep the key-derivation tests).
+- Remove the two test cases for `clearKeyCache` / `getKeyCacheStats` from `tests/integration-tests/control-plane-core/encryption.spec.ts` (keep the key-derivation tests).
 - Verify.
 
 ---
@@ -443,7 +443,7 @@ _New handlers to create in `tools/handlers/events/`:_
 
 Wire into `org-admin-agent.mo`.
 
-Migrate: port `event-store-admin.spec.ts` → unit tests under `tests/unit-tests/open-org-backend/tools/handlers/events/`. Delete `event-store-admin.spec.ts`.
+Migrate: port `event-store-admin.spec.ts` → unit tests under `tests/unit-tests/control-plane-core/tools/handlers/events/`. Delete `event-store-admin.spec.ts`.
 
 Verify.
 

@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "name": "multi-workspace-ws42",
+  "recordedAt": "2026-03-14T17:41:33.757Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Hello from workspace ws42\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. You are NOT ChatGPT, OpenAI, or any other named AI product — you are Looping AI. Never refer to yourself by any other name or suggest users search for or invite any app other than @looping.\\n\\nAll interactions happen through Slack. Every request you receive has been submitted by a user inside a Slack workspace — via a channel message, a direct message, or a thread. Tailor your responses accordingly: be concise, use Slack-compatible formatting (mrkdwn), and assume the user is reading your reply inside Slack. Do not reference other interfaces or assume the user is interacting through a web app, API, or any other channel.\\n\\nIf you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}},{\"type\":\"function\",\"name\":\"web_search\",\"description\":\"Performs a web search using the OpenRouter web search plugin. Returns AI-analyzed search results. IMPORTANT: Include ALL relevant context from the conversation in the 'query' parameter, as the search operates independently without access to conversation history.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\"}},\"required\":[\"query\"]}},{\"type\":\"function\",\"name\":\"list_workspaces\",\"description\":\"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}},{\"type\":\"function\",\"name\":\"list_agents\",\"description\":\"Lists all registered agents with their IDs, names, categories, LLM models, and configuration.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}},{\"type\":\"function\",\"name\":\"get_agent\",\"description\":\"Looks up a registered agent by its ID (number) or name (string). Provide either 'id' or 'name'.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Agent ID to look up.\"},\"name\":{\"type\":\"string\",\"description\":\"Agent name to look up (case-insensitive).\"}},\"required\":[]}},{\"type\":\"function\",\"name\":\"list_mcp_tools\",\"description\":\"Lists all registered MCP tools including their names, descriptions, server IDs, and parameter schemas.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}],\"user\":\"0\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["cf-ray", "9dc511e6ffaf750d-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 14 Mar 2026 17:41:34 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"]
+        ],
+        "body": "\n         \n\n         \n{\"id\":\"gen-1773510093-1conaOYfBbaCA0xrGxQN\",\"object\":\"response\",\"created_at\":1773510093,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1773510094,\"output\":[{\"id\":\"rs_tmp_d2iaczjdjak\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to respond as Looping AI. The user says \\\"Hello from workspace ws42\\\". Probably greet them and ask how can help. Should we use Slack formatting. Should we reference workspace? Possibly we can look up workspace info. Let's list workspaces to see if ws42 exists.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"fc_tmp_3cdosn2bdw8\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"call_87387df784534ca3adea780e\",\"name\":\"list_workspaces\",\"arguments\":\"{}\"}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]},\"strict\":null},{\"type\":\"function\",\"name\":\"web_search\",\"description\":\"Performs a web search using the OpenRouter web search plugin. Returns AI-analyzed search results. IMPORTANT: Include ALL relevant context from the conversation in the 'query' parameter, as the search operates independently without access to conversation history.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\"}},\"required\":[\"query\"]},\"strict\":null},{\"type\":\"function\",\"name\":\"list_workspaces\",\"description\":\"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null},{\"type\":\"function\",\"name\":\"list_agents\",\"description\":\"Lists all registered agents with their IDs, names, categories, LLM models, and configuration.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null},{\"type\":\"function\",\"name\":\"get_agent\",\"description\":\"Looks up a registered agent by its ID (number) or name (string). Provide either 'id' or 'name'.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Agent ID to look up.\"},\"name\":{\"type\":\"string\",\"description\":\"Agent name to look up (case-insensitive).\"}},\"required\":[]},\"strict\":null},{\"type\":\"function\",\"name\":\"list_mcp_tools\",\"description\":\"Lists all registered MCP tools including their names, descriptions, server IDs, and parameter schemas.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. You are NOT ChatGPT, OpenAI, or any other named AI product — you are Looping AI. Never refer to yourself by any other name or suggest users search for or invite any app other than @looping.\\n\\nAll interactions happen through Slack. Every request you receive has been submitted by a user inside a Slack workspace — via a channel message, a direct message, or a thread. Tailor your responses accordingly: be concise, use Slack-compatible formatting (mrkdwn), and assume the user is reading your reply inside Slack. Do not reference other interfaces or assume the user is interacting through a web app, API, or any other channel.\\n\\nIf you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.\",\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":null,\"user\":\"0\",\"usage\":{\"input_tokens\":630,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":79,\"output_tokens_details\":{\"reasoning_tokens\":67},\"total_tokens\":709,\"cost\":0.00008514,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.00008514,\"upstream_inference_input_cost\":0.0000567,\"upstream_inference_output_cost\":0.00002844}}}",
+        "bodyEncoding": "text"
+      }
+    },
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Hello from workspace ws42\"},{\"role\":\"assistant\",\"content\":\"Using tools: list_workspaces\"},{\"role\":\"assistant\",\"content\":\"Tool call call_87387df784534ca3adea780e result:\\n{\\\"success\\\":true,\\\"workspaces\\\":[{\\\"id\\\":0,\\\"name\\\":\\\"Default\\\",\\\"adminChannelId\\\":null,\\\"memberChannelId\\\":null},{\\\"id\\\":1,\\\"name\\\":\\\"Test Workspace 1\\\",\\\"adminChannelId\\\":\\\"C_ADMIN_CHANNEL\\\",\\\"memberChannelId\\\":\\\"C_MEMBER_CHANNEL\\\"},{\\\"id\\\":2,\\\"name\\\":\\\"Test Workspace 2\\\",\\\"adminChannelId\\\":\\\"C_ROUND_TRIP_ADMIN\\\",\\\"memberChannelId\\\":\\\"C_ROUND_TRIP_MEMBER\\\"}]}\\n\\n\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. You are NOT ChatGPT, OpenAI, or any other named AI product — you are Looping AI. Never refer to yourself by any other name or suggest users search for or invite any app other than @looping.\\n\\nAll interactions happen through Slack. Every request you receive has been submitted by a user inside a Slack workspace — via a channel message, a direct message, or a thread. Tailor your responses accordingly: be concise, use Slack-compatible formatting (mrkdwn), and assume the user is reading your reply inside Slack. Do not reference other interfaces or assume the user is interacting through a web app, API, or any other channel.\\n\\nIf you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}},{\"type\":\"function\",\"name\":\"web_search\",\"description\":\"Performs a web search using the OpenRouter web search plugin. Returns AI-analyzed search results. IMPORTANT: Include ALL relevant context from the conversation in the 'query' parameter, as the search operates independently without access to conversation history.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\"}},\"required\":[\"query\"]}},{\"type\":\"function\",\"name\":\"list_workspaces\",\"description\":\"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}},{\"type\":\"function\",\"name\":\"list_agents\",\"description\":\"Lists all registered agents with their IDs, names, categories, LLM models, and configuration.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}},{\"type\":\"function\",\"name\":\"get_agent\",\"description\":\"Looks up a registered agent by its ID (number) or name (string). Provide either 'id' or 'name'.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Agent ID to look up.\"},\"name\":{\"type\":\"string\",\"description\":\"Agent name to look up (case-insensitive).\"}},\"required\":[]}},{\"type\":\"function\",\"name\":\"list_mcp_tools\",\"description\":\"Lists all registered MCP tools including their names, descriptions, server IDs, and parameter schemas.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}],\"user\":\"0\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["cf-ray", "9dc511ee1dfc750d-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Sat, 14 Mar 2026 17:41:35 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"]
+        ],
+        "body": "\n         \n\n         \n{\"id\":\"gen-1773510095-4QSNzVdbHkweNFFRi9XN\",\"object\":\"response\",\"created_at\":1773510095,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1773510096,\"output\":[{\"id\":\"rs_tmp_xm78uztxub\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"User says \\\"Hello from workspace ws42\\\". They also provided a tools output listing workspaces, but none named ws42. Likely they are in workspace ws42, not listed. Maybe they want recognition. We should respond friendly, acknowledging the greeting, ask if they need help with goals, etc. Since no request, just greeting. Respond accordingly.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"msg_tmp_p5h8e3pjf4a\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hey there! 👋 How can @looping help you today in *ws42*? Whether you’re setting goals, tracking metrics, or coordinating with your team, just let me know what you need.\",\"annotations\":[],\"logprobs\":[]}]}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"echo\",\"description\":\"Echoes back the input message. Useful for testing.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]},\"strict\":null},{\"type\":\"function\",\"name\":\"web_search\",\"description\":\"Performs a web search using the OpenRouter web search plugin. Returns AI-analyzed search results. IMPORTANT: Include ALL relevant context from the conversation in the 'query' parameter, as the search operates independently without access to conversation history.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\"}},\"required\":[\"query\"]},\"strict\":null},{\"type\":\"function\",\"name\":\"list_workspaces\",\"description\":\"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null},{\"type\":\"function\",\"name\":\"list_agents\",\"description\":\"Lists all registered agents with their IDs, names, categories, LLM models, and configuration.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null},{\"type\":\"function\",\"name\":\"get_agent\",\"description\":\"Looks up a registered agent by its ID (number) or name (string). Provide either 'id' or 'name'.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Agent ID to look up.\"},\"name\":{\"type\":\"string\",\"description\":\"Agent name to look up (case-insensitive).\"}},\"required\":[]},\"strict\":null},{\"type\":\"function\",\"name\":\"list_mcp_tools\",\"description\":\"Lists all registered MCP tools including their names, descriptions, server IDs, and parameter schemas.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. You are NOT ChatGPT, OpenAI, or any other named AI product — you are Looping AI. Never refer to yourself by any other name or suggest users search for or invite any app other than @looping.\\n\\nAll interactions happen through Slack. Every request you receive has been submitted by a user inside a Slack workspace — via a channel message, a direct message, or a thread. Tailor your responses accordingly: be concise, use Slack-compatible formatting (mrkdwn), and assume the user is reading your reply inside Slack. Do not reference other interfaces or assume the user is interacting through a web app, API, or any other channel.\\n\\nIf you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.\",\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":null,\"user\":\"0\",\"usage\":{\"input_tokens\":748,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":123,\"output_tokens_details\":{\"reasoning_tokens\":85},\"total_tokens\":871,\"cost\":0.0001116,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.0001116,\"upstream_inference_input_cost\":0.00006732,\"upstream_inference_output_cost\":0.00004428}}}",
+        "bodyEncoding": "text"
+      }
+    },
+    {
+      "request": {
+        "url": "https://slack.com/api/chat.postMessage",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"channel\":\"C0AG99QQAR4\",\"text\":\"Hey there! 👋 How can @looping help you today in *ws42*? Whether you’re setting goals, tracking metrics, or coordinating with your team, just let me know what you need.\",\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"unit-test-admin\",\"parent_ts\":\"1700000010.000001\",\"parent_channel\":\"C0AG99QQAR4\"}}}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "access-control-allow-headers",
+            "slack-route, x-slack-version-ts, x-b3-traceid, x-b3-spanid, x-b3-parentspanid, x-b3-sampled, x-b3-flags"
+          ],
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "x-slack-req-id, retry-after"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
+          ],
+          ["cache-control", "private, no-cache, no-store, must-revalidate"],
+          ["content-length", "613"],
+          ["content-type", "application/json; charset=utf-8"],
+          ["date", "Sat, 14 Mar 2026 17:41:36 GMT"],
+          ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
+          ["pragma", "no-cache"],
+          ["referrer-policy", "no-referrer"],
+          ["server", "Apache"],
+          [
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains; preload"
+          ],
+          ["timing-allow-origin", "*"],
+          ["vary", "Accept-Encoding"],
+          [
+            "via",
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-dnuhgxcv,envoy-edge-lhr-ymwdvqsm"
+          ],
+          ["x-accepted-oauth-scopes", "chat:write"],
+          ["x-backend", "api_normal"],
+          ["x-content-type-options", "nosniff"],
+          ["x-edge-backend", "envoy-www"],
+          ["x-envoy-attempt-count", "1"],
+          ["x-envoy-upstream-service-time", "227"],
+          [
+            "x-oauth-scopes",
+            "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
+          ],
+          ["x-server", "slack-www-hhvm-api-iad-q1zr9jpccjpl"],
+          ["x-slack-backend", "r"],
+          ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-req-id", "6596f7b833a60e6e2379b1d9b194b0e1"],
+          ["x-slack-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-unique-id", "abWd0CIXsInAJhi1MGk8mAAAABY"],
+          ["x-xss-protection", "0"]
+        ],
+        "body": "{\"ok\":true,\"channel\":\"C0AG99QQAR4\",\"ts\":\"1773510096.617559\",\"message\":{\"user\":\"U0ADWN7P3DY\",\"type\":\"message\",\"ts\":\"1773510096.617559\",\"bot_id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"text\":\"Hey there! :wave: How can @looping help you today in *ws42*? Whether you\\u2019re setting goals, tracking metrics, or coordinating with your team, just let me know what you need.\",\"team\":\"T0ADR0P92G2\",\"bot_profile\":{\"id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"user_id\":\"U0ADWN7P3DY\",\"name\":\"Looping AI (T)\",\"icons\":{\"image_36\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg\"},\"deleted\":false,\"updated\":1772839412,\"team_id\":\"T0ADR0P92G2\"},\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"unit-test-admin\",\"parent_ts\":\"1700000010.000001\",\"parent_channel\":\"C0AG99QQAR4\"}},\"blocks\":[{\"type\":\"rich_text\",\"block_id\":\"fc=\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"text\",\"text\":\"Hey there! \"},{\"type\":\"emoji\",\"name\":\"wave\",\"unicode\":\"1f44b\"},{\"type\":\"text\",\"text\":\" How can @looping help you today in \"},{\"type\":\"text\",\"text\":\"ws42\",\"style\":{\"bold\":true}},{\"type\":\"text\",\"text\":\"? Whether you\\u2019re setting goals, tracking metrics, or coordinating with your team, just let me know what you need.\"}]}]}]},\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

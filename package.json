@@ -1,11 +1,11 @@
 {
   "type": "module",
   "scripts": {
-    "dev:start": "bun run scripts/dev-start.ts",
     "dev:setup": "bun run scripts/dev-setup.ts",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "lint": "eslint . && lintoko -r .lintoko src tests",
+    "postinstall": "husky",
     "test:build": "bun run tests/build.ts",
     "test:unit": "mops test && bun test tests/unit-tests",
     "test:integration": "bun test tests/integration-tests",
