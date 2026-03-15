@@ -36,8 +36,6 @@ module {
   public type AdminCtx = {
     workspaces : WorkspaceModel.WorkspacesState;
     agentRegistry : AgentModel.AgentRegistryState;
-    // Slack bot token — used to verify channel existence before anchoring
-    slackBotToken : ?Text;
     // Resolved Slack user identity — used for authorization checks in write tools
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
     // Encrypted secrets store — used by secrets-management tools
@@ -84,11 +82,33 @@ module {
     // Build instructions driven by agent configuration
     let instructions = buildInstructions(agent);
 
+    // Derive the org key so we can build a platform-secret resolver closure.
+    // The closure captures secrets state, org key, and caller identity — tools
+    // call it on-demand and each access is audit-logged.
+    let orgKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, 0);
+    let slackUserId : ?Text = switch (ctx.userAuthContext) {
+      case (?uac) { ?uac.slackUserId };
+      case (null) { null };
+    };
+    let slackBotTokenResolver = func(operation : Text) : ?Text {
+      SecretModel.resolvePlatformSecret(
+        ctx.secrets,
+        orgKey,
+        ?#admin,
+        #slackBotToken,
+        {
+          slackUserId;
+          agentId = ?agent.id;
+          operation;
+        },
+      );
+    };
+
     // Build tool resources — workspace-management, agent registry, and MCP tool management
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = null; // org-admin tools operate on entire WorkspacesState, not a single workspace
       openRouterApiKey = ?apiKey;
-      slackBotToken = ctx.slackBotToken;
+      resolveSlackBotToken = ?slackBotTokenResolver;
       userAuthContext = ctx.userAuthContext;
       valueStreams = null;
       metrics = null;

@@ -318,7 +318,7 @@ module {
   ) : async { #ok : ReconciliationSummary; #err : Text } {
     // Resolve the bot token from workspace 0 secrets (global Slack integration secret).
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let token = switch (SecretModel.getSecret(secrets, encryptionKey, 0, #slackBotToken, { slackUserId = null; agentId = null; operation = "weekly-reconciliation" })) {
+    let token = switch (SecretModel.resolvePlatformSecret(secrets, encryptionKey, null, #slackBotToken, { slackUserId = null; agentId = null; operation = "weekly-reconciliation" })) {
       case (null) {
         return #err("No Slack bot token found for workspace 0");
       };

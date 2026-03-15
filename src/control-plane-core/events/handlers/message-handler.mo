@@ -18,8 +18,7 @@
 /// Helper inventory (sync):
 ///   resolveWorkspaceId, rootTimestamp, persistIncomingMessage,
 ///   resolveRoundContext → resolveBotRoundContext / resolveUserRoundContext,
-///   scopeWorkspaceData, buildReplyMetadata, resolvePrimaryAgent,
-///   resolveWorkspaceBotToken
+///   scopeWorkspaceData, buildReplyMetadata, resolvePrimaryAgent
 ///
 /// Helper inventory (async):
 ///   postTerminationIfTokenAvailable, dispatchToAgentRouter,
@@ -360,46 +359,33 @@ module {
     entry;
   };
 
-  /// Resolve the Slack bot token for the given workspace.
-  /// Returns null (and logs a warning) when no token secret is configured.
-  func resolveWorkspaceBotToken(
-    secrets : SecretModel.SecretsState,
-    encryptionKey : [Nat8],
-    workspaceId : Nat,
-    requester : SecretModel.SecretRequester,
-  ) : ?Text {
-    switch (SecretModel.getSecret(secrets, encryptionKey, workspaceId, #slackBotToken, requester)) {
-      case (null) {
-        Logger.log(
-          #warn,
-          ?"MessageHandler",
-          "No Slack bot token found for workspace " # debug_show (workspaceId),
-        );
-        null;
-      };
-      case (?token) { ?token };
-    };
+  /// Post a user-visible Slack message informing the user that the maximum number
+  /// of session rounds has been reached, and prompting them to reply "continue"
+  /// if they want more.
+  ///
+  /// This message carries NO `AgentMessageMetadata` — it must not re-trigger
+  /// round tracking when Slack echoes it back to our webhook.
+  func postTerminationPrompt(
+    botToken : Text,
+    channel : Text,
+    threadTs : ?Text,
+  ) : async () {
+    let text = "⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.";
+    ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null);
   };
 
-  /// Post a termination prompt to Slack, deriving the bot token from scratch.
+  /// Post a termination prompt to Slack using the provided bot token.
   ///
   /// Used when the MAX_AGENT_ROUNDS ceiling (#skipWithTermination) is reached.
   /// Best-effort — silently ignores missing tokens.
   func postTerminationIfTokenAvailable(
-    ctx : EventProcessingContextTypes.EventProcessingContext,
-    workspaceId : Nat,
+    botTokenOpt : ?Text,
     channel : Text,
     threadTs : ?Text,
   ) : async () {
-    let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
-    let requester : SecretModel.SecretRequester = {
-      slackUserId = null;
-      agentId = null;
-      operation = "message-handler:termination-token";
-    };
-    switch (resolveWorkspaceBotToken(ctx.secrets, encryptionKey, workspaceId, requester)) {
-      case (?tok) {
-        await AgentRouter.postTerminationPrompt(tok, channel, threadTs);
+    switch (botTokenOpt) {
+      case (?botToken) {
+        await postTerminationPrompt(botToken, channel, threadTs);
       };
       case (null) {};
     };
@@ -465,6 +451,17 @@ module {
     let workspaceId = resolveWorkspaceId(msg.channel, ctx.workspaces);
     let rootTs = rootTimestamp(msg);
 
+    // Fetch the org key early to allow bot token fetching before round context check
+    let orgKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, 0);
+
+    // Fetch bot token early so it can be used in both early-exit and normal paths
+    let botTokenRequester : SecretModel.SecretRequester = {
+      slackUserId = null;
+      agentId = null;
+      operation = "message-handler:bot-token";
+    };
+    let botTokenOpt = SecretModel.resolvePlatformSecret(ctx.secrets, orgKey, null, #slackBotToken, botTokenRequester);
+
     // ── Phase 1.4 — Persist incoming message ─────────────────────────────────
     let conversationEntry = persistIncomingMessage(msg, ctx, rootTs);
 
@@ -473,7 +470,7 @@ module {
       case (#skip(result)) { return result };
       case (#skipWithTermination(result)) {
         // Post the termination prompt before returning (best-effort, await available here).
-        await postTerminationIfTokenAvailable(ctx, workspaceId, msg.channel, msg.threadTs);
+        await postTerminationIfTokenAvailable(botTokenOpt, msg.channel, msg.threadTs);
         return result;
       };
       case (#proceed(ctxOpt)) { ctxOpt };
@@ -499,22 +496,18 @@ module {
 
     let { workspaceValueStreamsState; workspaceObjectivesMap } = scopeWorkspaceData(ctx, workspaceId);
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
-    let orgKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, 0);
 
     let slackUserId : ?Text = switch (activeCtxOpt) {
       case (?c) { ?c.slackUserId };
       case (null) { null };
     };
-    let botTokenRequester : SecretModel.SecretRequester = {
-      slackUserId;
-      agentId = ?primaryAgent.id;
-      operation = "message-handler:bot-token";
-    };
-    let botToken = switch (resolveWorkspaceBotToken(ctx.secrets, encryptionKey, workspaceId, botTokenRequester)) {
+
+    // Bot token was already fetched early; use it here
+    let botToken = switch (botTokenOpt) {
       case (null) {
         return #ok([{
           action = "post_to_slack";
-          result = #err("No Slack bot token configured for workspace");
+          result = #err("No Slack bot token configured");
           timestamp = Time.now();
         }]);
       };
@@ -527,7 +520,6 @@ module {
         #admin({
           workspaces = ctx.workspaces;
           agentRegistry = ctx.agentRegistry;
-          slackBotToken = ?botToken;
           userAuthContext = activeCtxOpt;
           secrets = ctx.secrets;
           keyCache = ctx.keyCache;

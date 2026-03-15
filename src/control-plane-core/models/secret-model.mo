@@ -107,13 +107,22 @@ module {
     ) != null;
   };
 
-  /// Whether a *read* (access log) entry should be written for this (workspaceId, secretId).
-  /// For workspace 0, high-frequency org credentials (slackBotToken, slackSigningSecret)
-  /// are excluded to avoid flooding the access log on every webhook signature check.
-  /// All reads on workspace > 0 are always logged.
-  /// Change log entries (storeSecret, deleteSecret) are NEVER excluded regardless of this list.
-  private func shouldLog(workspaceId : Nat, secretId : Types.SecretId) : Bool {
+  /// Whether a *read* (access log) entry should be written for this access.
+  ///
+  /// Agent-initiated reads (`requester.agentId != null`) are ALWAYS logged — tool-level
+  /// access to any secret, including platform secrets, must have a full audit trail.
+  ///
+  /// Infrastructure reads (`requester.agentId == null`) on workspace 0 respect
+  /// `SECRET_AUDIT_EXCLUSIONS` to avoid flooding the log on every webhook signature
+  /// check or timer-driven bot-token fetch.  All other reads are always logged.
+  ///
+  /// Change log entries (storeSecret, deleteSecret) are NEVER excluded regardless.
+  private func shouldLog(workspaceId : Nat, secretId : Types.SecretId, requester : SecretRequester) : Bool {
+    // Agent-initiated reads are always audited
+    if (requester.agentId != null) { return true };
+    // Infrastructure reads on workspaces > 0 are always audited
     if (workspaceId != 0) { return true };
+    // Infrastructure reads on workspace 0: suppress high-frequency platform secret lookups
     Array.find<Types.SecretId>(
       Constants.SECRET_AUDIT_EXCLUSIONS,
       func(id) { id == secretId },
@@ -144,7 +153,10 @@ module {
 
   /// Get and decrypt a secret for a specific workspace and secret ID.
   /// Logs an access entry when the secret is found (unless excluded by shouldLog).
-  public func getSecret(
+  ///
+  /// Private — all external access must go through `resolveSecret` (agent workload)
+  /// or `resolvePlatformSecret` (platform infrastructure + admin agents).
+  func getSecret(
     state : SecretsState,
     encryptionKey : [Nat8],
     workspaceId : Nat,
@@ -165,7 +177,7 @@ module {
       };
     };
     // Log access only when the secret was found and is not excluded
-    if (result != null and shouldLog(workspaceId, secretId)) {
+    if (result != null and shouldLog(workspaceId, secretId, requester)) {
       let wsAudit = getOrInitWorkspaceAudit(state.audit, workspaceId);
       List.add(
         wsAudit.accessLog,
@@ -359,5 +371,36 @@ module {
     };
 
     null;
+  };
+
+  /// Resolve a platform secret (e.g. `#slackBotToken`, `#slackSigningSecret`).
+  ///
+  /// Platform secrets are always stored on workspace 0 and encrypted with the org key.
+  /// Access is restricted to:
+  ///   - Infrastructure callers (`agentCategory = null`) — e.g. message-handler posting
+  ///     replies, main.mo verifying webhook signatures, timer-driven reconciliation.
+  ///   - Admin-category agents (`agentCategory = ?#admin`) — e.g. workspace channel
+  ///     verification tools that need the Slack bot token.
+  ///
+  /// All other agent categories are blocked.  Non-platform secret IDs are rejected.
+  /// Access is always audit-logged when triggered by an agent (via `shouldLog` in `getSecret`).
+  public func resolvePlatformSecret(
+    state : SecretsState,
+    orgKey : [Nat8],
+    agentCategory : ?AgentModel.AgentCategory,
+    targetSecretId : Types.SecretId,
+    requester : SecretRequester,
+  ) : ?Text {
+    // Guard: only platform secrets are served through this path
+    if (not isPlatformSecret(targetSecretId)) { return null };
+
+    // Guard: only infrastructure (null) and admin agents are allowed
+    switch (agentCategory) {
+      case (null) {}; // infrastructure — always allowed
+      case (?#admin) {}; // admin agents — allowed
+      case (_) { return null }; // all other agent categories — blocked
+    };
+
+    getSecret(state, orgKey, 0, targetSecretId, requester);
   };
 };

@@ -88,7 +88,7 @@ module {
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = ?ctx.workspaceId;
       openRouterApiKey = ?apiKey;
-      slackBotToken = null;
+      resolveSlackBotToken = null;
       userAuthContext = null;
       valueStreams = ?{
         map = ctx.valueStreamsMap;

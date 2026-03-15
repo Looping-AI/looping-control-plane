@@ -496,7 +496,7 @@ module {
       #admin,
       #openRouter(#gpt_oss_120b),
       #api, // in-canister LLM loop
-      [(0, #openRouterApiKey), (0, #slackBotToken)],
+      [(0, #openRouterApiKey)],
       [], // secretOverrides — none for the built-in admin agent
       [],
       [],

@@ -930,7 +930,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       forceTerminated = false;
       parentRef = null;
     };
-    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, botToken, args);
+    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
 
   /// Test the CreateWorkspaceHandler in isolation.
@@ -1016,7 +1016,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       forceTerminated = false;
       parentRef = null;
     };
-    await SetWorkspaceMemberChannelHandler.handle(testWorkspacesState, uac, botToken, args);
+    await SetWorkspaceMemberChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
 
   // ============================================

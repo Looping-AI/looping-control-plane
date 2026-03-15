@@ -9,6 +9,7 @@ import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
 import EventStoreModel "../models/event-store-model";
+import Types "../types";
 
 module {
   // ============================================
@@ -41,8 +42,11 @@ module {
     // OpenRouter API key - required for web search and other OpenRouter-powered tools
     openRouterApiKey : ?Text;
 
-    // Slack bot token - required for channel verification in workspace anchor tools
-    slackBotToken : ?Text;
+    // Slack bot token resolver — returns the decrypted Slack bot token for the org.
+    // Takes an operation name for audit logging.
+    // Only admin-category agents receive a resolver closure; all others get null.
+    // Tools call this on-demand rather than receiving pre-fetched tokens.
+    resolveSlackBotToken : ?(Text -> ?Text);
 
     // Slack user identity of the user who triggered this agent turn.
     // Required for authorization checks in workspace-management write tools.

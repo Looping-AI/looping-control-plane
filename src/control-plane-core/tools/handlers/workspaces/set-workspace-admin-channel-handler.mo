@@ -6,13 +6,13 @@ import WorkspaceModel "../../../models/workspace-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import SlackWrapper "../../../wrappers/slack-wrapper";
 import Constants "../../../constants";
-import Helpers "../handler-helpers";
+import Helpers "../handler-helpers"
 
 module {
   public func handle(
     state : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
-    botToken : Text,
+    resolveSlackBotToken : Text -> ?Text,
     args : Text,
   ) : async Text {
     switch (Json.parse(args)) {
@@ -43,6 +43,14 @@ module {
                 return Helpers.buildErrorResponse("Unauthorized: " # msg);
               };
               case (#ok(())) {};
+            };
+
+            // Resolve the Slack bot token on-demand via the bot token resolver
+            let botToken = switch (resolveSlackBotToken("set-workspace-admin-channel")) {
+              case (null) {
+                return Helpers.buildErrorResponse("No Slack bot token configured. Store the slackBotToken secret on workspace 0 first.");
+              };
+              case (?t) { t };
             };
 
             // Verify the channel exists and the bot has access via conversations.info

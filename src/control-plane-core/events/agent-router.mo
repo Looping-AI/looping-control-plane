@@ -115,23 +115,6 @@ module {
     );
   };
 
-  // ─── Termination prompt ──────────────────────────────────────────────────────
-
-  /// Post a user-visible Slack message informing the user that the maximum number
-  /// of session rounds has been reached, and prompting them to reply "continue"
-  /// if they want more.
-  ///
-  /// This message carries NO `AgentMessageMetadata` — it must not re-trigger
-  /// round tracking when Slack echoes it back to our webhook.
-  public func postTerminationPrompt(
-    botToken : Text,
-    channel : Text,
-    threadTs : ?Text,
-  ) : async () {
-    let text = "⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.";
-    ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null);
-  };
-
   // ─── Chain walk ──────────────────────────────────────────────────────────────
 
   /// Walk the `parentRef` chain backwards from `startTs` in `channel`, looking

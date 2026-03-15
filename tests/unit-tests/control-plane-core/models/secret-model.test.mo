@@ -54,6 +54,31 @@ let testRequester : SecretModel.SecretRequester = {
   operation = "test";
 };
 
+let agentRequester : SecretModel.SecretRequester = {
+  slackUserId = ?"U123";
+  agentId = ?99;
+  operation = "test-agent";
+};
+
+/// Minimal agent on a given workspace with no overrides — used to test
+/// resolveSecret round-trips without hitting the override cascade.
+func makeAgentOnWorkspace(wsId : Nat) : AgentModel.AgentRecord {
+  {
+    id = 99;
+    name = "test-agent";
+    workspaceId = wsId;
+    category = #planning;
+    llmModel = #openRouter(#gpt_oss_120b);
+    executionType = #api;
+    secretsAllowed = [(wsId, #openRouterApiKey)];
+    secretOverrides = [];
+    toolsDisallowed = [];
+    toolsMisconfigured = [];
+    toolsState = Map.empty<Text, AgentModel.ToolState>();
+    sources = [];
+  };
+};
+
 func resultToText(r : Result.Result<(), Text>) : Text {
   switch (r) {
     case (#ok _) { "#ok" };
@@ -87,11 +112,14 @@ suite(
 
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
 
-        let retrievedSecret = SecretModel.getSecret(
+        let agent = makeAgentOnWorkspace(workspaceId);
+        let retrievedSecret = SecretModel.resolveSecret(
           state,
-          testKey,
+          agent,
           workspaceId,
           secretId,
+          testKey,
+          testKey,
           testRequester,
         );
 
@@ -119,11 +147,14 @@ suite(
         expect.result<(), Text>(result1, resultToText, resultEqual).isOk();
 
         // Verify first secret is stored
-        let retrievedFirst = SecretModel.getSecret(
+        let agent = makeAgentOnWorkspace(workspaceId);
+        let retrievedFirst = SecretModel.resolveSecret(
           state,
-          testKey,
+          agent,
           workspaceId,
           secretId,
+          testKey,
+          testKey,
           testRequester,
         );
         expect.option(retrievedFirst, Text.toText, Text.equal).equal(?firstSecret);
@@ -141,11 +172,13 @@ suite(
         expect.result<(), Text>(result2, resultToText, resultEqual).isOk();
 
         // Verify latest secret is returned
-        let retrievedLatest = SecretModel.getSecret(
+        let retrievedLatest = SecretModel.resolveSecret(
           state,
-          testKey,
+          agent,
           workspaceId,
           secretId,
+          testKey,
+          testKey,
           testRequester,
         );
         expect.option(retrievedLatest, Text.toText, Text.equal).equal(?secondSecret);
@@ -186,7 +219,8 @@ suite(
         ignore SecretModel.storeSecret(state, testKey, workspaceId, secretId, "key-to-delete", testRequester);
 
         // Verify it exists
-        let beforeDelete = SecretModel.getSecret(state, testKey, workspaceId, secretId, testRequester);
+        let agent = makeAgentOnWorkspace(workspaceId);
+        let beforeDelete = SecretModel.resolveSecret(state, agent, workspaceId, secretId, testKey, testKey, testRequester);
         expect.option(beforeDelete, Text.toText, Text.equal).isSome();
 
         // Delete it
@@ -194,7 +228,7 @@ suite(
         expect.result<(), Text>(deleteResult, resultToText, resultEqual).isOk();
 
         // Verify it's gone
-        let afterDelete = SecretModel.getSecret(state, testKey, workspaceId, secretId, testRequester);
+        let afterDelete = SecretModel.resolveSecret(state, agent, workspaceId, secretId, testKey, testKey, testRequester);
         expect.option(afterDelete, Text.toText, Text.equal).isNull();
       },
     );
@@ -240,13 +274,14 @@ suite(
     );
 
     test(
-      "getSecret logs an access entry when secret is found",
+      "resolveSecret logs an access entry when secret is found",
       func() {
         let workspaceId = 1;
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, testKey, workspaceId, #openRouterApiKey, "key", testRequester);
         let before = Time.now();
-        ignore SecretModel.getSecret(state, testKey, workspaceId, #openRouterApiKey, testRequester);
+        let agent = makeAgentOnWorkspace(workspaceId);
+        ignore SecretModel.resolveSecret(state, agent, workspaceId, #openRouterApiKey, testKey, testKey, testRequester);
         let log = SecretModel.getAccessLogSince(state, workspaceId, before);
         expect.nat(log.size()).equal(1);
         expect.bool(log[0].secretId == #openRouterApiKey).isTrue();
@@ -254,12 +289,13 @@ suite(
     );
 
     test(
-      "getSecret does NOT log access for workspace 0 excluded secretIds",
+      "resolvePlatformSecret does NOT log access for infrastructure reads on workspace 0",
       func() {
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, testKey, 0, #slackBotToken, "tok", { slackUserId = null; agentId = null; operation = "init" });
         let before = Time.now();
-        ignore SecretModel.getSecret(state, testKey, 0, #slackBotToken, testRequester);
+        // Infrastructure requester (agentId = null) reading a platform secret on workspace 0
+        ignore SecretModel.resolvePlatformSecret(state, testKey, null, #slackBotToken, testRequester);
         let log = SecretModel.getAccessLogSince(state, 0, before);
         expect.nat(log.size()).equal(0);
       },
@@ -490,6 +526,92 @@ suite(
         let r2 = SecretModel.resolveSecret(state, agent, 0, #slackSigningSecret, orgKey, orgKey, testRequester);
         expect.option(r1, Text.toText, Text.equal).isNull();
         expect.option(r2, Text.toText, Text.equal).isNull();
+      },
+    );
+  },
+);
+
+// ─── Suite: resolvePlatformSecret ─────────────────────────────────────────────
+
+suite(
+  "SecretModel - resolvePlatformSecret",
+  func() {
+
+    test(
+      "returns platform secret for infrastructure caller (agentCategory = null)",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-infra", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, null, #slackBotToken, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"xoxb-infra");
+      },
+    );
+
+    test(
+      "returns platform secret for admin-category agent",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-admin", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #slackBotToken, agentRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"xoxb-admin");
+      },
+    );
+
+    test(
+      "returns null for planning-category agent",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-blocked", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#planning, #slackBotToken, agentRequester);
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "returns null for research-category agent",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-blocked", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#research, #slackBotToken, agentRequester);
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "returns null for non-platform secret (e.g. openRouterApiKey)",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "or-key", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #openRouterApiKey, agentRequester);
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "agent-initiated read IS audit-logged even for platform secret on workspace 0",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-audit", testRequester);
+        let before = Time.now();
+        // Admin agent reads platform secret — agentId != null triggers logging
+        ignore SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #slackBotToken, agentRequester);
+        let log = SecretModel.getAccessLogSince(state, 0, before);
+        expect.nat(log.size()).equal(1);
+        expect.bool(log[0].secretId == #slackBotToken).isTrue();
+        expect.option(log[0].requester.agentId, Nat.toText, Nat.equal).equal(?99);
+      },
+    );
+
+    test(
+      "infrastructure read is NOT audit-logged for platform secret on workspace 0",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-infra", testRequester);
+        let before = Time.now();
+        // Infrastructure requester (agentId = null) — suppressed by SECRET_AUDIT_EXCLUSIONS
+        ignore SecretModel.resolvePlatformSecret(state, orgKey, null, #slackBotToken, testRequester);
+        let log = SecretModel.getAccessLogSince(state, 0, before);
+        expect.nat(log.size()).equal(0);
       },
     );
   },
