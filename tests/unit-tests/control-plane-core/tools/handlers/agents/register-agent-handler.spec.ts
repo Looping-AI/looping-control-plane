@@ -260,19 +260,22 @@ describe("RegisterAgentHandler", () => {
       expect(agent.secretOverrides).toEqual([]);
     });
 
-    it("should accept custom:<name> secretId in secretOverrides", async () => {
+    it("should NOT accept custom:<name> secretId in secretOverrides", async () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "custom-override-bot",
           category: "planning",
           executionType: { type: "api" },
           secretOverrides: [
-            { secretId: "anthropicApiKey", customKeyName: "team-anthropic" },
+            {
+              secretId: "custom:anthropicApiKey",
+              customKeyName: "team-anthropic",
+            },
           ],
         }),
         PRIMARY_OWNER,
       );
-      expect(parseResponse(result).success).toBe(true);
+      expect(parseResponse(result).success).toBe(false);
     });
   });
 });
