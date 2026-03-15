@@ -69,7 +69,14 @@ module {
     let buffer = List.empty<(Types.SecretId, Text)>();
     for (item in items.vals()) {
       let sidOpt = switch (Json.get(item, "secretId")) {
-        case (?#string(s)) { parseAgentSecretId(s) };
+        case (?#string(s)) {
+          // Overrides are only meant for standard (non-#custom) SecretId values.
+          // Filter out any custom:<name> IDs parsed as #custom(_).
+          switch (parseAgentSecretId(s)) {
+            case (?#custom(_)) { null };
+            case (other) { other };
+          };
+        };
         case _ { null };
       };
       let nameOpt = switch (Json.get(item, "customKeyName")) {
