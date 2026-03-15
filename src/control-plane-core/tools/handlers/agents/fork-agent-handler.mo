@@ -5,7 +5,6 @@ import Nat "mo:core/Nat";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
-import AgentParsers "../parsers/agent-parsers";
 
 module {
   public func handle(
@@ -54,55 +53,7 @@ module {
           };
         };
 
-        let secretsAllowed = switch (Json.get(json, "secretsAllowed")) {
-          case (?#array(items)) {
-            switch (AgentParsers.parseSecretsAllowed(items)) {
-              case (?sa) { sa };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid secretsAllowed: each entry must have workspaceId (number) and secretId (string)."
-                );
-              };
-            };
-          };
-          case (null) { [] };
-          case _ {
-            return Helpers.buildErrorResponse("secretsAllowed must be an array");
-          };
-        };
-
-        let secretOverrides = switch (Json.get(json, "secretOverrides")) {
-          case (?#array(items)) {
-            switch (AgentParsers.parseSecretOverrides(items)) {
-              case (?so) { so };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid secretOverrides: each entry must have secretId (string) and customKeyName (non-empty string)."
-                );
-              };
-            };
-          };
-          case (null) { [] };
-          case _ {
-            return Helpers.buildErrorResponse("secretOverrides must be an array");
-          };
-        };
-
-        let executionType = switch (Json.get(json, "executionType")) {
-          case (?etJson) {
-            switch (AgentParsers.parseExecutionType(etJson)) {
-              case (?et) { ?et };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
-                );
-              };
-            };
-          };
-          case (null) { null }; // null = inherit execution type from original
-        };
-
-        switch (AgentModel.forkAgent(state, originalId, newName, targetWorkspaceId, secretsAllowed, secretOverrides, executionType)) {
+        switch (AgentModel.forkAgent(state, originalId, newName, targetWorkspaceId)) {
           case (#err(msg)) { Helpers.buildErrorResponse(msg) };
           case (#ok(id)) {
             Json.stringify(

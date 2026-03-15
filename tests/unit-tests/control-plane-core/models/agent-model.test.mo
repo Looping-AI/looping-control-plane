@@ -46,8 +46,7 @@ func registerSimple(state : AgentModel.AgentRegistryState, name : Text, category
     name,
     0,
     category,
-    #openRouter(#gpt_oss_120b),
-    #api,
+    #api({ model = "openai/gpt-oss-120b" }),
     [],
     [],
     [],
@@ -181,15 +180,14 @@ suite(
     );
 
     test(
-      "stores provided llmModel and sources",
+      "stores provided executionType and sources",
       func() {
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           "info-bot",
           0,
           #research,
-          #openRouter(#gpt_oss_120b),
-          #api,
+          #api({ model = "openai/gpt-oss-120b" }),
           [],
           [],
           ["web_search"],
@@ -283,7 +281,7 @@ suite(
   func() {
 
     test(
-      "updates llmModel",
+      "updates executionType model",
       func() {
         let state = AgentModel.emptyState();
         let id = switch (registerSimple(state, "bot", #admin)) {
@@ -295,8 +293,7 @@ suite(
           id,
           null,
           null,
-          ?#openRouter(#gpt_oss_120b),
-          null,
+          ?#api({ model = "openai/gpt-4o" }),
           null,
           null,
           null,
@@ -310,10 +307,11 @@ suite(
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            let isOpenRouter = switch (r.llmModel) {
-              case (#openRouter(_)) true;
+            let model = switch (r.executionType) {
+              case (#api({ model })) { model };
+              case (#runtime(_)) { "" };
             };
-            expect.bool(isOpenRouter).equal(true);
+            expect.text(model).equal("openai/gpt-4o");
           };
         };
       },
@@ -328,7 +326,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentModel.updateById(id, null, ?#research, null, null, null, null, null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, ?#research, null, null, null, null, null, null, null, state);
 
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
@@ -347,7 +345,7 @@ suite(
         };
 
         // Update name to new-bot
-        let result = AgentModel.updateById(id, ?"new-bot", null, null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"new-bot", null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Old name should no longer resolve
@@ -378,7 +376,7 @@ suite(
         ignore registerSimple(state, "bot-two", #research);
 
         // Try to rename bot-one to bot-two (which already exists)
-        let result = AgentModel.updateById(id1, ?"bot-two", null, null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id1, ?"bot-two", null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // bot-one should still have its original name
@@ -399,7 +397,7 @@ suite(
         };
 
         // Update with the same name (case variation)
-        let result = AgentModel.updateById(id, ?"BOT", null, null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"BOT", null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Lookup should still work
@@ -417,7 +415,7 @@ suite(
         };
 
         // Try to update with invalid name (starting with digit)
-        let result = AgentModel.updateById(id, ?"1invalid", null, null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"1invalid", null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // Original name should still be intact
@@ -432,7 +430,7 @@ suite(
       "returns error for non-existent agent",
       func() {
         let state = AgentModel.emptyState();
-        let result = AgentModel.updateById(999, null, null, null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(999, null, null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
       },
     );
@@ -525,9 +523,8 @@ suite(
           "secure-bot",
           0,
           #admin,
-          #openRouter(#gpt_oss_120b),
-          #api,
-          [(1, #openRouterApiKey), (2, #openaiApiKey)],
+          #api({ model = "openai/gpt-oss-120b" }),
+          [(1, #openRouterApiKey), (2, #anthropicApiKey)],
           [],
           [],
           [],
@@ -554,7 +551,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        let result = AgentModel.updateById(id, null, null, null, null, ?[(0, #openRouterApiKey)], null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, null, null, null, ?[(0, #openRouterApiKey)], null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         switch (AgentModel.lookupById(id, state)) {
@@ -574,8 +571,7 @@ suite(
           "bot",
           0,
           #admin,
-          #openRouter(#gpt_oss_120b),
-          #api,
+          #api({ model = "openai/gpt-oss-120b" }),
           [(1, #openRouterApiKey)],
           [],
           [],
@@ -586,7 +582,7 @@ suite(
         );
         let id = 0;
 
-        ignore AgentModel.updateById(id, null, null, null, null, ?[], null, null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, null, null, ?[], null, null, null, null, null, state);
 
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
@@ -627,10 +623,9 @@ suite(
           "override-bot",
           0,
           #planning,
-          #openRouter(#gpt_oss_120b),
-          #api,
+          #api({ model = "openai/gpt-oss-120b" }),
           [],
-          [(#openRouterApiKey, "my-custom-key"), (#openaiApiKey, "another-key")],
+          [(#openRouterApiKey, "my-custom-key"), (#anthropicApiKey, "another-key")],
           [],
           [],
           Map.empty<Text, AgentModel.ToolState>(),
@@ -652,7 +647,7 @@ suite(
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
-        let result = AgentModel.updateById(id, null, null, null, null, null, ?[(#openRouterApiKey, "my-key")], null, null, null, null, state);
+        let result = AgentModel.updateById(id, null, null, null, null, ?[(#openRouterApiKey, "my-key")], null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
@@ -669,8 +664,7 @@ suite(
           "bot",
           0,
           #admin,
-          #openRouter(#gpt_oss_120b),
-          #api,
+          #api({ model = "openai/gpt-oss-120b" }),
           [],
           [(#openRouterApiKey, "my-key")],
           [],
@@ -680,7 +674,7 @@ suite(
           state,
         );
         let id = 0;
-        ignore AgentModel.updateById(id, null, null, null, null, null, ?[], null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, null, null, null, ?[], null, null, null, null, state);
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) { expect.nat(r.secretOverrides.size()).equal(0) };
@@ -696,8 +690,7 @@ suite(
           "bot",
           0,
           #admin,
-          #openRouter(#gpt_oss_120b),
-          #api,
+          #api({ model = "openai/gpt-oss-120b" }),
           [],
           [(#openRouterApiKey, "keep-this")],
           [],
@@ -707,7 +700,7 @@ suite(
           state,
         );
         let id = 0;
-        ignore AgentModel.updateById(id, null, null, null, null, null, null, null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, null, null, null, null, null, null, null, null, state);
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) { expect.nat(r.secretOverrides.size()).equal(1) };

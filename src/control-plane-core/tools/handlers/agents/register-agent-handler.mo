@@ -8,6 +8,7 @@ import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
 import AgentParsers "../parsers/agent-parsers";
+import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
 
 module {
   public func handle(
@@ -50,21 +51,6 @@ module {
           };
         };
 
-        let llmModel = switch (Json.get(json, "llmModel")) {
-          case (?#string(s)) {
-            switch (AgentParsers.parseLlmModel(s)) {
-              case (?m) { m };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid llmModel: " # s # ". Supported values: gpt_oss_120b."
-                );
-              };
-            };
-          };
-          case (null) { #openRouter(#gpt_oss_120b) };
-          case _ { return Helpers.buildErrorResponse("Invalid llmModel field") };
-        };
-
         let workspaceId = switch (Json.get(json, "workspaceId")) {
           case (?#number(#int n)) {
             if (n >= 0) { Int.abs(n) } else {
@@ -93,6 +79,15 @@ module {
               "Missing required field: executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
             );
           };
+        };
+
+        switch (executionType) {
+          case (#api({ model })) {
+            if (not (await OpenRouterWrapper.validateModel(model))) {
+              return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
+            };
+          };
+          case (_) {};
         };
 
         let secretsAllowed = switch (Json.get(json, "secretsAllowed")) {
@@ -179,7 +174,6 @@ module {
             name,
             workspaceId,
             category,
-            llmModel,
             executionType,
             secretsAllowed,
             secretOverrides,
