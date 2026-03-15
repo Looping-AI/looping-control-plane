@@ -8,17 +8,10 @@ module {
     #production;
   };
 
-  /// LLM Provider
-  public type LlmProvider = {
-    #openai;
-    #openRouter;
-  };
-
   /// Secret identifier for encrypted-at-rest secrets
   /// Each variant represents a distinct secret that can be stored per workspace
   public type SecretId = {
     #openRouterApiKey;
-    #openaiApiKey;
     #anthropicApiKey; // API key variant; only used by runtime agents
     #anthropicSetupToken; // Subscription long-lived token variant; only used by runtime agents
     #slackBotToken;

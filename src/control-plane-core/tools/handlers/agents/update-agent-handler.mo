@@ -5,6 +5,7 @@ import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
 import AgentParsers "../parsers/agent-parsers";
+import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
 
 module {
   public func handle(
@@ -55,23 +56,6 @@ module {
           case (null) { null };
           case _ {
             return Helpers.buildErrorResponse("category must be a string");
-          };
-        };
-
-        let newLlmModel = switch (Json.get(json, "llmModel")) {
-          case (?#string(s)) {
-            switch (AgentParsers.parseLlmModel(s)) {
-              case (?m) { ?m };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid llmModel: " # s # ". Supported values: gpt_oss_120b."
-                );
-              };
-            };
-          };
-          case (null) { null };
-          case _ {
-            return Helpers.buildErrorResponse("llmModel must be a string");
           };
         };
 
@@ -168,12 +152,20 @@ module {
           case (null) { null };
         };
 
+        switch (newExecutionType) {
+          case (?#api({ model })) {
+            if (not (await OpenRouterWrapper.validateModel(model))) {
+              return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
+            };
+          };
+          case (_) {};
+        };
+
         switch (
           AgentModel.updateById(
             id,
             newName,
             newCategory,
-            newLlmModel,
             newExecutionType,
             newSecretsAllowed,
             newSecretOverrides,

@@ -19,21 +19,10 @@ module {
     #communication; // drafting, summarizing, messaging — stub, Phase 5
   };
 
-  /// OpenRouter-specific model variants.
-  public type OpenRouterModel = {
-    #gpt_oss_120b; // OpenRouter: gpt-oss-120b
-  };
-
-  /// LLM provider + model pairing.
-  /// Each provider has its own set of supported models.
-  public type LlmModel = {
-    #openRouter : OpenRouterModel;
-  };
-
   /// The execution type of an agent — determines whether work is done inside the
   /// canister or delegated to a remote runtime.
   public type AgentExecutionType = {
-    #api; // In-canister LLM loop; calls OpenRouter directly
+    #api : { model : Text }; // In-canister LLM loop; calls OpenRouter with the given model string
     #runtime : RuntimeAgentConfig; // Delegated to a remote runtime environment
   };
 
@@ -74,8 +63,7 @@ module {
   ///   workspaceId     — the workspace that owns this agent. Immutable after creation.
   ///                     Agents owned by workspace 0 are org-wide (e.g. workspace-admin).
   ///   category        — determines the available tool catalogue and prompt strategy.
-  ///   llmModel        — provider and model variant (e.g. #openRouter(#gpt_oss_120b)).
-  ///   executionType   — #api runs in-canister; #runtime delegates to a remote environment.
+  ///   executionType   — #api({model}) runs in-canister calling OpenRouter; #runtime delegates to a remote environment.
   ///   secretsAllowed  — explicit whitelist of (workspaceId, SecretId) pairs this agent may access.
   ///   secretOverrides — per-agent credential overrides: [(targetSecretId, customKeyName)].
   ///                     When resolving `targetSecretId`, the model first looks up
@@ -90,7 +78,6 @@ module {
     name : Text;
     workspaceId : Nat;
     category : AgentCategory;
-    llmModel : LlmModel;
     executionType : AgentExecutionType;
     secretsAllowed : [(Nat, Types.SecretId)];
     secretOverrides : [(Types.SecretId, Text)];
@@ -209,7 +196,6 @@ module {
     name : Text,
     workspaceId : Nat,
     category : AgentCategory,
-    llmModel : LlmModel,
     executionType : AgentExecutionType,
     secretsAllowed : [(Nat, Types.SecretId)],
     secretOverrides : [(Types.SecretId, Text)],
@@ -235,7 +221,6 @@ module {
       name = normalized;
       workspaceId;
       category;
-      llmModel;
       executionType;
       secretsAllowed;
       secretOverrides;
@@ -274,7 +259,6 @@ module {
     id : Nat,
     newName : ?Text,
     newCategory : ?AgentCategory,
-    newLlmModel : ?LlmModel,
     newExecutionType : ?AgentExecutionType,
     newSecretsAllowed : ?[(Nat, Types.SecretId)],
     newSecretOverrides : ?[(Types.SecretId, Text)],
@@ -314,10 +298,6 @@ module {
           category = switch (newCategory) {
             case (null) { existing.category };
             case (?c) { c };
-          };
-          llmModel = switch (newLlmModel) {
-            case (null) { existing.llmModel };
-            case (?m) { m };
           };
           executionType = switch (newExecutionType) {
             case (null) { existing.executionType };
@@ -388,15 +368,14 @@ module {
   /// Fork an existing agent into a new workspace.
   ///
   /// Creates a new agent record inheriting the strategic configuration of the
-  /// original (category, llmModel, toolsDisallowed, toolsState.knowHow, sources)
+  /// original (category, executionType, toolsDisallowed, toolsState.knowHow, sources)
   /// while resetting workspace-specific state:
-  ///   - toolsState.usageCount resets to 0 (metrics are workspace-specific).
-  ///   - toolsMisconfigured resets to [] (operator errors are workspace-specific).
-  ///   - secretOverrides resets to [] (overrides are workspace-scoped).
+  ///   - secretsAllowed resets to [] — secrets are workspace-scoped and not portable.
+  ///   - secretOverrides resets to [] — overrides are workspace-scoped.
+  ///   - toolsState.usageCount resets to 0 — metrics are workspace-specific.
+  ///   - toolsMisconfigured resets to [] — operator errors are workspace-specific.
   ///
-  /// The caller provides the new name, target workspace, secrets (old secrets are
-  /// workspace-scoped and not portable), and optionally an execution type override.
-  /// If executionType is null, the original's execution type is inherited.
+  /// Use update_agent after forking to add secrets or change the execution type.
   ///
   /// Note: `state` is the first parameter — follow this convention for all new model functions.
   public func forkAgent(
@@ -404,9 +383,6 @@ module {
     originalId : Nat,
     newName : Text,
     targetWorkspaceId : Nat,
-    secretsAllowed : [(Nat, Types.SecretId)],
-    secretOverrides : [(Types.SecretId, Text)],
-    executionType : ?AgentExecutionType,
   ) : Result.Result<Nat, Text> {
     switch (Map.get(state.agentsById, Nat.compare, originalId)) {
       case (null) {
@@ -422,13 +398,9 @@ module {
           newName,
           targetWorkspaceId,
           original.category,
-          original.llmModel,
-          switch (executionType) {
-            case (?et) et;
-            case null original.executionType;
-          },
-          secretsAllowed,
-          secretOverrides,
+          original.executionType,
+          [], // secretsAllowed resets — secrets are workspace-scoped
+          [], // secretOverrides resets — overrides are workspace-scoped
           original.toolsDisallowed,
           [], // toolsMisconfigured resets — these are workspace-specific operator errors
           forkedToolsState,
@@ -482,7 +454,7 @@ module {
   };
 
   /// Create the default agent registry state pre-seeded with the built-in
-  /// workspace-admin agent (category = #admin, OpenRouter gpt_oss_120b).
+  /// workspace-admin agent (category = #admin, OpenRouter openai/gpt-oss-120b).
   ///
   /// The default admin agent is granted access to the org-level (workspace 0)
   /// OpenRouter API key and Slack bot token, required for critical administrative tasks.
@@ -494,8 +466,7 @@ module {
       "workspace-admin",
       0, // owned by workspace 0 — org-wide agent
       #admin,
-      #openRouter(#gpt_oss_120b),
-      #api, // in-canister LLM loop
+      #api({ model = "openai/gpt-oss-120b" }), // in-canister LLM loop
       [(0, #openRouterApiKey)],
       [], // secretOverrides — none for the built-in admin agent
       [],
@@ -505,20 +476,6 @@ module {
       state,
     );
     state;
-  };
-
-  /// Map an LlmModel to the provider-specific model string used in API calls.
-  public func llmModelToText(model : LlmModel) : Text {
-    switch (model) {
-      case (#openRouter(#gpt_oss_120b)) { "openai/gpt-oss-120b" };
-    };
-  };
-
-  /// Map an LlmModel to the SecretId that holds the corresponding API key.
-  public func llmModelToSecretId(model : LlmModel) : Types.SecretId {
-    switch (model) {
-      case (#openRouter(_)) { #openRouterApiKey };
-    };
   };
 
   /// Return true if the agent has a secretsAllowed entry for (workspaceId, secretId).
@@ -543,7 +500,6 @@ module {
     name : Text;
     workspaceId : Nat;
     category : AgentCategory;
-    llmModel : LlmModel;
     executionType : AgentExecutionType;
     secretsAllowed : [(Nat, Types.SecretId)];
     secretOverrides : [(Types.SecretId, Text)];
@@ -560,7 +516,6 @@ module {
       name = record.name;
       workspaceId = record.workspaceId;
       category = record.category;
-      llmModel = record.llmModel;
       executionType = record.executionType;
       secretsAllowed = record.secretsAllowed;
       secretOverrides = record.secretOverrides;

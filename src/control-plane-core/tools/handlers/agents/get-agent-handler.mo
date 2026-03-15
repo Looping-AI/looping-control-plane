@@ -5,6 +5,7 @@ import Int "mo:core/Int";
 import AgentModel "../../../models/agent-model";
 import Helpers "../handler-helpers";
 import Types "../../../types";
+import AgentParsers "../parsers/agent-parsers";
 
 module {
   private func categoryToText(c : AgentModel.AgentCategory) : Text {
@@ -16,16 +17,9 @@ module {
     };
   };
 
-  private func llmModelToText(m : AgentModel.LlmModel) : Text {
-    switch (m) {
-      case (#openRouter(#gpt_oss_120b)) { "gpt_oss_120b" };
-    };
-  };
-
   private func secretIdToText(s : Types.SecretId) : Text {
     switch (s) {
       case (#openRouterApiKey) { "openRouterApiKey" };
-      case (#openaiApiKey) { "openaiApiKey" };
       case (#anthropicApiKey) { "anthropicApiKey" };
       case (#anthropicSetupToken) { "anthropicSetupToken" };
       case (#slackBotToken) { "slackBotToken" };
@@ -64,7 +58,7 @@ module {
       ("id", int(record.id)),
       ("name", str(record.name)),
       ("category", str(categoryToText(record.category))),
-      ("llmModel", str(llmModelToText(record.llmModel))),
+      ("executionType", AgentParsers.executionTypeToJson(record.executionType)),
       ("secretsAllowed", secretsJson),
       ("secretOverrides", overridesJson),
       ("toolsDisallowed", disallowedJson),

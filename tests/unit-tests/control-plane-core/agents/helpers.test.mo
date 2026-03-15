@@ -21,8 +21,7 @@ func makeAgent(
     name;
     workspaceId = 0;
     category;
-    llmModel = #openRouter(#gpt_oss_120b);
-    executionType = #api;
+    executionType = #api({ model = "openai/gpt-oss-120b" });
     secretsAllowed = [];
     secretOverrides = [];
     toolsDisallowed;
