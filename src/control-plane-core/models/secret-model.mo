@@ -353,6 +353,13 @@ module {
     // Platform secrets (Slack credentials) are never accessible to agents.
     if (isPlatformSecret(targetSecretId)) { return null };
 
+    // Guard: ensure the agent is allowed to access this secret for this workspace
+    // (also allows access via the org workspace, i.e. workspaceId 0)
+    if (
+      not AgentModel.isSecretAllowed(agent, workspaceId, targetSecretId) and
+      not AgentModel.isSecretAllowed(agent, 0, targetSecretId)
+    ) { return null };
+
     // Step 1 — agent-level custom override
     for ((overrideId, customName) in agent.secretOverrides.vals()) {
       if (overrideId == targetSecretId) {

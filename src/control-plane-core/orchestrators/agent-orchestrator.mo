@@ -1,5 +1,4 @@
 import Array "mo:core/Array";
-import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Types "../types";
@@ -113,18 +112,6 @@ module {
 
     // Derive the secretId from the agent's llmModel
     let secretId = AgentModel.llmModelToSecretId(agent.llmModel);
-
-    // Guard: ensure this agent is allowed to access the secret for this workspace
-    // (also allows access via the org workspace, i.e. workspaceId 0)
-    if (
-      not AgentModel.isSecretAllowed(agent, guardWorkspaceId, secretId) and
-      not AgentModel.isSecretAllowed(agent, 0, secretId)
-    ) {
-      return #err({
-        message = "Agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(guardWorkspaceId) # ".";
-        steps = [];
-      });
-    };
 
     // Resolve the LLM API key with 3-level cascade:
     //   1. agent secretOverrides → custom key in the agent's workspace
