@@ -205,4 +205,74 @@ describe("RegisterAgentHandler", () => {
       expect(response.error).toBeDefined();
     });
   });
+
+  describe("secretOverrides", () => {
+    it("should register with secretOverrides and persist them", async () => {
+      const result = await testCanister.testRegisterAgentHandler(
+        JSON.stringify({
+          name: "override-bot",
+          category: "admin",
+          executionType: { type: "api" },
+          secretsAllowed: [{ workspaceId: 0, secretId: "openRouterApiKey" }],
+          secretOverrides: [
+            { secretId: "openRouterApiKey", customKeyName: "my-custom-key" },
+          ],
+        }),
+        PRIMARY_OWNER,
+      );
+      expect(parseResponse(result).success).toBe(true);
+
+      const getResult = await testCanister.testGetAgentHandler(
+        JSON.stringify({ name: "override-bot" }),
+      );
+      const agent = (
+        JSON.parse(getResult) as {
+          agent: {
+            secretOverrides: Array<{
+              secretId: string;
+              customKeyName: string;
+            }>;
+          };
+        }
+      ).agent;
+      expect(agent.secretOverrides).toHaveLength(1);
+      expect(agent.secretOverrides[0].secretId).toBe("openRouterApiKey");
+      expect(agent.secretOverrides[0].customKeyName).toBe("my-custom-key");
+    });
+
+    it("should default secretOverrides to empty array when omitted", async () => {
+      await testCanister.testRegisterAgentHandler(
+        JSON.stringify({
+          name: "no-overrides-bot",
+          category: "research",
+          executionType: { type: "api" },
+        }),
+        PRIMARY_OWNER,
+      );
+      const getResult = await testCanister.testGetAgentHandler(
+        JSON.stringify({ name: "no-overrides-bot" }),
+      );
+      const agent = (
+        JSON.parse(getResult) as {
+          agent: { secretOverrides: unknown[] };
+        }
+      ).agent;
+      expect(agent.secretOverrides).toEqual([]);
+    });
+
+    it("should accept custom:<name> secretId in secretOverrides", async () => {
+      const result = await testCanister.testRegisterAgentHandler(
+        JSON.stringify({
+          name: "custom-override-bot",
+          category: "planning",
+          executionType: { type: "api" },
+          secretOverrides: [
+            { secretId: "anthropicApiKey", customKeyName: "team-anthropic" },
+          ],
+        }),
+        PRIMARY_OWNER,
+      );
+      expect(parseResponse(result).success).toBe(true);
+    });
+  });
 });

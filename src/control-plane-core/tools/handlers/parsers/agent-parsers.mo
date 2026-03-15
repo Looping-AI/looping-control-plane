@@ -1,6 +1,8 @@
 import Json "mo:json";
 import List "mo:core/List";
 import Int "mo:core/Int";
+import Text "mo:core/Text";
+import Iter "mo:core/Iter";
 import AgentModel "../../../models/agent-model";
 import Types "../../../types";
 
@@ -29,8 +31,16 @@ module {
     switch (s) {
       case ("openRouterApiKey") { ?#openRouterApiKey };
       case ("openaiApiKey") { ?#openaiApiKey };
+      case ("anthropicApiKey") { ?#anthropicApiKey };
+      case ("anthropicSetupToken") { ?#anthropicSetupToken };
       case ("slackBotToken") { ?#slackBotToken };
-      case _ { null };
+      case _ {
+        // Accept "custom:<name>" as #custom(name)
+        if (Text.startsWith(s, #text "custom:")) {
+          let name = Text.fromIter(Iter.drop(Text.toIter(s), 7));
+          if (name == "") { null } else { ?#custom(name) };
+        } else { null };
+      };
     };
   };
 
@@ -47,6 +57,27 @@ module {
       };
       switch (wsIdOpt, sidOpt) {
         case (?wsId, ?sid) { List.add(buffer, (wsId, sid)) };
+        case _ { return null };
+      };
+    };
+    ?List.toArray(buffer);
+  };
+
+  /// Parse secretOverrides: [{"secretId":"...","customKeyName":"..."}]
+  /// Each entry maps a standard SecretId to a custom key name within the agent's workspace.
+  public func parseSecretOverrides(items : [Json.Json]) : ?[(Types.SecretId, Text)] {
+    let buffer = List.empty<(Types.SecretId, Text)>();
+    for (item in items.vals()) {
+      let sidOpt = switch (Json.get(item, "secretId")) {
+        case (?#string(s)) { parseAgentSecretId(s) };
+        case _ { null };
+      };
+      let nameOpt = switch (Json.get(item, "customKeyName")) {
+        case (?#string(s)) { if (s == "") null else ?s };
+        case _ { null };
+      };
+      switch (sidOpt, nameOpt) {
+        case (?sid, ?name) { List.add(buffer, (sid, name)) };
         case _ { return null };
       };
     };

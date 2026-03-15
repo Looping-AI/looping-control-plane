@@ -77,6 +77,10 @@ module {
   ///   llmModel        — provider and model variant (e.g. #openRouter(#gpt_oss_120b)).
   ///   executionType   — #api runs in-canister; #runtime delegates to a remote environment.
   ///   secretsAllowed  — explicit whitelist of (workspaceId, SecretId) pairs this agent may access.
+  ///   secretOverrides — per-agent credential overrides: [(targetSecretId, customKeyName)].
+  ///                     When resolving `targetSecretId`, the model first looks up
+  ///                     `#custom(customKeyName)` from this agent's workspace before
+  ///                     falling back to the standard ID and the org-level fallback.
   ///   toolsDisallowed — blocklist of tool names to exclude from LLM tool set (by function name).
   ///   toolsMisconfigured — tools excluded due to operator errors; cleared after investigation.
   ///   toolsState      — per-tool runtime state (usageCount + knowHow text).
@@ -89,6 +93,7 @@ module {
     llmModel : LlmModel;
     executionType : AgentExecutionType;
     secretsAllowed : [(Nat, Types.SecretId)];
+    secretOverrides : [(Types.SecretId, Text)];
     toolsDisallowed : [Text];
     toolsMisconfigured : [Text];
     toolsState : Map.Map<Text, ToolState>;
@@ -207,6 +212,7 @@ module {
     llmModel : LlmModel,
     executionType : AgentExecutionType,
     secretsAllowed : [(Nat, Types.SecretId)],
+    secretOverrides : [(Types.SecretId, Text)],
     toolsDisallowed : [Text],
     toolsMisconfigured : [Text],
     toolsState : Map.Map<Text, ToolState>,
@@ -232,6 +238,7 @@ module {
       llmModel;
       executionType;
       secretsAllowed;
+      secretOverrides;
       toolsDisallowed;
       toolsMisconfigured;
       toolsState;
@@ -270,6 +277,7 @@ module {
     newLlmModel : ?LlmModel,
     newExecutionType : ?AgentExecutionType,
     newSecretsAllowed : ?[(Nat, Types.SecretId)],
+    newSecretOverrides : ?[(Types.SecretId, Text)],
     newToolsDisallowed : ?[Text],
     newToolsMisconfigured : ?[Text],
     newToolsState : ?Map.Map<Text, ToolState>,
@@ -318,6 +326,10 @@ module {
           secretsAllowed = switch (newSecretsAllowed) {
             case (null) { existing.secretsAllowed };
             case (?s) { s };
+          };
+          secretOverrides = switch (newSecretOverrides) {
+            case (null) { existing.secretOverrides };
+            case (?o) { o };
           };
           toolsDisallowed = switch (newToolsDisallowed) {
             case (null) { existing.toolsDisallowed };
@@ -380,6 +392,7 @@ module {
   /// while resetting workspace-specific state:
   ///   - toolsState.usageCount resets to 0 (metrics are workspace-specific).
   ///   - toolsMisconfigured resets to [] (operator errors are workspace-specific).
+  ///   - secretOverrides resets to [] (overrides are workspace-scoped).
   ///
   /// The caller provides the new name, target workspace, secrets (old secrets are
   /// workspace-scoped and not portable), and optionally an execution type override.
@@ -392,6 +405,7 @@ module {
     newName : Text,
     targetWorkspaceId : Nat,
     secretsAllowed : [(Nat, Types.SecretId)],
+    secretOverrides : [(Types.SecretId, Text)],
     executionType : ?AgentExecutionType,
   ) : Result.Result<Nat, Text> {
     switch (Map.get(state.agentsById, Nat.compare, originalId)) {
@@ -414,6 +428,7 @@ module {
             case null original.executionType;
           },
           secretsAllowed,
+          secretOverrides,
           original.toolsDisallowed,
           [], // toolsMisconfigured resets — these are workspace-specific operator errors
           forkedToolsState,
@@ -482,6 +497,7 @@ module {
       #openRouter(#gpt_oss_120b),
       #api, // in-canister LLM loop
       [(0, #openRouterApiKey), (0, #slackBotToken)],
+      [], // secretOverrides — none for the built-in admin agent
       [],
       [],
       Map.empty<Text, ToolState>(),
@@ -530,6 +546,7 @@ module {
     llmModel : LlmModel;
     executionType : AgentExecutionType;
     secretsAllowed : [(Nat, Types.SecretId)];
+    secretOverrides : [(Types.SecretId, Text)];
     toolsDisallowed : [Text];
     toolsMisconfigured : [Text];
     toolsState : [(Text, ToolState)];
@@ -546,6 +563,7 @@ module {
       llmModel = record.llmModel;
       executionType = record.executionType;
       secretsAllowed = record.secretsAllowed;
+      secretOverrides = record.secretOverrides;
       toolsDisallowed = record.toolsDisallowed;
       toolsMisconfigured = record.toolsMisconfigured;
       toolsState = Iter.toArray(Map.entries(record.toolsState));

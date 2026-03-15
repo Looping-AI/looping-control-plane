@@ -6,6 +6,7 @@ import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import SecretModel "../../../../src/control-plane-core/models/secret-model";
+import AgentModel "../../../../src/control-plane-core/models/agent-model";
 import Types "../../../../src/control-plane-core/types";
 import Constants "../../../../src/control-plane-core/constants";
 
@@ -309,6 +310,171 @@ suite(
         // A far-future cutoff should return nothing
         let futureLog = SecretModel.getChangeLogSince(state, workspaceId, 9_999_999_999_999_999_999);
         expect.nat(futureLog.size()).equal(0);
+      },
+    );
+  },
+);
+
+// ─── Helper: minimal AgentRecord for resolveSecret tests ─────────────────────
+
+let orgKey : [Nat8] = [
+  0x10,
+  0x11,
+  0x12,
+  0x13,
+  0x14,
+  0x15,
+  0x16,
+  0x17,
+  0x18,
+  0x19,
+  0x1A,
+  0x1B,
+  0x1C,
+  0x1D,
+  0x1E,
+  0x1F,
+  0x20,
+  0x21,
+  0x22,
+  0x23,
+  0x24,
+  0x25,
+  0x26,
+  0x27,
+  0x28,
+  0x29,
+  0x2A,
+  0x2B,
+  0x2C,
+  0x2D,
+  0x2E,
+  0x2F,
+];
+
+func makeAgentWithOverrides(secretOverrides : [(Types.SecretId, Text)]) : AgentModel.AgentRecord {
+  {
+    id = 1;
+    name = "test-agent";
+    workspaceId = 1;
+    category = #planning;
+    llmModel = #openRouter(#gpt_oss_120b);
+    executionType = #api;
+    secretsAllowed = [(1, #openRouterApiKey)];
+    secretOverrides;
+    toolsDisallowed = [];
+    toolsMisconfigured = [];
+    toolsState = Map.empty<Text, AgentModel.ToolState>();
+    sources = [];
+  };
+};
+
+// ─── Suite: resolveSecret ─────────────────────────────────────────────────────
+
+suite(
+  "SecretModel - resolveSecret",
+  func() {
+
+    test(
+      "Level 2: returns workspace secret when no override matches",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "ws-key", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"ws-key");
+      },
+    );
+
+    test(
+      "Level 3: falls back to org workspace when workspace secret is missing",
+      func() {
+        let state = SecretModel.initState();
+        // Store key only at org level (workspaceId=0)
+        ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "org-key", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"org-key");
+      },
+    );
+
+    test(
+      "Level 2 takes precedence over Level 3",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "ws-key", testRequester);
+        ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "org-key", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"ws-key");
+      },
+    );
+
+    test(
+      "Level 1: custom override takes precedence over workspace secret",
+      func() {
+        let state = SecretModel.initState();
+        // Store both standard key and custom override key in workspace 1
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "ws-standard-key", testRequester);
+        ignore SecretModel.storeSecret(state, testKey, 1, #custom("my-override-key"), "custom-key-value", testRequester);
+        let agent = makeAgentWithOverrides([(#openRouterApiKey, "my-override-key")]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"custom-key-value");
+      },
+    );
+
+    test(
+      "Level 1: falls through to Level 2 when custom key is not stored",
+      func() {
+        let state = SecretModel.initState();
+        // Custom key is declared in override but not actually stored
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "ws-key", testRequester);
+        let agent = makeAgentWithOverrides([(#openRouterApiKey, "nonexistent-custom")]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        // Falls through to Level 2
+        expect.option(result, Text.toText, Text.equal).equal(?"ws-key");
+      },
+    );
+
+    test(
+      "Full miss: returns null when no secret is found at any level",
+      func() {
+        let state = SecretModel.initState();
+        let agent = makeAgentWithOverrides([]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "No org fallback when workspaceId is 0",
+      func() {
+        let state = SecretModel.initState();
+        // Secret is stored with orgKey under workspace 0, but calling with workspaceId=0
+        // should NOT retry itself (would cause double-decryption attempt with wrong key)
+        ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "org-key", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        // Use testKey (not orgKey) as the workspace key — should miss
+        let result = SecretModel.resolveSecret(state, agent, 0, #openRouterApiKey, testKey, orgKey, testRequester);
+        // workspaceId=0 so Level 3 fallback is skipped; Level 2 uses testKey which can't decrypt
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "Custom key collision guard: 'custom:X' and 'X' are stored separately",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "standard-value", testRequester);
+        ignore SecretModel.storeSecret(state, testKey, 1, #custom("openRouterApiKey"), "collision-value", testRequester);
+        let agent = makeAgentWithOverrides([(#openRouterApiKey, "openRouterApiKey")]);
+        // Level 1: looks up custom:openRouterApiKey → should get collision-value
+        let lvl1 = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(lvl1, Text.toText, Text.equal).equal(?"collision-value");
+        // Direct Level 2 (no override agent): looks up #openRouterApiKey → should get standard-value
+        let agentNoOverride = makeAgentWithOverrides([]);
+        let lvl2 = SecretModel.resolveSecret(state, agentNoOverride, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(lvl2, Text.toText, Text.equal).equal(?"standard-value");
       },
     );
   },

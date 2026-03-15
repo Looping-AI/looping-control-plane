@@ -181,5 +181,63 @@ describe("UpdateAgentHandler", () => {
       expect(response.success).toBe(true);
       expect(response.message).toContain("updated");
     });
+
+    it("should update secretOverrides and confirm via get", async () => {
+      const updateResult = await testCanister.testUpdateAgentHandler(
+        JSON.stringify({
+          id: 0,
+          secretOverrides: [
+            { secretId: "openRouterApiKey", customKeyName: "ws-key" },
+          ],
+        }),
+        PRIMARY_OWNER,
+      );
+      expect(parseResponse(updateResult).success).toBe(true);
+
+      const getResult = await testCanister.testGetAgentHandler(
+        JSON.stringify({ id: 0 }),
+      );
+      const agent = (
+        JSON.parse(getResult) as {
+          agent: {
+            secretOverrides: Array<{
+              secretId: string;
+              customKeyName: string;
+            }>;
+          };
+        }
+      ).agent;
+      expect(agent.secretOverrides).toHaveLength(1);
+      expect(agent.secretOverrides[0].secretId).toBe("openRouterApiKey");
+      expect(agent.secretOverrides[0].customKeyName).toBe("ws-key");
+    });
+
+    it("should clear secretOverrides when updated to empty array", async () => {
+      // Seed an agent that has an override
+      await testCanister.testUpdateAgentHandler(
+        JSON.stringify({
+          id: 0,
+          secretOverrides: [
+            { secretId: "anthropicApiKey", customKeyName: "to-clear" },
+          ],
+        }),
+        PRIMARY_OWNER,
+      );
+
+      // Now clear overrides
+      const clearResult = await testCanister.testUpdateAgentHandler(
+        JSON.stringify({ id: 0, secretOverrides: [] }),
+        PRIMARY_OWNER,
+      );
+      expect(parseResponse(clearResult).success).toBe(true);
+
+      const getResult = await testCanister.testGetAgentHandler(
+        JSON.stringify({ id: 0 }),
+      );
+      const agent = (
+        JSON.parse(getResult) as { agent: { secretOverrides: unknown[] } }
+      ).agent;
+      expect(agent.secretOverrides).toEqual([]);
+    });
   });
 });

@@ -414,7 +414,8 @@ module {
     conversationEntry : ?ConversationModel.TimelineEntry,
     agentCtx : AgentRouter.AgentCtx,
     msgText : Text,
-    encryptionKey : [Nat8],
+    workspaceKey : [Nat8],
+    orgKey : [Nat8],
   ) : async ([Types.ProcessingStep], ?Text) {
     let result = await AgentRouter.route(
       primaryAgent,
@@ -424,7 +425,8 @@ module {
       conversationEntry,
       agentCtx,
       msgText,
-      encryptionKey,
+      workspaceKey,
+      orgKey,
     );
     switch (result) {
       case (#err({ message = _; steps })) { (steps, null) };
@@ -497,6 +499,7 @@ module {
 
     let { workspaceValueStreamsState; workspaceObjectivesMap } = scopeWorkspaceData(ctx, workspaceId);
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
+    let orgKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, 0);
 
     let slackUserId : ?Text = switch (activeCtxOpt) {
       case (?c) { ?c.slackUserId };
@@ -553,6 +556,7 @@ module {
       agentCtx,
       msg.text,
       encryptionKey,
+      orgKey,
     );
 
     let replyText = switch (replyTextOpt) {

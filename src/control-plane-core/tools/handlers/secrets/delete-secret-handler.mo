@@ -43,7 +43,7 @@ module {
               case (#slackBotToken or #slackSigningSecret) {
                 [#IsPrimaryOwner, #IsOrgAdmin];
               };
-              case (#openRouterApiKey or #openaiApiKey) {
+              case (#openRouterApiKey or #openaiApiKey or #anthropicApiKey or #anthropicSetupToken or #custom(_)) {
                 [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
               };
             };

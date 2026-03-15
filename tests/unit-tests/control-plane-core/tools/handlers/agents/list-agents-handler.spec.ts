@@ -96,6 +96,7 @@ describe("ListAgentsHandler", () => {
         llmModel: string;
         toolsDisallowed: string[];
         sources: string[];
+        secretOverrides: unknown[];
       }>;
     };
     const agent = response.agents[0];
@@ -106,5 +107,6 @@ describe("ListAgentsHandler", () => {
     expect(agent.llmModel).toBe("gpt_oss_120b");
     expect(agent.toolsDisallowed).toEqual(["web_search"]);
     expect(agent.sources).toEqual(["https://example.com"]);
+    expect(agent.secretOverrides).toEqual([]);
   });
 });

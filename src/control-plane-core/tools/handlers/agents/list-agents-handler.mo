@@ -24,8 +24,11 @@ module {
     switch (s) {
       case (#openRouterApiKey) { "openRouterApiKey" };
       case (#openaiApiKey) { "openaiApiKey" };
+      case (#anthropicApiKey) { "anthropicApiKey" };
+      case (#anthropicSetupToken) { "anthropicSetupToken" };
       case (#slackBotToken) { "slackBotToken" };
       case (#slackSigningSecret) { "slackSigningSecret" };
+      case (#custom(name)) { "custom:" # name };
     };
   };
 
@@ -41,6 +44,17 @@ module {
         },
       )
     );
+    let overridesJson = arr(
+      Array.map<(Types.SecretId, Text), Json.Json>(
+        record.secretOverrides,
+        func((sid, customName)) {
+          obj([
+            ("secretId", str(secretIdToText(sid))),
+            ("customKeyName", str(customName)),
+          ]);
+        },
+      )
+    );
     let disallowedJson = arr(Array.map<Text, Json.Json>(record.toolsDisallowed, str));
     let misconfiguredJson = arr(Array.map<Text, Json.Json>(record.toolsMisconfigured, str));
     let sourcesJson = arr(Array.map<Text, Json.Json>(record.sources, str));
@@ -50,6 +64,7 @@ module {
       ("category", str(categoryToText(record.category))),
       ("llmModel", str(llmModelToText(record.llmModel))),
       ("secretsAllowed", secretsJson),
+      ("secretOverrides", overridesJson),
       ("toolsDisallowed", disallowedJson),
       ("toolsMisconfigured", misconfiguredJson),
       ("sources", sourcesJson),

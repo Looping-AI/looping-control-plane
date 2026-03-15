@@ -60,7 +60,8 @@ module {
     conversationEntry : ?ConversationModel.TimelineEntry,
     agentCtx : AgentCtx,
     message : Text,
-    encryptionKey : [Nat8],
+    workspaceKey : [Nat8],
+    orgKey : [Nat8],
   ) : async RouteResult {
     // Validate that the ctx variant matches the agent's declared category.
     let ctxMatchesCategory : Bool = switch (primaryAgent.category, agentCtx) {
@@ -109,7 +110,8 @@ module {
       conversationEntry,
       agentCtx,
       message,
-      encryptionKey,
+      workspaceKey,
+      orgKey,
     );
   };
 

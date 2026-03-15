@@ -92,6 +92,23 @@ module {
           };
         };
 
+        let newSecretOverrides = switch (Json.get(json, "secretOverrides")) {
+          case (?#array(items)) {
+            switch (AgentParsers.parseSecretOverrides(items)) {
+              case (?so) { ?so };
+              case null {
+                return Helpers.buildErrorResponse(
+                  "Invalid secretOverrides: each entry must have secretId (string) and customKeyName (non-empty string)."
+                );
+              };
+            };
+          };
+          case (null) { null };
+          case _ {
+            return Helpers.buildErrorResponse("secretOverrides must be an array");
+          };
+        };
+
         let newToolsDisallowed = switch (Json.get(json, "toolsDisallowed")) {
           case (?#array(items)) {
             switch (Helpers.parseStringArray(items)) {
@@ -159,6 +176,7 @@ module {
             newLlmModel,
             newExecutionType,
             newSecretsAllowed,
+            newSecretOverrides,
             newToolsDisallowed,
             newToolsMisconfigured,
             null,

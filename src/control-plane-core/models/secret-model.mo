@@ -12,6 +12,7 @@ import Time "mo:core/Time";
 import Types "../types";
 import Constants "../constants";
 import Encryption "../utilities/encryption";
+import AgentModel "./agent-model";
 
 module {
   /// Type alias for encrypted secret storage
@@ -87,8 +88,11 @@ module {
     switch (id) {
       case (#openRouterApiKey) { "openRouterApiKey" };
       case (#openaiApiKey) { "openaiApiKey" };
+      case (#anthropicApiKey) { "anthropicApiKey" };
+      case (#anthropicSetupToken) { "anthropicSetupToken" };
       case (#slackBotToken) { "slackBotToken" };
       case (#slackSigningSecret) { "slackSigningSecret" };
+      case (#custom(name)) { "custom:" # name };
     };
   };
 
@@ -294,5 +298,52 @@ module {
         );
       };
     };
+  };
+
+  // ============================================
+  // Credential cascade
+  // ============================================
+
+  /// Resolve a secret for an agent using the 3-level credential cascade:
+  ///
+  ///   1. Agent override: check `agent.secretOverrides` for `(targetSecretId, customName)`.
+  ///      If found, look up `#custom(customName)` in the agent's workspace.
+  ///   2. Workspace standard: look up `targetSecretId` directly in the agent's workspace.
+  ///   3. Org fallback: if `workspaceId != 0`, look up `targetSecretId` in workspace 0
+  ///      using `orgKey`.
+  ///
+  /// First non-null result wins.  Access log entries are written via the existing
+  /// `getSecret` path at whichever level resolves — consistent with the rest of the model.
+  ///
+  /// `workspaceKey` must be the derived encryption key for `workspaceId`.
+  /// `orgKey` must be the derived encryption key for workspace 0.
+  /// When `workspaceId == 0`, `workspaceKey` and `orgKey` are the same and step 3 is skipped.
+  public func resolveSecret(
+    state : SecretsState,
+    agent : AgentModel.AgentRecord,
+    workspaceId : Nat,
+    targetSecretId : Types.SecretId,
+    workspaceKey : [Nat8],
+    orgKey : [Nat8],
+    requester : SecretRequester,
+  ) : ?Text {
+    // Step 1 — agent-level custom override
+    for ((overrideId, customName) in agent.secretOverrides.vals()) {
+      if (overrideId == targetSecretId) {
+        let result = getSecret(state, workspaceKey, workspaceId, #custom(customName), requester);
+        if (result != null) { return result };
+      };
+    };
+
+    // Step 2 — workspace-level standard key
+    let wsResult = getSecret(state, workspaceKey, workspaceId, targetSecretId, requester);
+    if (wsResult != null) { return wsResult };
+
+    // Step 3 — org-level fallback (only when agent is not already on workspace 0)
+    if (workspaceId != 0) {
+      return getSecret(state, orgKey, 0, targetSecretId, requester);
+    };
+
+    null;
   };
 };

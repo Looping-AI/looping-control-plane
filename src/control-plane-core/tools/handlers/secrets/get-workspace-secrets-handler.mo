@@ -67,8 +67,11 @@ module {
     switch (id) {
       case (#openRouterApiKey) { "openRouterApiKey" };
       case (#openaiApiKey) { "openaiApiKey" };
+      case (#anthropicApiKey) { "anthropicApiKey" };
+      case (#anthropicSetupToken) { "anthropicSetupToken" };
       case (#slackBotToken) { "slackBotToken" };
       case (#slackSigningSecret) { "slackSigningSecret" };
+      case (#custom(name)) { "custom:" # name };
     };
   };
 
