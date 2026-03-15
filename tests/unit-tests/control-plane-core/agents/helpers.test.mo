@@ -24,6 +24,7 @@ func makeAgent(
     llmModel = #openRouter(#gpt_oss_120b);
     executionType = #api;
     secretsAllowed = [];
+    secretOverrides = [];
     toolsDisallowed;
     toolsMisconfigured;
     toolsState = Map.empty<Text, AgentModel.ToolState>();

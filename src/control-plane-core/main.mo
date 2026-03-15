@@ -400,7 +400,7 @@ persistent actor class OpenOrgBackend() {
     };
 
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let signingSecret = switch (SecretModel.getSecret(secrets, encryptionKey, 0, #slackSigningSecret, { slackUserId = null; agentId = null; operation = "slack-signature-verify" })) {
+    let signingSecret = switch (SecretModel.resolvePlatformSecret(secrets, encryptionKey, null, #slackSigningSecret, { slackUserId = null; agentId = null; operation = "slack-signature-verify" })) {
       case (null) {
         Logger.log(#error, ?"SlackWebhook", "No Slack signing secret configured");
         return respondWithText(401, "Slack signing secret not configured");

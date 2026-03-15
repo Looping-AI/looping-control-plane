@@ -450,5 +450,38 @@ describe("ForkAgentHandler", () => {
       expect(fork2.success).toBe(true);
       expect(fork1.id).not.toBe(fork2.id);
     });
+
+    it("should fork with secretOverrides and persist them on the forked agent", async () => {
+      const originalId = await seedAgent(testCanister);
+
+      await testCanister.testForkAgentHandler(
+        JSON.stringify({
+          originalId,
+          newName: "fork-with-overrides",
+          targetWorkspaceId: 1,
+          secretOverrides: [
+            { secretId: "anthropicApiKey", customKeyName: "team-key" },
+          ],
+        }),
+        PRIMARY_OWNER,
+      );
+
+      const getResult = await testCanister.testGetAgentHandler(
+        JSON.stringify({ name: "fork-with-overrides" }),
+      );
+      const agent = (
+        JSON.parse(getResult) as {
+          agent: {
+            secretOverrides: Array<{
+              secretId: string;
+              customKeyName: string;
+            }>;
+          };
+        }
+      ).agent;
+      expect(agent.secretOverrides).toHaveLength(1);
+      expect(agent.secretOverrides[0].secretId).toBe("anthropicApiKey");
+      expect(agent.secretOverrides[0].customKeyName).toBe("team-key");
+    });
   });
 });

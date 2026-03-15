@@ -80,7 +80,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 **Verification**: `icp build control-plane-core`, re-record integration test cassettes with OpenRouter.
 
-### A.2 — Secrets Hardening: Changelog + Access Log
+~~### A.2 — Secrets Hardening: Changelog + Access Log~~
 
 **What**: Add audit trails to the secrets system, modeled after `SlackUserModel`’s `AccessChangeLog` pattern.
 
@@ -96,7 +96,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 **Verification**: Unit tests for changelog append, purge, and query.
 
-### A.3 — Custom Secret Types + Credential Cascade
+~~### A.3 — Custom Secret Types + Credential Cascade~~
 
 **What**: Extend `SecretId` with `#custom(Text)` variant. Introduce agent-level secret mapping that enables the org→team→agent override chain.
 

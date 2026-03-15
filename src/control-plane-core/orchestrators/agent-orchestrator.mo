@@ -1,5 +1,4 @@
 import Array "mo:core/Array";
-import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Types "../types";
@@ -63,7 +62,8 @@ module {
     conversationEntry : ?ConversationModel.TimelineEntry,
     agentCtx : AgentCtx,
     message : Text,
-    encryptionKey : [Nat8],
+    workspaceKey : [Nat8],
+    orgKey : [Nat8],
   ) : async {
     #ok : {
       response : Text;
@@ -113,16 +113,11 @@ module {
     // Derive the secretId from the agent's llmModel
     let secretId = AgentModel.llmModelToSecretId(agent.llmModel);
 
-    // Guard: ensure this agent is allowed to access the secret for this workspace
-    if (not AgentModel.isSecretAllowed(agent, guardWorkspaceId, secretId)) {
-      return #err({
-        message = "Agent \"" # agent.name # "\" does not have permission to access the LLM API key for workspace " # Nat.toText(guardWorkspaceId) # ".";
-        steps = [];
-      });
-    };
-
-    // Decrypt the LLM API key using the provided encryption key
-    let apiKey = SecretModel.getSecret(secrets, encryptionKey, guardWorkspaceId, secretId, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
+    // Resolve the LLM API key with 3-level cascade:
+    //   1. agent secretOverrides → custom key in the agent's workspace
+    //   2. direct workspace secret
+    //   3. fall back to org workspace (workspaceId 0)
+    let apiKey = SecretModel.resolveSecret(secrets, agent, guardWorkspaceId, secretId, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
 
     // Dispatch to provider-specific agent based on the agent's llmModel
     switch (agent.llmModel) {

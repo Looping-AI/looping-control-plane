@@ -6,6 +6,7 @@ import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import SecretModel "../../../../src/control-plane-core/models/secret-model";
+import AgentModel "../../../../src/control-plane-core/models/agent-model";
 import Types "../../../../src/control-plane-core/types";
 import Constants "../../../../src/control-plane-core/constants";
 
@@ -53,6 +54,31 @@ let testRequester : SecretModel.SecretRequester = {
   operation = "test";
 };
 
+let agentRequester : SecretModel.SecretRequester = {
+  slackUserId = ?"U123";
+  agentId = ?99;
+  operation = "test-agent";
+};
+
+/// Minimal agent on a given workspace with no overrides — used to test
+/// resolveSecret round-trips without hitting the override cascade.
+func makeAgentOnWorkspace(wsId : Nat) : AgentModel.AgentRecord {
+  {
+    id = 99;
+    name = "test-agent";
+    workspaceId = wsId;
+    category = #planning;
+    llmModel = #openRouter(#gpt_oss_120b);
+    executionType = #api;
+    secretsAllowed = [(wsId, #openRouterApiKey)];
+    secretOverrides = [];
+    toolsDisallowed = [];
+    toolsMisconfigured = [];
+    toolsState = Map.empty<Text, AgentModel.ToolState>();
+    sources = [];
+  };
+};
+
 func resultToText(r : Result.Result<(), Text>) : Text {
   switch (r) {
     case (#ok _) { "#ok" };
@@ -86,11 +112,14 @@ suite(
 
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
 
-        let retrievedSecret = SecretModel.getSecret(
+        let agent = makeAgentOnWorkspace(workspaceId);
+        let retrievedSecret = SecretModel.resolveSecret(
           state,
-          testKey,
+          agent,
           workspaceId,
           secretId,
+          testKey,
+          testKey,
           testRequester,
         );
 
@@ -118,11 +147,14 @@ suite(
         expect.result<(), Text>(result1, resultToText, resultEqual).isOk();
 
         // Verify first secret is stored
-        let retrievedFirst = SecretModel.getSecret(
+        let agent = makeAgentOnWorkspace(workspaceId);
+        let retrievedFirst = SecretModel.resolveSecret(
           state,
-          testKey,
+          agent,
           workspaceId,
           secretId,
+          testKey,
+          testKey,
           testRequester,
         );
         expect.option(retrievedFirst, Text.toText, Text.equal).equal(?firstSecret);
@@ -140,11 +172,13 @@ suite(
         expect.result<(), Text>(result2, resultToText, resultEqual).isOk();
 
         // Verify latest secret is returned
-        let retrievedLatest = SecretModel.getSecret(
+        let retrievedLatest = SecretModel.resolveSecret(
           state,
-          testKey,
+          agent,
           workspaceId,
           secretId,
+          testKey,
+          testKey,
           testRequester,
         );
         expect.option(retrievedLatest, Text.toText, Text.equal).equal(?secondSecret);
@@ -185,7 +219,8 @@ suite(
         ignore SecretModel.storeSecret(state, testKey, workspaceId, secretId, "key-to-delete", testRequester);
 
         // Verify it exists
-        let beforeDelete = SecretModel.getSecret(state, testKey, workspaceId, secretId, testRequester);
+        let agent = makeAgentOnWorkspace(workspaceId);
+        let beforeDelete = SecretModel.resolveSecret(state, agent, workspaceId, secretId, testKey, testKey, testRequester);
         expect.option(beforeDelete, Text.toText, Text.equal).isSome();
 
         // Delete it
@@ -193,7 +228,7 @@ suite(
         expect.result<(), Text>(deleteResult, resultToText, resultEqual).isOk();
 
         // Verify it's gone
-        let afterDelete = SecretModel.getSecret(state, testKey, workspaceId, secretId, testRequester);
+        let afterDelete = SecretModel.resolveSecret(state, agent, workspaceId, secretId, testKey, testKey, testRequester);
         expect.option(afterDelete, Text.toText, Text.equal).isNull();
       },
     );
@@ -239,13 +274,14 @@ suite(
     );
 
     test(
-      "getSecret logs an access entry when secret is found",
+      "resolveSecret logs an access entry when secret is found",
       func() {
         let workspaceId = 1;
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, testKey, workspaceId, #openRouterApiKey, "key", testRequester);
         let before = Time.now();
-        ignore SecretModel.getSecret(state, testKey, workspaceId, #openRouterApiKey, testRequester);
+        let agent = makeAgentOnWorkspace(workspaceId);
+        ignore SecretModel.resolveSecret(state, agent, workspaceId, #openRouterApiKey, testKey, testKey, testRequester);
         let log = SecretModel.getAccessLogSince(state, workspaceId, before);
         expect.nat(log.size()).equal(1);
         expect.bool(log[0].secretId == #openRouterApiKey).isTrue();
@@ -253,12 +289,13 @@ suite(
     );
 
     test(
-      "getSecret does NOT log access for workspace 0 excluded secretIds",
+      "resolvePlatformSecret does NOT log access for infrastructure reads on workspace 0",
       func() {
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, testKey, 0, #slackBotToken, "tok", { slackUserId = null; agentId = null; operation = "init" });
         let before = Time.now();
-        ignore SecretModel.getSecret(state, testKey, 0, #slackBotToken, testRequester);
+        // Infrastructure requester (agentId = null) reading a platform secret on workspace 0
+        ignore SecretModel.resolvePlatformSecret(state, testKey, null, #slackBotToken, testRequester);
         let log = SecretModel.getAccessLogSince(state, 0, before);
         expect.nat(log.size()).equal(0);
       },
@@ -309,6 +346,272 @@ suite(
         // A far-future cutoff should return nothing
         let futureLog = SecretModel.getChangeLogSince(state, workspaceId, 9_999_999_999_999_999_999);
         expect.nat(futureLog.size()).equal(0);
+      },
+    );
+  },
+);
+
+// ─── Helper: minimal AgentRecord for resolveSecret tests ─────────────────────
+
+let orgKey : [Nat8] = [
+  0x10,
+  0x11,
+  0x12,
+  0x13,
+  0x14,
+  0x15,
+  0x16,
+  0x17,
+  0x18,
+  0x19,
+  0x1A,
+  0x1B,
+  0x1C,
+  0x1D,
+  0x1E,
+  0x1F,
+  0x20,
+  0x21,
+  0x22,
+  0x23,
+  0x24,
+  0x25,
+  0x26,
+  0x27,
+  0x28,
+  0x29,
+  0x2A,
+  0x2B,
+  0x2C,
+  0x2D,
+  0x2E,
+  0x2F,
+];
+
+func makeAgentWithOverrides(secretOverrides : [(Types.SecretId, Text)]) : AgentModel.AgentRecord {
+  {
+    id = 1;
+    name = "test-agent";
+    workspaceId = 1;
+    category = #planning;
+    llmModel = #openRouter(#gpt_oss_120b);
+    executionType = #api;
+    secretsAllowed = [(1, #openRouterApiKey)];
+    secretOverrides;
+    toolsDisallowed = [];
+    toolsMisconfigured = [];
+    toolsState = Map.empty<Text, AgentModel.ToolState>();
+    sources = [];
+  };
+};
+
+// ─── Suite: resolveSecret ─────────────────────────────────────────────────────
+
+suite(
+  "SecretModel - resolveSecret",
+  func() {
+
+    test(
+      "Level 2: returns workspace secret when no override matches",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "ws-key", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"ws-key");
+      },
+    );
+
+    test(
+      "Level 3: falls back to org workspace when workspace secret is missing",
+      func() {
+        let state = SecretModel.initState();
+        // Store key only at org level (workspaceId=0)
+        ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "org-key", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"org-key");
+      },
+    );
+
+    test(
+      "Level 2 takes precedence over Level 3",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "ws-key", testRequester);
+        ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "org-key", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"ws-key");
+      },
+    );
+
+    test(
+      "Level 1: custom override takes precedence over workspace secret",
+      func() {
+        let state = SecretModel.initState();
+        // Store both standard key and custom override key in workspace 1
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "ws-standard-key", testRequester);
+        ignore SecretModel.storeSecret(state, testKey, 1, #custom("my-override-key"), "custom-key-value", testRequester);
+        let agent = makeAgentWithOverrides([(#openRouterApiKey, "my-override-key")]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"custom-key-value");
+      },
+    );
+
+    test(
+      "Level 1: falls through to Level 2 when custom key is not stored",
+      func() {
+        let state = SecretModel.initState();
+        // Custom key is declared in override but not actually stored
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "ws-key", testRequester);
+        let agent = makeAgentWithOverrides([(#openRouterApiKey, "nonexistent-custom")]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        // Falls through to Level 2
+        expect.option(result, Text.toText, Text.equal).equal(?"ws-key");
+      },
+    );
+
+    test(
+      "Full miss: returns null when no secret is found at any level",
+      func() {
+        let state = SecretModel.initState();
+        let agent = makeAgentWithOverrides([]);
+        let result = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "No org fallback when workspaceId is 0",
+      func() {
+        let state = SecretModel.initState();
+        // Secret is stored with orgKey under workspace 0, but calling with workspaceId=0
+        // should NOT retry itself (would cause double-decryption attempt with wrong key)
+        ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "org-key", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        // Use testKey (not orgKey) as the workspace key — should miss
+        let result = SecretModel.resolveSecret(state, agent, 0, #openRouterApiKey, testKey, orgKey, testRequester);
+        // workspaceId=0 so Level 3 fallback is skipped; Level 2 uses testKey which can't decrypt
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "Custom key collision guard: 'custom:X' and 'X' are stored separately",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, testKey, 1, #openRouterApiKey, "standard-value", testRequester);
+        ignore SecretModel.storeSecret(state, testKey, 1, #custom("openRouterApiKey"), "collision-value", testRequester);
+        let agent = makeAgentWithOverrides([(#openRouterApiKey, "openRouterApiKey")]);
+        // Level 1: looks up custom:openRouterApiKey → should get collision-value
+        let lvl1 = SecretModel.resolveSecret(state, agent, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(lvl1, Text.toText, Text.equal).equal(?"collision-value");
+        // Direct Level 2 (no override agent): looks up #openRouterApiKey → should get standard-value
+        let agentNoOverride = makeAgentWithOverrides([]);
+        let lvl2 = SecretModel.resolveSecret(state, agentNoOverride, 1, #openRouterApiKey, testKey, orgKey, testRequester);
+        expect.option(lvl2, Text.toText, Text.equal).equal(?"standard-value");
+      },
+    );
+
+    test(
+      "resolveSecret returns null for platform secrets regardless of stored value",
+      func() {
+        let state = SecretModel.initState();
+        // Store both platform secrets — should never be returned to agents
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-secret", testRequester);
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackSigningSecret, "signing-secret", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        let r1 = SecretModel.resolveSecret(state, agent, 0, #slackBotToken, orgKey, orgKey, testRequester);
+        let r2 = SecretModel.resolveSecret(state, agent, 0, #slackSigningSecret, orgKey, orgKey, testRequester);
+        expect.option(r1, Text.toText, Text.equal).isNull();
+        expect.option(r2, Text.toText, Text.equal).isNull();
+      },
+    );
+  },
+);
+
+// ─── Suite: resolvePlatformSecret ─────────────────────────────────────────────
+
+suite(
+  "SecretModel - resolvePlatformSecret",
+  func() {
+
+    test(
+      "returns platform secret for infrastructure caller (agentCategory = null)",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-infra", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, null, #slackBotToken, testRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"xoxb-infra");
+      },
+    );
+
+    test(
+      "returns platform secret for admin-category agent",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-admin", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #slackBotToken, agentRequester);
+        expect.option(result, Text.toText, Text.equal).equal(?"xoxb-admin");
+      },
+    );
+
+    test(
+      "returns null for planning-category agent",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-blocked", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#planning, #slackBotToken, agentRequester);
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "returns null for research-category agent",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-blocked", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#research, #slackBotToken, agentRequester);
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "returns null for non-platform secret (e.g. openRouterApiKey)",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "or-key", testRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #openRouterApiKey, agentRequester);
+        expect.option(result, Text.toText, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "agent-initiated read IS audit-logged even for platform secret on workspace 0",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-audit", testRequester);
+        let before = Time.now();
+        // Admin agent reads platform secret — agentId != null triggers logging
+        ignore SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #slackBotToken, agentRequester);
+        let log = SecretModel.getAccessLogSince(state, 0, before);
+        expect.nat(log.size()).equal(1);
+        expect.bool(log[0].secretId == #slackBotToken).isTrue();
+        expect.option(log[0].requester.agentId, Nat.toText, Nat.equal).equal(?99);
+      },
+    );
+
+    test(
+      "infrastructure read is NOT audit-logged for platform secret on workspace 0",
+      func() {
+        let state = SecretModel.initState();
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-infra", testRequester);
+        let before = Time.now();
+        // Infrastructure requester (agentId = null) — suppressed by SECRET_AUDIT_EXCLUSIONS
+        ignore SecretModel.resolvePlatformSecret(state, orgKey, null, #slackBotToken, testRequester);
+        let log = SecretModel.getAccessLogSince(state, 0, before);
+        expect.nat(log.size()).equal(0);
       },
     );
   },

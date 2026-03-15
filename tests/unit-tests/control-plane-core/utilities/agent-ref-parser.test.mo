@@ -23,6 +23,7 @@ func registerSimple(
       [],
       [],
       [],
+      [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       state,

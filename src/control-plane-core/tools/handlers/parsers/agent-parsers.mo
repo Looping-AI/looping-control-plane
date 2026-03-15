@@ -1,6 +1,8 @@
 import Json "mo:json";
 import List "mo:core/List";
 import Int "mo:core/Int";
+import Text "mo:core/Text";
+import Iter "mo:core/Iter";
 import AgentModel "../../../models/agent-model";
 import Types "../../../types";
 
@@ -23,14 +25,22 @@ module {
     };
   };
 
-  /// Parse a SecretId for agent use. Excludes `#slackSigningSecret` which is
-  /// a system-level secret not grantable to agents.
+  /// Parse a SecretId for agent use. Excludes platform secrets
+  /// (`#slackBotToken` and `#slackSigningSecret`) which are infrastructure
+  /// credentials managed exclusively by org-level admins.
   public func parseAgentSecretId(s : Text) : ?Types.SecretId {
     switch (s) {
       case ("openRouterApiKey") { ?#openRouterApiKey };
       case ("openaiApiKey") { ?#openaiApiKey };
-      case ("slackBotToken") { ?#slackBotToken };
-      case _ { null };
+      case ("anthropicApiKey") { ?#anthropicApiKey };
+      case ("anthropicSetupToken") { ?#anthropicSetupToken };
+      case _ {
+        // Accept "custom:<name>" as #custom(name)
+        if (Text.startsWith(s, #text "custom:")) {
+          let name = Text.fromIter(Iter.drop(Text.toIter(s), 7));
+          if (name == "") { null } else { ?#custom(name) };
+        } else { null };
+      };
     };
   };
 
@@ -47,6 +57,34 @@ module {
       };
       switch (wsIdOpt, sidOpt) {
         case (?wsId, ?sid) { List.add(buffer, (wsId, sid)) };
+        case _ { return null };
+      };
+    };
+    ?List.toArray(buffer);
+  };
+
+  /// Parse secretOverrides: [{"secretId":"...","customKeyName":"..."}]
+  /// Each entry maps a standard SecretId to a custom key name within the agent's workspace.
+  public func parseSecretOverrides(items : [Json.Json]) : ?[(Types.SecretId, Text)] {
+    let buffer = List.empty<(Types.SecretId, Text)>();
+    for (item in items.vals()) {
+      let sidOpt = switch (Json.get(item, "secretId")) {
+        case (?#string(s)) {
+          // Overrides are only meant for standard (non-#custom) SecretId values.
+          // Filter out any custom:<name> IDs parsed as #custom(_).
+          switch (parseAgentSecretId(s)) {
+            case (?#custom(_)) { null };
+            case (other) { other };
+          };
+        };
+        case _ { null };
+      };
+      let nameOpt = switch (Json.get(item, "customKeyName")) {
+        case (?#string(s)) { if (s == "") null else ?s };
+        case _ { null };
+      };
+      switch (sidOpt, nameOpt) {
+        case (?sid, ?name) { List.add(buffer, (sid, name)) };
         case _ { return null };
       };
     };

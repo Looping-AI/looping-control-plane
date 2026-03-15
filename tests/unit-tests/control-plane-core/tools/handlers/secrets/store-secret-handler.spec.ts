@@ -367,5 +367,58 @@ describe("StoreSecretHandler", () => {
       expect(listResponse.success).toBe(true);
       expect(listResponse.secretIds).toHaveLength(1);
     });
+
+    it("should store an anthropicApiKey successfully", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "anthropicApiKey",
+          secretValue: "sk-ant-test",
+        }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
+      expect(response.message).toContain("stored");
+    });
+
+    it("should store an anthropicSetupToken successfully", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "anthropicSetupToken",
+          secretValue: "setup-token-value",
+        }),
+        ORG_ADMIN,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
+    });
+
+    it("should store a custom:<name> secret successfully", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "custom:my-special-key",
+          secretValue: "custom-secret-value",
+        }),
+        WORKSPACE_ADMIN_0,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
+    });
+
+    it("should allow a workspace admin to store anthropicApiKey", async () => {
+      const result = await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "anthropicApiKey",
+          secretValue: "sk-ant-ws-admin",
+        }),
+        WORKSPACE_ADMIN_0,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(true);
+    });
   });
 });

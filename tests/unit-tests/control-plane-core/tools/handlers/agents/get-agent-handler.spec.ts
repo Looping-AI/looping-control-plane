@@ -68,12 +68,18 @@ describe("GetAgentHandler", () => {
       );
       const response = JSON.parse(result) as {
         success: boolean;
-        agent?: { id: number; name: string; category: string };
+        agent?: {
+          id: number;
+          name: string;
+          category: string;
+          secretOverrides: unknown[];
+        };
       };
       expect(response.success).toBe(true);
       expect(response.agent?.id).toBe(0);
       expect(response.agent?.name).toBe("admin-bot");
       expect(response.agent?.category).toBe("admin");
+      expect(response.agent?.secretOverrides).toEqual([]);
     });
 
     it("should return not-found for an id that does not exist", async () => {

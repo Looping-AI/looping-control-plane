@@ -312,5 +312,69 @@ describe("DeleteSecretHandler", () => {
       const response = parseResponse(result);
       expect(response.success).toBe(true);
     });
+
+    it("should delete an anthropicApiKey successfully", async () => {
+      await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "anthropicApiKey",
+          secretValue: "sk-ant-test",
+        }),
+        PRIMARY_OWNER,
+      );
+      const result = await testCanister.testDeleteSecretHandler(
+        JSON.stringify({ workspaceId: 0, secretId: "anthropicApiKey" }),
+        PRIMARY_OWNER,
+      );
+      expect(parseResponse(result).success).toBe(true);
+    });
+
+    it("should delete an anthropicSetupToken successfully", async () => {
+      await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "anthropicSetupToken",
+          secretValue: "setup-token",
+        }),
+        ORG_ADMIN,
+      );
+      const result = await testCanister.testDeleteSecretHandler(
+        JSON.stringify({ workspaceId: 0, secretId: "anthropicSetupToken" }),
+        ORG_ADMIN,
+      );
+      expect(parseResponse(result).success).toBe(true);
+    });
+
+    it("should delete a custom:<name> secret successfully", async () => {
+      await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "custom:team-key",
+          secretValue: "custom-value",
+        }),
+        PRIMARY_OWNER,
+      );
+      const result = await testCanister.testDeleteSecretHandler(
+        JSON.stringify({ workspaceId: 0, secretId: "custom:team-key" }),
+        PRIMARY_OWNER,
+      );
+      expect(parseResponse(result).success).toBe(true);
+    });
+
+    it("should allow workspace admin to delete anthropicApiKey", async () => {
+      await testCanister.testStoreSecretHandler(
+        JSON.stringify({
+          workspaceId: 0,
+          secretId: "anthropicApiKey",
+          secretValue: "sk-ant-ws",
+        }),
+        PRIMARY_OWNER,
+      );
+      const result = await testCanister.testDeleteSecretHandler(
+        JSON.stringify({ workspaceId: 0, secretId: "anthropicApiKey" }),
+        WORKSPACE_ADMIN_0,
+      );
+      expect(parseResponse(result).success).toBe(true);
+    });
   });
 });
