@@ -38,14 +38,11 @@ module {
 
         switch (wsIdOpt, secretIdOpt) {
           case (?wsId, ?secretId) {
-            // Auth: Slack bot token requires org-level; LLM keys allow workspace admin
-            let requiredRoles : [SlackAuthMiddleware.AuthStep] = switch (secretId) {
-              case (#slackBotToken or #slackSigningSecret) {
-                [#IsPrimaryOwner, #IsOrgAdmin];
-              };
-              case (#openRouterApiKey or #openaiApiKey or #anthropicApiKey or #anthropicSetupToken or #custom(_)) {
-                [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
-              };
+            // Auth: Platform secrets require org-level; LLM keys allow workspace admin
+            let requiredRoles : [SlackAuthMiddleware.AuthStep] = if (SecretModel.isPlatformSecret(secretId)) {
+              [#IsPrimaryOwner, #IsOrgAdmin];
+            } else {
+              [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
             };
             switch (SlackAuthMiddleware.authorize(uac, requiredRoles)) {
               case (#err(msg)) {

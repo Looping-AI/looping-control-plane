@@ -96,6 +96,17 @@ module {
     };
   };
 
+  /// Returns true for secrets that belong to the platform infrastructure layer
+  /// (Slack credentials). Agent code must never access these regardless of the
+  /// agent's `secretsAllowed` or `secretOverrides` configuration.
+  /// Platform secrets must always be stored on workspace 0 only and restricted to org-level admins.
+  public func isPlatformSecret(id : Types.SecretId) : Bool {
+    Array.find<Types.SecretId>(
+      Constants.PLATFORM_SECRETS,
+      func(s) { s == id },
+    ) != null;
+  };
+
   /// Whether a *read* (access log) entry should be written for this (workspaceId, secretId).
   /// For workspace 0, high-frequency org credentials (slackBotToken, slackSigningSecret)
   /// are excluded to avoid flooding the access log on every webhook signature check.
@@ -327,6 +338,9 @@ module {
     orgKey : [Nat8],
     requester : SecretRequester,
   ) : ?Text {
+    // Platform secrets (Slack credentials) are never accessible to agents.
+    if (isPlatformSecret(targetSecretId)) { return null };
+
     // Step 1 — agent-level custom override
     for ((overrideId, customName) in agent.secretOverrides.vals()) {
       if (overrideId == targetSecretId) {

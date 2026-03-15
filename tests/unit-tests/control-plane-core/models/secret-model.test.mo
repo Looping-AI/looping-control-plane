@@ -477,5 +477,20 @@ suite(
         expect.option(lvl2, Text.toText, Text.equal).equal(?"standard-value");
       },
     );
+
+    test(
+      "resolveSecret returns null for platform secrets regardless of stored value",
+      func() {
+        let state = SecretModel.initState();
+        // Store both platform secrets — should never be returned to agents
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-secret", testRequester);
+        ignore SecretModel.storeSecret(state, orgKey, 0, #slackSigningSecret, "signing-secret", testRequester);
+        let agent = makeAgentWithOverrides([]);
+        let r1 = SecretModel.resolveSecret(state, agent, 0, #slackBotToken, orgKey, orgKey, testRequester);
+        let r2 = SecretModel.resolveSecret(state, agent, 0, #slackSigningSecret, orgKey, orgKey, testRequester);
+        expect.option(r1, Text.toText, Text.equal).isNull();
+        expect.option(r2, Text.toText, Text.equal).isNull();
+      },
+    );
   },
 );

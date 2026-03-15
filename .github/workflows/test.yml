@@ -67,8 +67,14 @@ jobs:
       - name: Test Build
         run: bun run test:build
 
+      - name: Test Mops
+        run: bun run test:mops
+
       - name: Test Integration
         run: bun run test:integration
 
-      - name: Test Unit
-        run: bun run test:unit
+      - name: Test Unit (Tools)
+        run: bun run test:unit:tools
+
+      - name: Test Unit (Not Tools)
+        run: bun run test:unit:not-tools

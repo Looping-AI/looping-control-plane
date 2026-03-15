@@ -48,14 +48,11 @@ module {
 
         switch (wsIdOpt, secretIdOpt, secretValueOpt) {
           case (?wsId, ?secretId, ?secretValue) {
-            // Auth: Slack bot token requires org-level; LLM keys allow workspace admin
-            let requiredRoles : [SlackAuthMiddleware.AuthStep] = switch (secretId) {
-              case (#slackBotToken or #slackSigningSecret) {
-                [#IsPrimaryOwner, #IsOrgAdmin];
-              };
-              case (#openRouterApiKey or #openaiApiKey or #anthropicApiKey or #anthropicSetupToken or #custom(_)) {
-                [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
-              };
+            // Auth: Platform secrets require org-level; LLM keys allow workspace admin
+            let requiredRoles : [SlackAuthMiddleware.AuthStep] = if (SecretModel.isPlatformSecret(secretId)) {
+              [#IsPrimaryOwner, #IsOrgAdmin];
+            } else {
+              [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
             };
             switch (SlackAuthMiddleware.authorize(uac, requiredRoles)) {
               case (#err(msg)) {
@@ -64,16 +61,11 @@ module {
               case (#ok(())) {};
             };
 
-            // slackBotToken and slackSigningSecret are org secrets; they must only
+            // Platform secrets are org-level credentials; they must only
             // be stored on workspace 0. Allowing non-zero workspaces would be
             // meaningless (those workspaces never read these values).
-            switch (secretId) {
-              case (#slackBotToken or #slackSigningSecret) {
-                if (wsId != 0) {
-                  return Helpers.buildErrorResponse("slackBotToken and slackSigningSecret can only be set on workspace 0.");
-                };
-              };
-              case _ {};
+            if (SecretModel.isPlatformSecret(secretId) and wsId != 0) {
+              return Helpers.buildErrorResponse("Platform secrets (slackBotToken, slackSigningSecret) can only be set on workspace 0.");
             };
 
             // Validate secret is not empty

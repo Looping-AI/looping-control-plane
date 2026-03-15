@@ -25,15 +25,15 @@ module {
     };
   };
 
-  /// Parse a SecretId for agent use. Excludes `#slackSigningSecret` which is
-  /// a system-level secret not grantable to agents.
+  /// Parse a SecretId for agent use. Excludes platform secrets
+  /// (`#slackBotToken` and `#slackSigningSecret`) which are infrastructure
+  /// credentials managed exclusively by org-level admins.
   public func parseAgentSecretId(s : Text) : ?Types.SecretId {
     switch (s) {
       case ("openRouterApiKey") { ?#openRouterApiKey };
       case ("openaiApiKey") { ?#openaiApiKey };
       case ("anthropicApiKey") { ?#anthropicApiKey };
       case ("anthropicSetupToken") { ?#anthropicSetupToken };
-      case ("slackBotToken") { ?#slackBotToken };
       case _ {
         // Accept "custom:<name>" as #custom(name)
         if (Text.startsWith(s, #text "custom:")) {

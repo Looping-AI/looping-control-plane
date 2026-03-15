@@ -46,4 +46,11 @@ module {
   // Secrets stored on workspace > 0 are always logged regardless of this list.
   public let SECRET_AUDIT_EXCLUSIONS : [Types.SecretId] = [#slackBotToken, #slackSigningSecret];
 
+  // Platform-level secrets that power the Slack integration itself.
+  // These must never be readable by agent code — they are infrastructure
+  // credentials managed exclusively by org-level admins on workspace 0.
+  // `resolveSecret` hard-blocks any request for these variants, and
+  // `parseAgentSecretId` refuses to admit them into agent configuration.
+  public let PLATFORM_SECRETS : [Types.SecretId] = [#slackBotToken, #slackSigningSecret];
+
 };
