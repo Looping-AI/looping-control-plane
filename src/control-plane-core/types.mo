@@ -19,14 +19,6 @@ module {
     #custom : Text; // admin-defined key name; stored as "custom:<name>" in the map
   };
 
-  /// Subset of SecretId for org-critical secrets manageable only by the org owner
-  /// via the storeOrgCriticalSecrets canister method
-  public type OrgCriticalSecretId = {
-    #openRouterApiKey;
-    #slackBotToken;
-    #slackSigningSecret;
-  };
-
   // ============================================
   // HTTP Types (for webhooks and incoming requests)
   // ============================================

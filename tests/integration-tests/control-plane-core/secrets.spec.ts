@@ -62,42 +62,36 @@ describe("storeOrgCriticalSecrets", () => {
   });
 
   // ============================================
-  // All supported secret types
+  // Secret types
   // ============================================
 
   describe("secret types", () => {
-    it("should store openRouterApiKey without error", async () => {
+    it("should store Critical Secrets without error", async () => {
       expectOk(
         await actor.storeOrgCriticalSecrets(
           { openRouterApiKey: null },
-          "gsk_test_key",
+          "sk_open_test_key",
         ),
       );
-    });
-
-    it("should store openaiApiKey without error", async () => {
-      expectOk(
-        await actor.storeOrgCriticalSecrets(
-          { openaiApiKey: null },
-          "sk-test-key",
-        ),
-      );
-    });
-
-    it("should store slackBotToken without error", async () => {
       expectOk(
         await actor.storeOrgCriticalSecrets(
           { slackBotToken: null },
           "xoxb-test-token",
         ),
       );
-    });
-
-    it("should store slackSigningSecret without error", async () => {
       expectOk(
         await actor.storeOrgCriticalSecrets(
           { slackSigningSecret: null },
           "test-signing-secret",
+        ),
+      );
+    });
+
+    it("should NOT store secrets that are not Critical", async () => {
+      expectErr(
+        await actor.storeOrgCriticalSecrets(
+          { anthropicApiKey: null },
+          "sk-test-key",
         ),
       );
     });
