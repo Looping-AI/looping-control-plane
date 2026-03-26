@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "skills": {
+    "asset-canister": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "adfdb667a6beba07ca3ca906a213d261355663dcb363d418ef19d6dbd3e326c9"
+    },
+    "canister-security": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "aa599635ccf3d5996cab1230b49e2e345535cd25b5d522d1ffc07804c2944a51"
+    },
+    "certified-variables": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "abce10708b779012de0792bca858f044d4e52bb695ede6306e4efbbc41c434c6"
+    },
+    "cycles-management": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "b14f8da81ce7bb78c10297b9051951d778fac20b9cf3b9c0e29c70fcf738d3c9"
+    },
+    "https-outcalls": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "dd90859b2db2148630a7c04350549104f6f383072fdfc06ec3f75f463bad104a"
+    },
+    "icp-cli": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "e41aaffa2732d908b71959b236a28545c805fbe74c77cf2b71a6c9024901e93d"
+    },
+    "internet-identity": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "d5f736e3f0504a3a1efbe96cc5b7d6e5620d6ad19304ec39b25c5108510ac51a"
+    },
+    "motoko": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "7aaa41b291cc376acddd601ede12c2c18ae1708d8d711da49309906609a43f88"
+    },
+    "multi-canister": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "72b81c31acec791302467cda7d340b730e9f4f0b0fcf0d4dfb2a7f0d82695146"
+    },
+    "stable-memory": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "9f6cea447d4d6182113b7b0e16faf0e28d9311fa8a0bc1cbb3c1ad8219761b24"
+    },
+    "vetkd": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "996470d1009af486e187e2a7c7135d2124c811b0fa64871e2fca3f7a5f9bd130"
+    }
+  }
+}
