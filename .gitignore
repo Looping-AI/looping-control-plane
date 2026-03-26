@@ -1,6 +1,8 @@
 # Various IDEs and Editors
 .vscode/
 .idea/
+.claude/*
+!.claude/settings.json
 **/*~
 
 # Mac OSX temporary files

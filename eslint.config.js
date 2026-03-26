@@ -8,6 +8,7 @@ export default [
       ".dfx",
       ".icp/cache",
       ".mops",
+      ".claude",
       "tests/builds",
     ],
   },
