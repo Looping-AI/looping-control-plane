@@ -5,6 +5,7 @@
 Add a `.devcontainer/devcontainer.json` (and supporting scripts) so any agent running in a GitHub Codespace has a fully working development environment out of the box — no manual setup required.
 
 The codespace should reach a state where:
+
 1. `icp network start` runs without error
 2. `icp deploy` succeeds (smoke-tests the ICP CLI + local network)
 3. `bun run test` passes
@@ -16,6 +17,7 @@ The codespace should reach a state where:
 The CI workflow (`.github/workflows/test.yml`) is the reference for what a working environment looks like. The devcontainer must mirror that toolchain exactly so agents and developers get the same environment interactively.
 
 Key tools installed by CI:
+
 - Node.js 24
 - Bun (via `oven-sh/setup-bun`)
 - `@icp-sdk/icp-cli` and `@icp-sdk/ic-wasm` (npm global)
