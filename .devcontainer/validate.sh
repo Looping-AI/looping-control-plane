@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Always stop the network on exit (success or failure)
-trap 'icp network stop' EXIT
+trap 'icp network stop || true' EXIT
 
 echo "=== Validating devcontainer environment ==="
 
