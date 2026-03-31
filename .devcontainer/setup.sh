@@ -8,7 +8,7 @@ sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq wget
 
 # 2. Install Bun (match CI's oven-sh/setup-bun by using the official installer)
-# Note: official curl|bash installer is standard for bun and lintoko.
+export BUN_VERSION="${BUN_VERSION:-1.1.34}" # keep in sync with CI workflow
 curl -fsSL https://bun.sh/install | bash
 
 # Persist PATH update for future shells (lintoko also installs here)
@@ -25,9 +25,9 @@ eval "$PATH_EXPORT"
 # 3. Install ICP CLI tooling
 npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm
 
-# 4. Install didc (pinned version to avoid GitHub API rate limits)
-DIDC_VERSION="2025-12-18"
-wget -q "https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64" -O /tmp/didc
+# 4. Install didc (latest release)
+VERSION_DIDC=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" | jq -r '.tag_name')
+wget -q "https://github.com/dfinity/candid/releases/download/${VERSION_DIDC}/didc-linux64" -O /tmp/didc
 sudo mv /tmp/didc /usr/local/bin/didc
 sudo chmod +x /usr/local/bin/didc
 
