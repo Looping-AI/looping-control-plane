@@ -22,7 +22,7 @@ Key tools installed by CI:
 - Bun (via `oven-sh/setup-bun`)
 - `@icp-sdk/icp-cli` and `@icp-sdk/ic-wasm` (npm global)
 - `didc` binary (latest release from `dfinity/candid` on GitHub)
-- Mops (`ic-mops` npm package)
+- Mops (via `dfinity/setup-mops@v1`)
 - `lintoko` (via caffeinelabs installer script)
 
 ---
@@ -56,29 +56,41 @@ set -euo pipefail
 
 echo "=== Looping AI devcontainer setup ==="
 
-# 1. Install Bun
-npm install -g bun
+# 1. Install system dependencies required by this script
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq wget
 
-# 2. Install ICP CLI tooling
+# 2. Install Bun (match CI's oven-sh/setup-bun by using the official installer)
+curl -fsSL https://bun.sh/install | bash
+
+# Persist PATH update for future shells (lintoko also installs here)
+PATH_EXPORT='export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.bun/bin:$PATH"'
+if ! grep -qs '.bun/bin' "$HOME/.profile" 2>/dev/null; then
+  echo "$PATH_EXPORT" >> "$HOME/.profile"
+fi
+if ! grep -qs '.bun/bin' "$HOME/.bashrc" 2>/dev/null; then
+  echo "$PATH_EXPORT" >> "$HOME/.bashrc"
+fi
+# Apply to current session
+eval "$PATH_EXPORT"
+
+# 3. Install ICP CLI tooling
 npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm
 
-# 3. Install didc (latest release)
+# 4. Install didc (latest release)
 VERSION_DIDC=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" | jq -r '.tag_name')
 wget -q "https://github.com/dfinity/candid/releases/download/${VERSION_DIDC}/didc-linux64" -O /tmp/didc
 sudo mv /tmp/didc /usr/local/bin/didc
 sudo chmod +x /usr/local/bin/didc
 
-# 4. Install Mops
+# 5. Install Mops (matches CI's dfinity/setup-mops@v1)
 npm install -g ic-mops
 
-# 5. Install lintoko
+# 6. Install lintoko
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/caffeinelabs/lintoko/releases/download/v0.7.0/lintoko-installer.sh | sh
 
-# Ensure ~/.cargo/bin and ~/.local/bin are on PATH for this session
-export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
-
-# 6. Install project dependencies
+# 7. Install project dependencies
 bun install --frozen-lockfile
 mops install
 
@@ -95,6 +107,9 @@ A smoke-test script for agents and humans to verify the codespace is healthy. Mu
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Always stop the network on exit (success or failure)
+trap 'icp network stop' EXIT
+
 echo "=== Validating devcontainer environment ==="
 
 echo "[1/3] Starting ICP network..."
@@ -107,11 +122,9 @@ echo "[3/3] Running test suite..."
 bun run test
 
 echo "=== All checks passed. Environment is healthy. ==="
-
-icp network stop
 ```
 
-> `bun run test` runs `test:build`, `test:mops`, `test:integration`, and `test:unit` targets — the same as CI. Integration tests use the local ICP network deployed in step 2. No real Slack/OpenRouter secrets are required.
+> `bun run test` runs `test:build`, `test:mops`, `test:integration`, `test:unit:tools`, and `test:unit:not-tools` targets — the same as CI. Integration tests use the local ICP network deployed in step 2. No real Slack/OpenRouter secrets are required.
 
 ---
 
