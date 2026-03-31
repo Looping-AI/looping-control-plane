@@ -8,7 +8,6 @@ sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq wget
 
 # 2. Install Bun (match CI's oven-sh/setup-bun by using the official installer)
-export BUN_VERSION="${BUN_VERSION:-1.1.34}" # keep in sync with CI workflow
 curl -fsSL https://bun.sh/install | bash
 
 # Persist PATH update for future shells (lintoko also installs here)
