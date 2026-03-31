@@ -23,8 +23,6 @@ fi
 eval "$PATH_EXPORT"
 
 # 3. Install ICP CLI tooling
-# Note: npm is intentionally used here for global tooling (mirroring CI), 
-# but should NOT be used for project dependencies (use bun instead).
 npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm
 
 # 4. Install didc (pinned version to avoid GitHub API rate limits)
