@@ -10,7 +10,10 @@ This is an **ICP (Internet Computer Protocol)** decentralized application built 
 
 ## Important: Package Manager
 
-**Use `bun` commands only.** Do NOT use `npm` or `npx` commands.
+Use **`bun` for local project dependencies and scripts**.
+
+Use **`npm` for global CLI tool installs** (tools typically installed with `-g`).
+This exception is especially relevant in **CI workflows** and **Codespaces/devcontainer setup**.
 
 Examples:
 
@@ -22,6 +25,11 @@ Examples:
 - `bun run test:integration` - Run integration tests
 - `bun run format` - Run code formatter
 - `bun run lint` - Run linter
+
+Global CLI install examples (allowed/preferred):
+
+- `npm install -g ic-mops`
+- `npm install -g @dfinity/pic`
 
 ### Running Specific Tests
 
