@@ -12,8 +12,9 @@ import {
 //   1. Authorizes the caller via UserAuthContext (#IsPrimaryOwner or #IsOrgAdmin)
 //   2. Parses JSON args for { originalId, newName, targetWorkspaceId }
 //   3. Forks the agent in AgentRegistryState, always inheriting the original's
-//      executionType. secretsAllowed and secretOverrides reset to []. Use
-//      update_agent after forking to add secrets or change execution type.
+//      executionType. secretsAllowed, secretOverrides, toolsMisconfigured, and
+//      usageCount reset. Use update_agent after forking to add secrets or change
+//      execution type.
 //
 // A source agent is seeded via testRegisterAgentHandler (gets ID 0) before
 // the fork calls are made.
@@ -347,39 +348,6 @@ describe("ForkAgentHandler", () => {
       expect(fork1.success).toBe(true);
       expect(fork2.success).toBe(true);
       expect(fork1.id).not.toBe(fork2.id);
-    });
-
-    it("should fork with secretOverrides and persist them on the forked agent", async () => {
-      const originalId = await seedAgent(testCanister);
-
-      await testCanister.testForkAgentHandler(
-        JSON.stringify({
-          originalId,
-          newName: "fork-with-overrides",
-          targetWorkspaceId: 1,
-          secretOverrides: [
-            { secretId: "anthropicApiKey", customKeyName: "team-key" },
-          ],
-        }),
-        PRIMARY_OWNER,
-      );
-
-      const getResult = await testCanister.testGetAgentHandler(
-        JSON.stringify({ name: "fork-with-overrides" }),
-      );
-      const agent = (
-        JSON.parse(getResult) as {
-          agent: {
-            secretOverrides: Array<{
-              secretId: string;
-              customKeyName: string;
-            }>;
-          };
-        }
-      ).agent;
-      expect(agent.secretOverrides).toHaveLength(1);
-      expect(agent.secretOverrides[0].secretId).toBe("anthropicApiKey");
-      expect(agent.secretOverrides[0].customKeyName).toBe("team-key");
     });
   });
 });
