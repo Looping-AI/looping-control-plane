@@ -1275,11 +1275,7 @@ module {
       let isLower = c >= 'a' and c <= 'z';
       let isUpper = c >= 'A' and c <= 'Z';
       let isDigit = c >= '0' and c <= '9';
-      let isSpecial =
-        c == '-' or
-        c == '_' or
-        c == '.' or
-        c == '/';
+      let isSpecial = c == '-' or c == '_' or c == '.' or c == '/';
 
       if (not (isLower or isUpper or isDigit or isSpecial)) {
         return false;
