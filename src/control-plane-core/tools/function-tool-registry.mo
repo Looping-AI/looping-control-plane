@@ -885,7 +885,7 @@ module {
         };
       };
       handler = func(args : Text) : async Text {
-        await RegisterAgentHandler.handle(state, uac, args);
+        await RegisterAgentHandler.handle(state, uac, args, ?OpenRouterWrapper.validateModel);
       };
     };
   };
@@ -905,7 +905,7 @@ module {
         };
       };
       handler = func(args : Text) : async Text {
-        await UpdateAgentHandler.handle(state, uac, args);
+        await UpdateAgentHandler.handle(state, uac, args, ?OpenRouterWrapper.validateModel);
       };
     };
   };

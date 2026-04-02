@@ -8,13 +8,13 @@ import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
 import AgentParsers "../parsers/agent-parsers";
-import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
 
 module {
   public func handle(
     state : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
     args : Text,
+    validateModel : ?(Text -> async Bool),
   ) : async Text {
     switch (SlackAuthMiddleware.authorize(uac, [#IsPrimaryOwner, #IsOrgAdmin])) {
       case (#err(msg)) {
@@ -83,8 +83,13 @@ module {
 
         switch (executionType) {
           case (#api({ model })) {
-            if (not (await OpenRouterWrapper.validateModel(model))) {
-              return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
+            switch (validateModel) {
+              case (?validator) {
+                if (not (await validator(model))) {
+                  return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
+                };
+              };
+              case (null) {};
             };
           };
           case (_) {};

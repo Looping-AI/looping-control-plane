@@ -1278,7 +1278,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null);
   };
 
   /// Test the ListAgentsHandler in isolation.
@@ -1310,7 +1310,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    await UpdateAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+    await UpdateAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null);
   };
 
   /// Test the UnregisterAgentHandler in isolation.
