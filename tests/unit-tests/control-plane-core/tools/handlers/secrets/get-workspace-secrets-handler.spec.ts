@@ -166,7 +166,7 @@ describe("GetWorkspaceSecretsHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "openaiApiKey",
+          secretId: "anthropicApiKey",
           secretValue: "sk-openai-test",
         }),
         ORG_ADMIN,
@@ -180,7 +180,7 @@ describe("GetWorkspaceSecretsHandler", () => {
       expect(response.success).toBe(true);
       expect(response.secretIds).toHaveLength(2);
       expect(response.secretIds).toContain("openRouterApiKey");
-      expect(response.secretIds).toContain("openaiApiKey");
+      expect(response.secretIds).toContain("anthropicApiKey");
     });
 
     it("should not expose secret values — only identifiers", async () => {

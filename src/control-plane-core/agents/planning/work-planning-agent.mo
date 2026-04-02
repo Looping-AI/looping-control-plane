@@ -71,8 +71,11 @@ module {
   ) : async ProcessResult {
     let steps : List.List<Types.ProcessingStep> = List.empty();
 
-    // Derive model text from the agent's llmModel — not a caller-supplied param
-    let modelText = AgentModel.llmModelToText(agent.llmModel);
+    // Extract model string from the agent's executionType
+    let modelText = switch (agent.executionType) {
+      case (#api({ model })) { model };
+      case (#runtime(_)) { "" }; // unreachable for #api agents
+    };
 
     // Build instructions driven by agent configuration
     let instructions = buildInstructions(

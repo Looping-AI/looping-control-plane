@@ -98,7 +98,7 @@ module {
           steps = [step];
         });
       };
-      case (#api) {};
+      case (#api(_)) {};
     };
 
     // Forward to the orchestrator with the typed context

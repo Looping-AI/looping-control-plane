@@ -87,7 +87,6 @@ module {
   private func secretIdToString(id : Types.SecretId) : Text {
     switch (id) {
       case (#openRouterApiKey) { "openRouterApiKey" };
-      case (#openaiApiKey) { "openaiApiKey" };
       case (#anthropicApiKey) { "anthropicApiKey" };
       case (#anthropicSetupToken) { "anthropicSetupToken" };
       case (#slackBotToken) { "slackBotToken" };

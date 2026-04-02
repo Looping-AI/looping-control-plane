@@ -1251,4 +1251,63 @@ module {
       searchSettings,
     );
   };
+
+  /// Validate that a model is available on OpenRouter by calling the endpoints metadata API.
+  ///
+  /// Calls GET /api/v1/models/{model}/endpoints and returns true if the response is HTTP 200.
+  /// Any non-200 response (e.g. 404 for an unknown model) returns false.
+  ///
+  /// Intended for write-time validation (registration / update) where no API key is available.
+  /// The endpoint returns 200 for known models and 404 for unknown ones regardless of auth.
+  ///
+  /// @param model - The model string to validate (e.g. "openai/gpt-oss-120b")
+  /// @returns true if the model exists and is accessible, false otherwise
+  ///
+  /// Internal helper to ensure `model` only contains safe characters and no `..` segments.
+  func isValidModelIdentifier(model : Text) : Bool {
+    if (Text.size(model) == 0) {
+      return false;
+    };
+
+    var prevWasDot = false;
+
+    for (c in Text.toIter(model)) {
+      let isLower = c >= 'a' and c <= 'z';
+      let isUpper = c >= 'A' and c <= 'Z';
+      let isDigit = c >= '0' and c <= '9';
+      let isSpecial = c == '-' or c == '_' or c == '.' or c == '/';
+
+      if (not (isLower or isUpper or isDigit or isSpecial)) {
+        return false;
+      };
+
+      if (c == '.') {
+        if (prevWasDot) {
+          // Reject any `..` sequence to prevent path traversal.
+          return false;
+        };
+        prevWasDot := true;
+      } else {
+        prevWasDot := false;
+      };
+    };
+
+    true;
+  };
+
+  public func validateModel(model : Text) : async Bool {
+    assert Text.trim(model, #char ' ') != "";
+    assert isValidModelIdentifier(model);
+
+    let url = OPENROUTER_API_BASE_URL # "/models/" # model # "/endpoints";
+    let headers : [HttpWrapper.HttpHeader] = [
+      { name = "HTTP-Referer"; value = "https://loopingai.app" },
+      { name = "X-Title"; value = "Looping AI" },
+    ];
+
+    switch (await HttpWrapper.get(url, headers)) {
+      case (#ok(statusCode, _)) { statusCode == 200 };
+      case (#err(_)) { false };
+    };
+  };
 };

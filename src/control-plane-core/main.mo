@@ -274,6 +274,13 @@ persistent actor class OpenOrgBackend() {
     if (Text.trim(value, #char ' ') == "") {
       return #err("Secret value cannot be empty.");
     };
+    // Validate that the secret is an org-critical secret (OrgCriticalSecretId subset)
+    switch (secretId) {
+      case (#openRouterApiKey or #slackBotToken or #slackSigningSecret) {};
+      case (_) {
+        return #err("Only org-critical secrets may be stored via this method.");
+      };
+    };
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
     switch (SecretModel.storeSecret(secrets, encryptionKey, 0, secretId, value, { slackUserId = null; agentId = null; operation = "storeOrgCriticalSecrets" })) {
       case (#err(msg)) { #err(msg) };

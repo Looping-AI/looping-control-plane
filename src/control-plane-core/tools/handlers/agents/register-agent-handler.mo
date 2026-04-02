@@ -14,6 +14,7 @@ module {
     state : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
     args : Text,
+    validateModel : ?(Text -> async Bool),
   ) : async Text {
     switch (SlackAuthMiddleware.authorize(uac, [#IsPrimaryOwner, #IsOrgAdmin])) {
       case (#err(msg)) {
@@ -50,21 +51,6 @@ module {
           };
         };
 
-        let llmModel = switch (Json.get(json, "llmModel")) {
-          case (?#string(s)) {
-            switch (AgentParsers.parseLlmModel(s)) {
-              case (?m) { m };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid llmModel: " # s # ". Supported values: gpt_oss_120b."
-                );
-              };
-            };
-          };
-          case (null) { #openRouter(#gpt_oss_120b) };
-          case _ { return Helpers.buildErrorResponse("Invalid llmModel field") };
-        };
-
         let workspaceId = switch (Json.get(json, "workspaceId")) {
           case (?#number(#int n)) {
             if (n >= 0) { Int.abs(n) } else {
@@ -93,6 +79,20 @@ module {
               "Missing required field: executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
             );
           };
+        };
+
+        switch (executionType) {
+          case (#api({ model })) {
+            switch (validateModel) {
+              case (?validator) {
+                if (not (await validator(model))) {
+                  return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
+                };
+              };
+              case (null) {};
+            };
+          };
+          case (_) {};
         };
 
         let secretsAllowed = switch (Json.get(json, "secretsAllowed")) {
@@ -179,7 +179,6 @@ module {
             name,
             workspaceId,
             category,
-            llmModel,
             executionType,
             secretsAllowed,
             secretOverrides,

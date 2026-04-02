@@ -11,7 +11,7 @@ import {
 // This handler:
 //   1. Authorizes the caller via UserAuthContext
 //      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
-//      - LLM keys (openRouterApiKey, openaiApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+//      - LLM keys (openRouterApiKey, anthropicApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
 //   2. Parses JSON args for { workspaceId: number, secretId: string }
 //   3. Deletes the specified secret from the secrets map
 //
@@ -159,7 +159,7 @@ describe("DeleteSecretHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "openaiApiKey",
+          secretId: "anthropicApiKey",
           secretValue: "sk-openai",
         }),
         PRIMARY_OWNER,
@@ -189,7 +189,7 @@ describe("DeleteSecretHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "openaiApiKey",
+          secretId: "anthropicApiKey",
           secretValue: "sk-openai-test",
         }),
         ORG_ADMIN,
@@ -203,7 +203,7 @@ describe("DeleteSecretHandler", () => {
       const deleteResponse = parseResponse(deleteResult);
       expect(deleteResponse.success).toBe(true);
 
-      // Verify only openaiApiKey remains
+      // Verify only anthropicApiKey remains
       const listResult = await testCanister.testGetWorkspaceSecretsHandler(
         JSON.stringify({ workspaceId: 0 }),
         PRIMARY_OWNER,
@@ -214,7 +214,7 @@ describe("DeleteSecretHandler", () => {
       };
       expect(listResponse.success).toBe(true);
       expect(listResponse.secretIds).toHaveLength(1);
-      expect(listResponse.secretIds).toContain("openaiApiKey");
+      expect(listResponse.secretIds).toContain("anthropicApiKey");
       expect(listResponse.secretIds).not.toContain("openRouterApiKey");
     });
 
@@ -222,7 +222,7 @@ describe("DeleteSecretHandler", () => {
       // Store all four secrets
       for (const secretId of [
         "openRouterApiKey",
-        "openaiApiKey",
+        "anthropicApiKey",
         "slackBotToken",
         "slackSigningSecret",
       ] as const) {
@@ -234,7 +234,7 @@ describe("DeleteSecretHandler", () => {
 
       // Delete only one
       await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "openaiApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "anthropicApiKey" }),
         ORG_ADMIN,
       );
 
@@ -248,7 +248,7 @@ describe("DeleteSecretHandler", () => {
         secretIds: string[];
       };
       expect(listResponse.secretIds).toHaveLength(3);
-      expect(listResponse.secretIds).not.toContain("openaiApiKey");
+      expect(listResponse.secretIds).not.toContain("anthropicApiKey");
     });
 
     it("should delete a slackSigningSecret successfully (org admin)", async () => {

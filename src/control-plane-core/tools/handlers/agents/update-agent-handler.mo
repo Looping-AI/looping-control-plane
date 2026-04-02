@@ -11,6 +11,7 @@ module {
     state : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
     args : Text,
+    validateModel : ?(Text -> async Bool),
   ) : async Text {
     switch (SlackAuthMiddleware.authorize(uac, [#IsPrimaryOwner, #IsOrgAdmin])) {
       case (#err(msg)) {
@@ -55,23 +56,6 @@ module {
           case (null) { null };
           case _ {
             return Helpers.buildErrorResponse("category must be a string");
-          };
-        };
-
-        let newLlmModel = switch (Json.get(json, "llmModel")) {
-          case (?#string(s)) {
-            switch (AgentParsers.parseLlmModel(s)) {
-              case (?m) { ?m };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid llmModel: " # s # ". Supported values: gpt_oss_120b."
-                );
-              };
-            };
-          };
-          case (null) { null };
-          case _ {
-            return Helpers.buildErrorResponse("llmModel must be a string");
           };
         };
 
@@ -168,12 +152,25 @@ module {
           case (null) { null };
         };
 
+        switch (newExecutionType) {
+          case (?#api({ model })) {
+            switch (validateModel) {
+              case (?validator) {
+                if (not (await validator(model))) {
+                  return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
+                };
+              };
+              case (null) {};
+            };
+          };
+          case (_) {};
+        };
+
         switch (
           AgentModel.updateById(
             id,
             newName,
             newCategory,
-            newLlmModel,
             newExecutionType,
             newSecretsAllowed,
             newSecretOverrides,

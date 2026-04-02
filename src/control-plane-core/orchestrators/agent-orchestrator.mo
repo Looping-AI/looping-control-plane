@@ -110,18 +110,15 @@ module {
       case (#research or #communication) { 0 }; // unreachable — handled above
     };
 
-    // Derive the secretId from the agent's llmModel
-    let secretId = AgentModel.llmModelToSecretId(agent.llmModel);
-
     // Resolve the LLM API key with 3-level cascade:
     //   1. agent secretOverrides → custom key in the agent's workspace
     //   2. direct workspace secret
     //   3. fall back to org workspace (workspaceId 0)
-    let apiKey = SecretModel.resolveSecret(secrets, agent, guardWorkspaceId, secretId, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
+    let apiKey = SecretModel.resolveSecret(secrets, agent, guardWorkspaceId, #openRouterApiKey, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
 
-    // Dispatch to provider-specific agent based on the agent's llmModel
-    switch (agent.llmModel) {
-      case (#openRouter(_)) {
+    // Dispatch based on the agent's execution type
+    switch (agent.executionType) {
+      case (#api(_)) {
         switch (apiKey) {
           case (null) {
             #err({
@@ -184,6 +181,12 @@ module {
             };
           };
         };
+      };
+      case (#runtime(_)) {
+        #err({
+          message = "Runtime agent execution is not supported by this orchestrator.";
+          steps = [];
+        });
       };
     };
   };

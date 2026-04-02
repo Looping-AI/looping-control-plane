@@ -10,11 +10,11 @@ import {
 //
 // This handler:
 //   1. Authorizes the caller via UserAuthContext (#IsPrimaryOwner or #IsOrgAdmin)
-//   2. Parses JSON args for { originalId, newName, targetWorkspaceId,
-//      secretsAllowed?, executionType? }
-//   3. Forks the agent in AgentRegistryState, inheriting the original's
-//      executionType when the field is omitted, or applying the override
-//      when supplied.
+//   2. Parses JSON args for { originalId, newName, targetWorkspaceId }
+//   3. Forks the agent in AgentRegistryState, always inheriting the original's
+//      executionType. secretsAllowed, secretOverrides, toolsMisconfigured, and
+//      usageCount reset. Use update_agent after forking to add secrets or change
+//      execution type.
 //
 // A source agent is seeded via testRegisterAgentHandler (gets ID 0) before
 // the fork calls are made.
@@ -201,41 +201,6 @@ describe("ForkAgentHandler", () => {
       );
     });
 
-    it("should return error for an invalid executionType value", async () => {
-      const originalId = await seedAgent(testCanister);
-
-      const result = await testCanister.testForkAgentHandler(
-        JSON.stringify({
-          originalId,
-          newName: "forked",
-          targetWorkspaceId: 1,
-          executionType: { type: "unknown" },
-        }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(false);
-      expect(response.error).toContain("Invalid executionType");
-    });
-
-    it("should return error for a malformed secretsAllowed entry", async () => {
-      const originalId = await seedAgent(testCanister);
-
-      const result = await testCanister.testForkAgentHandler(
-        JSON.stringify({
-          originalId,
-          newName: "forked",
-          targetWorkspaceId: 1,
-          // missing required secretId field
-          secretsAllowed: [{ workspaceId: 1 }],
-        }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(false);
-      expect(response.error).toContain("Invalid secretsAllowed");
-    });
-
     it("should return error when originalId does not exist", async () => {
       const result = await testCanister.testForkAgentHandler(
         JSON.stringify({
@@ -290,7 +255,7 @@ describe("ForkAgentHandler", () => {
       expect(response.message).toContain(String(originalId));
     });
 
-    it("should inherit executionType from original when omitted", async () => {
+    it("should inherit executionType from original", async () => {
       // Register original with an explicit api executionType
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
@@ -314,72 +279,6 @@ describe("ForkAgentHandler", () => {
       const response = parseResponse(result);
       expect(response.success).toBe(true);
       expect(response.name).toBe("api-agent-fork");
-    });
-
-    it("should override executionType when explicitly provided", async () => {
-      // Register original with default (#runtime / openClaw) executionType
-      const originalId = await seedAgent(testCanister, "runtime-agent");
-
-      const result = await testCanister.testForkAgentHandler(
-        JSON.stringify({
-          originalId,
-          newName: "api-override-fork",
-          targetWorkspaceId: 1,
-          executionType: { type: "api" },
-        }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
-      expect(response.name).toBe("api-override-fork");
-    });
-
-    it("should override executionType with runtime when explicitly provided", async () => {
-      // Register original with api executionType
-      await testCanister.testRegisterAgentHandler(
-        JSON.stringify({
-          name: "plain-api-agent",
-          category: "planning",
-          executionType: { type: "api" },
-        }),
-        PRIMARY_OWNER,
-      );
-
-      const result = await testCanister.testForkAgentHandler(
-        JSON.stringify({
-          originalId: 0,
-          newName: "runtime-override-fork",
-          targetWorkspaceId: 2,
-          executionType: {
-            type: "runtime",
-            hosting: "codespace",
-            framework: "openClaw",
-          },
-        }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
-      expect(response.name).toBe("runtime-override-fork");
-    });
-
-    it("should accept secretsAllowed entries for the forked agent", async () => {
-      const originalId = await seedAgent(testCanister);
-
-      const result = await testCanister.testForkAgentHandler(
-        JSON.stringify({
-          originalId,
-          newName: "fork-with-secrets",
-          targetWorkspaceId: 1,
-          secretsAllowed: [
-            { workspaceId: 1, secretId: "openRouterApiKey" },
-            { workspaceId: 2, secretId: "openaiApiKey" },
-          ],
-        }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
     });
 
     it("should make the forked agent independently retrievable by name", async () => {
@@ -449,39 +348,6 @@ describe("ForkAgentHandler", () => {
       expect(fork1.success).toBe(true);
       expect(fork2.success).toBe(true);
       expect(fork1.id).not.toBe(fork2.id);
-    });
-
-    it("should fork with secretOverrides and persist them on the forked agent", async () => {
-      const originalId = await seedAgent(testCanister);
-
-      await testCanister.testForkAgentHandler(
-        JSON.stringify({
-          originalId,
-          newName: "fork-with-overrides",
-          targetWorkspaceId: 1,
-          secretOverrides: [
-            { secretId: "anthropicApiKey", customKeyName: "team-key" },
-          ],
-        }),
-        PRIMARY_OWNER,
-      );
-
-      const getResult = await testCanister.testGetAgentHandler(
-        JSON.stringify({ name: "fork-with-overrides" }),
-      );
-      const agent = (
-        JSON.parse(getResult) as {
-          agent: {
-            secretOverrides: Array<{
-              secretId: string;
-              customKeyName: string;
-            }>;
-          };
-        }
-      ).agent;
-      expect(agent.secretOverrides).toHaveLength(1);
-      expect(agent.secretOverrides[0].secretId).toBe("anthropicApiKey");
-      expect(agent.secretOverrides[0].customKeyName).toBe("team-key");
     });
   });
 });

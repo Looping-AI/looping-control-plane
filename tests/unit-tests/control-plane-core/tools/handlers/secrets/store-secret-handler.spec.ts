@@ -11,7 +11,7 @@ import {
 // This handler:
 //   1. Authorizes the caller via UserAuthContext
 //      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
-//      - LLM keys (openRouterApiKey, openaiApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+//      - LLM keys (openRouterApiKey, anthropicApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
 //   2. Validates input: workspaceId (number), secretId (string enum), secretValue (non-empty string)
 //   3. Verifies the workspace exists
 //   4. Derives encryption key from the key cache (pre-seeded with dummy key)
@@ -111,7 +111,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "openaiApiKey",
+          secretId: "anthropicApiKey",
           secretValue: "sk-openai-test",
         }),
         ORG_ADMIN,

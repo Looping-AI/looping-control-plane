@@ -68,8 +68,7 @@ func makeAgentOnWorkspace(wsId : Nat) : AgentModel.AgentRecord {
     name = "test-agent";
     workspaceId = wsId;
     category = #planning;
-    llmModel = #openRouter(#gpt_oss_120b);
-    executionType = #api;
+    executionType = #api({ model = "openai/gpt-oss-120b" });
     secretsAllowed = [(wsId, #openRouterApiKey)];
     secretOverrides = [];
     toolsDisallowed = [];
@@ -193,7 +192,7 @@ suite(
 
         // Store multiple secrets
         ignore SecretModel.storeSecret(state, testKey, workspaceId, #openRouterApiKey, "key-1", testRequester);
-        ignore SecretModel.storeSecret(state, testKey, workspaceId, #openaiApiKey, "key-2", testRequester);
+        ignore SecretModel.storeSecret(state, testKey, workspaceId, #anthropicApiKey, "key-2", testRequester);
         ignore SecretModel.storeSecret(state, testKey, workspaceId, #slackBotToken, "bot-token", testRequester);
 
         let result = SecretModel.getWorkspaceSecrets(state, workspaceId);
@@ -306,12 +305,12 @@ suite(
       func() {
         let workspaceId = 1;
         let state = SecretModel.initState();
-        ignore SecretModel.storeSecret(state, testKey, workspaceId, #openaiApiKey, "k", testRequester);
-        ignore SecretModel.deleteSecret(state, workspaceId, #openaiApiKey, testRequester);
+        ignore SecretModel.storeSecret(state, testKey, workspaceId, #anthropicApiKey, "k", testRequester);
+        ignore SecretModel.deleteSecret(state, workspaceId, #anthropicApiKey, testRequester);
         // Query all entries (timestamps may collide in synchronous test execution)
         let log = SecretModel.getChangeLogSince(state, workspaceId, 0);
         expect.nat(log.size()).equal(2); // store + delete
-        expect.bool(log[1].changeType == #deleted(#openaiApiKey)).isTrue();
+        expect.bool(log[1].changeType == #deleted(#anthropicApiKey)).isTrue();
       },
     );
 
@@ -337,12 +336,12 @@ suite(
         let workspaceId = 2;
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, testKey, workspaceId, #openRouterApiKey, "k1", testRequester);
-        ignore SecretModel.storeSecret(state, testKey, workspaceId, #openaiApiKey, "k2", testRequester);
+        ignore SecretModel.storeSecret(state, testKey, workspaceId, #anthropicApiKey, "k2", testRequester);
         // In synchronous test execution Time.now() is constant, so since=0 returns all entries.
         let log = SecretModel.getChangeLogSince(state, workspaceId, 0);
         expect.nat(log.size()).equal(2);
         expect.bool(log[0].changeType == #stored(#openRouterApiKey)).isTrue();
-        expect.bool(log[1].changeType == #stored(#openaiApiKey)).isTrue();
+        expect.bool(log[1].changeType == #stored(#anthropicApiKey)).isTrue();
         // A far-future cutoff should return nothing
         let futureLog = SecretModel.getChangeLogSince(state, workspaceId, 9_999_999_999_999_999_999);
         expect.nat(futureLog.size()).equal(0);
@@ -394,8 +393,7 @@ func makeAgentWithOverrides(secretOverrides : [(Types.SecretId, Text)]) : AgentM
     name = "test-agent";
     workspaceId = 1;
     category = #planning;
-    llmModel = #openRouter(#gpt_oss_120b);
-    executionType = #api;
+    executionType = #api({ model = "openai/gpt-oss-120b" });
     secretsAllowed = [(1, #openRouterApiKey)];
     secretOverrides;
     toolsDisallowed = [];

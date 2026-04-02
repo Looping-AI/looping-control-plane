@@ -1,4 +1,5 @@
 import Json "mo:json";
+import { str; obj } "mo:json";
 import List "mo:core/List";
 import Int "mo:core/Int";
 import Text "mo:core/Text";
@@ -7,6 +8,21 @@ import AgentModel "../../../models/agent-model";
 import Types "../../../types";
 
 module {
+  public func executionTypeToJson(et : AgentModel.AgentExecutionType) : Json.Json {
+    switch (et) {
+      case (#api({ model })) {
+        obj([("type", str("api")), ("model", str(model))]);
+      };
+      case (#runtime({ hosting; framework })) {
+        let hostingStr = switch (hosting) { case (#codespace) { "codespace" } };
+        let frameworkStr = switch (framework) {
+          case (#openClaw(_)) { "openClaw" };
+        };
+        obj([("type", str("runtime")), ("hosting", str(hostingStr)), ("framework", str(frameworkStr))]);
+      };
+    };
+  };
+
   public func parseCategory(s : Text) : ?AgentModel.AgentCategory {
     switch (s) {
       case ("admin") { ?#admin };
@@ -17,21 +33,12 @@ module {
     };
   };
 
-  public func parseLlmModel(s : Text) : ?AgentModel.LlmModel {
-    switch (s) {
-      case ("gpt_oss_120b") { ?#openRouter(#gpt_oss_120b) };
-      case ("openRouter:gpt_oss_120b") { ?#openRouter(#gpt_oss_120b) };
-      case _ { null };
-    };
-  };
-
   /// Parse a SecretId for agent use. Excludes platform secrets
   /// (`#slackBotToken` and `#slackSigningSecret`) which are infrastructure
   /// credentials managed exclusively by org-level admins.
   public func parseAgentSecretId(s : Text) : ?Types.SecretId {
     switch (s) {
       case ("openRouterApiKey") { ?#openRouterApiKey };
-      case ("openaiApiKey") { ?#openaiApiKey };
       case ("anthropicApiKey") { ?#anthropicApiKey };
       case ("anthropicSetupToken") { ?#anthropicSetupToken };
       case _ {
@@ -97,7 +104,17 @@ module {
       case _ { return null };
     };
     switch (typeStr) {
-      case ("api") { ?#api };
+      case ("api") {
+        // model defaults to the standard OpenRouter model if omitted
+        let model = switch (Json.get(json, "model")) {
+          case (?#string(s)) {
+            if (Text.trim(s, #char ' ') == "") { return null } else { s };
+          };
+          case (null) { "openai/gpt-oss-120b" };
+          case _ { return null };
+        };
+        ?#api({ model });
+      };
       case ("runtime") {
         let hostingStr = switch (Json.get(json, "hosting")) {
           case (?#string(s)) { s };
