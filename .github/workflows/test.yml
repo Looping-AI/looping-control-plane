@@ -26,7 +26,17 @@ jobs:
 
       - name: Install Dependencies
         shell: bash
-        run: bun i --frozen-lockfile
+        # Dependabot PRs update package versions so the lockfile legitimately changes.
+        # The dependabot-lockfile workflow commits the updated lockfile separately, but
+        # it runs in parallel with this job — we cannot depend on its commit being present
+        # here. Use plain `bun install` for Dependabot PRs so we install correct versions;
+        # keep --frozen-lockfile for all other runs to catch accidental lockfile drift.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.pull_request.user.login }}" = "dependabot[bot]" ]; then
+            bun install
+          else
+            bun i --frozen-lockfile
+          fi
 
       - name: Setup ICP-CLI
         shell: bash
