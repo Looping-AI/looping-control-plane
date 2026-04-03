@@ -50,16 +50,6 @@ const TEST_GROUPS: TestGroup[] = [
   },
 ];
 
-function prefixLines(text: string, prefix: string, color: string): Uint8Array {
-  const lines = text.split("\n");
-  // Last element after split on trailing newline is an empty string — skip it.
-  const output = lines
-    .filter((_, i) => i < lines.length - 1 || lines[i] !== "")
-    .map((line) => `${color}[${prefix}]${COLORS.reset} ${line}`)
-    .join("\n");
-  return Buffer.from(output + "\n");
-}
-
 async function runGroup(
   group: TestGroup,
   env: Record<string, string>,
@@ -79,11 +69,31 @@ async function runGroup(
   ) {
     const reader = stream.getReader();
     const decoder = new TextDecoder();
+    // Holds an incomplete trailing line carried over from the previous chunk.
+    let lineBuffer = "";
+
+    function writeLines(text: string, isLastFlush: boolean) {
+      const combined = lineBuffer + text;
+      const lines = combined.split("\n");
+      // If this is not the final flush, the last element may be an incomplete
+      // line — carry it forward. On final flush, write everything.
+      lineBuffer = isLastFlush ? "" : (lines.pop() ?? "");
+      if (lines.length > 0) {
+        const output =
+          lines.map((line) => `${color}[${prefix}]${COLORS.reset} ${line}`).join("\n") + "\n";
+        dest.write(Buffer.from(output));
+      }
+    }
+
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value, { stream: true });
-      dest.write(prefixLines(text, prefix, color));
+      if (done) {
+        // Flush the decoder to emit any buffered partial multibyte characters,
+        // then write whatever is left in lineBuffer.
+        writeLines(decoder.decode(), true);
+        break;
+      }
+      writeLines(decoder.decode(value, { stream: true }), false);
     }
   }
 
