@@ -111,9 +111,14 @@ async function main() {
     `${COLORS.bold}PocketIC server ready at ${picUrl}${COLORS.reset}\n`,
   );
 
-  // Build child env: inherit everything from the current process, inject PIC_URL.
+  // Build child env: inherit only defined string values from the current
+  // process environment, then inject PIC_URL.
   const childEnv: Record<string, string> = {
-    ...(process.env as Record<string, string>),
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      ),
+    ),
     PIC_URL: picUrl,
   };
 
