@@ -80,7 +80,9 @@ async function runGroup(
       lineBuffer = isLastFlush ? "" : (lines.pop() ?? "");
       if (lines.length > 0) {
         const output =
-          lines.map((line) => `${color}[${prefix}]${COLORS.reset} ${line}`).join("\n") + "\n";
+          lines
+            .map((line) => `${color}[${prefix}]${COLORS.reset} ${line}`)
+            .join("\n") + "\n";
         dest.write(Buffer.from(output));
       }
     }
