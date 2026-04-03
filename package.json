@@ -11,7 +11,8 @@
     "test:unit:tools": "bun test tests/unit-tests/control-plane-core/tools",
     "test:unit:not-tools": "bun test tests/unit-tests --ignore=tests/unit-tests/control-plane-core/tools",
     "test:integration": "bun test tests/integration-tests",
-    "test": "bun run test:build && bun run test:mops && bun run test:integration && bun run test:unit:tools && bun run test:unit:not-tools"
+    "test:ts-parallel": "bun run scripts/run-parallel-tests.ts",
+    "test": "bun run test:build && bun run test:mops && bun run test:ts-parallel"
   },
   "dependencies": {
     "@icp-sdk/core": "^5.2.1"
