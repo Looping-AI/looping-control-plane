@@ -14,18 +14,18 @@
     "test": "bun run test:build && bun run test:mops && bun run test:integration && bun run test:unit:tools && bun run test:unit:not-tools"
   },
   "dependencies": {
-    "@icp-sdk/core": "^5.0.0"
+    "@icp-sdk/core": "^5.2.1"
   },
   "devDependencies": {
     "@dfinity/pic": "^0.21.0",
-    "@types/bun": "^1.3.10",
-    "@typescript-eslint/eslint-plugin": "^8.57.0",
-    "@typescript-eslint/parser": "^8.57.0",
-    "eslint": "^10.0.3",
+    "@types/bun": "^1.3.11",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "eslint": "^10.1.0",
     "husky": "^9.1.7",
     "prettier-plugin-motoko": "^0.13.0",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.57.0"
+    "typescript-eslint": "^8.58.0"
   },
   "trustedDependencies": [
     "@dfinity/pic"
