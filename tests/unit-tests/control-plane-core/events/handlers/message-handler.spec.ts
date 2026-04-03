@@ -1,8 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, DeferredActor, Actor } from "@dfinity/pic";
 import {
   createDeferredTestCanister,
   createTestCanister,
+  freshDeferredTestCanister,
+  freshTestCanister,
   type TestCanisterService,
 } from "../../../../setup";
 import { withCassette } from "../../../../lib/cassette";
@@ -33,13 +42,15 @@ describe("MessageHandler Unit Tests", () => {
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
 
-  beforeEach(async () => {
-    const testEnv = await createDeferredTestCanister();
-    pic = testEnv.pic;
-    testCanister = testEnv.actor;
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 
@@ -303,13 +314,15 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
-    const testEnv = await createTestCanister();
-    pic = testEnv.pic;
-    testCanister = testEnv.actor;
+  beforeAll(async () => {
+    pic = (await createTestCanister()).pic;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 
@@ -499,13 +512,15 @@ describe("MessageHandler — primary agent resolution", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
-    const testEnv = await createTestCanister();
-    pic = testEnv.pic;
-    testCanister = testEnv.actor;
+  beforeAll(async () => {
+    pic = (await createTestCanister()).pic;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 
@@ -612,13 +627,15 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
 
-  beforeEach(async () => {
-    const testEnv = await createDeferredTestCanister();
-    pic = testEnv.pic;
-    testCanister = testEnv.actor;
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 

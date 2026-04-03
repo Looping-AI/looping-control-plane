@@ -1,38 +1,51 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
-import { createTestCanister, type TestCanisterService } from "../../../setup";
+import {
+  createTestCanister,
+  type TestCanisterService,
+  freshTestCanister,
+} from "../../../setup";
 
-// PocketIC baseline time in seconds (May 6, 2021 ~19:17:15 UTC).
-// advanceTime() takes milliseconds and adds on top of this baseline.
-const POCKET_IC_BASELINE_SECONDS = 1620328630n;
-
-/** Compute the PocketIC canister time (in seconds) after advancing by `deltaMs` milliseconds. */
-function picTimeSeconds(deltaMs: number): bigint {
-  return POCKET_IC_BASELINE_SECONDS + BigInt(Math.floor(deltaMs / 1000));
+// PocketIC time helpers.
+// After freshTestCanister and advanceTime calls, the actual PocketIC clock
+// may differ from a hardcoded baseline. Use pic.getTime() to read the real
+// canister time (returned in milliseconds, convert to seconds for Slack).
+async function currentPicSeconds(pic: PocketIc): Promise<bigint> {
+  const timeMs = await pic.getTime();
+  return BigInt(Math.floor(timeMs / 1000));
 }
 
 describe("Slack Adapter Signature Verification", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createTestCanister();
     pic = testEnv.pic;
-    testCanister = testEnv.actor;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 
   describe("verifySignature - Signature Validation", () => {
     it("should accept valid signature with current timestamp", async () => {
-      const deltaMs = 5_000;
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(5_000);
       await pic.tick();
 
       // Timestamp must match what PocketIC's Time.now() returns
-      const timestamp = picTimeSeconds(deltaMs).toString();
+      const timestamp = (await currentPicSeconds(pic)).toString();
       const signingSecret = "test_secret";
       const body = '{"type":"url_verification","challenge":"3eZbrw1aBNRETGM"}';
 
@@ -54,11 +67,10 @@ describe("Slack Adapter Signature Verification", () => {
     });
 
     it("should reject invalid signature", async () => {
-      const deltaMs = 5_000;
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(5_000);
       await pic.tick();
 
-      const timestamp = picTimeSeconds(deltaMs).toString();
+      const timestamp = (await currentPicSeconds(pic)).toString();
       const signingSecret = "test_secret";
       const body = '{"type":"url_verification","challenge":"3eZbrw1aBNRETGM"}';
       const invalidSignature = "v0=invalid_signature_here";
@@ -74,11 +86,10 @@ describe("Slack Adapter Signature Verification", () => {
     });
 
     it("should reject signature with wrong secret", async () => {
-      const deltaMs = 5_000;
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(5_000);
       await pic.tick();
 
-      const timestamp = picTimeSeconds(deltaMs).toString();
+      const timestamp = (await currentPicSeconds(pic)).toString();
       const signingSecret = "test_secret";
       const wrongSecret = "wrong_secret";
       const body = '{"type":"url_verification","challenge":"3eZbrw1aBNRETGM"}';
@@ -104,11 +115,10 @@ describe("Slack Adapter Signature Verification", () => {
 
   describe("verifyTimestamp - Direct Timestamp Validation", () => {
     it("should accept timestamp just created (within 5 minute window)", async () => {
-      const deltaMs = 10_000;
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(10_000);
       await pic.tick();
 
-      const timestamp = picTimeSeconds(deltaMs).toString();
+      const timestamp = (await currentPicSeconds(pic)).toString();
 
       const result =
         await testCanister.testSlackTimestampVerification(timestamp);
@@ -117,8 +127,7 @@ describe("Slack Adapter Signature Verification", () => {
     });
 
     it("should reject timestamp with invalid format", async () => {
-      const deltaMs = 10_000;
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(10_000);
       await pic.tick();
 
       const invalidTimestamp = "not_a_number";
@@ -130,12 +139,13 @@ describe("Slack Adapter Signature Verification", () => {
     });
 
     it("should reject timestamp in the future", async () => {
-      const deltaMs = 10_000;
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(10_000);
       await pic.tick();
 
       // Create a timestamp 10 minutes in the future
-      const futureTimestamp = (picTimeSeconds(deltaMs) + 600n).toString();
+      const futureTimestamp = (
+        (await currentPicSeconds(pic)) + 600n
+      ).toString();
 
       const result =
         await testCanister.testSlackTimestampVerification(futureTimestamp);
@@ -144,12 +154,11 @@ describe("Slack Adapter Signature Verification", () => {
     });
 
     it("should reject timestamp older than 5 minutes", async () => {
-      const deltaMs = 395_000; // PocketIC time = baseline + 395 seconds
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(395_000);
       await pic.tick();
 
       // Use a timestamp from 6 minutes ago (360 seconds + some buffer)
-      const oldTimestamp = (picTimeSeconds(deltaMs) - 400n).toString();
+      const oldTimestamp = ((await currentPicSeconds(pic)) - 400n).toString();
 
       const result =
         await testCanister.testSlackTimestampVerification(oldTimestamp);
@@ -158,12 +167,13 @@ describe("Slack Adapter Signature Verification", () => {
     });
 
     it("should accept timestamp at the 5 minute boundary", async () => {
-      const deltaMs = 305_000; // PocketIC time = baseline + 305 seconds
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(305_000);
       await pic.tick();
 
       // Use a timestamp from exactly 5 minutes ago
-      const boundaryTimestamp = (picTimeSeconds(deltaMs) - 300n).toString();
+      const boundaryTimestamp = (
+        (await currentPicSeconds(pic)) - 300n
+      ).toString();
 
       const result =
         await testCanister.testSlackTimestampVerification(boundaryTimestamp);
@@ -174,11 +184,10 @@ describe("Slack Adapter Signature Verification", () => {
 
   describe("verifySignature - With Timestamp Validation via Full Signature Check", () => {
     it("should accept valid signature with current timestamp", async () => {
-      const deltaMs = 10_000;
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(10_000);
       await pic.tick();
 
-      const timestamp = picTimeSeconds(deltaMs).toString();
+      const timestamp = (await currentPicSeconds(pic)).toString();
       const signingSecret = "test_secret";
       const body = '{"type":"url_verification","challenge":"3eZbrw1aBNRETGM"}';
 
@@ -202,11 +211,10 @@ describe("Slack Adapter Signature Verification", () => {
 
   describe("verifySignature - Real-world scenarios", () => {
     it("should verify a Slack event with valid signature and current timestamp", async () => {
-      const deltaMs = 15_000;
-      await pic.advanceTime(deltaMs);
+      await pic.advanceTime(15_000);
       await pic.tick();
 
-      const timestamp = picTimeSeconds(deltaMs).toString();
+      const timestamp = (await currentPicSeconds(pic)).toString();
       const signingSecret = "8f742231b91f688db8577c53fe3a0481";
       const body =
         '{"token":"Jhj5dBrVaoK8OKHSKwFBHO5C","team_id":"T061EG9R6","api_app_id":"A0HKV7KB4","event":{"type":"app_mention","user":"U024BE7LH","text":"<@U0LAN0Z89> What\'s up?","ts":"1360782804.083113","channel":"C2147483705","event_ts":"1360782804.083113"},"type":"event_callback","event_id":"Ev0PV52K21","event_time":1360782804}';

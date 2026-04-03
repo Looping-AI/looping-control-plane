@@ -1,6 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
-import { createTestCanister, type TestCanisterService } from "../../../setup";
+import {
+  createTestCanister,
+  type TestCanisterService,
+  freshTestCanister,
+} from "../../../setup";
 import { expectOk } from "../../../helpers";
 
 // ============================================
@@ -64,13 +75,16 @@ describe("Metric Retention Runner Unit Tests", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createTestCanister();
     pic = testEnv.pic;
-    testCanister = testEnv.actor;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 
@@ -80,7 +94,11 @@ describe("Metric Retention Runner Unit Tests", () => {
   });
 
   it("should purge expired datapoints while retaining fresh ones", async () => {
-    const now = Date.now();
+    // Use a "now" that is guaranteed to be in the future relative to PocketIC's
+    // current clock (which advances with each freshTestCanister call). Adding
+    // 60 days ensures that "now - 31 * DAY_MS" is still ahead of PocketIC time.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
 
     // Create metric with 30-day retention. Clock is set to 31 days ago so that
     // the datapoints we record next will fall outside the retention window.
@@ -114,7 +132,10 @@ describe("Metric Retention Runner Unit Tests", () => {
   });
 
   it("should not purge datapoints recorded within the retention window", async () => {
-    const now = Date.now();
+    // Use a "now" that is guaranteed to be in the future relative to PocketIC's
+    // current clock. Adding 60 days ensures "now - 29 * DAY_MS" is still ahead.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
 
     // Create metric at 29 days ago — inside a 30-day retention window.
     await pic.setTime(now - 29 * DAY_MS);

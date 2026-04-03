@@ -1,19 +1,33 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import type { _SERVICE } from "../../setup.ts";
-import { createBackendCanister } from "../../setup.ts";
+import { createBackendCanister, freshBackendCanister } from "../../setup.ts";
 
 describe("HTTP Request", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
+  let controllerIdentity: ReturnType<
+    typeof import("@dfinity/pic").generateRandomIdentity
+  >;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createBackendCanister();
     pic = testEnv.pic;
-    actor = testEnv.actor;
+    controllerIdentity = testEnv.controllerIdentity;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    actor = (await freshBackendCanister(pic, controllerIdentity)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 

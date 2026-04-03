@@ -1,8 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { createHmac } from "node:crypto";
 import type { _SERVICE } from "../../setup.ts";
-import { createBackendCanister, SLACK_SIGNING_SECRET } from "../../setup.ts";
+import {
+  createBackendCanister,
+  SLACK_SIGNING_SECRET,
+  freshBackendCanister,
+} from "../../setup.ts";
 import { expectOk } from "../../helpers.ts";
 import standardMessagePayload from "../../stubs/slack-payloads/message-standard.json";
 import appMentionPayload from "../../stubs/slack-payloads/app-mention.json";
@@ -72,11 +83,18 @@ function decodeBody(response: { body: Uint8Array | number[] }): string {
 describe("Slack Webhook", () => {
   let pic: PocketIc;
   let actor: Actor<_SERVICE>;
+  let controllerIdentity: ReturnType<
+    typeof import("@dfinity/pic").generateRandomIdentity
+  >;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createBackendCanister();
     pic = testEnv.pic;
-    actor = testEnv.actor;
+    controllerIdentity = testEnv.controllerIdentity;
+  });
+
+  beforeEach(async () => {
+    actor = (await freshBackendCanister(pic, controllerIdentity)).actor;
     // Store the signing secret for tests that exercise the verification path
     expectOk(
       await actor.storeOrgCriticalSecrets(
@@ -88,11 +106,17 @@ describe("Slack Webhook", () => {
     // always sees the fixed test timestamp as "recently issued" (30s ago).
     // Without this alignment, canister-setup rounds advance IC time by a
     // variable amount, causing flaky 401s when time drifts past ±300s.
-    await pic.setTime((parseInt(TEST_TIMESTAMP) + 30) * 1000);
+    // Use max(currentTime, desiredTime) to avoid SettingTimeIntoPast errors
+    // when fresh canister creation has already advanced the clock.
+    const desiredTimeMs = (parseInt(TEST_TIMESTAMP) + 30) * 1000;
+    const currentTimeMs = await pic.getTime();
+    if (desiredTimeMs > currentTimeMs) {
+      await pic.setTime(desiredTimeMs);
+    }
     await pic.tick();
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await pic.tearDown();
   });
 
@@ -266,15 +290,22 @@ describe("Slack Webhook", () => {
   describe("when no signing secret is configured", () => {
     let pic2: PocketIc;
     let actor2: Actor<_SERVICE>;
+    let controllerIdentity2: ReturnType<
+      typeof import("@dfinity/pic").generateRandomIdentity
+    >;
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       const testEnv = await createBackendCanister();
       pic2 = testEnv.pic;
-      actor2 = testEnv.actor;
+      controllerIdentity2 = testEnv.controllerIdentity;
+    });
+
+    beforeEach(async () => {
+      actor2 = (await freshBackendCanister(pic2, controllerIdentity2)).actor;
       // Intentionally NOT calling storeOrgCriticalSecrets so no signing secret is stored
     });
 
-    afterEach(async () => {
+    afterAll(async () => {
       await pic2.tearDown();
     });
 

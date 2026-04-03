@@ -1,8 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import {
   createTestCanister,
   type TestCanisterService,
+  freshTestCanister,
 } from "../../../../../setup";
 
 // ============================================
@@ -64,13 +72,16 @@ describe("AddImpactReviewHandler", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createTestCanister();
     pic = testEnv.pic;
-    testCanister = testEnv.actor;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 

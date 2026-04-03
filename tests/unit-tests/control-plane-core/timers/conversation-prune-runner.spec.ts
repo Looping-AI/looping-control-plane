@@ -1,6 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
-import { createTestCanister, type TestCanisterService } from "../../../setup";
+import {
+  createTestCanister,
+  type TestCanisterService,
+  freshTestCanister,
+} from "../../../setup";
 import { expectOk } from "../../../helpers";
 
 // ============================================
@@ -19,18 +30,22 @@ import { expectOk } from "../../../helpers";
 // ============================================
 
 const DAY_SECS = 24 * 60 * 60;
+const DAY_MS = DAY_SECS * 1000;
 
 describe("Conversation Prune Runner Unit Tests", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createTestCanister();
     pic = testEnv.pic;
-    testCanister = testEnv.actor;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 
@@ -40,7 +55,9 @@ describe("Conversation Prune Runner Unit Tests", () => {
   });
 
   it("should prune messages older than 30 days while retaining recent ones", async () => {
-    const now = Date.now();
+    // Use a "now" guaranteed to be ahead of PocketIC's current clock.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
     const nowSecs = Math.floor(now / 1000);
 
     // ts strings: second-prefix determines age relative to the prune cutoff.
@@ -71,7 +88,9 @@ describe("Conversation Prune Runner Unit Tests", () => {
   });
 
   it("should retain messages within the 30-day window", async () => {
-    const now = Date.now();
+    // Use a "now" guaranteed to be ahead of PocketIC's current clock.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
     const nowSecs = Math.floor(now / 1000);
 
     // 29-day-old message — just inside the retention window.
