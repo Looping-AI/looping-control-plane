@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   PocketIc,
@@ -69,6 +70,24 @@ export const TEST_CANISTER_WASM_PATH = resolve(
   "test-canister.wasm",
 );
 
+// In-memory WASM cache — loaded once, reused across all tests
+let _controlPlaneWasm: Uint8Array | undefined;
+let _testCanisterWasm: Uint8Array | undefined;
+
+function getControlPlaneWasm(): Uint8Array {
+  if (!_controlPlaneWasm) {
+    _controlPlaneWasm = new Uint8Array(readFileSync(WASM_PATH));
+  }
+  return _controlPlaneWasm;
+}
+
+function getTestCanisterWasm(): Uint8Array {
+  if (!_testCanisterWasm) {
+    _testCanisterWasm = new Uint8Array(readFileSync(TEST_CANISTER_WASM_PATH));
+  }
+  return _testCanisterWasm;
+}
+
 /**
  * Creates a new PocketIC test environment with fiduciary subnet for Schnorr signing
  * and sets up the canister
@@ -92,7 +111,7 @@ export async function createBackendCanister(): Promise<{
 
   const fixture = await pic.setupCanister<_SERVICE>({
     idlFactory,
-    wasm: WASM_PATH,
+    wasm: getControlPlaneWasm(),
     sender: controllerPrincipal,
   });
 
@@ -121,7 +140,7 @@ export async function createDeferredTestCanister(): Promise<{
 
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,
-    wasm: TEST_CANISTER_WASM_PATH,
+    wasm: getTestCanisterWasm(),
   });
 
   // Create a deferred actor for cassette recording
@@ -147,7 +166,7 @@ export async function createTestCanister(): Promise<{
 
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,
-    wasm: TEST_CANISTER_WASM_PATH,
+    wasm: getTestCanisterWasm(),
   });
 
   return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
@@ -171,8 +190,62 @@ export async function createSchnorrTestCanister(): Promise<{
 
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,
-    wasm: TEST_CANISTER_WASM_PATH,
+    wasm: getTestCanisterWasm(),
   });
 
   return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
+}
+
+/**
+ * Creates a fresh backend canister on an existing PocketIc instance.
+ * Use in beforeEach to get a clean canister without PocketIc.create() overhead.
+ */
+export async function freshBackendCanister(
+  pic: PocketIc,
+  controllerIdentity: ReturnType<typeof generateRandomIdentity>,
+): Promise<{
+  actor: Actor<_SERVICE>;
+  canisterId: import("@icp-sdk/core/principal").Principal;
+}> {
+  const fixture = await pic.setupCanister<_SERVICE>({
+    idlFactory,
+    wasm: getControlPlaneWasm(),
+    sender: controllerIdentity.getPrincipal(),
+  });
+  fixture.actor.setIdentity(controllerIdentity);
+  return { actor: fixture.actor, canisterId: fixture.canisterId };
+}
+
+/**
+ * Creates a fresh test canister (normal actor) on an existing PocketIc instance.
+ * Use in beforeEach to get a clean canister without PocketIc.create() overhead.
+ */
+export async function freshTestCanister(pic: PocketIc): Promise<{
+  actor: Actor<TestCanisterService>;
+  canisterId: import("@icp-sdk/core/principal").Principal;
+}> {
+  const fixture = await pic.setupCanister<TestCanisterService>({
+    idlFactory: testCanisterIdlFactory,
+    wasm: getTestCanisterWasm(),
+  });
+  return { actor: fixture.actor, canisterId: fixture.canisterId };
+}
+
+/**
+ * Creates a fresh test canister (deferred actor) on an existing PocketIc instance.
+ * Use in beforeEach for tests that require cassette recording/playback.
+ */
+export async function freshDeferredTestCanister(pic: PocketIc): Promise<{
+  actor: DeferredActor<TestCanisterService>;
+  canisterId: import("@icp-sdk/core/principal").Principal;
+}> {
+  const fixture = await pic.setupCanister<TestCanisterService>({
+    idlFactory: testCanisterIdlFactory,
+    wasm: getTestCanisterWasm(),
+  });
+  const deferredActor = pic.createDeferredActor<TestCanisterService>(
+    testCanisterIdlFactory,
+    fixture.canisterId,
+  );
+  return { actor: deferredActor, canisterId: fixture.canisterId };
 }

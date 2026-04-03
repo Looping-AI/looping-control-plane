@@ -1,9 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, DeferredActor } from "@dfinity/pic";
 import {
   createDeferredTestCanister,
   type TestCanisterService,
   SLACK_TEST_TOKEN,
+  freshDeferredTestCanister,
 } from "../../../setup";
 import { withCassette } from "../../../lib/cassette";
 
@@ -165,13 +173,16 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createDeferredTestCanister();
     pic = testEnv.pic;
-    testCanister = testEnv.actor;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 

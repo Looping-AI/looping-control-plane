@@ -1,8 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import {
   createTestCanister,
   type TestCanisterService,
+  freshTestCanister,
 } from "../../../../setup";
 
 // Unwrap Candid opt ([] | [T]) to T | null
@@ -19,15 +27,18 @@ describe("TeamJoinHandler", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createTestCanister();
     pic = testEnv.pic;
-    testCanister = testEnv.actor;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
     // Reset cache for test isolation
     await testCanister.resetSlackUserCache();
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await pic.tearDown();
   });
 

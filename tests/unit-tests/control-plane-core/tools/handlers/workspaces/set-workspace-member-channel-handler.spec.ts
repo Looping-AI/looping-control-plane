@@ -1,8 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor, DeferredActor } from "@dfinity/pic";
 import {
   createTestCanister,
   createDeferredTestCanister,
+  freshTestCanister,
+  freshDeferredTestCanister,
   type TestCanisterService,
   SLACK_TEST_TOKEN,
 } from "../../../../../setup";
@@ -74,13 +83,15 @@ describe("SetWorkspaceMemberChannelHandler — fast-fail paths", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
-    const testEnv = await createTestCanister();
-    pic = testEnv.pic;
-    testCanister = testEnv.actor;
+  beforeAll(async () => {
+    pic = (await createTestCanister()).pic;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 
@@ -155,13 +166,15 @@ describe("SetWorkspaceMemberChannelHandler — channel verification (cassette)",
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
 
-  beforeEach(async () => {
-    const testEnv = await createDeferredTestCanister();
-    pic = testEnv.pic;
-    testCanister = testEnv.actor;
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 

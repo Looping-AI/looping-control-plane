@@ -1,6 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
-import { createTestCanister, type TestCanisterService } from "../../../setup";
+import {
+  createTestCanister,
+  type TestCanisterService,
+  freshTestCanister,
+} from "../../../setup";
 import standardMessagePayload from "../../../stubs/slack-payloads/message-standard.json";
 import appMentionPayload from "../../../stubs/slack-payloads/app-mention.json";
 import botOwnAppPayload from "../../../stubs/slack-payloads/message-bot-own-app.json";
@@ -36,13 +47,16 @@ describe("SlackEventIntakeService", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const testEnv = await createTestCanister();
     pic = testEnv.pic;
-    testCanister = testEnv.actor;
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
     await pic.tearDown();
   });
 
