@@ -35,7 +35,7 @@ npm install -g ic-mops
 
 # 6. Install lintoko
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/caffeinelabs/lintoko/releases/download/v0.7.0/lintoko-installer.sh | sh
+  https://github.com/caffeinelabs/lintoko/releases/download/v0.8.0/lintoko-installer.sh | sh
 
 # 7. Install project dependencies
 bun install --frozen-lockfile
