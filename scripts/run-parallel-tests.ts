@@ -141,7 +141,8 @@ async function main() {
   }
   console.log();
 
-  process.exit(anyFailed ? 1 : 0);
+  process.exitCode = anyFailed ? 1 : 0;
+  return;
 }
 
 main();
