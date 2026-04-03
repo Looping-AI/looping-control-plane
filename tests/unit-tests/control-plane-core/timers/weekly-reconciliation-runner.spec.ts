@@ -281,7 +281,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
 
       const getUsers = await testCanister.getSlackUsers();
       const cachedUsers = await getUsers();
-      const userMap = new Map(cachedUsers.map((u) => [u.slackUserId, u]));
+      const userMap = new Map(
+        cachedUsers.map((u: { slackUserId: string }) => [u.slackUserId, u]),
+      );
 
       expect(userMap.has("U_OWNER")).toBe(true);
       expect(userMap.has("U_ADMIN")).toBe(true);
@@ -783,7 +785,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       if (!u) throw new Error("Expected user to be defined");
       const memberships = u.workspaceMemberships;
       // Workspace 1 should have the admin flag set.
-      const ws1 = memberships.find(([wsId]) => wsId === 1n);
+      const ws1 = memberships.find(([wsId]: [bigint, unknown]) => wsId === 1n);
       expect(ws1).toBeDefined();
       if (ws1) {
         expect("admin" in ws1[1]).toBe(true);
@@ -820,7 +822,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       const u = user[0];
       if (!u) throw new Error("Expected user to be defined");
       // Workspace 1 membership should be gone (no admin or member flag).
-      const ws1 = u.workspaceMemberships.find(([wsId]) => wsId === 1n);
+      const ws1 = u.workspaceMemberships.find(
+        ([wsId]: [bigint, unknown]) => wsId === 1n,
+      );
       expect(ws1).toBeUndefined();
     });
 
@@ -852,7 +856,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(user).toHaveLength(1);
       const u = user[0];
       if (!u) throw new Error("Expected user to be defined");
-      const ws1 = u.workspaceMemberships.find(([wsId]) => wsId === 1n);
+      const ws1 = u.workspaceMemberships.find(
+        ([wsId]: [bigint, unknown]) => wsId === 1n,
+      );
       expect(ws1).toBeUndefined();
     });
 
@@ -933,7 +939,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(known).toHaveLength(1);
       const k = known[0];
       if (!k) throw new Error("Expected known user to be defined");
-      const ws1 = k.workspaceMemberships.find(([wsId]) => wsId === 1n);
+      const ws1 = k.workspaceMemberships.find(
+        ([wsId]: [bigint, unknown]) => wsId === 1n,
+      );
       expect(ws1).toBeDefined();
       if (ws1) expect("admin" in ws1[1]).toBe(true);
     });
@@ -971,7 +979,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
 
       // Should contain an orgAdminGranted entry for U_A with source=reconciliation.
       const grantEntry = log.find(
-        (e) =>
+        (e: { slackUserId: string; changeType: string; source: string }) =>
           e.slackUserId === "U_A" &&
           e.changeType === "orgAdminGranted" &&
           e.source === "reconciliation",
@@ -1004,7 +1012,12 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       const log = await getLogFn();
 
       const eventEntry = log.find(
-        (e) =>
+        (e: {
+          slackUserId: string;
+          changeType: string;
+          source: string;
+          workspaceId: [] | [bigint];
+        }) =>
           e.slackUserId === "U_EVENT" &&
           e.changeType === "workspaceAdminGranted" &&
           e.source === "slackEvent:1700000000.000001",
