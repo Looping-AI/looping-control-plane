@@ -70,7 +70,9 @@ describe("Processed Events Cleanup Runner Unit Tests", () => {
   });
 
   it("should purge processed events older than 7 days while retaining recent ones", async () => {
-    const now = Date.now();
+    // Use a "now" guaranteed to be ahead of PocketIC's current clock.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
 
     // Seed an old processed event (8 days ago — outside the 7-day window).
     await pic.setTime(now - 8 * DAY_MS);
@@ -94,7 +96,9 @@ describe("Processed Events Cleanup Runner Unit Tests", () => {
   });
 
   it("should move stale unprocessed events (>1h) to failed", async () => {
-    const now = Date.now();
+    // Use a "now" guaranteed to be ahead of PocketIC's current clock.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
 
     // Enqueue an event 2 hours ago — enqueuedAt is stamped by EventStoreModel
     // as Time.now() = now - 2h via the intake service.
@@ -139,7 +143,9 @@ describe("Processed Events Cleanup Runner Unit Tests", () => {
   });
 
   it("should purge failed events older than 30 days while retaining recent ones", async () => {
-    const now = Date.now();
+    // Use a "now" guaranteed to be ahead of PocketIC's current clock.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
 
     // Seed an old failed event (31 days ago — outside the 30-day window).
     await pic.setTime(now - 31 * DAY_MS);

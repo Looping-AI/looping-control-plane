@@ -1018,7 +1018,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
 
       // pic.setTime() takes milliseconds (number | Date).
       // Set a fixed start time so first-run entries are stamped at this moment.
-      const startTimeMs = Date.now();
+      // Use max(Date.now(), pic.getTime()) + buffer to avoid SettingTimeIntoPast.
+      const picNowMs = await pic.getTime();
+      const startTimeMs = Math.max(Date.now(), picNowMs) + 60_000;
       await pic.setTime(startTimeMs);
       await pic.tick(3);
 

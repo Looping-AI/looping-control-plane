@@ -30,6 +30,7 @@ import { expectOk } from "../../../helpers";
 // ============================================
 
 const DAY_SECS = 24 * 60 * 60;
+const DAY_MS = DAY_SECS * 1000;
 
 describe("Conversation Prune Runner Unit Tests", () => {
   let pic: PocketIc;
@@ -54,7 +55,9 @@ describe("Conversation Prune Runner Unit Tests", () => {
   });
 
   it("should prune messages older than 30 days while retaining recent ones", async () => {
-    const now = Date.now();
+    // Use a "now" guaranteed to be ahead of PocketIC's current clock.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
     const nowSecs = Math.floor(now / 1000);
 
     // ts strings: second-prefix determines age relative to the prune cutoff.
@@ -85,7 +88,9 @@ describe("Conversation Prune Runner Unit Tests", () => {
   });
 
   it("should retain messages within the 30-day window", async () => {
-    const now = Date.now();
+    // Use a "now" guaranteed to be ahead of PocketIC's current clock.
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 60 * DAY_MS;
     const nowSecs = Math.floor(now / 1000);
 
     // 29-day-old message — just inside the retention window.
