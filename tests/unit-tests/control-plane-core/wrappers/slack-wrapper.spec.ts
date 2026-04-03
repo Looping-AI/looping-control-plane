@@ -136,7 +136,9 @@ describe("Slack Wrapper Unit Tests", () => {
       const response = await result;
 
       if ("ok" in response) {
-        const primaryOwners = response.ok.filter((u) => u.isPrimaryOwner);
+        const primaryOwners = response.ok.filter(
+          (u: { isPrimaryOwner: boolean }) => u.isPrimaryOwner,
+        );
         expect(primaryOwners.length).toBe(1);
       } else {
         throw new Error(

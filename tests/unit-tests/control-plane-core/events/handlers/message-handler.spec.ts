@@ -545,11 +545,16 @@ describe("MessageHandler — primary agent resolution", () => {
     expect("ok" in result).toBe(true);
     if ("ok" in result) {
       // Must NOT return primary_agent_skip — the research agent WAS successfully resolved.
-      expect(result.ok.some((s) => s.action === "primary_agent_skip")).toBe(
-        false,
-      );
+      expect(
+        result.ok.some(
+          (s: { action: string }) => s.action === "primary_agent_skip",
+        ),
+      ).toBe(false);
       // The orchestrate stub for #research returns an error step with the expected message.
-      const orchestrateStep = result.ok.find((s) => s.action === "orchestrate");
+      const orchestrateStep = result.ok.find(
+        (s: { action: string; result: { ok: null } | { err: string } }) =>
+          s.action === "orchestrate",
+      );
       expect(orchestrateStep).toBeDefined();
       if (orchestrateStep && "err" in orchestrateStep.result) {
         expect(orchestrateStep.result.err).toContain(
@@ -606,9 +611,11 @@ describe("MessageHandler — primary agent resolution", () => {
     expect("ok" in result).toBe(true);
     if ("ok" in result) {
       // Fallback to admin succeeds — must not see primary_agent_skip.
-      expect(result.ok.some((s) => s.action === "primary_agent_skip")).toBe(
-        false,
-      );
+      expect(
+        result.ok.some(
+          (s: { action: string }) => s.action === "primary_agent_skip",
+        ),
+      ).toBe(false);
     }
   });
 });

@@ -46,7 +46,7 @@ describe("HTTP Request", () => {
 
       // Check that content-type header is present (along with certification headers)
       const contentTypeHeader = response.headers.find(
-        ([key]) => key === "content-type",
+        ([key]: [string, string]) => key === "content-type",
       );
       expect(contentTypeHeader).toEqual(["content-type", "text/plain"]);
 
@@ -85,7 +85,7 @@ describe("HTTP Request", () => {
 
       // Check that content-type header is present (along with certification headers)
       const contentTypeHeader = response.headers.find(
-        ([key]) => key === "content-type",
+        ([key]: [string, string]) => key === "content-type",
       );
       expect(contentTypeHeader).toEqual(["content-type", "text/plain"]);
 
