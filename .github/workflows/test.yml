@@ -43,7 +43,7 @@ jobs:
 
       - name: Setup ICP-CLI
         shell: bash
-        run: npm install -g @icp-sdk/icp-cli@${ICP_CLI_VERSION} @icp-sdk/ic-wasm@${ICP_CLI_VERSION}
+        run: npm install -g @icp-sdk/icp-cli@${ICP_CLI_VERSION} @icp-sdk/ic-wasm@${IC_WASM_VERSION}
 
       - name: Setup DIDC
         shell: bash

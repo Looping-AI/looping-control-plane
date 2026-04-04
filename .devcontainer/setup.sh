@@ -27,7 +27,7 @@ fi
 eval "$PATH_EXPORT"
 
 # 3. Install ICP CLI tooling
-npm install -g @icp-sdk/icp-cli@${ICP_CLI_VERSION} @icp-sdk/ic-wasm@${ICP_CLI_VERSION}
+npm install -g @icp-sdk/icp-cli@${ICP_CLI_VERSION} @icp-sdk/ic-wasm@${IC_WASM_VERSION}
 
 # 4. Install didc (pinned release)
 wget -q "https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64" -O /tmp/didc
