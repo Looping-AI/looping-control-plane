@@ -52,6 +52,7 @@ ICP_CLI_VERSION=0.7.0
 Place this step **after** checkout and **before** any setup steps that use the versions.
 
 2. **Setup Node.js** — use the env var:
+
 ```yaml
 - uses: actions/setup-node@v6
   with:
@@ -59,12 +60,15 @@ Place this step **after** checkout and **before** any setup steps that use the v
 ```
 
 3. **Setup ICP CLI** — use the env var:
+
 ```bash
 npm install -g @icp-sdk/icp-cli@${ICP_CLI_VERSION} @icp-sdk/ic-wasm@${ICP_CLI_VERSION}
 ```
+
 (pin both packages to the same version, or split into separate vars if they diverge)
 
 4. **Setup DIDC** — remove the live GitHub API call; use the env var:
+
 ```bash
 wget https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64
 sudo mv didc-linux64 /usr/local/bin/didc
@@ -72,6 +76,7 @@ sudo chmod +x /usr/local/bin/didc
 ```
 
 5. **Lint Motoko** — use the env var:
+
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/caffeinelabs/lintoko/releases/download/${LINTOKO_VERSION}/lintoko-installer.sh | sh
@@ -101,6 +106,7 @@ source "$REPO_ROOT/versions.env"
 ```
 
 Then replace all hardcoded version strings with the sourced variables:
+
 - `${DIDC_VERSION}` in the didc install block (remove the live API call)
 - `${LINTOKO_VERSION}` in the lintoko install URL
 - `${ICP_CLI_VERSION}` in the npm install command
