@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Load version pins from repo root
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+# shellcheck source=../versions.env
+source "$REPO_ROOT/versions.env"
+
 echo "=== Looping AI devcontainer setup ==="
 
 # 1. Install system dependencies required by this script
@@ -22,11 +27,10 @@ fi
 eval "$PATH_EXPORT"
 
 # 3. Install ICP CLI tooling
-npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm
+npm install -g @icp-sdk/icp-cli@${ICP_CLI_VERSION} @icp-sdk/ic-wasm@${ICP_CLI_VERSION}
 
-# 4. Install didc (latest release)
-VERSION_DIDC=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" | jq -r '.tag_name')
-wget -q "https://github.com/dfinity/candid/releases/download/${VERSION_DIDC}/didc-linux64" -O /tmp/didc
+# 4. Install didc (pinned release)
+wget -q "https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64" -O /tmp/didc
 sudo mv /tmp/didc /usr/local/bin/didc
 sudo chmod +x /usr/local/bin/didc
 
@@ -35,7 +39,7 @@ npm install -g ic-mops
 
 # 6. Install lintoko
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/caffeinelabs/lintoko/releases/download/v0.8.0/lintoko-installer.sh | sh
+  https://github.com/caffeinelabs/lintoko/releases/download/${LINTOKO_VERSION}/lintoko-installer.sh | sh
 
 # 7. Install project dependencies
 bun install --frozen-lockfile

@@ -2,6 +2,8 @@
   "name": "looping-control-plane",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
+    // Node version — keep manually in sync with NODE_VERSION in versions.env
+    // (devcontainer.json does not support shell variable substitution)
     "ghcr.io/devcontainers/features/node:1": { "version": "24" },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
