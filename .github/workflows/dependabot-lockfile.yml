@@ -18,10 +18,13 @@ jobs:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Load version pins
+        run: grep -Ev '^[[:space:]]*(#|$)' versions.env >> "$GITHUB_ENV"
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -29,7 +32,7 @@ jobs:
       - name: Install lintoko
         run: |
           set -euo pipefail
-          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/caffeinelabs/lintoko/releases/download/v0.8.0/lintoko-installer.sh | sh
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/caffeinelabs/lintoko/releases/download/${LINTOKO_VERSION}/lintoko-installer.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Regenerate bun.lock

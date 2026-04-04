@@ -23,10 +23,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Load version pins
+        run: grep -Ev '^[[:space:]]*(#|$)' versions.env >> "$GITHUB_ENV"
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -35,13 +38,11 @@ jobs:
         run: bun install
 
       - name: Setup ICP CLI
-        run: npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm
+        run: npm install -g @icp-sdk/icp-cli@${ICP_CLI_VERSION} @icp-sdk/ic-wasm@${IC_WASM_VERSION}
 
       - name: Setup DIDC
         run: |
-          export VERSION_DIDC=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" \
-            | jq -r '.tag_name')
-          wget https://github.com/dfinity/candid/releases/download/${VERSION_DIDC}/didc-linux64
+          wget https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64
           sudo mv didc-linux64 /usr/local/bin/didc
           sudo chmod +x /usr/local/bin/didc
 
@@ -54,4 +55,4 @@ jobs:
       - name: Install lintoko
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/caffeinelabs/lintoko/releases/download/v0.8.0/lintoko-installer.sh | sh
+            https://github.com/caffeinelabs/lintoko/releases/download/${LINTOKO_VERSION}/lintoko-installer.sh | sh
