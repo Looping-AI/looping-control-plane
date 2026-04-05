@@ -5,7 +5,7 @@ This is a living document. It focuses on design intent, invariants, rationale, a
 ## Purpose
 
 This repo is meant to be forked and adapted to personal or organizational use.
-The long-term goal is an autonomous agent system that behaves like a teammate or coach: it can ingest requests and events, plan work, run tasks via tools/LLMs, measure impact against goals, and manage cost trade-offs.
+The long-term goal is an autonomous multi-agent system that behaves more like a team than a single assistant: a set of specialized agents can ingest requests and events, plan work, run tasks via tools/LLMs, measure impact against goals, and manage cost trade-offs.
 
 This is a **strongly opinionated framework** focused on **Slack as the primary user experience layer**. By inheriting Slack's user management, channel-based permissions, and event-driven security model, the system gains easier onboarding, a more robust security posture, and a simpler authorization model compared to implementing custom user management.
 
@@ -15,19 +15,19 @@ Read until "Core Flows" for a high-level view of what exists today and where the
 
 ## Key Goals
 
-- Keep a small, understandable core that forks can extend.
+- Keep the framework composable and extensible, so teams can adapt it either by forking it or by implementing their own Loops on top of the core.
 - Make authorization and policy explicit at the controller and data classes layers.
-- Make long-running work asynchronous via queued tasks (avoid doing heavy work inside request handlers).
-- Track impact and cost with enough structure to support later attribution and budgeting.
-- Be safe-by-default: secrets encrypted at rest, full verification of event sources, conservative tool access.
-- Slack-first: all write operations originate from Slack; all read operations are gated by short-lived, resource-based auth tokens.
+- Process all webhook events through the event store and queued handler pipeline, rather than handling them inline at ingress.
+- Make agent behavior observable and transparent in Slack threads, so each request can clearly show what actions were taken, what results were returned, what consequences or state changes followed, and how cost was incurred.
+- Track performance and cost with enough structure to support ongoing improvements and optimization.
+- Be safe-by-default: secrets encrypted at rest, HMAC verification of webhook events, conservative tool access, audit logs, non-training LLM subscription providers, etc.
+- Slack-first: all write operations originate from Slack or internal Timers, with a clear "User" that is signing the request; all read operations are gated by short-lived, resource-based auth tokens.
 
 ## Non-Goals (for now)
 
-- Consolidated org billing and complex cost sharing.
-- Multi-canister "enterprise" topology (root/main/frontend) as a requirement.
-- Guaranteed perfect autonomy; humans remain in the loop via goals, policies, and approvals.
-- Comprehensive compliance/regulatory features (these can be fork-specific).
+- Cycles cost and top-ups.
+- Frontend Canister to easily do the read operations, with short-lived tokens.
+- Guaranteed perfect autonomy; humans remain in the loop via goals, preferences in operating procedures, policies, and approvals.
 
 ## System Overview
 
@@ -47,10 +47,10 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 
 ### Target direction (what this architecture file plans for)
 
-- **Multi-source webhook ingress**: The canister accepts writes from Slack (primary), GitHub (codespace lifecycle webhooks), and OpenClaw (agent response webhooks). Each source has its own HMAC-SHA256 signature verification. Slack remains the primary user interaction layer.
-- **Agent execution types**: Two fundamentally different agent modes — `#api` agents run inside the canister calling LLM APIs directly (OpenRouter), while `#runtime(#openClaw)` agents run remotely in GitHub Codespaces via the OpenClaw agent gateway. The canister acts as control plane for both.
-- **GitHub Codespaces integration**: The canister manages codespace lifecycles (create, start, stop, delete) via GitHub's REST API, authenticated through OAuth Device Flow (RFC 8628). One codespace per workspace.
-- **OpenClaw agent delegation**: For `#runtime` agents, the canister sends tasks to an Express sidecar running alongside OpenClaw in the codespace, receives structured JSON responses via webhook, then composes and posts the final Slack reply.
+- **Multi-source webhook ingress**: The canister accepts writes from Slack (primary) and GitHub webhooks (agent session lifecycle and result callbacks). Each source has its own HMAC-SHA256 signature verification. Slack remains the primary user interaction layer.
+- **Agent execution types**: Two fundamentally different agent modes — `#api` agents run inside the canister calling LLM APIs directly (OpenRouter), while `#runtime(#githubCodingAgent)` agents run remotely through GitHub Coding Agents in agent-specific repositories. The canister acts as control plane for both.
+- **GitHub Coding Agent integration**: Each runtime agent maps to its own GitHub repository. The canister triggers agent sessions via GitHub Actions `workflow_dispatch`, tracks session state, and receives signed webhook callbacks with structured results.
+- **GitHub agent delegation**: For `#runtime` agents, the canister dispatches a GitHub Actions workflow run in the agent's repository, receives session results via GitHub webhook, then composes and posts the final Slack reply.
 - **OpenRouter as LLM provider**: The canister's own LLM calls use OpenRouter (replacing Groq). Same OpenAI-compatible API, same model (`openai/gpt-oss-120b`).
 - **Credential cascade**: Secrets resolve through an agent→workspace→org override chain with `#custom(Text)` secret types. Audit trails track all secret stores, deletes, and accesses.
 - Identity and authorization fully derived from Slack: user cache mirroring Slack members, roles derived from channel membership.
@@ -67,7 +67,7 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
   - Controller layer: authentication/authorization/validation, policy checks, and orchestration.
   - Services: deterministic state transitions and reusable business logic.
   - Wrappers: encapsulation of external calls (LLMs/APIs), so integration changes and cross actions live in one place.
-- Verified-source security: all write operations must originate from a verified source — Slack events (HMAC-SHA256 with signing secret), GitHub webhooks (HMAC-SHA256 with webhook secret), or OpenClaw sidecar responses (HMAC-SHA256 with sidecar secret). The canister never trusts a write that doesn't come through a verified webhook signature. Slack remains the primary user interaction layer.
+- Verified-source security: all write operations must originate from a verified source — Slack events (HMAC-SHA256 with signing secret) or GitHub webhooks (HMAC-SHA256 with webhook secret). The canister never trusts a write that doesn't come through a verified webhook signature. Slack remains the primary user interaction layer.
 - "Plan fast, execute later": request handlers should enqueue tasks instead of running long operations.
 - LLMs will use Policies, Tools and Knowledge as a flexible way to execute tasks, and will only code them as they become more frequent and easier to standardize.
 - Have explicit approval flows, guard-rails, for context control, without micro-managing (tool access, spending limits, any other custom approval defined in a Policy).
@@ -123,9 +123,9 @@ A named, configurable entity that uses an LLM with specific tools and skills. Ag
 Agents have one of two execution types:
 
 - **`#api`**: Runs inside the canister. The canister calls LLM APIs directly (OpenRouter), executes tool loops in-canister, and posts replies to Slack. Uses canister-level secrets (e.g., OpenRouter API key). Examples: workspace-admin, work-planning agents.
-- **`#runtime(#openClaw)`**: Runs remotely in a GitHub Codespace via the OpenClaw agent gateway. The canister sends a task to the Express sidecar, receives a structured JSON response via webhook, then composes and posts the final Slack reply. Uses secrets pushed to the codespace via the credential cascade.
+- **`#runtime(#githubCodingAgent)`**: Runs remotely through GitHub Coding Agents in an agent-specific repository. The canister dispatches a workflow run (`workflow_dispatch`) with the session payload, receives a structured result via signed GitHub webhook, then composes and posts the final Slack reply.
 
-The `AgentRouter` branches on execution type before dispatching. The `#runtime` variant is extensible for future runtime types beyond OpenClaw.
+The `AgentRouter` branches on execution type before dispatching. The `#runtime` variant is extensible for future runtime types beyond GitHub Coding Agents.
 
 ### Agent Category (Service)
 
@@ -141,10 +141,10 @@ Text-based rules governing what is allowed or not. Applied at the workspace leve
 
 ### Events
 
-Normalized inbound signals derived from verified external sources (Slack, GitHub, OpenClaw sidecar).
+Normalized inbound signals derived from verified external sources (Slack, GitHub).
 All system state mutations are driven exclusively by Events (or internally scheduled Tasks).
-Each event source has its own HMAC-SHA256 signature verification — Slack uses a signing secret, GitHub uses a webhook secret, and the OpenClaw sidecar uses a per-workspace sidecar secret.
-Slack remains the primary user interaction layer; GitHub and OpenClaw webhooks handle infrastructure lifecycle and agent response delivery respectively.
+Each event source has its own HMAC-SHA256 signature verification — Slack uses a signing secret and GitHub uses a webhook secret.
+Slack remains the primary user interaction layer; GitHub webhooks handle runtime session lifecycle and agent response delivery.
 
 ### Tasks
 
@@ -157,8 +157,7 @@ Queued work items that may involve awaits (LLM calls, tool use, function calling
 All write operations enter the canister through verified webhook endpoints:
 
 - **Slack Events API** (`http_request_update` at `/webhook/slack`): messages, app mentions, channel membership changes, interactive message callbacks. HMAC-SHA256 with Slack signing secret + timestamp replay protection.
-- **GitHub Webhooks** (`http_request_update` at `/github/webhook`): codespace lifecycle events (`created`, `started`, `stopped`, `deleted`). HMAC-SHA256 with `X-Hub-Signature-256` header using a stored GitHub webhook secret.
-- **OpenClaw Webhooks** (`http_request_update` at `/openclaw/webhook`): structured agent response payloads from the Express sidecar. HMAC-SHA256 using the per-workspace `sidecarSecret`.
+- **GitHub Webhooks** (`http_request_update` at `/github/webhook`): workflow lifecycle and runtime agent session result callbacks from GitHub Actions. HMAC-SHA256 with `X-Hub-Signature-256` header using a stored GitHub webhook secret.
 - **Slack API** (outbound HTTP outcalls): the canister calls Slack to post messages, read user lists, and read channel memberships.
 
 No canister `update` methods are exposed for external clients. Each webhook source has its own signature verification as the authentication layer.
@@ -179,8 +178,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 ### Interactions
 
 - **Slack** (primary, implemented): Events API, Web API (`postMessage`, `users.list`, `conversations.list`, `conversations.members`).
-- **GitHub** (planned): Codespaces REST API (create/start/stop/delete), Device Flow OAuth (RFC 8628), webhook delivery for codespace lifecycle events.
-- **OpenClaw Sidecar** (planned): Express server running alongside OpenClaw in each codespace. Endpoints for config push, secret push, agent task trigger, health check. HMAC-SHA256 auth.
+- **GitHub** (planned): GitHub Actions APIs for `workflow_dispatch` session execution, run status APIs, and webhook delivery for agent session lifecycle and result callbacks.
 - **OpenRouter** (planned): OpenAI-compatible chat completions API (replacing Groq). HTTP outcalls for LLM inference.
 - **Slack Interactive Messages** (future): `block_actions` and `view_submission` payloads for configuration and onboarding UX.
 
@@ -205,26 +203,23 @@ This design aligns with security best practices: short-lived tokens, server-side
 4. Multi-turn LLM conversation loop (up to 10 iterations) with function tool calling.
 5. Posts reply to Slack via `SlackWrapper.postMessage` (threaded if original was threaded).
 
-### Agent talk flow — `#runtime(#openClaw)` execution (planned)
+### Agent talk flow — `#runtime(#githubCodingAgent)` execution (planned)
 
-1. Message handler receives a normalized message event referencing a `#runtime(#openClaw)` agent.
-2. Resolves the workspace's codespace and sidecar URL from `CodespacesState`.
-3. Resolves secrets via credential cascade, sends task to sidecar via `POST /agent/run` (HMAC-signed).
-4. Sidecar forwards task to OpenClaw's `/hooks/agent` endpoint.
-5. OpenClaw executes the agent (with its own tools, sandbox, model) and returns result to sidecar.
-6. Sidecar posts structured JSON response to canister's `/openclaw/webhook` endpoint (HMAC-signed).
-7. Canister correlates `requestId`, injects response into the LLM conversation context.
-8. Canister's own LLM composes the final Slack reply and posts it.
+1. Message handler receives a normalized message event referencing a `#runtime(#githubCodingAgent)` agent.
+2. Resolves the agent's GitHub repository and workflow from agent runtime configuration.
+3. Resolves required secrets via credential cascade and prepares a signed session payload.
+4. Canister triggers `workflow_dispatch` in the agent repository via GitHub API.
+5. GitHub Actions runs the session in the agent repo and emits lifecycle events.
+6. GitHub posts a signed webhook callback with structured session result payload to `/github/webhook`.
+7. Canister correlates `requestId/sessionId`, injects response into the conversation context.
+8. Canister composes the final Slack reply and posts it.
 
-### Codespace lifecycle flow (planned)
+### Agent repository binding flow (planned)
 
-1. Workspace admin requests codespace creation via `#admin` agent tool.
-2. Canister calls GitHub Codespaces API (`POST /user/codespaces`) using the workspace's stored GitHub token.
-3. GitHub creates the codespace from the OpenClaw template repo (cheapest 2-core machine).
-4. GitHub sends a `codespaces` webhook to `/github/webhook` with `action: created`.
-5. Canister updates `CodespaceRecord.status` to `#creating`, then `#running` when `started` webhook arrives.
-6. Canister generates a `sidecarSecret`, stores it in `CodespaceRecord`, and pushes it to the sidecar.
-7. Sidecar is now ready to receive config and task requests.
+1. Workspace admin configures a runtime agent with repository metadata (owner/repo, workflow file/ref, branch/ref constraints).
+2. Canister validates repository reachability and workflow availability through GitHub API.
+3. Canister stores runtime configuration in the agent record (`#runtime(#githubCodingAgent)` config).
+4. Future sessions for that agent dispatch only to that configured repository/workflow.
 
 ### Agent-to-agent delegation (planned)
 
@@ -289,8 +284,8 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId, memberChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`. Backed by `SlackUserModel`.
-- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, executionType: #api | #runtime(#openClaw({ openClawVersion })), workspaceId, llmModel, secretsAllowed: [(workspaceId, SecretId)], secretMappings: [(Text, SecretId)], invocationScope: #membersOnly | #orgWide, toolsAllowed, toolsState: Map<Text, ToolState>, usageStats, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
-- **Codespace store**: `Map<workspaceId, CodespaceRecord>` where `CodespaceRecord = { workspaceId, codespaceName, repoFullName, status: #creating | #running | #stopped | #deleted | #unknown, sidecarUrl, sidecarSecret, createdAt, lastHealthCheck }`. One codespace per workspace. File: `src/control-plane-core/models/codespace-model.mo` (new).
+- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, executionType: #api | #runtime(#githubCodingAgent({ repoFullName, workflowId, ref })), workspaceId, llmModel, secretsAllowed: [(workspaceId, SecretId)], secretMappings: [(Text, SecretId)], invocationScope: #membersOnly | #orgWide, toolsAllowed, toolsState: Map<Text, ToolState>, usageStats, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
+- **GitHub runtime session store**: `Map<sessionId, GithubAgentSessionRecord>` where `GithubAgentSessionRecord = { sessionId, agentId, repoFullName, workflowId, runId: ?Nat64, status: #queued | #running | #succeeded | #failed | #cancelled | #unknown, requestId, startedAt, completedAt, lastWebhookAt, lastError }`. Tracks remote execution lifecycle and callback correlation. File: `src/control-plane-core/models/github-agent-session-model.mo` (new).
 - **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace. Includes `#custom(Text)` secret types for flexible credential mapping. Per-workspace audit state: `SecretAuditState = { changeLog: List<SecretChangeEntry>, accessLog: List<SecretAccessEntry> }` tracking stores, deletes, and accesses with timestamps and sources.
@@ -376,7 +371,7 @@ Agents are stored in a persistent registry with dual indexes (`agentsById: Map<N
 - `id`: stable unique numeric identifier, assigned by the registry on registration.
 - `name`: kebab-case identifier, must be unique and match the `::name` syntax. Stored lower-cased; lookups are case-insensitive.
 - `category`: which agent category/service handles this agent (e.g., `#admin`, `#planning`, `#research`, `#communication`).
-- `executionType`: determines how the agent runs — `#api` (in-canister, calls LLM directly) or `#runtime(#openClaw({ openClawVersion }))` (remote, via codespace sidecar). See "Agent Execution Type" in Core Concepts.
+- `executionType`: determines how the agent runs — `#api` (in-canister, calls LLM directly) or `#runtime(#githubCodingAgent({ repoFullName, workflowId, ref }))` (remote, via GitHub Actions workflow dispatch). See "Agent Execution Type" in Core Concepts.
 - `workspaceId`: which workspace this agent belongs to. Scopes ownership and secret access.
 - `llmModel`: the LLM provider and model to use (e.g., `#openRouter(#gpt_oss_120b)`).
 - `secretsAllowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent is permitted to access. The agent service must check this list before decrypting any secret.
@@ -414,7 +409,7 @@ Each agent category defines a service class that handles execution:
 **Phased implementation:**
 
 - **v0.2**: Agent registry, `::` routing, admin and planning agent services, Slack-only write surface.
-- **v0.3**: Agent execution types (`#api` / `#runtime`), OpenRouter migration, GitHub Codespaces + OpenClaw integration, credential cascade, secrets hardening.
+- **v0.5**: Agent execution types (`#api` / `#runtime`), OpenRouter migration, GitHub Coding Agent integration via Actions + webhooks, credential cascade, secrets hardening.
 - **Future**: Full pluggable agent framework, interactive Slack messages, auth tokens, cost optimization.
 
 ### Agent routing and round control
@@ -524,8 +519,8 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 ### Planned
 
 - **OpenRouterWrapper**: OpenAI-compatible chat completions via OpenRouter (replacing `groq-wrapper.mo`). Same request/response types, updated URL (`openrouter.ai/api/v1`) and headers (`HTTP-Referer`, `X-Title`).
-- **GitHubWrapper**: HTTP outcalls for GitHub Device Flow OAuth and Codespaces REST API (create, start, stop, delete, get, list codespaces).
-- **SidecarWrapper**: HTTP outcalls to the Express sidecar in each codespace — config push (`/config/agents`, `/config/secrets`, `/config/reload`), agent task trigger (`/agent/run`), health check (`/health`). All requests HMAC-SHA256 signed with the workspace's `sidecarSecret`.
+- **GitHubWrapper**: HTTP outcalls for workflow dispatch, workflow/run status queries, and repository metadata validation for runtime agents.
+- **GitHubWebhookAdapter**: verifies and normalizes GitHub Actions lifecycle/result webhooks into internal events for session correlation.
 - **SlackWrapper expansion**: add private internal functions matching Slack API method names (`users_list()`, `conversations_list()`, `conversations_members()`), with parameters aligned to Slack's API. Public higher-level functions (e.g., `getWorkspaceMembers()`, `listChannels()`) wrap these for use by internal services. Adapter pattern: the wrapper is the single boundary for all Slack API I/O.
 - **Tool scoping**: tools have access level requirements (`org`, `team`, `admin`). Enforcement happens at the Agent Router level by comparing the tool's required level against the `userAuthContext`.
 - **Category tools**: each agent category service defines a `category_tools` array of tool enum variants. Agents within the category configure `toolsAllowed` (a subset) and `toolsState` (per-tool runtime data).
@@ -541,7 +536,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
 - Providers are represented by a tagged enum (`LlmProvider = #openRouter`). See [src/control-plane-core/types.mo](src/control-plane-core/types.mo).
 - **OpenRouter** is the canister's LLM provider (replacing Groq). Same OpenAI-compatible API surface, same model (`openai/gpt-oss-120b` via Groq provider on OpenRouter). URL: `openrouter.ai/api/v1`.
-- **Anthropic** keys are used by OpenClaw agents only (pushed to codespace via credential cascade). The canister itself never calls Anthropic directly.
+- **Runtime-agent model execution** happens inside GitHub Coding Agent sessions. The canister receives results via webhook and does not call those runtime models directly.
 - Wrappers isolate HTTP request/response formatting, headers, retries, and error mapping.
 
 Wrappers live in: [src/control-plane-core/wrappers](src/control-plane-core/wrappers)
@@ -589,6 +584,10 @@ Pattern follows `SlackUserModel`'s `AccessChangeLog` (source-tagged, retention-b
 
 - Append-only audit log for admin actions (bounded).
 - Session tracking provides full delegation chain visibility.
+- Slack thread trace is the primary human-facing execution log for a session, not a separate operator-only surface.
+- Each session should be able to expose its full step-by-step trace in Slack: which agent acted, which tools or sub-actions ran, what came back, what changed because of it, and where cost was incurred.
+- The Slack UX may collapse or de-emphasize repeated, well-understood flows, but the full session trace should remain expandable via attachments or "show more" patterns.
+- Rich Slack traceability is part of correct operation, not just debugging support: it helps humans learn the agent's way of solving problems, suggest safer or more efficient alternatives, diagnose bugs, and understand cost outliers.
 - Counters for:
   - tasks queued/running/succeeded/failed
   - provider calls (by provider/model)
@@ -662,19 +661,19 @@ See:
 - **Session**: a tracking record linking a Slack message ID to the agent and user auth context that produced it.
 - **Agent**: a named, configurable LLM entity with specific tools, skills, and a know-how base.
 - **Agent Category**: a class of agent behavior (admin, research, communication, coding) with a shared tool set definition.
-- **Agent Execution Type**: `#api` (runs in-canister via OpenRouter) or `#runtime(#openClaw)` (delegated to an OpenClaw instance in a codespace).
+- **Agent Execution Type**: `#api` (runs in-canister via OpenRouter) or `#runtime(#githubCodingAgent)` (delegated to a GitHub Coding Agent session via Actions workflow dispatch).
 - **Agent Router**: the dispatcher that selects the appropriate agent service and enforces round limits.
 - **Policy**: declarative constraints over tasks, tools, budgets, and permissions.
 - **Task**: queued work item executed asynchronously.
-- **Event**: normalized inbound signal from Slack, GitHub, or OpenClaw.
+- **Event**: normalized inbound signal from Slack or GitHub.
 - **SlackWrapper**: the adapter boundary for all Slack API I/O (both inbound parsing and outbound calls).
 - **`::` syntax**: the prefix notation (`::agentname`) for referencing agents in Slack messages.
-- **Codespace**: a GitHub-managed VM (one per workspace) that runs the Express sidecar and, optionally, an OpenClaw agent gateway.
-- **Express Sidecar**: a lightweight Node.js server inside each codespace receiving HMAC-signed requests from the canister. Manages OpenClaw config, secret injection, health checks.
-- **OpenClaw**: an open-source AI agent gateway (Node.js) for multi-agent orchestration. Runs inside the codespace, configured via JSON5.
+- **GitHub Coding Agent**: a remote runtime that executes agent sessions inside an agent-specific GitHub repository.
+- **GitHub Agent Session**: one remote execution run triggered via `workflow_dispatch`, correlated back to canister session state through GitHub webhook callbacks.
+- **Agent Repository**: the dedicated GitHub repository where a runtime agent's implementation and workflow live.
 - **OpenRouter**: the LLM provider replacing Groq. OpenAI-compatible API at `openrouter.ai/api/v1`.
 - **Credential Cascade**: a three-level secret resolution chain — agent → workspace → org — allowing overrides at each scope.
-- **Device Flow**: RFC 8628 OAuth flow used for GitHub authentication from the canister (no redirect URI needed).
+- **Workflow Dispatch**: GitHub Actions trigger used by the canister to start a runtime agent session with structured inputs.
 
 ## Open Questions
 
@@ -683,5 +682,5 @@ See:
 - How should the progressive cost classifier (after round 10) be calibrated? What thresholds define "worth the cost"?
 - What is the retention policy for session records?
 - Should the bot support Slack threads as separate conversation contexts, or always scope conversations to the top-level message?
-- How should codespace idle timeout be managed — canister-side timer, GitHub auto-stop, or both?
-- What is the reconciliation strategy when a codespace is destroyed externally (e.g., user deletes via GitHub UI)?
+- What concurrency and timeout policies should govern GitHub Coding Agent sessions per workspace/agent?
+- What is the reconciliation strategy when an agent repository/workflow is changed or deleted outside the control plane?
