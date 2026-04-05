@@ -41,7 +41,11 @@ Read until "Core Flows" for a high-level view of what exists today and where the
 - Tool infrastructure: static function tool registry (resource-gated) and dynamic MCP tool registry.
 - Metrics, value streams, and objectives models (org-level metrics, workspace-scoped value streams/objectives).
 - API keys and secrets encrypted at rest using workspace-scoped derived keys (ICP Threshold Schnorr).
-- LLM provider integration via HTTP outcalls (migrating from Groq to OpenRouter).
+- LLM provider integration via HTTP outcalls (OpenRouter).
+- Credential cascade implemented in secrets model: agent override (`secretOverrides`) -> workspace -> org fallback, with access audit logging.
+- Identity and authorization derived from Slack, with workspace administration anchored on admin channels.
+- Agent registry with `::` routing and category-based dispatch via Agent Router.
+- Session tracking linking Slack message IDs to user auth context and agent execution context.
 
 Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
@@ -51,13 +55,9 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 - **Agent execution types**: Two fundamentally different agent modes — `#api` agents run inside the canister calling LLM APIs directly (OpenRouter), while `#runtime(#githubCodingAgent)` agents run remotely through GitHub Coding Agents in agent-specific repositories. The canister acts as control plane for both.
 - **GitHub Coding Agent integration**: Each runtime agent maps to its own GitHub repository. The canister triggers agent sessions via GitHub Actions `workflow_dispatch`, tracks session state, and receives signed webhook callbacks with structured results.
 - **GitHub agent delegation**: For `#runtime` agents, the canister dispatches a GitHub Actions workflow run in the agent's repository, receives session results via GitHub webhook, then composes and posts the final Slack reply.
-- **OpenRouter as LLM provider**: The canister's own LLM calls use OpenRouter (replacing Groq). Same OpenAI-compatible API, same model (`openai/gpt-oss-120b`).
-- **Credential cascade**: Secrets resolve through an agent→workspace→org override chain with `#custom(Text)` secret types. Audit trails track all secret stores, deletes, and accesses.
-- Identity and authorization fully derived from Slack: user cache mirroring Slack members, roles derived from channel membership.
-- Workspace model with channel-based scoping: each workspace maps to an admin channel and a member channel.
-- Agent registry with `::` reference syntax enabling agent-to-agent delegation through Slack messages.
-- Agent Router dispatching to category-specific agent services, each with scoped tools and skills.
-- Session tracking linking Slack message IDs to user auth context and agent execution state.
+- **Admin-channel-only workspace model**: each workspace is anchored by an admin channel. The member-channel concept and workspace member role are removed from the target model.
+- **Agent channel allowlist**: each agent has an explicit list of Slack channels where it is allowed to run. Agents are still configured from the workspace admin channel, but execution is gated by this per-agent allowlist.
+- **Out-of-allowlist behavior**: when an agent is referenced outside its allowed channels, execution is blocked and the bot posts an automatic warning describing allowed channels and instructing users to contact a workspace admin to update the allowlist.
 - Read-only external access via resource-based, short-lived (1h) auth tokens generated within the canister (future).
 - Interactive Messages (block actions, view submissions) for configuration and onboarding flows (future).
 
@@ -89,7 +89,8 @@ A unit of policy, goals, knowledge, and shared state. Each workspace maps to:
 - `id`: unique numeric identifier (0 = the org workspace, always exists).
 - `name`: human-readable name.
 - `adminChannelId`: Slack channel ID whose members are workspace admins.
-- `memberChannelId`: Slack channel ID whose members are workspace members.
+
+Target model note: workspaces no longer define a member channel. Agent execution access is controlled by per-agent Slack channel allowlists.
 
 ### User Auth Context
 
@@ -98,7 +99,7 @@ The resolved identity and permissions of the user who initiated a request. Built
 - `slackUserId`: the Slack user ID.
 - `isPrimaryOwner`: whether this user is the Slack Primary Owner.
 - `isOrgAdmin`: whether this user is a member of `#looping-ai-org-admins`.
-- `workspaceScopes`: per-workspace access level — `Map<workspaceId, #admin | #member>`. Only contains workspaces where the user has membership.
+- `workspaceScopes`: per-workspace admin scope — `Map<workspaceId, #admin>`. In the simplified target model there is no workspace `#member` role.
 - `roundCount`: how many agent routing rounds have occurred for this request chain.
 - `forceTerminated`: whether the router has determined this chain should stop.
 
@@ -168,7 +169,7 @@ All external read access requires a **resource-based, read-only, short-lived (1h
 
 - Tokens are generated inside the canister, triggered by a Slack command from the user.
 - Token generation is logged for any future access audit.
-- Each token maps to `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry }`.
+- Each token maps to `{ slackUserId, isOrgAdmin, workspaceAdminScopes: [workspaceId], resourceScope, expiry }`.
 - Query methods validate the token, check expiry, and return scoped data.
 - Token storage is persistent, short-lived (1h) and cleaned up on a weekly Timer.
 - No sensitive or personal data is exposed — only aggregated stats and summaries scoped to the token's access level.
@@ -179,7 +180,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 - **Slack** (primary, implemented): Events API, Web API (`postMessage`, `users.list`, `conversations.list`, `conversations.members`).
 - **GitHub** (planned): GitHub Actions APIs for `workflow_dispatch` session execution, run status APIs, and webhook delivery for agent session lifecycle and result callbacks.
-- **OpenRouter** (planned): OpenAI-compatible chat completions API (replacing Groq). HTTP outcalls for LLM inference.
+- **OpenRouter** (implemented): OpenAI-compatible chat completions API used by canister `#api` agents. HTTP outcalls for LLM inference.
 - **Slack Interactive Messages** (future): `block_actions` and `view_submission` payloads for configuration and onboarding UX.
 
 ## Core Flows
@@ -238,7 +239,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 1. User sends a DM to the bot requesting access (e.g., a command or prompted text).
 2. Bot resolves user's `userAuthContext` from the Slack user cache.
-3. Bot generates a resource-based, read-only token inside the canister using the resolved `SlackUserEntry`. Stores `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry: now + 1h }`.
+3. Bot generates a resource-based, read-only token inside the canister using the resolved `SlackUserEntry`. Stores `{ slackUserId, isOrgAdmin, workspaceAdminScopes: [workspaceId], resourceScope, expiry: now + 1h }`.
 4. Bot replies in the DM with the token (or a link containing it).
 5. External client (frontend) uses the token to call query methods.
 6. Frontend may provide an easy-to-copy Slack prompt so users can request new tokens when they expire.
@@ -259,9 +260,9 @@ This design aligns with security best practices: short-lived tokens, server-side
 ### Workspace onboarding (planned)
 
 1. An org admin in `#looping-ai-org-admins` requests to create a new workspace.
-2. Bot presents an interactive message: workspace name, selection of channels (public or private where bot has access) for admin and member channels, or manual channel ID entry.
+2. Bot presents an interactive message: workspace name and selection of the admin channel (public or private where bot has access), or manual channel ID entry.
 3. If the selected channel is not accessible, the bot guides the user to run `/invite @looping` in that channel first.
-4. Bot creates the workspace record and populates the user cache with the channel members' roles.
+4. Bot creates the workspace record and enables agent configuration from that admin channel (including per-agent channel allowlists).
 
 ## State Model
 
@@ -282,12 +283,12 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 
 ### Target persistent state
 
-- **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId, memberChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
-- **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceMemberships: [(workspaceId, #admin | #member)] }`. Backed by `SlackUserModel`.
-- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, executionType: #api | #runtime(#githubCodingAgent({ repoFullName, workflowId, ref })), workspaceId, llmModel, secretsAllowed: [(workspaceId, SecretId)], secretMappings: [(Text, SecretId)], invocationScope: #membersOnly | #orgWide, toolsAllowed, toolsState: Map<Text, ToolState>, usageStats, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
+- **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
+- **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceAdminScopes: [workspaceId] }`. Backed by `SlackUserModel`.
+- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, executionType: #api | #runtime(#githubCodingAgent({ repoFullName, workflowId, ref })), workspaceId, llmModel, allowedChannelIds: [Text], secretsAllowed: [(workspaceId, SecretId)], secretOverrides: [(SecretId, Text)], toolsAllowed, toolsState: Map<Text, ToolState>, usageStats, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
 - **GitHub runtime session store**: `Map<sessionId, GithubAgentSessionRecord>` where `GithubAgentSessionRecord = { sessionId, agentId, repoFullName, workflowId, runId: ?Nat64, status: #queued | #running | #succeeded | #failed | #cancelled | #unknown, requestId, startedAt, completedAt, lastWebhookAt, lastError }`. Tracks remote execution lifecycle and callback correlation. File: `src/control-plane-core/models/github-agent-session-model.mo` (new).
 - **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.
-- **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceScopes: Map<workspaceId, #admin | #member>, resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
+- **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceAdminScopes: [workspaceId], resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace. Includes `#custom(Text)` secret types for flexible credential mapping. Per-workspace audit state: `SecretAuditState = { changeLog: List<SecretChangeEntry>, accessLog: List<SecretAccessEntry> }` tracking stores, deletes, and accesses with timestamps and sources.
 - **Conversations**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/control-plane-core/models/conversation-model.mo](src/control-plane-core/models/conversation-model.mo) for the `ConversationStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
 - **Event store**: event lifecycle with timer dispatch (existing, retained).
@@ -307,7 +308,6 @@ The canister does not manage its own user accounts. All identity is derived from
 - **Primary Owner**: the Slack user with `is_primary_owner: true` in `users.list`. Has ultimate administrative authority. Recovery flows (e.g., lost org admin channel) are directed to this user via DM.
 - **Org Admin**: a member of the `#looping-ai-org-admins` channel, identified by channel ID.
 - **Workspace Admin**: a member of a workspace's designated admin channel.
-- **Workspace Member**: a member of a workspace's designated member channel.
 
 ### SlackAuthMiddleware
 
@@ -335,7 +335,7 @@ All authorization decisions are based on the `UserAuthContext`, not on IC caller
 - Also verifies all tracked channel IDs still exist:
   - **Org admin channel**: follows its own recovery rules (see "App install and setup flow").
   - **Workspace admin channel gone**: notify `#looping-ai-org-admins`, request that an org admin assigns a new admin channel or requests workspace deletion.
-  - **Workspace member channel gone**: notify that workspace's admin channel, request that a workspace admin assigns a new member channel.
+  - **Agent allowlist drift**: detect channels that no longer exist or are no longer accessible and notify workspace admins to repair affected agent allowlists.
 
 ### Access scoping on models and tools
 
@@ -359,7 +359,7 @@ No individual access configuration is allowed. If truly needed, the org admin ca
 The access level is always determined by the **user** who wrote the original message, regardless of which channel the message was sent in. When an agent replies:
 
 - If the reply contains data that required a higher access level than the current channel's scope, the bot sends a **generic safe acknowledgement** in the original channel.
-- The **detailed reply** is delivered in the user's DM, or the appropriate scoped channel (admin channel or member channel).
+- The **detailed reply** is delivered in the user's DM, or the appropriate scoped admin/allowed channel.
 - This split-reply behavior is determined after the LLM generates its response, by inspecting the processing steps to see if a higher scope was accessed.
 
 ## Agent System
@@ -374,9 +374,9 @@ Agents are stored in a persistent registry with dual indexes (`agentsById: Map<N
 - `executionType`: determines how the agent runs — `#api` (in-canister, calls LLM directly) or `#runtime(#githubCodingAgent({ repoFullName, workflowId, ref }))` (remote, via GitHub Actions workflow dispatch). See "Agent Execution Type" in Core Concepts.
 - `workspaceId`: which workspace this agent belongs to. Scopes ownership and secret access.
 - `llmModel`: the LLM provider and model to use (e.g., `#openRouter(#gpt_oss_120b)`).
+- `allowedChannelIds`: explicit Slack channel allowlist for agent execution. If a message references the agent outside this list, execution is blocked with an automatic warning.
 - `secretsAllowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent is permitted to access. The agent service must check this list before decrypting any secret.
-- `secretMappings`: `[(customSecretName: Text, targetSecretId: SecretId)]` — allows overriding which secret an agent uses for a given purpose (part of the credential cascade).
-- `invocationScope`: `#membersOnly` (agent only responds in workspace channels) or `#orgWide` (agent responds in any channel).
+- `secretOverrides`: `[(targetSecretId: SecretId, customSecretName: Text)]` — when resolving `targetSecretId`, the model first checks `#custom(customSecretName)` in the agent workspace before standard workspace/org fallback (credential cascade).
 - `toolsAllowed`: subset of the category's `category_tools` that this agent is permitted to use.
 - `toolsState`: per-tool runtime state (`Map<Text, ToolState>`):
   - `usageCount`: how many times this tool has been invoked by this agent.
@@ -409,7 +409,7 @@ Each agent category defines a service class that handles execution:
 **Phased implementation:**
 
 - **v0.2**: Agent registry, `::` routing, admin and planning agent services, Slack-only write surface.
-- **v0.5**: Agent execution types (`#api` / `#runtime`), OpenRouter migration, GitHub Coding Agent integration via Actions + webhooks, credential cascade, secrets hardening.
+- **v0.5**: Agent execution types (`#api` / `#runtime`), GitHub Coding Agent integration via Actions + webhooks, credential cascade, secrets hardening.
 - **Future**: Full pluggable agent framework, interactive Slack messages, auth tokens, cost optimization.
 
 ### Agent routing and round control
@@ -420,6 +420,7 @@ The **Agent Router** sits between the event router and agent services.
 
 - The message must contain at least one **valid `::agentname` reference** — resolved against the agent registry at dispatch time. If no valid reference is found (e.g., the reference doesn't match any registered agent), the event is **discarded/skipped**. This prevents orphaned or malformed inter-agent messages from entering the routing loop.
 - `userAuthContext.forceTerminated` must be `false`. If true, the event is **discarded/skipped** without invoking any agent service.
+- The Slack channel must be present in the referenced agent's `allowedChannelIds`. If not, the router posts a warning with the allowed channels and skips execution.
 
 Both conditions are checked at the event router level, before the Agent Router hands off to a category service.
 
@@ -535,7 +536,8 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 ## LLM Providers and Wrappers
 
 - Providers are represented by a tagged enum (`LlmProvider = #openRouter`). See [src/control-plane-core/types.mo](src/control-plane-core/types.mo).
-- **OpenRouter** is the canister's LLM provider (replacing Groq). Same OpenAI-compatible API surface, same model (`openai/gpt-oss-120b` via Groq provider on OpenRouter). URL: `openrouter.ai/api/v1`.
+- **OpenRouter** is the canister's current LLM provider. Same OpenAI-compatible API surface, same model (`openai/gpt-oss-120b` via Groq provider on OpenRouter). URL: `openrouter.ai/api/v1`.
+- Be aware that OpenRouter allows to **BYOK** (Bring Your Own Keys) for free up to 1M calls a month. Therefore **no need to set specific API providers inside our repo**.
 - **Runtime-agent model execution** happens inside GitHub Coding Agent sessions. The canister receives results via webhook and does not call those runtime models directly.
 - Wrappers isolate HTTP request/response formatting, headers, retries, and error mapping.
 
@@ -558,11 +560,11 @@ Deep dive entrypoints:
 
 Secrets resolve through a three-level override chain:
 
-1. **Agent-level**: Check the agent's `secretMappings` for a mapped custom secret in the agent's workspace.
+1. **Agent-level**: Check the agent's `secretOverrides` for `(targetSecretId, customSecretName)` and then resolve `#custom(customSecretName)` in the agent's workspace.
 2. **Workspace-level**: Check the agent's workspace for the standard secret ID.
 3. **Org-level**: Fall back to org workspace (ws 0) for the standard secret ID.
 
-This is a pure function: `resolveSecret(agent, workspaceId, targetSecretId, secretsMap, encryptionKeys) → ?Text`. Implemented in `services/credential-resolver-service.mo`.
+This is implemented in [src/control-plane-core/models/secret-model.mo](src/control-plane-core/models/secret-model.mo) via `resolveSecret(state, agent, workspaceId, targetSecretId, workspaceKey, orgKey, requester) -> ?Text`.
 
 ### Audit Trails
 
@@ -656,7 +658,7 @@ See:
 
 ## Glossary
 
-- **Workspace**: a unit of policy, access, budget, and goals, mapped to a pair of Slack channels (admin + member).
+- **Workspace**: a unit of policy, access, budget, and goals, anchored by an admin channel.
 - **UserAuthContext**: resolved identity and permissions of the human user, derived from Slack, carried through agent delegations.
 - **Session**: a tracking record linking a Slack message ID to the agent and user auth context that produced it.
 - **Agent**: a named, configurable LLM entity with specific tools, skills, and a know-how base.
@@ -671,9 +673,10 @@ See:
 - **GitHub Coding Agent**: a remote runtime that executes agent sessions inside an agent-specific GitHub repository.
 - **GitHub Agent Session**: one remote execution run triggered via `workflow_dispatch`, correlated back to canister session state through GitHub webhook callbacks.
 - **Agent Repository**: the dedicated GitHub repository where a runtime agent's implementation and workflow live.
-- **OpenRouter**: the LLM provider replacing Groq. OpenAI-compatible API at `openrouter.ai/api/v1`.
+- **OpenRouter**: the current canister LLM provider. OpenAI-compatible API at `openrouter.ai/api/v1`.
 - **Credential Cascade**: a three-level secret resolution chain — agent → workspace → org — allowing overrides at each scope.
 - **Workflow Dispatch**: GitHub Actions trigger used by the canister to start a runtime agent session with structured inputs.
+- **Agent Channel Allowlist**: per-agent list of Slack channels where the agent is allowed to execute.
 
 ## Open Questions
 
