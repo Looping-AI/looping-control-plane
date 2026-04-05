@@ -58,23 +58,34 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 - **Admin-channel-only workspace model**: each workspace is anchored by an admin channel. The member-channel concept and workspace member role are removed from the target model.
 - **Agent channel allowlist**: each agent has an explicit list of Slack channels where it is allowed to run. Agents are still configured from the workspace admin channel, but execution is gated by this per-agent allowlist.
 - **Out-of-allowlist behavior**: when an agent is referenced outside its allowed channels, execution is blocked and the bot posts an automatic warning describing allowed channels and instructing users to contact a workspace admin to update the allowlist.
+- **Process Engine (Loop Engine)**: the core execution model for this control plane. All agent invocations, multi-turn LLM conversations, and delegation chains are modelled as processes. `LoopEngine.step(process, event) → [Effect]` is a pure function; the Effect Applicator executes the resulting effects.
+- **Effect-driven execution**: the only mechanism for side effects is the effect list returned by a process step — `StateWrite`, `SlackPost`, `EventEmit`, `ProcessSuspend`. Process logic never writes state or does POST calls to external APIs directly.
+- **Channel History**: timeline of Slack messages per channel, optimized for append operations. The source material for building agent context; separate from agent memory. Slack message-edit events can mutate past entries, so the structure needs to support retroactive updates without assuming strict immutability.
+- **Agent Session**: one per agent, spanning all channels the agent is invited to. The Agent Session is the persistent memory context for that agent — it accumulates channel history entries from every channel the agent participates in, tagged with channel ID, user, and timestamp. On each `Process.step`, the session is dynamically constructed from this multi-channel history, compacted to fit the context window, and injected into the LLM prompt. Compaction and pruning happen within the Agent Session, not per-channel.
+- **Store**: a file-like key-value store (`filename: Text`, `content: Text`) used to persist structured agent knowledge — `USER.md`, `AGENTS.md`, `SOUL.md`, task logs, configuration files, etc. In the Agent Runner, Store entries map directly to git-tracked files.
+- **Skills system**: versioned, composable agent capabilities in an `npx`-style registry. Skills bundle prompt templates, tool configurations, MCP setup scripts, and knowledge documents. Refined regularly; passed to the Agent Runner at session start for installation.
+- **Hierarchical credential management**: org (shared) → workspace (shared) → agent (individual), with multi-layered protection: audit logging, message/prompt scanning for unintended secret exposure, and environment-variable isolation in the runner.
+- **Agent Runner scope boundary**: runtime agent execution (Copilot session, tool use, file operations) lives in a dedicated GitHub repository. The control plane dispatches sessions, tracks state, and receives results — it does not contain the runner implementation.
 - Read-only external access via resource-based, short-lived (1h) auth tokens generated within the canister (future).
 - Interactive Messages (block actions, view submissions) for configuration and onboarding flows (future).
 
 ## Architecture Principles
 
-- Separation of concerns:
-  - Controller layer: authentication/authorization/validation, policy checks, and orchestration.
-  - Services: deterministic state transitions and reusable business logic.
-  - Wrappers: encapsulation of external calls (LLMs/APIs), so integration changes and cross actions live in one place.
+- Separation of concerns (control plane layers):
+  - **Ingress layer**: verify HMAC signatures, normalize raw webhook payloads into typed events, and enqueue for dispatch. No business logic; pure parsing and validation.
+  - **Event Dispatch**: claim events from the queue and route by `event.type` to the appropriate process handler.
+  - **Process Engine (Loop Engine)**: pure functional step model — `Process.step(process, event) → [Effect]`. A process is a stateful, multi-step computation driven by events; each step is a pure function returning a list of effects. Process logic is deterministic, composable, and testable in isolation.
+  - **Effect Applicator**: executes the effects returned by the Process Engine. Effect types: `StateWrite` (persist state), `SlackPost` (post a Slack message), `EventEmit` (schedule an immediate or delayed event), `ProcessSuspend` (park the process until a future event arrives). All side effects are concentrated here.
+  - **Controller layer**: authentication/authorization/validation and policy checks at the canister update boundary. Guard rails live here, not inside process logic.
+  - **Wrappers**: encapsulation of external API calls (Slack, GitHub, LLM providers). Called by the Effect Applicator; keeps effect handling free of raw HTTP details.
 - Verified-source security: all write operations must originate from a verified source — Slack events (HMAC-SHA256 with signing secret) or GitHub webhooks (HMAC-SHA256 with webhook secret). The canister never trusts a write that doesn't come through a verified webhook signature. Slack remains the primary user interaction layer.
-- "Plan fast, execute later": request handlers should enqueue tasks instead of running long operations.
+- "Enqueue, step, emit": request handlers enqueue events; the Process Engine steps over them and emits effects. No long-running work happens inline at ingress.
 - LLMs will use Policies, Tools and Knowledge as a flexible way to execute tasks, and will only code them as they become more frequent and easier to standardize.
 - Have explicit approval flows, guard-rails, for context control, without micro-managing (tool access, spending limits, any other custom approval defined in a Policy).
 - Mixture of agents is desired as a strategy (Lower input/context window, easier A/B testing for cost/quality optimizing, lower risk on model upgrading).
 - Auditable: the system should be auditable (events, session tracking, and conversation history).
 - Avoid LLM Obedience: be resilient to prompt injection and spoofed events (Through Slack signature verification, data classes, and policies).
-- Agent isolation: an agent service must never directly invoke another agent service. Inter-agent communication always flows through a Slack `postMessage` that triggers a new event, ensuring every hop is auditable and budget-checkable.
+- Agent isolation: a process step must never invoke another agent process directly. Inter-agent communication flows through the `SlackPost` effect (posting to Slack), which re-enters the system as a new Slack event — ensuring every hop is auditable, budget-checkable, and recorded in each agent's session.
 
 ## Motoko Conventions
 
@@ -94,7 +105,7 @@ Target model note: workspaces no longer define a member channel. Agent execution
 
 ### User Auth Context
 
-The resolved identity and permissions of the user who initiated a request. Built from the Slack user cache at event-processing time and passed into all agent services. Contains:
+The resolved identity and permissions of the user who initiated a request. Built from the Slack user cache at event-processing time and passed into all agent process handlers. Contains:
 
 - `slackUserId`: the Slack user ID.
 - `isPrimaryOwner`: whether this user is the Slack Primary Owner.
@@ -128,7 +139,7 @@ Agents have one of two execution types:
 
 The `AgentRouter` branches on execution type before dispatching. The `#runtime` variant is extensible for future runtime types beyond GitHub Coding Agents.
 
-### Agent Category (Service)
+### Agent Category
 
 A class of agent behavior (e.g., admin, research, communication, coding). Each category defines:
 
@@ -147,9 +158,50 @@ All system state mutations are driven exclusively by Events (or internally sched
 Each event source has its own HMAC-SHA256 signature verification — Slack uses a signing secret and GitHub uses a webhook secret.
 Slack remains the primary user interaction layer; GitHub webhooks handle runtime session lifecycle and agent response delivery.
 
-### Tasks
+### Tasks and Processes
 
-Queued work items that may involve awaits (LLM calls, tool use, function calling). Executed asynchronously by the task runner.
+The only two sources of system activity are (a) a verified inbound webhook (Slack or GitHub) and (b) an event emitted by the system itself via the `EventEmit` effect — either immediately or after a delay (timer/heartbeat). There is no other entry point.
+
+Work is modelled as **Processes**: stateful, multi-step computations driven by events and returning effects. "Tasks" in legacy code are a simplified form of this model.
+
+### Process
+
+A stateful, multi-step computation driven by events. A process encapsulates its current step state, accumulated context, and a resume trigger for suspended continuations. Each step is computed by `Process.step(process, event) → [Effect]` — a pure function that never side-effects directly. Processes can be suspended (`ProcessSuspend`) waiting for a future event (e.g., a GitHub webhook callback, a timer tick) and resumed when it arrives.
+
+### Effect
+
+A declarative, type-safe description of a side effect, returned by a process step and executed by the Effect Applicator. Effect types:
+
+- `StateWrite`: persist a state mutation.
+- `SlackPost`: post a message to a Slack channel or thread; returns a Slack `ts` used downstream.
+- `EventEmit`: schedule an event — immediate (next dispatch loop tick) or delayed (timer-based cron emulation).
+- `ProcessSuspend`: park the process in the process store until a specified future event arrives.
+
+Separating pure process logic from effect execution makes the Process Engine testable without any external dependencies.
+
+### Store
+
+A file-like key-value store where each entry has `filename: Text` and `content: Text`, with `#read` / `#write` access modes. Used to persist structured and unstructured agent knowledge: `USER.md`, `AGENTS.md`, `SOUL.md`/`IDENTITY.md`, `tasks.jsonl`, `daily_log.jsonl`, configuration files, etc. Within the control plane a Store entry is a canister-persisted map entry. In the Agent Runner, Store entries map directly to git-tracked files in the agent repository, with auto-backup on a daily or activity-triggered commit.
+
+### Channel History
+
+A timeline of Slack messages for a single channel — who said what and when. Channel History is the raw source material; it does not belong to any agent. All agents that are invited to a channel draw from the same Channel History. It is stored in the `conversationStore` and retained with a time-based expiry.
+
+Writes are the common case (new messages), but Slack can send `message_changed` events for edited messages at any time. The structure is optimised for writes and the common read path, with retroactive edits applied when the corresponding event arrives. No strict immutability is assumed.
+
+### Agent Session
+
+One per agent, persistent across all channels the agent is invited to. The Agent Session accumulates entries from every Channel History the agent has access to, each tagged with channel ID, Slack user ID, and timestamp. This is the agent's memory.
+
+On each `Process.step`, the Agent Session is dynamically constructed into a structured, compacted JSON context — clearly describing who said what, in which channel, and when — and prepended to the LLM prompt. The active user message being answered in the current turn is explicitly identified in this context.
+
+Compaction and pruning (summarising older entries to free context space) happen within the Agent Session. If the session grows beyond the context limit a compaction pass runs, producing a summarised representation of older history.
+
+Isolation is agent-scoped: if an agent is not invited to a channel, it has no access to that channel's history and that channel's messages do not appear in its session. Users should be aware that any message in a channel an agent is invited to may influence that agent's context — the isolation boundary is the agent, not the thread or the message.
+
+### Skills
+
+Versioned, composable agent capabilities distributed in an `npx`-style registry. The canister maintains a version-controlled skills index, refined on a regular schedule (e.g., weekly). A skill bundles LLM prompt templates, tool configurations, MCP setup scripts, and knowledge documents. Agents reference skills by name and version; when an Agent Session is dispatched to the Agent Runner, the required skills are passed for installation at session start (via `npm install` or MCP setup).
 
 ## External Interfaces
 
@@ -226,8 +278,8 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 1. User sends `@looping ::accounting deliver me a report on last financials`.
 2. Event router resolves `::accounting` from the agent registry, builds `userAuthContext` from `SlackUserModel` (the Slack user cache).
-3. `::accounting` agent service processes the request, determines it needs data from `::tech`.
-4. `::accounting` posts a Slack message referencing `::tech` (architectural invariant: never call another agent service directly).
+3. `::accounting` agent process handles the request, determines it needs data from `::tech`.
+4. `::accounting` posts a Slack message referencing `::tech` (architectural invariant: never invoke another agent process directly).
 5. That message triggers a new Slack event → event router picks it up.
 6. Router reconstructs the `userAuthContext` from the parent session (including incremented `roundCount`), creates a new session with `parentSessionId` linking to the previous one.
 7. `::tech` processes with the original user's access scopes but its own tools/skills.
@@ -375,7 +427,7 @@ Agents are stored in a persistent registry with dual indexes (`agentsById: Map<N
 - `workspaceId`: which workspace this agent belongs to. Scopes ownership and secret access.
 - `llmModel`: the LLM provider and model to use (e.g., `#openRouter(#gpt_oss_120b)`).
 - `allowedChannelIds`: explicit Slack channel allowlist for agent execution. If a message references the agent outside this list, execution is blocked with an automatic warning.
-- `secretsAllowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent is permitted to access. The agent service must check this list before decrypting any secret.
+- `secretsAllowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent is permitted to access. The agent process must check this list before decrypting any secret.
 - `secretOverrides`: `[(targetSecretId: SecretId, customSecretName: Text)]` — when resolving `targetSecretId`, the model first checks `#custom(customSecretName)` in the agent workspace before standard workspace/org fallback (credential cascade).
 - `toolsAllowed`: subset of the category's `category_tools` that this agent is permitted to use.
 - `toolsState`: per-tool runtime state (`Map<Text, ToolState>`):
@@ -398,9 +450,9 @@ Users (or agents) reference agents in messages with the `::` prefix notation.
 
 When an agent is referenced, the access scope remains that of the original user. The agent uses its own skills and tools, but scoped to the original user's `userAuthContext`.
 
-### Agent categories and services
+### Agent categories
 
-Each agent category defines a service class that handles execution:
+Each agent category defines the process logic that handles execution:
 
 - `category_tools`: an array of tool enum variants available to agents in this category. This type structure is also used when configuring agent tool permissions through Slack interactive components.
 - LLM model selection strategy.
@@ -408,18 +460,18 @@ Each agent category defines a service class that handles execution:
 
 **Phased implementation:**
 
-- **v0.2**: Agent registry, `::` routing, admin and planning agent services, Slack-only write surface.
-- **v0.5**: Agent execution types (`#api` / `#runtime`), GitHub Coding Agent integration via Actions + webhooks, credential cascade, secrets hardening.
-- **Future**: Full pluggable agent framework, interactive Slack messages, auth tokens, cost optimization.
+- **v0.2**: Agent registry, `::` routing, admin and planning agent process handlers, Slack-only write surface.
+- **v0.5**: Agent execution types (`#api` / `#runtime`), GitHub Coding Agent integration via Actions + webhooks, credential cascade, secrets hardening, Process Engine + Effect Applicator, Agent Session, Channel History, Store.
+- **Future**: Full pluggable agent framework, interactive Slack messages, auth tokens, cost optimization, Skills system.
 
 ### Agent routing and round control
 
-The **Agent Router** sits between the event router and agent services.
+The **Agent Router** sits between Event Dispatch and agent process handlers.
 
 **Pre-conditions (checked before routing begins):**
 
 - The message must contain at least one **valid `::agentname` reference** — resolved against the agent registry at dispatch time. If no valid reference is found (e.g., the reference doesn't match any registered agent), the event is **discarded/skipped**. This prevents orphaned or malformed inter-agent messages from entering the routing loop.
-- `userAuthContext.forceTerminated` must be `false`. If true, the event is **discarded/skipped** without invoking any agent service.
+- `userAuthContext.forceTerminated` must be `false`. If true, the event is **discarded/skipped** without invoking any agent process.
 - The Slack channel must be present in the referenced agent's `allowedChannelIds`. If not, the router posts a warning with the allowed channels and skips execution.
 
 Both conditions are checked at the event router level, before the Agent Router hands off to a category service.
@@ -435,7 +487,7 @@ When a message passes pre-conditions and references an agent:
 
 - `roundCount` increments each time the router processes a new event in the same request chain.
 - **Hard upper bound**: `MAX_AGENT_ROUNDS` (10, defined in Constants). Once this limit is reached, the session is force-terminated.
-- **Invariant**: an agent service must never directly invoke another agent service. The "connection" is always a `postMessage` on Slack that triggers a new round through an event. This ensures every hop is auditable, traceable, and budget-checkable.
+- **Invariant**: an agent process must never directly invoke another agent process. The "connection" is always a `postMessage` on Slack that triggers a new round through an event. This ensures every hop is auditable, traceable, and budget-checkable.
 
 ## Session Tracking
 
@@ -444,7 +496,7 @@ Sessions link Slack messages to their processing context and form the backbone o
 ### Session lifecycle
 
 1. An event arrives and the router creates a `userAuthContext` (or inherits one from the parent session).
-2. The agent service executes and prepares a reply.
+2. The agent process handler executes and prepares a reply.
 3. When the reply is posted via `SlackWrapper.postMessage`, the returned Slack message `ts` becomes the session key.
 4. A `SessionRecord` is stored: `{ sessionId, slackMessageId, userAuthContextId, agentId, parentSessionId }`.
 5. If that reply triggers a new event (e.g., another agent picks it up), the new session links back via `parentSessionId`.
@@ -463,32 +515,53 @@ The full delegation chain is reconstructable by walking the `parentSessionId` li
 - The original user who initiated the chain.
 - Round count validation (by counting the chain depth).
 
-## Task Execution Model
+## Process Engine (Loop Engine)
 
-### Task lifecycle (planned)
+### Process model
 
-- `queued -> running -> {succeeded | failed | cancelled}`
-- Retry states with exponential backoff and maximum attempts.
-- Each task stores:
-  - workspace id
-  - initiator (Slack user ID from `userAuthContext`)
-  - capabilities snapshot (tool allowlist + budget ceilings at enqueue time)
-  - idempotency key (to dedupe duplicate events)
-  - audit metadata (timestamps, attempt count, last error)
+The Process Engine implements a pure functional step model: a process step is a pure function that takes the current process state and a triggering event and returns a list of effects. No state is mutated and no I/O is performed inside the step function.
+
+The **Effect Applicator** then executes the returned effects in order:
+
+1. `StateWrite` — writes are committed to canister stable state.
+2. `SlackPost` — the Slack wrapper sends the message; the returned `ts` is available to subsequent effects in the same batch.
+3. `EventEmit` — new events are enqueued (immediate) or scheduled via the timer system (delayed/cron).
+4. `ProcessSuspend` — the process is parked in the process store with a resume trigger; the Effect Applicator stores it and moves on.
+
+### Process lifecycle
+
+`created → running → suspended → running → … → {succeeded | failed | cancelled}`
+
+A suspended process is re-awakened when its resume trigger event arrives and is matched by Event Dispatch. Retry logic is handled by emitting a delayed `EventEmit` that re-triggers the same step.
+
+### Process record
+
+Each process stores:
+
+- `processId`: stable unique identifier.
+- `workspaceId`: owning workspace.
+- `initiator`: Slack user ID from `userAuthContext`.
+- `capabilitiesSnapshot`: tool allowlist + budget ceilings captured at process creation time.
+- `idempotencyKey`: deduplication across retried events.
+- `currentStep`: the step tag or function reference.
+- `suspendedAt` / `resumeTrigger`: set when `ProcessSuspend` is applied; cleared on resume.
+- `auditMetadata`: timestamps, attempt count, last error.
 
 ### Execution responsibility
 
-- Event handlers should avoid long awaits; they should enqueue tasks.
-- `runTasks` owns long-running work (LLM calls, tool execution, external I/O).
+- Ingress handlers enqueue an event and return immediately — no awaits at ingress.
+- Event Dispatch claims events one at a time and invokes `Process.step`.
+- The Effect Applicator owns all I/O: Slack posts, state writes, timer scheduling, and external API calls via wrappers.
+- Long-running external work (LLM calls, GitHub API calls) is mediated through effects, not inline awaits inside step functions.
 
 ## Concurrency and Await Safety
 
 Internet Computer execution can interleave at `await` points.
 Design rules (planned and recommended for any new code):
 
-- Update task status to `running` before the first `await`.
+- Update process status to `running` before the first `await`.
 - Wrap with try {} catch to log trap messages and keep history of trap logs for future audit.
-- Make tasks step based and logged on every await that succeeds, ensuring that if a trap happens, it skips the successful steps and restarts on the failed step.
+- Make processes step-based with logged transitions at every await — if a trap occurs, completed steps are skipped and execution restarts at the failed step.
 
 ## Timers and Scheduling
 
@@ -505,7 +578,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
 - **Weekly reconciliation timer** (Sundays): full Slack user and channel membership sync. Also verifies workspace and org admin channel IDs.
 - **Auth token purge timer**: periodic cleanup of expired tokens.
-- **Task runner timer**: kick `runTasks` periodically.
+- **Process Engine timer**: kick the Process Engine step loop periodically.
 - **Recurring task timer**: goal-monitoring, reporting, and dashboard alerts.
 
 ## Tooling and Integrations
@@ -524,7 +597,8 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 - **GitHubWebhookAdapter**: verifies and normalizes GitHub Actions lifecycle/result webhooks into internal events for session correlation.
 - **SlackWrapper expansion**: add private internal functions matching Slack API method names (`users_list()`, `conversations_list()`, `conversations_members()`), with parameters aligned to Slack's API. Public higher-level functions (e.g., `getWorkspaceMembers()`, `listChannels()`) wrap these for use by internal services. Adapter pattern: the wrapper is the single boundary for all Slack API I/O.
 - **Tool scoping**: tools have access level requirements (`org`, `team`, `admin`). Enforcement happens at the Agent Router level by comparing the tool's required level against the `userAuthContext`.
-- **Category tools**: each agent category service defines a `category_tools` array of tool enum variants. Agents within the category configure `toolsAllowed` (a subset) and `toolsState` (per-tool runtime data).
+- **Category tools**: each agent category defines a `category_tools` array of tool enum variants. Agents within the category configure `toolsAllowed` (a subset) and `toolsState` (per-tool runtime data).
+- **LLM tools** (for `#api` agents): a focused, powerful set — `file_read`, `file_write`, `mcp` (call an MCP tool), `browser`, `memory_search`, `skill_search`. Agents choose from this list based on `toolsAllowed`.
 - **Interactive Messages** (future): support for `block_actions` and `view_submission` payloads in the Slack adapter.
 - Agents empowered with:
   - LLM internal tools (function calling).
@@ -608,7 +682,7 @@ Pattern follows `SlackUserModel`'s `AccessChangeLog` (source-tagged, retention-b
 
 ## Error Handling and Retries
 
-- Retries belong in the task runner, not in intake handlers.
+- Retries belong in the Process Engine (via delayed `EventEmit`), not in ingress handlers.
 - Distinguish:
   - deterministic validation errors (do not retry)
   - transient provider/network errors (retry with backoff)
@@ -664,7 +738,7 @@ See:
 - **Agent**: a named, configurable LLM entity with specific tools, skills, and a know-how base.
 - **Agent Category**: a class of agent behavior (admin, research, communication, coding) with a shared tool set definition.
 - **Agent Execution Type**: `#api` (runs in-canister via OpenRouter) or `#runtime(#githubCodingAgent)` (delegated to a GitHub Coding Agent session via Actions workflow dispatch).
-- **Agent Router**: the dispatcher that selects the appropriate agent service and enforces round limits.
+- **Agent Router**: the dispatcher that selects the appropriate agent process handler and enforces round limits.
 - **Policy**: declarative constraints over tasks, tools, budgets, and permissions.
 - **Task**: queued work item executed asynchronously.
 - **Event**: normalized inbound signal from Slack or GitHub.
@@ -677,6 +751,14 @@ See:
 - **Credential Cascade**: a three-level secret resolution chain — agent → workspace → org — allowing overrides at each scope.
 - **Workflow Dispatch**: GitHub Actions trigger used by the canister to start a runtime agent session with structured inputs.
 - **Agent Channel Allowlist**: per-agent list of Slack channels where the agent is allowed to execute.
+- **Process**: a stateful, multi-step computation driven by events. Advances via `Process.step(process, event) → [Effect]`.
+- **Loop Engine**: the Process Engine — the subsystem that steps processes and coordinates with the Effect Applicator.
+- **Effect**: a declarative description of a side effect returned by a process step (`StateWrite`, `SlackPost`, `EventEmit`, `ProcessSuspend`).
+- **Effect Applicator**: the subsystem that executes effects returned by the Process Engine. The only place where state is written or external APIs are called.
+- **Store**: file-like key-value store (`filename`, `content`) used to persist structured agent knowledge in the control plane (and as git-tracked files in the Agent Runner).
+- **Channel History**: per-channel Slack message timeline, optimised for writes; supports retroactive edits via `message_changed` events. The raw source material drawn on by Agent Sessions.
+- **Agent Session**: per-agent persistent memory spanning all channels the agent is invited to; compacted and injected as structured context into each LLM prompt step.
+- **Skills**: versioned, composable agent capability packages distributed in an `npx`-style registry; installed in the Agent Runner at session start.
 
 ## Open Questions
 
