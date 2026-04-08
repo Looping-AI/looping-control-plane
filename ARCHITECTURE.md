@@ -46,7 +46,7 @@ Read until "Core Flows" for a high-level view of what exists today and where the
 - Credential cascade implemented in secrets model: agent override (`secretOverrides`) -> workspace -> org fallback, with access audit logging.
 - Identity and authorization derived from Slack, with workspace administration anchored on admin channels.
 - Agent registry with `::` routing and category-based dispatch via Agent Router.
-- Session tracking linking Slack message IDs to user auth context and agent execution context.
+- Session tracking linking Slack message IDs to user auth context and agent execution context. Agent session model with per-agent persistent sessions, turn logs, and trace entries (see [docs/plans/agent-session-schema.md](docs/plans/agent-session-schema.md)).
 
 Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
@@ -61,7 +61,7 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 - **[Process Engine (Loop Engine)](#process-engine-loop-engine)**: all agent invocations, multi-turn LLM conversations, and delegation chains are modelled as processes; `LoopEngine.step(process, event) → [Effect]` is a pure function executed by the Effect Applicator.
 - **[Effect-driven execution](#effect)**: the only side-effect mechanism is the effect list returned by a process step — `StateWrite`, `SlackPost`, `EventEmit`, `ProcessSuspend`. Process logic never writes state or calls external APIs directly.
 - **[Channel History](#channel-history)**: per-channel Slack message timeline, append-optimised, with retroactive edit support; the source material for agent context assembly, maintained independently of agents.
-- **[Agent Session](#agent-session)**: one per agent; stores only direct interaction traces (prompts, tool results, replies) — not channel history.
+- **[Agent Session](#agent-session-detailed)**: one persistent session per agent with append-only turn log and immutable trace entries; built-in compaction, read-time truncation, and timer-based cleanup. See [docs/plans/agent-session-schema.md](docs/plans/agent-session-schema.md).
 - **[Prompt context assembly and retrieval](#prompt-context-assembly-and-embedding-retrieval)**: on each LLM call, context is assembled from Agent Session, Channel History snippets, core files, memory, and Store documents, enriched by embedding-based retrieval against multiple indexes.
 - **[Store](#store)**: file-like key-value store (`path`, `name`, `extension`, `description`, `content`) for persisting structured agent knowledge; paths must be absolute (start with `/`).
 - **[Skill documents](#skill-documents-store-subtype)**: skills are Store documents under `/skills/<skill-id>/` paths, not a separate first-class system.
@@ -86,15 +86,11 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 - Auditable: the system should be auditable (events, session, secrets and effects).
 - Agent isolation: a process step must never invoke another agent process directly. Inter-agent communication flows through the `SlackPost` effect (posting to Slack), which re-enters the system as a new Slack event — ensuring every hop is auditable, budget-checkable, and recorded in each agent's session.
 
-## Motoko Conventions
-
-- **Model function parameter order**: new model functions must place the state/collection parameter **first**. This aligns with `mo:core` idioms (e.g. `Map.get(map, compare, key)`) and makes partial application natural. Example: `forkAgent(state, originalId, ...)`. Existing functions that pre-date this convention (`register`, `updateById`, etc.) have state last and will be migrated in a future cleanup pass.
-
 ## Core Concepts
 
 ### Workspace
 
-A unit of policy, goals, knowledge, and shared state. Each workspace maps to:
+The ultimate owner of agents and it's configuration, including: policies, stored files, processes/Loops. Each workspace maps to:
 
 - `id`: unique numeric identifier (0 = the org workspace, always exists).
 - `name`: human-readable name.
@@ -115,15 +111,38 @@ The resolved identity and permissions of the user who initiated a request. Built
 
 The `userAuthContext` is the single source of truth for authorization in all downstream operations. It is carried through agent delegations: when agent A references agent B (on a Slack Message), the `userAuthContext` of the original human user is inherited, not the agent's identity.
 
-### Session
+### Agent Session
 
-A tracking record linking a Slack message to its processing context. Created when the handler picks up the task from the queue and updated when the bot sends a reply via `postMessage` (and a slackMessageId is obtained).
+A persistent, long-lived record per agent — not per message or per request. Exactly one session exists per `agentId` (the agent registry ID is the map key; no separate session ID). The session is the agent's memory container: it tracks turn sequencing, compaction state, and context-budget policy.
 
-- `sessionId`: format `{agent_name}_{user_id}_{unique_incremental_id}`.
-- `slackMessageId`: the Slack `ts` identifier of the bot's reply message (used as the map key once available).
-- `userAuthContextId`: reference to the `userAuthContext` that authorized this session.
-- `agentId`: which agent handled this session.
-- `parentSessionId`: if this session was triggered by another agent's message, the parent session. Walking `parentSessionId` links reconstructs the full delegation chain — providing a complete audit trail of agents involved, the originating user, and round-count validation.
+Sessions are never archived or deleted independently. Maintenance actions operate on turns within the session.
+
+See [docs/plans/agent-session-schema.md](docs/plans/agent-session-schema.md) for the full target schema, invariants, and compaction flow.
+
+### Agent Turn
+
+A single execution episode within an Agent Session. Turns are append-only, ordered by a monotonic `turnNumber`, and identified by a deterministic `turnId` (`"{agentId}_{turnNumber}"`). Each turn records:
+
+- `status`: `#running | #succeeded | #failed` — `#failed` covers force-termination; detail goes in `errorSummary`.
+- `sourceRef`: what triggered this turn — `#slack { channelId; ts }`, `#github { runId; workflowId }`, or `#timer { label }`.
+- `triggerTurnId`: the immediately prior agent turn that caused this one via delegation. `null` = user-originated root turn. Walking `triggerTurnId` links reconstructs the delegation chain (bounded by `MAX_AGENT_ROUNDS`).
+- `userAuthContext`: snapshot of the requesting user's permissions at turn start.
+- `cost`: aggregated prompt/completion tokens and estimated cost, populated on terminal status.
+- `slackReplyTs`: all Slack reply `ts` values posted during this turn.
+
+Delegation lineage is carried via Slack metadata: `AgentMessageMetadata` includes the producing `turnId`, which the next handler extracts directly into `triggerTurnId` on the new turn — no index required.
+
+### Turn Trace
+
+An immutable, append-only log of execution events within a single turn. Each `TurnTraceEntry` is a self-contained record of one completed operation (no started/finished pairing). The variant tag on `detail : TraceDetail` serves as the type discriminator:
+
+- `#contextAssembled` — prompt context stats.
+- `#llmCall` — model, duration, tokens, cost, content, thinking, tool requests.
+- `#toolCall` — name, input, output, success, duration.
+- `#slackPost` — channel, thread, posted ts.
+- `#roundLimitHit`, `#policyRejection`, `#faultRecovered`.
+
+Trace entries are **never mutated or deleted** by the maintenance worker. Read-time truncation is applied during prompt context assembly for entries older than `TRACE_RETENTION_NS` (1 hour): truncatable text fields are shortened for the LLM window while originals remain in storage for compaction and audit. A turn cleanup timer hard-deletes entire turns older than `TURN_CLEANUP_RETENTION_NS` (3 months).
 
 ### Agent
 
@@ -190,35 +209,35 @@ A timeline of Slack messages for a single channel — who said what and when. Ch
 
 Writes are the common case (new messages), but Slack can send `message_changed` events for edited messages at any time. The structure is optimised for writes and the common read path, with retroactive edits applied when the corresponding event arrives. No strict immutability is assumed.
 
-### Agent Session
+### Agent Session (detailed)
 
-One per agent, persistent across all channels the agent is invited to. Agent Session is the agent-specific memory and stores only direct interaction traces:
+One per agent, persistent across all channels the agent is invited to. The Agent Session is the agent's memory container, structured as a strict hierarchy:
 
-- user prompts that explicitly invoked the agent
-- tool session summaries/results produced while handling those prompts
-- assistant replies emitted by the agent
+1. **Session record** (`AgentSessionRecord`): keyed by `agentId`, tracks turn sequencing, compaction state (summary layers), and context-budget policy.
+2. **Turn log** (`List<AgentTurnRecord>`): append-only, per-session. Each turn is one execution episode triggered by a Slack event, GitHub callback, or timer.
+3. **Trace log** (`List<TurnTraceEntry>`): append-only, per-turn. Each entry is a self-contained record of one completed operation.
 
-It does not duplicate full Channel History. Each entry is tagged with channel ID, Slack user ID, and timestamp.
+The session does not duplicate Channel History. Channel History remains the raw communication record, maintained independently of agents. The session stores only agent-specific execution data.
 
-On each `Process.step`, the Agent Session is compacted and transformed into a structured JSON context for the current turn. The active user message being answered is explicitly identified.
+**Compaction**: a maintenance worker periodically summarizes old turns into layered summaries using a halving budget distribution (`raw = N/2`, `hot = N/4`, `warm = N/8`, `cold = N/8`). The `coldSummary` is a coarsening timeline where the oldest events are progressively grouped into broader time periods. Events are never dropped — only their granularity decreases. Compaction triggers when raw turns consume ≥ 90% of the raw budget.
 
-Compaction and pruning (summarising older interaction traces to free context space) happen within the Agent Session. If the session grows beyond the context limit, a compaction pass runs.
+**Read-time truncation**: when assembling LLM context, text fields in trace entries older than 1 hour are truncated. Originals remain in storage for compaction and audit.
 
-Isolation is agent-scoped: if an agent is not invited to a channel, it has no access to that channel's history and that channel's messages do not appear in its context.
+**Cleanup**: a timer hard-deletes entire turns and traces older than 3 months. Summary layers are the permanent record.
+
+Isolation is agent-scoped: if an agent is not invited to a channel, it has no access to that channel's history.
 
 ### Prompt Context Assembly and Embedding Retrieval
 
-At each LLM call, the control plane assembles a turn-specific context from multiple sources:
+At each LLM call, the control plane assembles a turn-specific context from multiple sources, ordered oldest → newest:
 
-- compacted Agent Session (direct interaction traces)
-- selected Channel History snippets relevant to the current prompt
-- core files (policy/config/identity documents)
-- memory records and memory embeddings
-- Store documents (including `skills/` documents) and their embeddings
+1. **Compacted session summaries**: `coldSummary` → `warmSummary` → `hotSummary` (compressed history layers from the Agent Session).
+2. **Raw turns**: uncompacted turns after `lastCompactedTurnId` (recent, full-fidelity interaction traces). Text fields in trace entries older than 1 hour are truncated at read-time.
+3. **Channel History snippets**: selected messages from channels the agent is invited to, relevant to the current prompt.
+4. **Core files**: policy, config, and identity documents.
+5. **Store documents and embeddings**: including skill documents under `/skills/`. The current user prompt is embedded at call time and used to query embedding indexes for memory, core files, and Store documents (with optional `path` filtering).
 
-The current user prompt is embedded at call time and used to query embedding indexes for memory, core files, and Store documents (with optional `path` filtering, such as `/skills/**`). Top-ranked findings are attached to the context bundle for that turn.
-
-This retrieval step is dynamic and per-call; it enriches context beyond Agent Session without mutating Session by default.
+This retrieval step is dynamic and per-call; it enriches context beyond Agent Session without mutating the session. Token budgets for each layer are deterministic, governed by `summaryTokenBudget` in the session policy (halving distribution: raw = N/2, hot = N/4, warm = N/8, cold = N/8).
 
 ### Skill Documents (Store Subtype)
 
@@ -301,10 +320,10 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 1. User sends `@looping ::accounting deliver me a report on last financials`.
 2. Event router resolves `::accounting` from the agent registry, builds `userAuthContext` from `SlackUserModel` (the Slack user cache).
-3. `::accounting` agent process handles the request, determines it needs data from `::tech`.
-4. `::accounting` posts a Slack message referencing `::tech` (architectural invariant: never invoke another agent process directly).
+3. `::accounting` agent process creates a new turn in its session, executes, and determines it needs data from `::tech`.
+4. `::accounting` posts a Slack message referencing `::tech` (architectural invariant: never invoke another agent process directly). The message metadata includes `turnId` of the originating turn.
 5. That message triggers a new Slack event → event router picks it up.
-6. Router reconstructs the `userAuthContext` from the parent session (including incremented `roundCount`), creates a new session with `parentSessionId` linking to the previous one.
+6. Router reconstructs the `userAuthContext` from the parent turn's metadata (including incremented `roundCount`). A new turn is created in `::tech`'s session with `triggerTurnId` pointing to `::accounting`'s turn.
 7. `::tech` processes with the original user's access scopes but its own tools/skills.
 8. `::tech` replies → new event → router returns control to `::accounting`.
 9. `::accounting` compiles the report and replies to the original user.
@@ -361,9 +380,10 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceAdminScopes: [workspaceId] }`. Backed by `SlackUserModel`.
 - **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, executionType: #api | #runtime(#githubCodingAgent({ repoFullName, workflowId, ref })), workspaceId, llmModel, allowedChannelIds: [Text], secretsAllowed: [(workspaceId, SecretId)], secretOverrides: [(SecretId, Text)], toolsAllowed, toolsState: Map<Text, ToolState>, usageStats, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
-- **Agent session store**: `Map<agentId, AgentSessionRecord>` where `AgentSessionRecord` keeps only direct interaction traces (prompt/tool/answer tuples with channel/time metadata), compaction state, and session metadata.
+- **Agent session store**: `Map<agentId, AgentSessionRecord>` — one persistent session per agent, with compaction state (summary layers, cursor) and context-budget policy. No separate session ID; the agent ID is the key. See [docs/plans/agent-session-schema.md](docs/plans/agent-session-schema.md).
+- **Agent turn store**: `Map<agentId, List<AgentTurnRecord>>` — append-only turn log per agent. Each turn has a deterministic `turnId` (`"{agentId}_{turnNumber}"`), execution status, source ref, delegation lineage (`triggerTurnId`), user auth context snapshot, cost, and Slack reply ts list.
+- **Turn trace store**: `Map<turnId, List<TurnTraceEntry>>` — immutable, append-only trace per turn. Each entry is a self-contained `TraceDetail` variant (`#llmCall`, `#toolCall`, `#slackPost`, etc.) with per-entry cost on LLM calls. Read-time truncation after 1h; hard deletion after 3 months.
 - **GitHub runtime session store**: `Map<sessionId, GithubAgentSessionRecord>` where `GithubAgentSessionRecord = { sessionId, agentId, repoFullName, workflowId, runId: ?Nat64, status: #queued | #running | #succeeded | #failed | #cancelled | #unknown, requestId, startedAt, completedAt, lastWebhookAt, lastError }`. Tracks remote execution lifecycle and callback correlation. File: `src/control-plane-core/models/github-agent-session-model.mo` (new).
-- **Session store**: `Map<slackMessageId, SessionRecord>` for tracking agent execution across delegation chains.
 - **Embedding indexes**: searchable indexes for memory records, core files, and Store documents (including skill documents under `skills/`) used during prompt-time retrieval.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceAdminScopes: [workspaceId], resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace. Includes `#custom(Text)` secret types for flexible credential mapping. Per-workspace audit state: `SecretAuditState = { changeLog: List<SecretChangeEntry>, accessLog: List<SecretAccessEntry> }` tracking stores, deletes, and accesses with timestamps and sources.
@@ -580,6 +600,8 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
 - **Weekly reconciliation timer** (Sundays): full Slack user and channel membership sync. Also verifies workspace and org admin channel IDs.
 - **Auth token purge timer**: periodic cleanup of expired tokens.
+- **Session compaction timer**: periodic pass over agent sessions; compacts raw turns into summary layers when token budget thresholds are exceeded.
+- **Turn cleanup timer** (monthly): hard-deletes entire turns and their trace entries when `completedAtNs` is older than `TURN_CLEANUP_RETENTION_NS` (3 months).
 - **Process Engine timer**: kick the Process Engine step loop periodically.
 - **Recurring task timer**: goal-monitoring, reporting, and dashboard alerts.
 
@@ -653,17 +675,17 @@ Pattern follows `SlackUserModel`'s `AccessChangeLog` (source-tagged, retention-b
 ### Minimal baseline (recommended)
 
 - Append-only audit log for admin actions (bounded).
-- Session tracking provides full delegation chain visibility.
-- Slack thread trace is the primary human-facing execution log for a session, not a separate operator-only surface.
-- Each session should be able to expose its full step-by-step trace in Slack: which agent acted, which tools or sub-actions ran, what came back, what changed because of it, and where cost was incurred.
-- The Slack UX may collapse or de-emphasize repeated, well-understood flows, but the full session trace should remain expandable via attachments or "show more" patterns.
+- Agent turn trace provides full execution visibility per turn; delegation chains are reconstructable by walking `triggerTurnId`.
+- Slack thread trace is the primary human-facing execution log, not a separate operator-only surface.
+- Each turn's trace entries expose the full step-by-step record in Slack: which agent acted, which tools or sub-actions ran, what came back, what changed because of it, and where cost was incurred.
+- The Slack UX may collapse or de-emphasize repeated, well-understood flows, but the full turn trace should remain expandable via attachments or "show more" patterns.
 - Rich Slack traceability is part of correct operation, not just debugging support: it helps humans learn the agent's way of solving problems, suggest safer or more efficient alternatives, diagnose bugs, and understand cost outliers.
-- Counters for:
-  - tasks queued/running/succeeded/failed
-  - provider calls (by provider/model)
-  - error categories
+- Counters derivable from turn traces (no separate counters needed):
+  - turns queued/running/succeeded/failed (by scanning turn status)
+  - provider calls by model (count `#llmCall` trace entries)
+  - tool invocations (count `#toolCall` trace entries)
   - agent round counts and force-termination rates
-- Optional attribution links: task -> goal metric(s) it was intended to move.
+- Optional attribution links: turn → goal metric(s) it was intended to move.
 
 ## Cost Controls and Budgeting
 
@@ -688,7 +710,7 @@ Pattern follows `SlackUserModel`'s `AccessChangeLog` (source-tagged, retention-b
 - Per-workspace retention policies.
 - Avoid storing raw external event payloads longer than needed; store normalized summaries.
 - Auth tokens are short-lived (expire in 1h). Expired ones are deleted every Sunday on a clean up Timer.
-- Session records should have a retention policy (bounded by time or count).
+- Turn trace data lifecycle: full fidelity for 1h (LLM context + compaction), read-time truncation after 1h, hard deletion of turns + traces after 3 months (`TURN_CLEANUP_RETENTION_NS`). Session summary layers are the permanent record.
 - Read-only query responses never expose personal or sensitive data — only aggregated stats and resource summaries.
 
 ## Upgrade and Persistence Strategy
