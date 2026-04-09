@@ -22,6 +22,7 @@ import MetricModel "../../models/metric-model";
 import SlackUserModel "../../models/slack-user-model";
 import WorkspaceModel "../../models/workspace-model";
 import EventStoreModel "../../models/event-store-model";
+import SessionModel "../../models/session-model";
 
 module {
 
@@ -59,5 +60,7 @@ module {
     workspaces : WorkspaceModel.WorkspacesState;
     /// Event store — passed to the org-admin agent for event queue management tools
     eventStore : EventStoreModel.EventStoreState;
+    /// Agent session stores (sessions, turns, traces)
+    sessionStores : SessionModel.SessionStores;
   };
 };

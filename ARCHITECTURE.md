@@ -128,7 +128,8 @@ A single execution episode within an Agent Session. Turns are append-only, order
 - `triggerTurnId`: the immediately prior agent turn that caused this one via delegation. `null` = user-originated root turn. Walking `triggerTurnId` links reconstructs the delegation chain (bounded by `MAX_AGENT_ROUNDS`).
 - `userAuthContext`: snapshot of the requesting user's permissions at turn start.
 - `cost`: aggregated prompt/completion tokens and estimated cost, populated on terminal status.
-- `slackReplyTs`: all Slack reply `ts` values posted during this turn.
+
+Slack reply timestamps are tracked exclusively via `#slackPost` trace entries — there is no separate list on the turn record.
 
 Delegation lineage is carried via Slack metadata: `AgentMessageMetadata` includes the producing `turnId`, which the next handler extracts directly into `triggerTurnId` on the new turn — no index required.
 

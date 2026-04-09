@@ -38,6 +38,12 @@ const BOT_TOKEN =
 const OPENROUTER_API_KEY =
   process.env["OPENROUTER_TEST_KEY"] ?? "not-needed-due-to-cassette";
 
+// Cassette match rules: ignore turn_id in the Slack metadata payload since
+// turn IDs are generated at runtime and won't match recorded cassettes.
+const CASSETTE_MATCH_RULES = {
+  ignoreBodyFields: ["metadata.event_payload.turn_id"],
+};
+
 describe("MessageHandler Unit Tests", () => {
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
@@ -85,7 +91,7 @@ describe("MessageHandler Unit Tests", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5 },
+      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
     );
 
     const response = await result;
@@ -124,7 +130,7 @@ describe("MessageHandler Unit Tests", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5 },
+      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
     );
 
     const response = await result;
@@ -157,7 +163,7 @@ describe("MessageHandler Unit Tests", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5 },
+      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
     );
 
     const response = await result;
@@ -190,7 +196,7 @@ describe("MessageHandler Unit Tests", () => {
             BOT_TOKEN,
             OPENROUTER_API_KEY,
           ),
-        { ticks: 5, maxRounds: 5 },
+        { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
       );
 
       const response = await result;
@@ -226,7 +232,7 @@ describe("MessageHandler Unit Tests", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5 },
+      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
     );
 
     const response = await result;
@@ -242,8 +248,8 @@ describe("MessageHandler Unit Tests", () => {
   // ============================================
   // Bot-message proceed path — session inheritance
   // A bot reply that passes every guard and continues through orchestration must
-  // advance the round counter (parentRoundCount 0 → active roundCount 1) and
-  // ultimately post the agent reply back to Slack.
+  // have a delegation depth within limits and ultimately post the agent reply
+  // back to Slack.
   // ============================================
 
   it("should inherit session context from parent and proceed to orchestration when within round limit", async () => {
@@ -271,6 +277,7 @@ describe("MessageHandler Unit Tests", () => {
                   parent_agent: "unit-test-admin",
                   parent_ts: PARENT_TS,
                   parent_channel: channel,
+                  turn_id: [],
                 },
               },
             ],
@@ -279,10 +286,9 @@ describe("MessageHandler Unit Tests", () => {
           OPENROUTER_API_KEY,
           channel, // parentChannel — same channel as the bot message
           PARENT_TS, // parentTs
-          0n, // parentRoundCount = 0 → newRound = 1, well within MAX_AGENT_ROUNDS
-          false, // parentForceTerminated = false
+          0n, // delegationDepth = 0 → well within MAX_AGENT_ROUNDS
         ),
-      { ticks: 5, maxRounds: 5 },
+      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
     );
 
     const response = await result;
@@ -302,7 +308,7 @@ describe("MessageHandler Unit Tests", () => {
 });
 
 // ============================================
-// Bot-message guard and round-tracking tests.
+// Bot-message guard and delegation-depth tests.
 //
 // These tests cover every pre-condition guard and the MAX_AGENT_ROUNDS hard
 // ceiling in the isBotMessage: true path. None of these paths reaches the LLM
@@ -310,7 +316,7 @@ describe("MessageHandler Unit Tests", () => {
 // actor is sufficient and no cassette recording is needed.
 // ============================================
 
-describe("MessageHandler — bot-message branch guards & round tracking", () => {
+describe("MessageHandler — bot-message branch guards & delegation depth", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
@@ -394,6 +400,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
               parent_agent: "unit-test-admin",
               parent_ts: "1700000010.000000",
               parent_channel: "C_ADMIN_CHANNEL",
+              turn_id: [],
             },
           },
         ],
@@ -413,47 +420,8 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
     }
   });
 
-  it("should return round_skip when the parent session has already been force-terminated", async () => {
-    const result = await testCanister.testMessageHandlerBotBranch(
-      {
-        user: "UBOT001",
-        text: "::unit-test-admin please continue",
-        channel: "C_ADMIN_CHANNEL",
-        ts: "1700000020.000004",
-        threadTs: ["1700000010.000000"] as [string],
-        isBotMessage: true,
-        agentMetadata: [
-          {
-            event_type: "looping_agent_message",
-            event_payload: {
-              parent_agent: "unit-test-admin",
-              parent_ts: "1700000010.000000",
-              parent_channel: "C_ADMIN_CHANNEL",
-            },
-          },
-        ],
-      },
-      BOT_TOKEN,
-      OPENROUTER_API_KEY,
-      "C_ADMIN_CHANNEL", // parentChannel
-      "1700000010.000000", // parentTs
-      0n, // parentRoundCount
-      true, // parentForceTerminated = true
-    );
-
-    expect("ok" in result).toBe(true);
-    if ("ok" in result) {
-      expect(result.ok).toHaveLength(1);
-      expect(result.ok[0].action).toBe("round_skip");
-      expect("err" in result.ok[0].result).toBe(true);
-      if ("err" in result.ok[0].result) {
-        expect(result.ok[0].result.err).toContain("force-terminated");
-      }
-    }
-  });
-
   it("should return round_force_terminated and halt when MAX_AGENT_ROUNDS (10) is reached", async () => {
-    // MAX_AGENT_ROUNDS = 10. parentRoundCount = 9 → newRound = 10 ≥ 10 → terminate.
+    // MAX_AGENT_ROUNDS = 10. delegationDepth = 10 → depth ≥ 10 → terminate.
     //
     // Uses testMessageHandlerBotBranchNoSlackToken (no Slack bot token seeded) to keep
     // postTerminationIfTokenAvailable a no-op.  This lets the test run on a non-deferred
@@ -475,6 +443,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
               parent_agent: "unit-test-admin",
               parent_ts: "1700000010.000000",
               parent_channel: "C_ADMIN_CHANNEL",
+              turn_id: [],
             },
           },
         ],
@@ -482,8 +451,7 @@ describe("MessageHandler — bot-message branch guards & round tracking", () => 
       OPENROUTER_API_KEY,
       "C_ADMIN_CHANNEL", // parentChannel
       "1700000010.000000", // parentTs
-      9n, // parentRoundCount = 9 → newRound = 10 = MAX_AGENT_ROUNDS
-      false, // parentForceTerminated = false
+      10n, // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → terminate
     );
 
     expect("ok" in result).toBe(true);
@@ -647,7 +615,7 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
   });
 
   it("should post a termination prompt to Slack when MAX_AGENT_ROUNDS is reached", async () => {
-    // parentRoundCount = 9 → newRound = 10 = MAX_AGENT_ROUNDS → force-terminate.
+    // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → force-terminate.
     // Unlike the non-deferred guard test, this deferred version captures both the
     // round_force_terminated HandlerResult AND the outgoing Slack chat.postMessage call
     // (the termination prompt) via cassette.
@@ -675,6 +643,7 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
                   parent_agent: "unit-test-admin",
                   parent_ts: PARENT_TS,
                   parent_channel: channel,
+                  turn_id: [],
                 },
               },
             ],
@@ -683,10 +652,9 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
           OPENROUTER_API_KEY,
           channel,
           PARENT_TS,
-          9n, // parentRoundCount = 9 → terminates on round 10
-          false,
+          10n, // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → terminate
         ),
-      { ticks: 5, maxRounds: 3 },
+      { ticks: 5, maxRounds: 3, globalMatchRules: CASSETTE_MATCH_RULES },
     );
 
     const response = await result;

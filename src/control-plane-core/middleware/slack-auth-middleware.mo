@@ -4,9 +4,7 @@
 /// The resulting `UserAuthContext` is the single authorization token that all
 /// downstream services and orchestrators accept instead of a caller Principal.
 ///
-/// `roundCount` and `forceTerminated` are included here (see Phase 2.4) so that
-/// the context is the single carrier of both identity and round-control state.
-/// They are always initialized to zero / false by `buildFromCache`.
+/// Round tracking and session state have been moved to SessionModel.
 
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
@@ -28,21 +26,12 @@ module {
   /// `workspaceScopes` contains only the workspaces the user explicitly belongs to.
   /// A missing workspace ID means the user has no access to that workspace.
   ///
-  /// `roundCount` and `forceTerminated` support Phase 1.5 agent round control.
-  /// `parentRef` records the channelId+ts of the message that triggered this context;
-  ///   null means this is a round-0 context from an original user message.
-  ///
-  /// Invariant: `parentRef == null ↔ roundCount == 0`.
-  ///   Following the chain: fetch `parentRef` → ConversationMessage → userAuthContext → repeat.
-  ///   Chain terminates when `parentRef == null`.
+  /// Identity only — round tracking and session state live in SessionModel.
   public type UserAuthContext = {
     slackUserId : Text;
     isPrimaryOwner : Bool;
     isOrgAdmin : Bool;
     workspaceScopes : Map.Map<Nat, SlackUserModel.WorkspaceScope>;
-    roundCount : Nat;
-    forceTerminated : Bool;
-    parentRef : ?{ channelId : Text; ts : Text }; // null = round 0 (original user message)
   };
 
   /// Authorization step — describes a single access requirement.
@@ -65,9 +54,6 @@ module {
   ///
   /// Returns `null` if `slackUserId` is not found in the cache. Callers should
   /// treat an absent user as unauthorized (equivalent to anonymous).
-  ///
-  /// `roundCount` and `forceTerminated` are seeded to their zero-values here.
-  /// `parentRef` is always `null` for round-0 contexts (original user messages).
   public func buildFromCache(
     slackUserId : Text,
     cache : SlackUserModel.SlackUserCache,
@@ -80,36 +66,8 @@ module {
           isPrimaryOwner = entry.isPrimaryOwner;
           isOrgAdmin = entry.isOrgAdmin;
           workspaceScopes = SlackUserModel.buildWorkspaceScopeMap(entry);
-          roundCount = 0;
-          forceTerminated = false;
-          parentRef = null;
         };
       };
-    };
-  };
-
-  /// Return a new `UserAuthContext` with updated round-control fields.
-  ///
-  /// `parentRef` must be supplied as `?{ channelId; ts }` pointing to the
-  /// message that triggered this agent hop; pass `null` only for round-0 contexts
-  /// (which callers should create via `buildFromCache` instead).
-  ///
-  /// Call site pattern:
-  ///   `withRound(parentCtx, newRound, false, ?{ channelId = msg.channel; ts = msg.ts })`
-  public func withRound(
-    ctx : UserAuthContext,
-    roundCount : Nat,
-    forceTerminated : Bool,
-    parentRef : ?{ channelId : Text; ts : Text },
-  ) : UserAuthContext {
-    {
-      slackUserId = ctx.slackUserId;
-      isPrimaryOwner = ctx.isPrimaryOwner;
-      isOrgAdmin = ctx.isOrgAdmin;
-      workspaceScopes = ctx.workspaceScopes;
-      roundCount;
-      forceTerminated;
-      parentRef;
     };
   };
 

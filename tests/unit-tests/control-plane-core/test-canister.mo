@@ -77,6 +77,7 @@ import McpToolRegistry "../../../src/control-plane-core/tools/mcp-tool-registry"
 import KeyDerivationService "../../../src/control-plane-core/services/key-derivation-service";
 import SecretModel "../../../src/control-plane-core/models/secret-model";
 import EventStoreModel "../../../src/control-plane-core/models/event-store-model";
+import SessionModel "../../../src/control-plane-core/models/session-model";
 import Types "../../../src/control-plane-core/types";
 import TestHelpers "./test-helpers";
 
@@ -325,15 +326,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
-  /// with a parent message that carries a UserAuthContext at a specified roundCount.
-  /// This allows bot-message (isBotMessage: true) tests to exercise session
-  /// inheritance and MAX_AGENT_ROUNDS termination logic without live HTTP calls
-  /// or requiring external cassettes.
+  /// with a parent message that carries a UserAuthContext and optionally seeds
+  /// a delegation-depth chain in the session stores.
+  /// This allows bot-message (isBotMessage: true) tests to exercise delegation
+  /// depth checks and MAX_AGENT_ROUNDS termination logic.
   ///
-  /// parentChannel        — channel where the parent message lives.
-  /// parentTs             — ts of the parent message (also used as rootTs for a top-level post).
-  /// parentRoundCount     — roundCount stamped on the parent's userAuthContext.
-  /// parentForceTerminated — forceTerminated flag on the parent's userAuthContext.
+  /// parentChannel     — channel where the parent message lives.
+  /// parentTs          — ts of the parent message (also used as rootTs for a top-level post).
+  /// delegationDepth   — number of turns to chain in sessionStores (0 = no prior delegation).
   public shared ({ caller }) func testMessageHandlerBotBranch(
     msg : {
       user : Text;
@@ -348,28 +348,15 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     openRouterApiKey : Text,
     parentChannel : Text,
     parentTs : Text,
-    parentRoundCount : Nat,
-    parentForceTerminated : Bool,
+    delegationDepth : Nat,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey);
-    // Seed the parent message with a UserAuthContext at the requested roundCount.
-    // workspaceScopes is empty — the bot-path guard only checks roundCount / forceTerminated.
-    //
-    // Respect the invariant: parentRef == null ↔ roundCount == 0.
-    // When parentRoundCount > 0 a real context would carry the channelId+ts of the
-    // message that triggered it, so we populate parentRef accordingly.
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
       isOrgAdmin = false;
       workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
-      roundCount = parentRoundCount;
-      forceTerminated = parentForceTerminated;
-      parentRef = if (parentRoundCount == 0) null else ?{
-        channelId = parentChannel;
-        ts = parentTs;
-      };
     };
     ConversationModel.addMessage(
       ctx.conversationStore,
@@ -385,18 +372,51 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     ignore ConversationModel.updateMessageContext(
       ctx.conversationStore,
       parentChannel,
-      parentTs, // rootTs — this is a top-level post so rootTs == ts
-      parentTs, // msgTs
+      parentTs,
+      parentTs,
       ?parentAuthCtx,
     );
-    await MessageHandler.handle(msg, ctx);
+    // Seed a delegation chain in the session stores
+    var prevTurnId : ?Text = null;
+    var i = 0;
+    while (i < delegationDepth) {
+      let turn = SessionModel.createTurn(ctx.sessionStores, 0, null, prevTurnId, ?parentAuthCtx);
+      SessionModel.completeTurn(ctx.sessionStores, turn.turnId, #succeeded, null, null);
+      prevTurnId := ?turn.turnId;
+      i += 1;
+    };
+    // Override the message metadata's turn_id to point to the last seeded turn
+    let adjustedMeta : ?Types.AgentMessageMetadata = switch (msg.agentMetadata) {
+      case (?m) {
+        ?{
+          event_type = m.event_type;
+          event_payload = {
+            parent_agent = m.event_payload.parent_agent;
+            parent_ts = m.event_payload.parent_ts;
+            parent_channel = m.event_payload.parent_channel;
+            turn_id = prevTurnId;
+          };
+        };
+      };
+      case (null) { null };
+    };
+    let adjustedMsg = {
+      user = msg.user;
+      text = msg.text;
+      channel = msg.channel;
+      ts = msg.ts;
+      threadTs = msg.threadTs;
+      isBotMessage = msg.isBotMessage;
+      agentMetadata = adjustedMeta;
+    };
+    await MessageHandler.handle(adjustedMsg, ctx);
   };
 
   /// Like `testMessageHandlerBotBranch`, but uses `ctxWithOpenRouterOnlySecrets` (no Slack
   /// bot token) so the `postTerminationIfTokenAvailable` call is a no-op.
   ///
   /// Use this for non-deferred guard tests that verify termination logic (e.g.
-  /// MAX_AGENT_ROUNDS, forceTerminated) without needing a cassette to handle the
+  /// MAX_AGENT_ROUNDS delegation depth) without needing a cassette to handle the
   /// outgoing Slack HTTPS chat.postMessage call.
   public shared ({ caller }) func testMessageHandlerBotBranchNoSlackToken(
     msg : {
@@ -411,8 +431,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     openRouterApiKey : Text,
     parentChannel : Text,
     parentTs : Text,
-    parentRoundCount : Nat,
-    parentForceTerminated : Bool,
+    delegationDepth : Nat,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     let ctx = TestHelpers.ctxWithOpenRouterOnlySecrets(slackUsers, testWorkspacesState, openRouterApiKey);
@@ -421,12 +440,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner = false;
       isOrgAdmin = false;
       workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
-      roundCount = parentRoundCount;
-      forceTerminated = parentForceTerminated;
-      parentRef = if (parentRoundCount == 0) null else ?{
-        channelId = parentChannel;
-        ts = parentTs;
-      };
     };
     ConversationModel.addMessage(
       ctx.conversationStore,
@@ -446,7 +459,40 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       parentTs,
       ?parentAuthCtx,
     );
-    await MessageHandler.handle(msg, ctx);
+    // Seed a delegation chain in the session stores
+    var prevTurnId : ?Text = null;
+    var i = 0;
+    while (i < delegationDepth) {
+      let turn = SessionModel.createTurn(ctx.sessionStores, 0, null, prevTurnId, ?parentAuthCtx);
+      SessionModel.completeTurn(ctx.sessionStores, turn.turnId, #succeeded, null, null);
+      prevTurnId := ?turn.turnId;
+      i += 1;
+    };
+    // Override the message metadata's turn_id to point to the last seeded turn
+    let adjustedMeta : ?Types.AgentMessageMetadata = switch (msg.agentMetadata) {
+      case (?m) {
+        ?{
+          event_type = m.event_type;
+          event_payload = {
+            parent_agent = m.event_payload.parent_agent;
+            parent_ts = m.event_payload.parent_ts;
+            parent_channel = m.event_payload.parent_channel;
+            turn_id = prevTurnId;
+          };
+        };
+      };
+      case (null) { null };
+    };
+    let adjustedMsg = {
+      user = msg.user;
+      text = msg.text;
+      channel = msg.channel;
+      ts = msg.ts;
+      threadTs = msg.threadTs;
+      isBotMessage = msg.isBotMessage;
+      agentMetadata = adjustedMeta;
+    };
+    await MessageHandler.handle(adjustedMsg, ctx);
   };
 
   /// Like `testMessageHandlerWithSecrets`, but pre-seeds the context with BOTH a
@@ -926,9 +972,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
       workspaceScopes;
-      roundCount = 0;
-      forceTerminated = false;
-      parentRef = null;
     };
     await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
@@ -961,9 +1004,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
       workspaceScopes;
-      roundCount = 0;
-      forceTerminated = false;
-      parentRef = null;
     };
     await CreateWorkspaceHandler.handle(testWorkspacesState, uac, args);
   };
@@ -1012,9 +1052,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
       workspaceScopes;
-      roundCount = 0;
-      forceTerminated = false;
-      parentRef = null;
     };
     await SetWorkspaceMemberChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
@@ -1258,9 +1295,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner;
       isOrgAdmin;
       workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
-      roundCount = 0;
-      forceTerminated = false;
-      parentRef = null;
     };
   };
 
@@ -1429,9 +1463,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
       workspaceScopes;
-      roundCount = 0;
-      forceTerminated = false;
-      parentRef = null;
     };
     await StoreSecretHandler.handle(testSecretsMap, testSecretsKeyCache, testWorkspacesState, uac, args);
   };
@@ -1460,9 +1491,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
       workspaceScopes;
-      roundCount = 0;
-      forceTerminated = false;
-      parentRef = null;
     };
     await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, args);
   };
@@ -1491,9 +1519,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
       workspaceScopes;
-      roundCount = 0;
-      forceTerminated = false;
-      parentRef = null;
     };
     await DeleteSecretHandler.handle(testSecretsMap, uac, args);
   };

@@ -12,6 +12,7 @@ import ValueStreamModel "../../../src/control-plane-core/models/value-stream-mod
 import WorkspaceModel "../../../src/control-plane-core/models/workspace-model";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import EventStoreModel "../../../src/control-plane-core/models/event-store-model";
+import SessionModel "../../../src/control-plane-core/models/session-model";
 import Types "../../../src/control-plane-core/types";
 
 // ============================================
@@ -89,6 +90,7 @@ module {
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
+      sessionStores = SessionModel.emptyStores();
     };
   };
 
@@ -141,6 +143,7 @@ module {
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
+      sessionStores = SessionModel.emptyStores();
     };
   };
 
@@ -192,6 +195,7 @@ module {
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
+      sessionStores = SessionModel.emptyStores();
     };
   };
 
@@ -258,6 +262,7 @@ module {
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
+      sessionStores = SessionModel.emptyStores();
     };
   };
 
@@ -321,6 +326,7 @@ module {
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
+      sessionStores = SessionModel.emptyStores();
     };
   };
 
