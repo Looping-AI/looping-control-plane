@@ -1,7 +1,8 @@
 /// Turn Cleanup Runner
-/// Hard-deletes completed turns (and their traces) older than the retention
-/// window (90 days). Running turns are never deleted.
-/// Scheduled to run every 7 days alongside the conversation prune timer.
+/// Hard-deletes turns (and their traces) older than the retention window
+/// (90 days), including any orphaned stale `#running` turns (e.g. from
+/// crashed workers). Scheduled to run every 7 days alongside the conversation
+/// prune timer.
 
 import Int "mo:core/Int";
 import Time "mo:core/Time";

@@ -341,7 +341,7 @@ suite(
     test(
       "returns depth when a turn in the chain is missing",
       func() {
-        // Chain: t0 -> t1 (missing) → should return 1 because t1 not found
+        // Chain: t0 -> t1 (missing) → should return 2: t0 found (depth 1), then follows triggerTurnId "1_999" which is not found (depth 2)
         let stores = makeStores();
         let t0 = SessionModel.createTurn(stores, 1, null, ?"1_999", null);
         expect.nat(SessionModel.countDelegationDepth(stores, ?t0.turnId, 100)).equal(2);

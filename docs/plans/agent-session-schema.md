@@ -192,4 +192,4 @@ A periodic timer (e.g., monthly) hard-deletes entire turns and their trace entri
 3. **`TurnTraceEntry.seq`** is monotonic per `turnId`. Entries are never removed or mutated.
 4. **`cost`** is `null` while `status = #running`; always set on any terminal status.
 5. **`triggerTurnId = null`** means this is a root turn (user-originated).
-6. **Maintenance worker never touches `#running` turns** — compaction and cleanup only process completed turns.
+6. **Maintenance worker deletes all turns older than `TURN_CLEANUP_RETENTION_NS`** — including orphaned `#running` turns (e.g. from crashed workers). Compaction only processes completed turns.

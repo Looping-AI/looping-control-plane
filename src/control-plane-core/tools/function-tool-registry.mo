@@ -1165,7 +1165,7 @@ module {
         function = {
           name = "update_session_policy";
           description = ?"Update the session token-budget policy for a specific agent. Omit a field to keep its current value. Use this to tune how much context window budget is allocated to session summaries vs raw turns.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"agent_id\":{\"type\":\"number\",\"description\":\"The numeric ID of the agent whose session policy to update.\"},\"summary_token_budget\":{\"type\":\"number\",\"description\":\"Total token budget for session context (default 8192). Controls how much context window is reserved for session history.\"},\"max_truncated_tokens\":{\"type\":\"number\",\"description\":\"Cap per text field when truncating vertically (default 512). Controls maximum tokens per individual field in truncated output.\"}},\"required\":[\"agent_id\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"agent_id\":{\"type\":\"number\",\"description\":\"The numeric ID of the agent whose session policy to update.\"},\"summary_token_budget\":{\"type\":\"number\",\"description\":\"Total token budget for session context (default 32768). Controls how much context window is reserved for session history.\"},\"max_truncated_tokens\":{\"type\":\"number\",\"description\":\"Cap per text field when truncating vertically (default 4096). Controls maximum tokens per individual field in truncated output.\"}},\"required\":[\"agent_id\"]}";
         };
       };
       handler = func(args : Text) : async Text {
