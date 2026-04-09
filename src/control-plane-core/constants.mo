@@ -60,6 +60,6 @@ module {
   // Default session policy — token budgets for context-window management.
   // The admin agent can override these per-agent via the update_session_policy tool.
   public let DEFAULT_SUMMARY_TOKEN_BUDGET : Nat = 32768; // 32k
-  public let DEFAULT_MAX_TRUNCATED_TOKENS : Nat = 4096 // 4k
+  public let DEFAULT_MAX_TRUNCATED_TOKENS : Nat = 4096; // 4k
 
 };
