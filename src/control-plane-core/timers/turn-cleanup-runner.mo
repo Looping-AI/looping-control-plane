@@ -1,7 +1,7 @@
 /// Turn Cleanup Runner
 /// Hard-deletes turns (and their traces) older than the retention window
 /// (90 days), including any orphaned stale `#running` turns (e.g. from
-/// crashed workers). Scheduled to run every 7 days alongside the conversation
+/// crashed workers). Scheduled to run every 7 days alongside the channel-history
 /// prune timer.
 
 import Int "mo:core/Int";

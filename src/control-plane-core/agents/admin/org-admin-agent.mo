@@ -71,7 +71,7 @@ module {
   public func process(
     agent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
-    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
+    channelHistoryEntry : ?ChannelHistoryModel.TimelineEntry,
     ctx : AdminCtx,
     message : Text,
     apiKey : Text,
@@ -161,7 +161,7 @@ module {
     // Tool call / tool response artifacts are appended to inputMessages during the
     // reasoning loop below but are NOT written to the channel history store — they are
     // ephemeral and discarded when this function returns.
-    let inputMessages = buildContextMessages(conversationEntry);
+    let inputMessages = buildContextMessages(channelHistoryEntry);
 
     // Add the new user message
     List.add(inputMessages, { role = #user; content = message });
@@ -281,10 +281,10 @@ module {
   ///   ChannelMessage.userAuthContext = null  → #assistant  (bot/agent message)
   ///   ChannelMessage.userAuthContext = ?_    → #user       (human message)
   private func buildContextMessages(
-    conversationEntry : ?ChannelHistoryModel.TimelineEntry
+    channelHistoryEntry : ?ChannelHistoryModel.TimelineEntry
   ) : List.List<OpenRouterWrapper.ResponseInputMessage> {
     let inputMessages = List.empty<OpenRouterWrapper.ResponseInputMessage>();
-    switch (conversationEntry) {
+    switch (channelHistoryEntry) {
       case (null) { /* no history — start fresh */ };
       case (?#post msg) {
         let role : OpenRouterWrapper.MessageRole = switch (msg.userAuthContext) {

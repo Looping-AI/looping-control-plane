@@ -60,7 +60,7 @@ module {
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     secrets : SecretModel.SecretsState,
     slackUserId : ?Text,
-    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
+    channelHistoryEntry : ?ChannelHistoryModel.TimelineEntry,
     agentCtx : AgentCtx,
     message : Text,
     workspaceKey : [Nat8],
@@ -138,7 +138,7 @@ module {
                 await OrgAdminAgent.process(
                   agent,
                   mcpToolRegistry,
-                  conversationEntry,
+                  channelHistoryEntry,
                   ctx,
                   message,
                   key,
@@ -150,7 +150,7 @@ module {
                 await WorkPlanningAgent.process(
                   agent,
                   mcpToolRegistry,
-                  conversationEntry,
+                  channelHistoryEntry,
                   ctx,
                   message,
                   key,

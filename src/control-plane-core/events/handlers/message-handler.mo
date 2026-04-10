@@ -314,7 +314,7 @@ module {
     };
   };
 
-  /// Phase 1.4 — Fetch the existing conversation entry (for LLM context), then
+  /// Phase 1.4 — Fetch the existing channel history entry (for LLM context), then
   /// immediately persist the incoming message with a null auth context.
   ///
   /// The entry is fetched BEFORE the message is stored so the LLM context does
@@ -381,7 +381,7 @@ module {
     primaryAgent : AgentModel.AgentRecord,
     ctx : EventProcessingContextTypes.EventProcessingContext,
     slackUserId : ?Text,
-    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
+    channelHistoryEntry : ?ChannelHistoryModel.TimelineEntry,
     agentCtx : AgentRouter.AgentCtx,
     msgText : Text,
     workspaceKey : [Nat8],
@@ -393,7 +393,7 @@ module {
       ctx.mcpToolRegistry,
       ctx.secrets,
       slackUserId,
-      conversationEntry,
+      channelHistoryEntry,
       agentCtx,
       msgText,
       workspaceKey,
@@ -468,7 +468,7 @@ module {
     let botTokenOpt = SecretModel.resolvePlatformSecret(ctx.secrets, orgKey, null, #slackBotToken, botTokenRequester);
 
     // ── Phase 1.4 — Persist incoming message ─────────────────────────────────
-    let conversationEntry = persistIncomingMessage(msg, ctx, rootTs);
+    let channelHistoryEntry = persistIncomingMessage(msg, ctx, rootTs);
 
     // ── Phase 1.5 — Round tracking + pre-condition guards ────────────────────
     let roundResult = resolveRoundContext(msg, ctx);
@@ -565,7 +565,7 @@ module {
       primaryAgent,
       ctx,
       slackUserId,
-      conversationEntry,
+      channelHistoryEntry,
       agentCtx,
       msg.text,
       encryptionKey,
