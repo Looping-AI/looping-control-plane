@@ -467,13 +467,11 @@ describe("MessageHandler — bot-message branch guards & delegation depth", () =
 });
 
 // ============================================
-// Primary agent resolution
+// Primary agent resolution — sync path
 //
-// Tests that verify the agent-resolution logic in resolvePrimaryAgent.
-// Routes to ::research agent (category stub, no LLM call) or verifies
-// primary_agent_skip is returned when no agent can be resolved.
-//
-// These tests run on a non-deferred actor with no cassette.
+// Tests that return before postAgentReply (no HTTP outcalls) can use a regular
+// synchronous actor.  The empty-registry path exits early via primary_agent_skip
+// before a bot token or LLM key is consulted.
 // ============================================
 
 describe("MessageHandler — primary agent resolution", () => {
@@ -492,49 +490,11 @@ describe("MessageHandler — primary agent resolution", () => {
     await pic.tearDown();
   });
 
-  it("should route ::unit-test-research to research category stub (not primary_agent_skip)", async () => {
-    // When the user explicitly references ::unit-test-research, the primary agent is the
-    // registered research agent and AgentRouter.route(#research, …) returns a stub #err
-    // without making any HTTP calls.
-    const result = await testCanister.testMessageHandlerWithResearchAgent(
-      {
-        user: "U_USER",
-        text: "::unit-test-research what is the current status",
-        channel: "C_ADMIN_CHANNEL",
-        ts: "1700000010.000010",
-        threadTs: [] as [],
-        isBotMessage: false,
-        agentMetadata: [] as [],
-      },
-      BOT_TOKEN,
-      OPENROUTER_API_KEY,
-    );
-
-    expect("ok" in result).toBe(true);
-    if ("ok" in result) {
-      // Must NOT return primary_agent_skip — the research agent WAS successfully resolved.
-      expect(
-        result.ok.some(
-          (s: { action: string }) => s.action === "primary_agent_skip",
-        ),
-      ).toBe(false);
-      // The orchestrate stub for #research returns an error step with the expected message.
-      const orchestrateStep = result.ok.find(
-        (s: { action: string; result: { ok: null } | { err: string } }) =>
-          s.action === "orchestrate",
-      );
-      expect(orchestrateStep).toBeDefined();
-      if (orchestrateStep && "err" in orchestrateStep.result) {
-        expect(orchestrateStep.result.err).toContain(
-          "category service not yet implemented",
-        );
-      }
-    }
-  });
-
   it("should return primary_agent_skip when no agents are registered (empty registry)", async () => {
     // testMessageHandler uses emptyCtx() — no agents registered at all.
     // A bare user message with no ::ref has no fallback agent available.
+    // The handler returns primary_agent_skip before reaching postAgentReply,
+    // so no HTTP outcalls are made and a regular (non-deferred) actor suffices.
     const result = await testCanister.testMessageHandler({
       user: "U_USER",
       text: "what is the current status",
@@ -555,32 +515,119 @@ describe("MessageHandler — primary agent resolution", () => {
       }
     }
   });
+});
+
+// ============================================
+// Primary agent resolution — HTTP path
+//
+// The message handler always calls postAgentReply at the end of the happy path,
+// which posts to Slack via an HTTPS outcall.  Tests that exercise paths reaching
+// postAgentReply (research stub error, admin key-resolution error) therefore
+// require a deferred actor and a cassette to intercept the Slack call.
+// ============================================
+
+describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
+  let pic: PocketIc;
+  let testCanister: DeferredActor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  it("should route ::unit-test-research to research category stub (not primary_agent_skip)", async () => {
+    // When the user explicitly references ::unit-test-research the primary agent
+    // resolves to the research category, which returns a stub #err without an LLM
+    // call.  postAgentReply then posts that error to Slack — captured via cassette.
+    const cassetteName =
+      "unit-tests/control-plane-core/events/handlers/message-handler/primary-agent-research-stub";
+    const channel = await resolveSpecsChannel(cassetteName);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerWithResearchAgent(
+          {
+            user: "U_USER",
+            text: "::unit-test-research what is the current status",
+            channel,
+            ts: "1700000010.000010",
+            threadTs: [] as [],
+            isBotMessage: false,
+            agentMetadata: [] as [],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+        ),
+      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      // Must NOT return primary_agent_skip — the research agent WAS successfully resolved.
+      expect(
+        response.ok.some(
+          (s: { action: string }) => s.action === "primary_agent_skip",
+        ),
+      ).toBe(false);
+      // The orchestrate stub for #research returns an error step with the expected message.
+      const orchestrateStep = response.ok.find(
+        (s: { action: string; result: { ok: null } | { err: string } }) =>
+          s.action === "orchestrate",
+      );
+      expect(orchestrateStep).toBeDefined();
+      if (orchestrateStep && "err" in orchestrateStep.result) {
+        expect(orchestrateStep.result.err).toContain(
+          "category service not yet implemented",
+        );
+      }
+    }
+  });
 
   it("should fall back to #admin agent for bare user message with no ::ref", async () => {
-    // With both admin and research agents registered, a bare message (no ::ref) falls
-    // back to getFirstByCategory(#admin).  The NoOpenRouter variant seeds no openRouterApiKey so
-    // the admin route short-circuits at key resolution (#err) without issuing any HTTP
-    // outcall — letting a non-deferred actor complete the call synchronously.
+    // With both admin and research agents registered, a bare message (no ::ref)
+    // falls back to getFirstByCategory(#admin).  The NoOpenRouter variant seeds no
+    // openRouterApiKey so the admin route returns #err at key resolution without an
+    // LLM call.  postAgentReply then posts that error to Slack — captured via cassette.
     // The important assertion: primary_agent_skip is NOT emitted — the fallback succeeded.
-    const result =
-      await testCanister.testMessageHandlerWithResearchAgentNoOpenRouter(
-        {
-          user: "U_USER",
-          text: "what is the current status",
-          channel: "C_ADMIN_CHANNEL",
-          ts: "1700000010.000012",
-          threadTs: [] as [],
-          isBotMessage: false,
-          agentMetadata: [] as [],
-        },
-        BOT_TOKEN,
-      );
+    const cassetteName =
+      "unit-tests/control-plane-core/events/handlers/message-handler/primary-agent-admin-fallback";
+    const channel = await resolveSpecsChannel(cassetteName);
 
-    expect("ok" in result).toBe(true);
-    if ("ok" in result) {
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerWithResearchAgentNoOpenRouter(
+          {
+            user: "U_USER",
+            text: "what is the current status",
+            channel,
+            ts: "1700000010.000012",
+            threadTs: [] as [],
+            isBotMessage: false,
+            agentMetadata: [] as [],
+          },
+          BOT_TOKEN,
+        ),
+      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
       // Fallback to admin succeeds — must not see primary_agent_skip.
       expect(
-        result.ok.some(
+        response.ok.some(
           (s: { action: string }) => s.action === "primary_agent_skip",
         ),
       ).toBe(false);
