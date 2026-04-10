@@ -153,7 +153,7 @@ module {
   /// Reasoning configuration for Responses API
   public type ReasoningConfig = {
     effort : ?Text;
-    summary : ?Bool;
+    summary : ?Text; // "auto" | "concise" | "detailed"
   };
 
   /// Text format configuration
@@ -192,7 +192,7 @@ module {
   /// On failure (#err): contains error message
   public type ReasonWithToolsResult = {
     #ok : {
-      #textResponse : Text;
+      #textResponse : { content : Text; thinking : ?Text };
       #toolCalls : [ToolCall];
     };
     #err : Text;
@@ -420,7 +420,7 @@ module {
         };
         switch (reasoning.summary) {
           case (?summary) {
-            List.add(reasoningFields, ("summary", bool(summary)));
+            List.add(reasoningFields, ("summary", str(summary)));
           };
           case (null) {};
         };
@@ -650,6 +650,20 @@ module {
                   return #ok(#toolCalls(toolCallsArray));
                 };
 
+                // Collect thinking text from reasoning output items
+                var thinkingOpt : ?Text = null;
+                for (outputJson in outputs.vals()) {
+                  switch (Json.get(outputJson, "type")) {
+                    case (?#string("reasoning")) {
+                      switch (Json.get(outputJson, "summary[0].text")) {
+                        case (?#string(t)) { thinkingOpt := ?t };
+                        case (_) {};
+                      };
+                    };
+                    case (_) {};
+                  };
+                };
+
                 // Otherwise, look for text message output
                 for (outputJson in outputs.vals()) {
                   switch (Json.get(outputJson, "type")) {
@@ -661,7 +675,7 @@ module {
                             case (?textJson) {
                               switch (textJson) {
                                 case (#string(content)) {
-                                  return #ok(#textResponse(content));
+                                  return #ok(#textResponse({ content; thinking = thinkingOpt }));
                                 };
                                 case (_) {};
                               };
@@ -1111,7 +1125,7 @@ module {
       instructions,
       temperature,
       null, // maxOutputTokens
-      null, // reasoning always null
+      ?{ effort = ?"medium"; summary = ?"auto" }, // request reasoning when model supports it
       tools,
       null, // no tool choice
       ?userKey, // user key for identification

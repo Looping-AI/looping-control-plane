@@ -381,7 +381,8 @@ module {
     primaryAgent : AgentModel.AgentRecord,
     ctx : EventProcessingContextTypes.EventProcessingContext,
     slackUserId : ?Text,
-    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
+    channelId : Text,
+    threadTs : ?Text,
     agentCtx : AgentRouter.AgentCtx,
     msgText : Text,
     workspaceKey : [Nat8],
@@ -393,7 +394,9 @@ module {
       ctx.mcpToolRegistry,
       ctx.secrets,
       slackUserId,
-      conversationEntry,
+      ctx.channelHistory,
+      channelId,
+      threadTs,
       agentCtx,
       msgText,
       workspaceKey,
@@ -468,7 +471,7 @@ module {
     let botTokenOpt = SecretModel.resolvePlatformSecret(ctx.secrets, orgKey, null, #slackBotToken, botTokenRequester);
 
     // ── Phase 1.4 — Persist incoming message ─────────────────────────────────
-    let conversationEntry = persistIncomingMessage(msg, ctx, rootTs);
+    ignore persistIncomingMessage(msg, ctx, rootTs);
 
     // ── Phase 1.5 — Round tracking + pre-condition guards ────────────────────
     let roundResult = resolveRoundContext(msg, ctx);
@@ -565,7 +568,8 @@ module {
       primaryAgent,
       ctx,
       slackUserId,
-      conversationEntry,
+      msg.channel,
+      msg.threadTs,
       agentCtx,
       msg.text,
       encryptionKey,

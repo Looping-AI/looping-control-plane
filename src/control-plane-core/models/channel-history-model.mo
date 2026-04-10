@@ -310,6 +310,87 @@ module {
   };
 
   // ============================================
+  // getRecentRootMessages
+  // ============================================
+
+  /// Return the root message of each of the last `limit` timeline entries.
+  /// For `#post` entries, the message itself is returned.
+  /// For `#thread` entries, the root message (at `thread.rootTs`) is returned.
+  /// Messages are ordered chronologically (oldest → newest).
+  /// If there are fewer entries than `limit`, all entries are returned.
+  public func getRecentRootMessages(
+    store : ChannelHistoryStore,
+    channelId : Text,
+    limit : Nat,
+  ) : [ChannelMessage] {
+    switch (Map.get(store, Text.compare, channelId)) {
+      case (null) { [] };
+      case (?ch) {
+        let arr = Map.toArray(ch.timeline);
+        let total = arr.size();
+        let startIndex = if (total > limit) Nat.sub(total, limit) else 0;
+        let result = List.empty<ChannelMessage>();
+        var i = startIndex;
+        while (i < total) {
+          let (_, entry) = arr[i];
+          switch (entry) {
+            case (#post msg) { List.add(result, msg) };
+            case (#thread thread) {
+              switch (Map.get(thread.messages, Text.compare, thread.rootTs)) {
+                case (?msg) { List.add(result, msg) };
+                case (null) {};
+              };
+            };
+          };
+          i += 1;
+        };
+        List.toArray(result);
+      };
+    };
+  };
+
+  // ============================================
+  // getRecentThreadMessages
+  // ============================================
+
+  /// Return the last `limit` messages from the thread rooted at `rootTs`.
+  ///
+  /// Returns `[]` when:
+  ///   - The channel or entry does not exist
+  ///   - The entry is a standalone `#post` (no replies)
+  ///
+  /// Messages are ordered chronologically (oldest → newest).
+  public func getRecentThreadMessages(
+    store : ChannelHistoryStore,
+    channelId : Text,
+    rootTs : Text,
+    limit : Nat,
+  ) : [ChannelMessage] {
+    switch (Map.get(store, Text.compare, channelId)) {
+      case (null) { [] };
+      case (?ch) {
+        switch (Map.get(ch.timeline, Text.compare, rootTs)) {
+          case (null) { [] };
+          case (?#post _) { [] };
+          case (?#thread thread) {
+            let messagesArr = Map.toArray(thread.messages);
+            let total = messagesArr.size();
+            let startIndex = if (total > limit) Nat.sub(total, limit) else 0;
+            let result = List.empty<ChannelMessage>();
+            var i = startIndex;
+            while (i < total) {
+              let (_, msg) = messagesArr[i];
+              List.add(result, msg);
+              i += 1;
+            };
+            List.toArray(result);
+          };
+        };
+      };
+    };
+  };
+
+  // ============================================
   // updateMessageText
   // ============================================
 

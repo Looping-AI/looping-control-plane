@@ -156,7 +156,7 @@ Agents have one of two execution types:
 
 The `AgentRouter` branches on execution type before dispatching. The `#runtime` variant is extensible for future runtime types beyond GitHub Coding Agents.
 
-### Agent Category
+### Agent Category (deprecated)
 
 A class of agent behavior (e.g., admin, research, communication, coding). Each category defines:
 
@@ -164,7 +164,7 @@ A class of agent behavior (e.g., admin, research, communication, coding). Each c
 - LLM model selection strategy.
 - Template Skills and source/knowledge configuration.
 
-### Policies
+### Policies (future)
 
 Text-based rules governing what is allowed or not. Applied at the workspace level to constrain tasks, tools, budgets, and permissions. From these text based documents, logic rules are captured and converted into Dynamic Logic, formal logic, rules. Then they should be upheld when accessing tools. Maybe consider using an adaptation of Cedar Policy framework https://github.com/cedar-policy/cedar-authorization.
 
@@ -177,11 +177,11 @@ All system state mutations are driven exclusively by Events (or internally sched
 Each event source has its own HMAC-SHA256 signature verification — Slack uses a signing secret and GitHub uses a webhook secret.
 Slack remains the primary user interaction layer; GitHub webhooks handle runtime session lifecycle and agent response delivery.
 
-### Tasks and Processes
+### Processes
 
 The sources of system activity are: (a) a verified inbound webhook (Slack or GitHub), (b) an event emitted by the system itself via the `EventEmit` effect — either immediately or after a delay (timer/heartbeat), and (c) controller-only operations restricted to the canister controller principal (secret setup and recovery only). There is no other entry point.
 
-Work is modelled as **Processes**: stateful, multi-step computations driven by events and returning effects. "Tasks" in legacy code are a simplified form of this model.
+Work is modelled as **Processes**: stateful, multi-step computations driven by events and returning effects.
 
 ### Process
 

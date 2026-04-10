@@ -629,3 +629,160 @@ suite(
     );
   },
 );
+
+// ── getRecentRootMessages ─────────────────────────────────────────────────────
+
+suite(
+  "ChannelHistoryModel - getRecentRootMessages",
+  func() {
+    test(
+      "returns empty array for unknown channel",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        let result = ChannelHistoryModel.getRecentRootMessages(store, "CNONE", 10);
+        expect.nat(result.size()).equal(0);
+      },
+    );
+
+    test(
+      "returns root messages from #post entries",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000001", "First"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1001.000001", "Second"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1002.000001", "Third"), null);
+
+        let result = ChannelHistoryModel.getRecentRootMessages(store, "C001", 10);
+        expect.nat(result.size()).equal(3);
+        expect.text(result[0].text).equal("First");
+        expect.text(result[1].text).equal("Second");
+        expect.text(result[2].text).equal("Third");
+      },
+    );
+
+    test(
+      "returns only the last N root messages when count > limit",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000001", "A"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1001.000001", "B"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1002.000001", "C"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1003.000001", "D"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1004.000001", "E"), null);
+
+        let result = ChannelHistoryModel.getRecentRootMessages(store, "C001", 3);
+        expect.nat(result.size()).equal(3);
+        expect.text(result[0].text).equal("C");
+        expect.text(result[1].text).equal("D");
+        expect.text(result[2].text).equal("E");
+      },
+    );
+
+    test(
+      "returns root message of #thread entries",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
+
+        let result = ChannelHistoryModel.getRecentRootMessages(store, "C001", 10);
+        expect.nat(result.size()).equal(1);
+        expect.text(result[0].text).equal("Root");
+        expect.text(result[0].ts).equal("1000.000001");
+      },
+    );
+
+    test(
+      "skips sparse threads with no root message",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        // Reply arrives with no root — creates sparse thread
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000002", "Orphan reply"), ?"1000.000001");
+        // Also add a normal post
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1001.000001", "Normal"), null);
+
+        let result = ChannelHistoryModel.getRecentRootMessages(store, "C001", 10);
+        // Sparse thread has no root message at rootTs, so it's skipped
+        expect.nat(result.size()).equal(1);
+        expect.text(result[0].text).equal("Normal");
+      },
+    );
+  },
+);
+
+// ── getRecentThreadMessages ──────────────────────────────────────────────────────────────────────────────
+
+suite(
+  "ChannelHistoryModel - getRecentThreadMessages",
+  func() {
+    test(
+      "returns empty array for unknown channel",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        let result = ChannelHistoryModel.getRecentThreadMessages(store, "CNONE", "1000.000001", 10);
+        expect.nat(result.size()).equal(0);
+      },
+    );
+
+    test(
+      "returns empty array for unknown rootTs",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000001", "Msg"), null);
+        let result = ChannelHistoryModel.getRecentThreadMessages(store, "C001", "9999.000001", 10);
+        expect.nat(result.size()).equal(0);
+      },
+    );
+
+    test(
+      "returns empty array for a #post entry",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000001", "Standalone"), null);
+        let result = ChannelHistoryModel.getRecentThreadMessages(store, "C001", "1000.000001", 10);
+        expect.nat(result.size()).equal(0);
+      },
+    );
+
+    test(
+      "returns messages from a sparse thread (reply arrived before root)",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000002", "Orphan reply"), ?"1000.000001");
+        let result = ChannelHistoryModel.getRecentThreadMessages(store, "C001", "1000.000001", 10);
+        expect.nat(result.size()).equal(1);
+        expect.text(result[0].text).equal("Orphan reply");
+      },
+    );
+
+    test(
+      "returns root + reply for a normal two-message thread",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000002", "Reply"), ?"1000.000001");
+        let result = ChannelHistoryModel.getRecentThreadMessages(store, "C001", "1000.000001", 10);
+        expect.nat(result.size()).equal(2);
+        expect.text(result[0].text).equal("Root");
+        expect.text(result[1].text).equal("Reply");
+      },
+    );
+
+    test(
+      "returns only the last N messages when thread is larger than limit",
+      func() {
+        let store = ChannelHistoryModel.empty();
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000001", "Root"), null);
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000002", "R1"), ?"1000.000001");
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000003", "R2"), ?"1000.000001");
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000004", "R3"), ?"1000.000001");
+        ChannelHistoryModel.addMessage(store, "C001", agentMsg("1000.000005", "R4"), ?"1000.000001");
+        let result = ChannelHistoryModel.getRecentThreadMessages(store, "C001", "1000.000001", 3);
+        expect.nat(result.size()).equal(3);
+        expect.text(result[0].text).equal("R2");
+        expect.text(result[1].text).equal("R3");
+        expect.text(result[2].text).equal("R4");
+      },
+    );
+  },
+);

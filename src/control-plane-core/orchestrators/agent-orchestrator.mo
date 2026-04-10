@@ -50,8 +50,8 @@ module {
   // `agentCtx` carries the category-specific data slice.  The variant tag must
   // match `agent.category`; the router enforces this before calling here.
   //
-  // `channelHistoryEntry` provides the timeline entry (from the channel history store)
-  // to use as LLM context. Pass `null` when no history exists or is needed.
+  // `channelHistory` provides the full channel history store for LLM context
+  // assembly, scoped by `channelId` and optionally `threadTs`.
   //
   // Returns the LLM's final text response. The caller is responsible for
   // persisting the user message and agent response to the channel history store.
@@ -60,7 +60,9 @@ module {
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     secrets : SecretModel.SecretsState,
     slackUserId : ?Text,
-    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
+    channelHistory : ChannelHistoryModel.ChannelHistoryStore,
+    channelId : Text,
+    threadTs : ?Text,
     agentCtx : AgentCtx,
     message : Text,
     workspaceKey : [Nat8],
@@ -138,7 +140,9 @@ module {
                 await OrgAdminAgent.process(
                   agent,
                   mcpToolRegistry,
-                  conversationEntry,
+                  channelHistory,
+                  channelId,
+                  threadTs,
                   ctx,
                   message,
                   key,
@@ -150,7 +154,9 @@ module {
                 await WorkPlanningAgent.process(
                   agent,
                   mcpToolRegistry,
-                  conversationEntry,
+                  channelHistory,
+                  channelId,
+                  threadTs,
                   ctx,
                   message,
                   key,
