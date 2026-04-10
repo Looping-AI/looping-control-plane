@@ -38,12 +38,6 @@ const BOT_TOKEN =
 const OPENROUTER_API_KEY =
   process.env["OPENROUTER_TEST_KEY"] ?? "not-needed-due-to-cassette";
 
-// Cassette match rules: ignore turn_id in the Slack metadata payload since
-// turn IDs are generated at runtime and won't match recorded cassettes.
-const CASSETTE_MATCH_RULES = {
-  ignoreBodyFields: ["metadata.event_payload.turn_id"],
-};
-
 describe("MessageHandler Unit Tests", () => {
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
@@ -91,7 +85,7 @@ describe("MessageHandler Unit Tests", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+      { ticks: 5, maxRounds: 5 },
     );
 
     const response = await result;
@@ -130,7 +124,7 @@ describe("MessageHandler Unit Tests", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+      { ticks: 5, maxRounds: 5 },
     );
 
     const response = await result;
@@ -163,7 +157,7 @@ describe("MessageHandler Unit Tests", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+      { ticks: 5, maxRounds: 5 },
     );
 
     const response = await result;
@@ -196,7 +190,7 @@ describe("MessageHandler Unit Tests", () => {
             BOT_TOKEN,
             OPENROUTER_API_KEY,
           ),
-        { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+        { ticks: 5, maxRounds: 5 },
       );
 
       const response = await result;
@@ -232,7 +226,7 @@ describe("MessageHandler Unit Tests", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+      { ticks: 5, maxRounds: 5 },
     );
 
     const response = await result;
@@ -277,18 +271,18 @@ describe("MessageHandler Unit Tests", () => {
                   parent_agent: "unit-test-admin",
                   parent_ts: PARENT_TS,
                   parent_channel: channel,
-                  turn_id: [],
+                  turn_id: "0_0",
                 },
               },
             ],
           },
           BOT_TOKEN,
           OPENROUTER_API_KEY,
-          channel, // parentChannel — same channel as the bot message
+          channel, // parentChannel
           PARENT_TS, // parentTs
           0n, // delegationDepth = 0 → well within MAX_AGENT_ROUNDS
         ),
-      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+      { ticks: 5, maxRounds: 5 },
     );
 
     const response = await result;
@@ -400,7 +394,7 @@ describe("MessageHandler — bot-message branch guards & delegation depth", () =
               parent_agent: "unit-test-admin",
               parent_ts: "1700000010.000000",
               parent_channel: "C_ADMIN_CHANNEL",
-              turn_id: [],
+              turn_id: "0_0",
             },
           },
         ],
@@ -443,7 +437,7 @@ describe("MessageHandler — bot-message branch guards & delegation depth", () =
               parent_agent: "unit-test-admin",
               parent_ts: "1700000010.000000",
               parent_channel: "C_ADMIN_CHANNEL",
-              turn_id: [],
+              turn_id: "0_0",
             },
           },
         ],
@@ -567,7 +561,7 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
           BOT_TOKEN,
           OPENROUTER_API_KEY,
         ),
-      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+      { ticks: 5, maxRounds: 5 },
     );
 
     const response = await result;
@@ -619,7 +613,7 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
           },
           BOT_TOKEN,
         ),
-      { ticks: 5, maxRounds: 5, globalMatchRules: CASSETTE_MATCH_RULES },
+      { ticks: 5, maxRounds: 5 },
     );
 
     const response = await result;
@@ -690,7 +684,7 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
                   parent_agent: "unit-test-admin",
                   parent_ts: PARENT_TS,
                   parent_channel: channel,
-                  turn_id: [],
+                  turn_id: "0_0",
                 },
               },
             ],
@@ -701,7 +695,7 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
           PARENT_TS,
           10n, // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → terminate
         ),
-      { ticks: 5, maxRounds: 3, globalMatchRules: CASSETTE_MATCH_RULES },
+      { ticks: 5, maxRounds: 3 },
     );
 
     const response = await result;

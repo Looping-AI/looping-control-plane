@@ -385,29 +385,33 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       prevTurnId := ?turn.turnId;
       i += 1;
     };
-    // Override the message metadata's turn_id to point to the last seeded turn
-    let adjustedMeta : ?Types.AgentMessageMetadata = switch (msg.agentMetadata) {
-      case (?m) {
-        ?{
-          event_type = m.event_type;
-          event_payload = {
-            parent_agent = m.event_payload.parent_agent;
-            parent_ts = m.event_payload.parent_ts;
-            parent_channel = m.event_payload.parent_channel;
-            turn_id = prevTurnId;
+    // Override turn_id only when turns were seeded; otherwise pass msg through unchanged.
+    let adjustedMsg = switch (prevTurnId) {
+      case (null) { msg };
+      case (?tid) {
+        switch (msg.agentMetadata) {
+          case (null) { msg };
+          case (?m) {
+            {
+              user = msg.user;
+              text = msg.text;
+              channel = msg.channel;
+              ts = msg.ts;
+              threadTs = msg.threadTs;
+              isBotMessage = msg.isBotMessage;
+              agentMetadata = ?{
+                event_type = m.event_type;
+                event_payload = {
+                  parent_agent = m.event_payload.parent_agent;
+                  parent_ts = m.event_payload.parent_ts;
+                  parent_channel = m.event_payload.parent_channel;
+                  turn_id = tid;
+                };
+              };
+            };
           };
         };
       };
-      case (null) { null };
-    };
-    let adjustedMsg = {
-      user = msg.user;
-      text = msg.text;
-      channel = msg.channel;
-      ts = msg.ts;
-      threadTs = msg.threadTs;
-      isBotMessage = msg.isBotMessage;
-      agentMetadata = adjustedMeta;
     };
     await MessageHandler.handle(adjustedMsg, ctx);
   };
@@ -468,29 +472,33 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       prevTurnId := ?turn.turnId;
       i += 1;
     };
-    // Override the message metadata's turn_id to point to the last seeded turn
-    let adjustedMeta : ?Types.AgentMessageMetadata = switch (msg.agentMetadata) {
-      case (?m) {
-        ?{
-          event_type = m.event_type;
-          event_payload = {
-            parent_agent = m.event_payload.parent_agent;
-            parent_ts = m.event_payload.parent_ts;
-            parent_channel = m.event_payload.parent_channel;
-            turn_id = prevTurnId;
+    // Override turn_id only when turns were seeded; otherwise pass msg through unchanged.
+    let adjustedMsg = switch (prevTurnId) {
+      case (null) { msg };
+      case (?tid) {
+        switch (msg.agentMetadata) {
+          case (null) { msg };
+          case (?m) {
+            {
+              user = msg.user;
+              text = msg.text;
+              channel = msg.channel;
+              ts = msg.ts;
+              threadTs = msg.threadTs;
+              isBotMessage = msg.isBotMessage;
+              agentMetadata = ?{
+                event_type = m.event_type;
+                event_payload = {
+                  parent_agent = m.event_payload.parent_agent;
+                  parent_ts = m.event_payload.parent_ts;
+                  parent_channel = m.event_payload.parent_channel;
+                  turn_id = tid;
+                };
+              };
+            };
           };
         };
       };
-      case (null) { null };
-    };
-    let adjustedMsg = {
-      user = msg.user;
-      text = msg.text;
-      channel = msg.channel;
-      ts = msg.ts;
-      threadTs = msg.threadTs;
-      isBotMessage = msg.isBotMessage;
-      agentMetadata = adjustedMeta;
     };
     await MessageHandler.handle(adjustedMsg, ctx);
   };
