@@ -474,12 +474,17 @@ module {
       case (?#string(c)) { c };
       case _ { return null };
     };
+    let turnId : Text = switch (Json.get(payloadJson, "turn_id")) {
+      case (?#string(t)) { t };
+      case _ { return null };
+    };
     ?{
       event_type = eventType;
       event_payload = {
         parent_agent = parentAgent;
         parent_ts = parentTs;
         parent_channel = parentChannel;
+        turn_id = turnId;
       };
     };
   };

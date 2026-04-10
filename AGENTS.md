@@ -115,6 +115,10 @@ Steps:
 
 ## Architectural Patterns
 
+## Motoko Conventions
+
+- **Model function parameter order**: new model functions must place the state/collection parameter **first**. This aligns with `mo:core` idioms (e.g. `Map.get(map, compare, key)`) and makes partial application natural. Example: `forkAgent(state, originalId, ...)`. Existing functions that pre-date this convention (`register`, `updateById`, etc.) have state last and will be migrated in a future cleanup pass.
+
 ### Guard Rails vs Service Logic
 
 **Guard rails (authentication, authorization, validation)** must be implemented at the **controller level (main.mo)**, not buried inside service functions.

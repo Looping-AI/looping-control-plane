@@ -1,5 +1,7 @@
 import List "mo:core/List";
 import Error "mo:core/Error";
+import Int "mo:core/Int";
+import Time "mo:core/Time";
 import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
 import FunctionToolRegistry "./function-tool-registry";
@@ -40,20 +42,15 @@ module {
     mcpRegistry : McpToolRegistry.McpToolRegistryState,
     call : OpenRouterWrapper.ToolCall,
   ) : async ToolTypes.ToolResult {
+    let startNs = Time.now();
     // First, check function tools (static registry)
-    switch (FunctionToolRegistry.get(resources, call.toolName)) {
+    let outcome : ToolTypes.ToolCallOutcome = switch (FunctionToolRegistry.get(resources, call.toolName)) {
       case (?tool) {
         try {
           let output = await tool.handler(call.arguments);
-          {
-            callId = call.callId;
-            result = #success(output);
-          };
+          #success(output);
         } catch (e : Error) {
-          {
-            callId = call.callId;
-            result = #error("Handler error: " # Error.message(e));
-          };
+          #error("Handler error: " # Error.message(e));
         };
       };
       case (null) {
@@ -61,21 +58,17 @@ module {
         switch (McpToolRegistry.get(mcpRegistry, call.toolName)) {
           case (?mcpTool) {
             // MCP execution not yet implemented
-            {
-              callId = call.callId;
-              result = #error("MCP tool execution not yet implemented. Server: " # mcpTool.serverId);
-            };
+            #error("MCP tool execution not yet implemented. Server: " # mcpTool.serverId);
           };
           case (null) {
             // Unknown tool
-            {
-              callId = call.callId;
-              result = #error("Unknown tool: " # call.toolName);
-            };
+            #error("Unknown tool: " # call.toolName);
           };
         };
       };
     };
+    let durationMs : Nat = Int.abs(Time.now() - startNs) / 1_000_000;
+    { callId = call.callId; result = outcome; durationMs };
   };
 
   /// Format tool results as input for the next LLM turn

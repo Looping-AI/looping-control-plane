@@ -6,10 +6,10 @@
 ///
 ///   Phase 1.4  persistIncomingMessage  — fetch LLM context entry, then store the
 ///                                        incoming message with a null auth context.
-///   Phase 1.5  resolveRoundContext     — enforce round guards and advance the
-///                                        UserAuthContext lineage (user or bot path).
+///   Phase 1.5  resolveRoundContext     — enforce delegation-depth guards via
+///                                        SessionModel.countDelegationDepth.
 ///              postTerminationIfTokenAvailable — post the ceiling prompt when
-///                                        the session must be force-terminated.
+///                                        the delegation depth limit is hit.
 ///   Phase 1.6  resolvePrimaryAgent     — pick the agent to route to.
 ///              dispatchToAgentRouter   — call AgentRouter.route and unpack the result.
 ///              postAgentReply          — post the reply to Slack and emit the final
@@ -50,6 +50,7 @@ import AgentModel "../../models/agent-model";
 import Constants "../../constants";
 import Logger "../../utilities/logger";
 import WorkspaceModel "../../models/workspace-model";
+import SessionModel "../../models/session-model";
 
 module {
 
@@ -72,11 +73,15 @@ module {
   ///                         Emitted when MAX_AGENT_ROUNDS is hit — the sync round
   ///                         tracker cannot await, so it delegates prompt delivery
   ///                         to the async handle() function.
-  /// #proceed             → continue orchestration with the derived auth context.
+  /// #proceed             → continue orchestration with the derived auth context
+  ///                         and the triggerTurnId for delegation chaining.
   type RoundResult = {
     #skip : NormalizedEventTypes.HandlerResult;
-    #skipWithTermination : NormalizedEventTypes.HandlerResult; // post prompt before returning
-    #proceed : ?SlackAuthMiddleware.UserAuthContext;
+    #skipWithTermination : NormalizedEventTypes.HandlerResult;
+    #proceed : {
+      authCtx : ?SlackAuthMiddleware.UserAuthContext;
+      triggerTurnId : ?Text;
+    };
   };
 
   // ─── Private helpers ─────────────────────────────────────────────────────────
@@ -106,7 +111,7 @@ module {
     };
   };
 
-  /// Bot message path — inherit the parent UserAuthContext, enforce guards, advance round.
+  /// Bot message path — inherit the parent UserAuthContext, enforce guards, check delegation depth.
   func resolveBotRoundContext(
     msg : IncomingMsg,
     ctx : EventProcessingContextTypes.EventProcessingContext,
@@ -156,33 +161,12 @@ module {
       case (?c) { c };
     };
 
-    // Guard: session must not have been force-terminated.
-    if (parentCtx.forceTerminated) {
-      Logger.log(#info, ?"MessageHandler", "Session force-terminated — discarding bot message");
-      return #skip(#ok([{ action = "round_skip"; result = #err("session force-terminated"); timestamp = Time.now() }]));
-    };
+    // Extract the triggerTurnId from the metadata (links this delegation to its parent turn).
+    let triggerTurnId : ?Text = ?agentMeta.event_payload.turn_id;
 
-    let newRound = parentCtx.roundCount + 1;
-    let newParentRef : ?{ channelId : Text; ts : Text } = ?{
-      channelId = agentMeta.event_payload.parent_channel;
-      ts = agentMeta.event_payload.parent_ts;
-    };
-
-    // Hard ceiling: force-terminate, stamp the terminated context, and stop.
-    // Return #skipWithTermination so the async handle() can call postTerminationPrompt.
-    if (newRound >= Constants.MAX_AGENT_ROUNDS) {
-      let terminatedCtx = SlackAuthMiddleware.withRound(parentCtx, newRound, true, newParentRef);
-      let msgRootTs = switch (msg.threadTs) {
-        case (?ts) { ts };
-        case (null) { msg.ts };
-      };
-      ignore ConversationModel.updateMessageContext(
-        ctx.conversationStore,
-        msg.channel,
-        msgRootTs,
-        msg.ts,
-        ?terminatedCtx,
-      );
+    // Guard: delegation depth must not exceed MAX_AGENT_ROUNDS.
+    let depth = SessionModel.countDelegationDepth(ctx.sessionStores, triggerTurnId, Constants.MAX_AGENT_ROUNDS);
+    if (depth >= Constants.MAX_AGENT_ROUNDS) {
       Logger.log(
         #warn,
         ?"MessageHandler",
@@ -191,21 +175,18 @@ module {
       return #skipWithTermination(#ok([{ action = "round_force_terminated"; result = #err("max agent rounds reached"); timestamp = Time.now() }]));
     };
 
-    // Advance the round context and fall through to orchestration.
-    let activeCtx = SlackAuthMiddleware.withRound(parentCtx, newRound, false, newParentRef);
     Logger.log(
       #info,
       ?"MessageHandler",
-      "Bot message round " # Nat.toText(newRound) #
+      "Bot message delegation depth " # Nat.toText(depth) #
       " | parent: " # agentMeta.event_payload.parent_ts #
-      " | user: " # activeCtx.slackUserId #
+      " | user: " # parentCtx.slackUserId #
       " | agent(s): " # debug_show (Array.map<AgentModel.AgentRecord, Text>(validAgents, func(a) { a.name })),
     );
-    // Phase 1.6 (Agent Router) will replace the fall-through with category-aware routing.
-    #proceed(?activeCtx);
+    #proceed({ authCtx = ?parentCtx; triggerTurnId });
   };
 
-  /// User message path — build a fresh UserAuthContext (roundCount = 0, parentRef = null).
+  /// User message path — build a fresh UserAuthContext. No delegation chain (triggerTurnId = null).
   func resolveUserRoundContext(
     msg : IncomingMsg,
     ctx : EventProcessingContextTypes.EventProcessingContext,
@@ -218,7 +199,7 @@ module {
           ?"MessageHandler",
           "Slack user " # msg.user # " not found in cache — no userAuthContext for message " # msg.ts,
         );
-        #proceed(null);
+        #proceed({ authCtx = null; triggerTurnId = null });
       };
       case (?userCtx) {
         Logger.log(
@@ -226,7 +207,7 @@ module {
           ?"MessageHandler",
           "UserAuthContext built for " # msg.user # " | message: " # msg.ts,
         );
-        #proceed(?userCtx);
+        #proceed({ authCtx = ?userCtx; triggerTurnId = null });
       };
     };
   };
@@ -262,6 +243,7 @@ module {
     channel : Text,
     ts : Text,
     primaryAgent : AgentModel.AgentRecord,
+    turnId : Text,
   ) : ?Types.AgentMessageMetadata {
     ?{
       event_type = "looping_agent_message";
@@ -269,6 +251,7 @@ module {
         parent_agent = primaryAgent.name;
         parent_ts = ts;
         parent_channel = channel;
+        turn_id = turnId;
       };
     };
   };
@@ -391,8 +374,9 @@ module {
     };
   };
 
-  /// Dispatch to AgentRouter and unpack the result into (llmSteps, ?replyText).
-  /// Returns null reply text when the orchestrator signals an error.
+  /// Dispatch to AgentRouter and unpack the result into (llmSteps, replyText, isError).
+  /// Agent errors are surfaced as reply text prefixed with "[Agent error]" so they
+  /// always get posted to Slack — the user is never left without a visible response.
   func dispatchToAgentRouter(
     primaryAgent : AgentModel.AgentRecord,
     ctx : EventProcessingContextTypes.EventProcessingContext,
@@ -402,7 +386,8 @@ module {
     msgText : Text,
     workspaceKey : [Nat8],
     orgKey : [Nat8],
-  ) : async ([Types.ProcessingStep], ?Text) {
+    turnId : Text,
+  ) : async ([Types.ProcessingStep], Text, Bool) {
     let result = await AgentRouter.route(
       primaryAgent,
       ctx.mcpToolRegistry,
@@ -413,23 +398,36 @@ module {
       msgText,
       workspaceKey,
       orgKey,
+      turnId,
+      ctx.sessionStores,
     );
     switch (result) {
-      case (#err({ message = _; steps })) { (steps, null) };
-      case (#ok({ response; steps })) { (steps, ?response) };
+      case (#err({ message; steps })) {
+        (steps, "[Agent error] " # message, true);
+      };
+      case (#ok({ response; steps })) { (steps, response, false) };
     };
   };
 
   /// Post the agent reply to Slack and assemble the final HandlerResult.
+  /// Returns the HandlerResult paired with a Bool indicating whether the Slack
+  /// post succeeded, so the caller can mark the turn #failed when the user
+  /// never received a reply.
   func postAgentReply(
     botToken : Text,
     msg : IncomingMsg,
     replyText : Text,
     primaryAgent : AgentModel.AgentRecord,
     llmSteps : [Types.ProcessingStep],
-  ) : async NormalizedEventTypes.HandlerResult {
-    let replyMetadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent);
+    turnId : Text,
+    sessionStores : SessionModel.SessionStores,
+  ) : async (NormalizedEventTypes.HandlerResult, Bool) {
+    let replyMetadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent, turnId);
     let slackResult = await SlackWrapper.postMessage(botToken, msg.channel, replyText, msg.threadTs, replyMetadata);
+    let slackOk = switch (slackResult) {
+      case (#ok(_)) { true };
+      case (#err(_)) { false };
+    };
     let slackStep : Types.ProcessingStep = {
       action = "post_to_slack";
       result = switch (slackResult) {
@@ -438,7 +436,14 @@ module {
       };
       timestamp = Time.now();
     };
-    #ok(Array.concat(llmSteps, [slackStep]));
+    // Record the reply in the turn's trace.
+    switch (slackResult) {
+      case (#ok({ ts = replyTs; channel = _ })) {
+        SessionModel.appendTrace(sessionStores, turnId, #slackPost({ channelId = msg.channel; threadTs = msg.threadTs; ts = replyTs }));
+      };
+      case (#err(_)) {};
+    };
+    (#ok(Array.concat(llmSteps, [slackStep])), slackOk);
   };
 
   // ─── Public entry point ──────────────────────────────────────────────────────
@@ -466,17 +471,18 @@ module {
     let conversationEntry = persistIncomingMessage(msg, ctx, rootTs);
 
     // ── Phase 1.5 — Round tracking + pre-condition guards ────────────────────
-    let activeCtxOpt : ?SlackAuthMiddleware.UserAuthContext = switch (resolveRoundContext(msg, ctx)) {
+    let roundResult = resolveRoundContext(msg, ctx);
+    let (activeCtxOpt, triggerTurnId) : (?SlackAuthMiddleware.UserAuthContext, ?Text) = switch (roundResult) {
       case (#skip(result)) { return result };
       case (#skipWithTermination(result)) {
         // Post the termination prompt before returning (best-effort, await available here).
         await postTerminationIfTokenAvailable(botTokenOpt, msg.channel, msg.threadTs);
         return result;
       };
-      case (#proceed(ctxOpt)) { ctxOpt };
+      case (#proceed({ authCtx; triggerTurnId })) { (authCtx, triggerTurnId) };
     };
 
-    // Stamp the incremented auth context on the persisted message.
+    // Stamp the auth context on the persisted message.
     ignore ConversationModel.updateMessageContext(ctx.conversationStore, msg.channel, rootTs, msg.ts, activeCtxOpt);
 
     // ── Phase 1.6 — Resolve primary agent ────────────────────────────────────
@@ -492,6 +498,20 @@ module {
       case (?agent) { agent };
     };
 
+    // ── Create turn ──────────────────────────────────────────────────────────
+    let sourceRef : ?SessionModel.SourceRef = ?#slack({
+      channelId = msg.channel;
+      ts = msg.ts;
+    });
+    let turn = SessionModel.createTurn(
+      ctx.sessionStores,
+      primaryAgent.id,
+      sourceRef,
+      triggerTurnId,
+      activeCtxOpt,
+    );
+    let turnId = turn.turnId;
+
     // ── Orchestration (shared path for user and bot messages) ─────────────────
 
     let { workspaceValueStreamsState; workspaceObjectivesMap } = scopeWorkspaceData(ctx, workspaceId);
@@ -505,6 +525,7 @@ module {
     // Bot token was already fetched early; use it here
     let botToken = switch (botTokenOpt) {
       case (null) {
+        SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, null, ?"No Slack bot token configured");
         return #ok([{
           action = "post_to_slack";
           result = #err("No Slack bot token configured");
@@ -540,7 +561,7 @@ module {
       case (#communication) { #communication };
     };
 
-    let (llmSteps, replyTextOpt) = await dispatchToAgentRouter(
+    let (llmSteps, replyText, isAgentError) = await dispatchToAgentRouter(
       primaryAgent,
       ctx,
       slackUserId,
@@ -549,17 +570,25 @@ module {
       msg.text,
       encryptionKey,
       orgKey,
+      turnId,
     );
 
-    let replyText = switch (replyTextOpt) {
-      case (null) {
-        Logger.log(#warn, ?"MessageHandler", "No assistant reply generated for workspace " # debug_show (workspaceId));
-        return #ok(llmSteps);
-      };
-      case (?text) { text };
+    // ── Post reply to Slack ───────────────────────────────────────────────────
+    // Always post: both successful LLM content and surfaced agent errors.
+    let (result, slackOk) = await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps, turnId, ctx.sessionStores);
+
+    // Finalize the turn with aggregated cost.
+    // A failed Slack post means the user never received a reply — mark #failed
+    // even when the LLM step itself succeeded.
+    let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
+    if (isAgentError) {
+      SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?replyText);
+    } else if (not slackOk) {
+      SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?"Slack post failed");
+    } else {
+      SessionModel.completeTurn(ctx.sessionStores, turnId, #succeeded, cost, null);
     };
 
-    // ── Post reply to Slack ───────────────────────────────────────────────────
-    await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps);
+    result;
   };
 };

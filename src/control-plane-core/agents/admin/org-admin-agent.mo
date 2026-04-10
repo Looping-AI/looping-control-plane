@@ -1,6 +1,7 @@
 import Array "mo:core/Array";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
+import Int "mo:core/Int";
 import Map "mo:core/Map";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
@@ -20,6 +21,7 @@ import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import EventStoreModel "../../models/event-store-model";
+import SessionModel "../../models/session-model";
 
 module {
 
@@ -73,6 +75,8 @@ module {
     ctx : AdminCtx,
     message : Text,
     apiKey : Text,
+    turnId : Text,
+    sessionStores : SessionModel.SessionStores,
   ) : async ProcessResult {
     let steps : List.List<Types.ProcessingStep> = List.empty();
 
@@ -137,6 +141,10 @@ module {
         state = ctx.eventStore;
         write = true;
       };
+      sessionStores = ?{
+        stores = sessionStores;
+        write = true;
+      };
     };
 
     // Combine tool definitions from both registries
@@ -162,6 +170,7 @@ module {
 
     loop {
       // openRouterApiKey is used as the model key; org-admin context is workspace-0 scoped
+      let llmStartNs = Time.now();
       let llmResult = await OpenRouterWrapper.reason(
         apiKey,
         List.toArray(inputMessages),
@@ -171,6 +180,7 @@ module {
         null,
         toolsOpt,
       );
+      let llmDurationMs : Nat = Int.abs(Time.now() - llmStartNs) / 1_000_000;
 
       switch (llmResult) {
         case (#ok(#textResponse(response))) {
@@ -182,10 +192,18 @@ module {
               timestamp = Time.now();
             },
           );
+          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "stop"; content = ?response; thinking = null; toolRequests = null; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
           return #ok({ response; steps = List.toArray(steps) });
         };
 
         case (#ok(#toolCalls(calls))) {
+          // Emit llmCall trace for the tool-calling response
+          let toolReqs = Array.map<OpenRouterWrapper.ToolCall, { name : Text; input : Text }>(
+            calls,
+            func(c) { { name = c.toolName; input = c.arguments } },
+          );
+          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "tool_calls"; content = null; thinking = null; toolRequests = ?toolReqs; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
+
           // Format tool call message (ephemeral — not written to conversation store)
           let toolCallContent = "Using tools: " # Array.foldLeft<OpenRouterWrapper.ToolCall, Text>(
             calls,
@@ -201,12 +219,12 @@ module {
           // Execute tool calls
           let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
 
-          // Add individual execution steps for each tool
+          // Add individual execution steps and emit traces for each tool
           for (i in Array.keys(toolResults)) {
             let toolName = calls[i].toolName;
-            let stepResult : { #ok; #err : Text } = switch (toolResults[i].result) {
-              case (#success(_)) { #ok };
-              case (#error(msg)) { #err(msg) };
+            let (stepResult, toolOutput, toolSuccess) : ({ #ok; #err : Text }, Text, Bool) = switch (toolResults[i].result) {
+              case (#success(s)) { (#ok, s, true) };
+              case (#error(msg)) { (#err(msg), msg, false) };
             };
             List.add(
               steps,
@@ -216,6 +234,7 @@ module {
                 timestamp = Time.now();
               },
             );
+            SessionModel.appendTrace(sessionStores, turnId, #toolCall({ name = toolName; input = calls[i].arguments; output = toolOutput; success = toolSuccess; durationMs = toolResults[i].durationMs }));
           };
 
           // Append tool results to in-memory input for the next LLM round
@@ -233,6 +252,7 @@ module {
                 timestamp = Time.now();
               },
             );
+            SessionModel.appendTrace(sessionStores, turnId, #roundLimitHit);
             return #err({ message = errMsg; steps = List.toArray(steps) });
           };
           // Continue loop
@@ -248,6 +268,7 @@ module {
               timestamp = Time.now();
             },
           );
+          SessionModel.appendTrace(sessionStores, turnId, #faultRecovered({ error = errMsg }));
           return #err({ message = errMsg; steps = List.toArray(steps) });
         };
       };

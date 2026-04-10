@@ -30,7 +30,9 @@ import MetricRetentionRunner "./timers/metric-retention-runner";
 import ProcessedEventsCleanupRunner "./timers/processed-events-cleanup-runner";
 import WeeklyReconciliationRunner "./timers/weekly-reconciliation-runner";
 import ConversationPruneRunner "./timers/conversation-prune-runner";
+import TurnCleanupRunner "./timers/turn-cleanup-runner";
 import SlackEventIntakeService "./services/slack-event-intake-service";
+import SessionModel "./models/session-model";
 
 persistent actor class OpenOrgBackend() {
   // ============================================
@@ -68,6 +70,10 @@ persistent actor class OpenOrgBackend() {
   var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
   var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
   var lastConversationPruneTimestamp : Int = Time.now(); // Track last time conversation store was pruned
+  var lastTurnCleanupTimestamp : Int = Time.now(); // Track last time turn cleanup ran
+
+  // Agent session stores (sessions, turns, traces)
+  let sessionStores = SessionModel.emptyStores();
 
   // Scheduled timer tracking — transient so it resets on upgrade (matching IC timer wipe).
   // Populated by scheduleAll() during init and postupgrade.
@@ -147,6 +153,18 @@ persistent actor class OpenOrgBackend() {
           ConversationPruneRunner.run(conversationStore);
         };
       },
+      {
+        name = "turn-cleanup";
+        interval = Constants.SEVEN_DAYS_NS;
+        getLastRun = func() : Int { lastTurnCleanupTimestamp };
+        setLastRun = func(t : Int) { lastTurnCleanupTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          switch (TurnCleanupRunner.run(sessionStores)) {
+            case (#ok(_)) { #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
+      },
     ];
   };
 
@@ -221,6 +239,7 @@ persistent actor class OpenOrgBackend() {
       slackUsers;
       workspaces;
       eventStore;
+      sessionStores;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };

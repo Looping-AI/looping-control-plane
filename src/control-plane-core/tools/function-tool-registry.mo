@@ -1,7 +1,9 @@
 import Array "mo:core/Array";
 import List "mo:core/List";
+import Nat "mo:core/Nat";
 import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
+import Constants "../constants";
 import ValueStreamModel "../models/value-stream-model";
 import MetricModel "../models/metric-model";
 import ObjectiveModel "../models/objective-model";
@@ -50,6 +52,8 @@ import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
 import GetEventStoreStatsHandler "./handlers/events/get-event-store-stats-handler";
 import GetFailedEventsHandler "./handlers/events/get-failed-events-handler";
 import DeleteFailedEventsHandler "./handlers/events/delete-failed-events-handler";
+import SessionModel "../models/session-model";
+import UpdateSessionPolicyHandler "./handlers/sessions/update-session-policy-handler";
 import AgentModel "../models/agent-model";
 import McpToolRegistry "./mcp-tool-registry";
 import SecretModel "../models/secret-model";
@@ -272,6 +276,18 @@ module {
         };
       };
       case _ {};
+    };
+
+    // ==========================================
+    // SESSION POLICY TOOLS - require sessionStores resource with write
+    // ==========================================
+    switch (resources.sessionStores) {
+      case (?ss) {
+        if (ss.write) {
+          List.add(tools, updateSessionPolicyTool(ss.stores));
+        };
+      };
+      case (null) {};
     };
 
     List.toArray(tools);
@@ -1137,6 +1153,28 @@ module {
       };
       handler = func(args : Text) : async Text {
         await DeleteFailedEventsHandler.handle(state, uac, args);
+      };
+    };
+  };
+
+  /// Update session policy tool — requires sessionStores resource with write
+  private func updateSessionPolicyTool(
+    stores : SessionModel.SessionStores
+  ) : FunctionTool {
+    let summaryBudgetStr = Nat.toText(Constants.DEFAULT_SUMMARY_TOKEN_BUDGET);
+    let maxTruncatedStr = Nat.toText(Constants.DEFAULT_MAX_TRUNCATED_TOKENS);
+    let params = "{\"type\":\"object\",\"properties\":{\"agent_id\":{\"type\":\"number\",\"description\":\"The numeric ID of the agent whose session policy to update.\"},\"summary_token_budget\":{\"type\":\"number\",\"description\":\"Total token budget for session context (default " # summaryBudgetStr # "). Controls how much context window is reserved for session history.\"},\"max_truncated_tokens\":{\"type\":\"number\",\"description\":\"Cap per text field when truncating vertically (default " # maxTruncatedStr # "). Controls maximum tokens per individual field in truncated output.\"}},\"required\":[\"agent_id\"]}";
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "update_session_policy";
+          description = ?"Update the session token-budget policy for a specific agent. Omit a field to keep its current value. Use this to tune how much context window budget is allocated to session summaries vs raw turns.";
+          parameters = ?params;
+        };
+      };
+      handler = func(args : Text) : async Text {
+        await UpdateSessionPolicyHandler.handle(stores, args);
       };
     };
   };

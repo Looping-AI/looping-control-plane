@@ -3,21 +3,15 @@
 /// Sits between MessageHandler and the agent services.  Its sole
 /// responsibility is: given a resolved `primaryAgent` and all the data
 /// required for execution, dispatch to the correct category service.
-///
-/// Additional responsibilities introduced in Phase 1.6:
-///   - Termination-prompt delivery (MAX_AGENT_ROUNDS)
-///   - `findPreviousSameAgentReply` for walking the parentRef chain
 
-import Text "mo:core/Text";
 import Time "mo:core/Time";
 import ConversationModel "../models/conversation-model";
 import AgentModel "../models/agent-model";
 import Types "../types";
 import AgentOrchestrator "../orchestrators/agent-orchestrator";
-import SlackWrapper "../wrappers/slack-wrapper";
 import SecretModel "../models/secret-model";
 import McpToolRegistry "../tools/mcp-tool-registry";
-import Logger "../utilities/logger";
+import SessionModel "../models/session-model";
 
 module {
 
@@ -62,6 +56,8 @@ module {
     message : Text,
     workspaceKey : [Nat8],
     orgKey : [Nat8],
+    turnId : Text,
+    sessionStores : SessionModel.SessionStores,
   ) : async RouteResult {
     // Validate that the ctx variant matches the agent's declared category.
     let ctxMatchesCategory : Bool = switch (primaryAgent.category, agentCtx) {
@@ -112,74 +108,8 @@ module {
       message,
       workspaceKey,
       orgKey,
+      turnId,
+      sessionStores,
     );
-  };
-
-  // ─── Chain walk ──────────────────────────────────────────────────────────────
-
-  /// Walk the `parentRef` chain backwards from `startTs` in `channel`, looking
-  /// for the first `ConversationMessage` whose `agentMetadata.parent_agent == agentName`.
-  ///
-  /// The walk terminates when:
-  ///   - The message is found → return `?msg`.
-  ///   - A message has no `userAuthContext` or `parentRef == null` → return `null`
-  ///     (chain end, no prior reply from this agent).
-  ///   - A message is not found in the store → return `null` (pruned or never stored).
-  ///
-  /// Exported for unit testability.
-  public func findPreviousSameAgentReply(
-    store : ConversationModel.ConversationStore,
-    channel : Text,
-    startTs : Text,
-    agentName : Text, // bare name, no "::" prefix
-  ) : ?ConversationModel.ConversationMessage {
-    let targetAuthor : ?Text = ?agentName;
-    var currentChannel = channel;
-    var currentTs = startTs;
-    loop {
-      switch (ConversationModel.getMessage(store, currentChannel, currentTs)) {
-        case (null) {
-          // Message not found — pruned or never stored.
-          Logger.log(
-            #info,
-            ?"AgentRouter",
-            "findPreviousSameAgentReply: message not found channel=" # currentChannel # " ts=" # currentTs,
-          );
-          return null;
-        };
-        case (?msg) {
-          // Check if this message was authored by the target agent.
-          // `agentMetadata.parent_agent` holds the bare agent name for bot replies;
-          // null agentMetadata means this is a user message, never a match.
-          let msgAuthor : ?Text = switch (msg.agentMetadata) {
-            case (?meta) { ?meta.parent_agent };
-            case (null) { null };
-          };
-          if (msgAuthor == targetAuthor) {
-            return ?msg;
-          };
-          // Follow the parentRef chain.
-          switch (msg.userAuthContext) {
-            case (null) {
-              // No auth context — chain is unresolvable.
-              return null;
-            };
-            case (?ctx) {
-              switch (ctx.parentRef) {
-                case (null) {
-                  // Round-0 message (original user message) — chain terminates.
-                  return null;
-                };
-                case (?ref) {
-                  currentChannel := ref.channelId;
-                  currentTs := ref.ts;
-                  // Continue loop.
-                };
-              };
-            };
-          };
-        };
-      };
-    };
   };
 };

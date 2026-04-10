@@ -8,6 +8,7 @@ import AgentModel "../models/agent-model";
 import OrgAdminAgent "../agents/admin/org-admin-agent";
 import WorkPlanningAgent "../agents/planning/work-planning-agent";
 import McpToolRegistry "../tools/mcp-tool-registry";
+import SessionModel "../models/session-model";
 
 module {
 
@@ -64,6 +65,8 @@ module {
     message : Text,
     workspaceKey : [Nat8],
     orgKey : [Nat8],
+    turnId : Text,
+    sessionStores : SessionModel.SessionStores,
   ) : async {
     #ok : {
       response : Text;
@@ -139,6 +142,8 @@ module {
                   ctx,
                   message,
                   key,
+                  turnId,
+                  sessionStores,
                 );
               };
               case (#planning(ctx)) {
@@ -149,6 +154,8 @@ module {
                   ctx,
                   message,
                   key,
+                  turnId,
+                  sessionStores,
                 );
               };
               case (#research or #communication) {

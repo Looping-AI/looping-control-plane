@@ -31,7 +31,8 @@
       "event_payload": {
         "parent_agent": "::unit-test-admin",
         "parent_ts": "1700000020.000100",
-        "parent_channel": "C0AG99QQAR4"
+        "parent_channel": "C0AG99QQAR4",
+        "turn_id": "turn-unit-test-0001"
       }
     },
     "blocks": [

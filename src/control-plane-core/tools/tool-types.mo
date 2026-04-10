@@ -9,6 +9,7 @@ import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
 import EventStoreModel "../models/event-store-model";
+import SessionModel "../models/session-model";
 import Types "../types";
 
 module {
@@ -20,6 +21,7 @@ module {
   public type ToolResult = {
     callId : Text;
     result : ToolCallOutcome;
+    durationMs : Nat;
   };
 
   /// Outcome of a tool call execution
@@ -105,6 +107,13 @@ module {
     // write=true enables delete_failed_events.
     eventStore : ?{
       state : EventStoreModel.EventStoreState;
+      write : Bool;
+    };
+
+    // Session stores - if provided, session policy management tools are available.
+    // write=true enables update_session_policy.
+    sessionStores : ?{
+      stores : SessionModel.SessionStores;
       write : Bool;
     };
   };
