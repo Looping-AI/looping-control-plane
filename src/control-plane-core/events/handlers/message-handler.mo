@@ -410,6 +410,9 @@ module {
   };
 
   /// Post the agent reply to Slack and assemble the final HandlerResult.
+  /// Returns the HandlerResult paired with a Bool indicating whether the Slack
+  /// post succeeded, so the caller can mark the turn #failed when the user
+  /// never received a reply.
   func postAgentReply(
     botToken : Text,
     msg : IncomingMsg,
@@ -418,9 +421,13 @@ module {
     llmSteps : [Types.ProcessingStep],
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
-  ) : async NormalizedEventTypes.HandlerResult {
+  ) : async (NormalizedEventTypes.HandlerResult, Bool) {
     let replyMetadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent, turnId);
     let slackResult = await SlackWrapper.postMessage(botToken, msg.channel, replyText, msg.threadTs, replyMetadata);
+    let slackOk = switch (slackResult) {
+      case (#ok(_)) { true };
+      case (#err(_)) { false };
+    };
     let slackStep : Types.ProcessingStep = {
       action = "post_to_slack";
       result = switch (slackResult) {
@@ -436,7 +443,7 @@ module {
       };
       case (#err(_)) {};
     };
-    #ok(Array.concat(llmSteps, [slackStep]));
+    (#ok(Array.concat(llmSteps, [slackStep])), slackOk);
   };
 
   // ─── Public entry point ──────────────────────────────────────────────────────
@@ -568,12 +575,16 @@ module {
 
     // ── Post reply to Slack ───────────────────────────────────────────────────
     // Always post: both successful LLM content and surfaced agent errors.
-    let result = await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps, turnId, ctx.sessionStores);
+    let (result, slackOk) = await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps, turnId, ctx.sessionStores);
 
     // Finalize the turn with aggregated cost.
+    // A failed Slack post means the user never received a reply — mark #failed
+    // even when the LLM step itself succeeded.
     let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
     if (isAgentError) {
       SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?replyText);
+    } else if (not slackOk) {
+      SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?"Slack post failed");
     } else {
       SessionModel.completeTurn(ctx.sessionStores, turnId, #succeeded, cost, null);
     };

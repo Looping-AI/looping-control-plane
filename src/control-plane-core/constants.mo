@@ -54,7 +54,7 @@ module {
   public let PLATFORM_SECRETS : [Types.SecretId] = [#slackBotToken, #slackSigningSecret];
 
   // Turn cleanup retention — 90 days in nanoseconds (90 * 24 * 60 * 60 * 1_000_000_000)
-  // Completed turns older than this are hard-deleted by the turn-cleanup timer.
+  // Turns with `startedAtNs` older than this are hard-deleted by the turn-cleanup timer.
   public let TURN_CLEANUP_RETENTION_NS : Nat = 7_776_000_000_000_000;
 
   // Default session policy — token budgets for context-window management.

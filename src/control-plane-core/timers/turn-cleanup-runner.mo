@@ -4,7 +4,6 @@
 /// crashed workers). Scheduled to run every 7 days alongside the conversation
 /// prune timer.
 
-import Int "mo:core/Int";
 import Time "mo:core/Time";
 
 import SessionModel "../models/session-model";
