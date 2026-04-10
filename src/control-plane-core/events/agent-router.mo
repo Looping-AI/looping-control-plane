@@ -112,9 +112,4 @@ module {
       sessionStores,
     );
   };
-
-  // ─── Chain walk ──────────────────────────────────────────────────────────────
-  // Removed: findPreviousSameAgentReply
-  // Delegation lineage is now tracked via triggerTurnId in SessionModel,
-  // and round counting uses SessionModel.countDelegationDepth.
 };

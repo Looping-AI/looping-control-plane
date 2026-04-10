@@ -474,9 +474,9 @@ module {
       case (?#string(c)) { c };
       case _ { return null };
     };
-    let turnId : ?Text = switch (Json.get(payloadJson, "turn_id")) {
-      case (?#string(t)) { ?t };
-      case _ { null };
+    let turnId : Text = switch (Json.get(payloadJson, "turn_id")) {
+      case (?#string(t)) { t };
+      case _ { return null };
     };
     ?{
       event_type = eventType;

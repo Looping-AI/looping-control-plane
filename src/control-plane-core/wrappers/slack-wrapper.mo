@@ -93,17 +93,12 @@ module {
     // Append metadata block when provided
     switch (metadata) {
       case (?m) {
-        var payloadFields : [(Text, Json.Json)] = [
+        let payloadFields : [(Text, Json.Json)] = [
           ("parent_agent", str(m.event_payload.parent_agent)),
           ("parent_ts", str(m.event_payload.parent_ts)),
           ("parent_channel", str(m.event_payload.parent_channel)),
+          ("turn_id", str(m.event_payload.turn_id)),
         ];
-        switch (m.event_payload.turn_id) {
-          case (?tid) {
-            payloadFields := Array.concat(payloadFields, [("turn_id", str(tid))]);
-          };
-          case (null) {};
-        };
         let metaJson : Json.Json = obj([
           ("event_type", str(m.event_type)),
           ("event_payload", obj(payloadFields)),

@@ -3,8 +3,6 @@
 /// Identity is established by looking up a Slack user ID in the SlackUserCache.
 /// The resulting `UserAuthContext` is the single authorization token that all
 /// downstream services and orchestrators accept instead of a caller Principal.
-///
-/// Round tracking and session state have been moved to SessionModel.
 
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
@@ -25,8 +23,6 @@ module {
   ///
   /// `workspaceScopes` contains only the workspaces the user explicitly belongs to.
   /// A missing workspace ID means the user has no access to that workspace.
-  ///
-  /// Identity only — round tracking and session state live in SessionModel.
   public type UserAuthContext = {
     slackUserId : Text;
     isPrimaryOwner : Bool;

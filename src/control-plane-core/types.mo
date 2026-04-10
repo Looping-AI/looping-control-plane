@@ -83,7 +83,7 @@ module {
     parent_agent : Text; // bare name of the agent that produced this reply (no "::" prefix)
     parent_ts : Text; // ts of the message that triggered this reply
     parent_channel : Text; // channel of that message (ts is channel-scoped)
-    turn_id : ?Text; // turnId that produced this reply; null for legacy messages
+    turn_id : Text; // turnId that produced this reply
   };
 
   /// `event_type` is always `"looping_agent_message"` — validated on receipt;

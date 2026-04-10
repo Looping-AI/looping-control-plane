@@ -162,7 +162,7 @@ module {
     };
 
     // Extract the triggerTurnId from the metadata (links this delegation to its parent turn).
-    let triggerTurnId = agentMeta.event_payload.turn_id;
+    let triggerTurnId : ?Text = ?agentMeta.event_payload.turn_id;
 
     // Guard: delegation depth must not exceed MAX_AGENT_ROUNDS.
     let depth = SessionModel.countDelegationDepth(ctx.sessionStores, triggerTurnId, Constants.MAX_AGENT_ROUNDS);
@@ -243,7 +243,7 @@ module {
     channel : Text,
     ts : Text,
     primaryAgent : AgentModel.AgentRecord,
-    turnId : ?Text,
+    turnId : Text,
   ) : ?Types.AgentMessageMetadata {
     ?{
       event_type = "looping_agent_message";
@@ -416,7 +416,7 @@ module {
     replyText : Text,
     primaryAgent : AgentModel.AgentRecord,
     llmSteps : [Types.ProcessingStep],
-    turnId : ?Text,
+    turnId : Text,
     sessionStores : SessionModel.SessionStores,
   ) : async NormalizedEventTypes.HandlerResult {
     let replyMetadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent, turnId);
@@ -430,16 +430,11 @@ module {
       timestamp = Time.now();
     };
     // Record the reply in the turn's trace.
-    switch (turnId) {
-      case (?tid) {
-        switch (slackResult) {
-          case (#ok({ ts = replyTs; channel = _ })) {
-            SessionModel.appendTrace(sessionStores, tid, #slackPost({ channelId = msg.channel; threadTs = msg.threadTs; ts = replyTs }));
-          };
-          case (#err(_)) {};
-        };
+    switch (slackResult) {
+      case (#ok({ ts = replyTs; channel = _ })) {
+        SessionModel.appendTrace(sessionStores, turnId, #slackPost({ channelId = msg.channel; threadTs = msg.threadTs; ts = replyTs }));
       };
-      case (null) {};
+      case (#err(_)) {};
     };
     #ok(Array.concat(llmSteps, [slackStep]));
   };
@@ -573,7 +568,7 @@ module {
 
     // ── Post reply to Slack ───────────────────────────────────────────────────
     // Always post: both successful LLM content and surfaced agent errors.
-    let result = await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps, ?turnId, ctx.sessionStores);
+    let result = await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps, turnId, ctx.sessionStores);
 
     // Finalize the turn with aggregated cost.
     let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
