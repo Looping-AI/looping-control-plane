@@ -56,7 +56,7 @@ module {
   /// Defined here (rather than in events/types/) so orchestrators and other
   /// non-event modules can also emit and return steps without a cross-layer import.
   public type ProcessingStep = {
-    action : Text; // e.g. "llm_call", "post_to_slack", "update_conversation"
+    action : Text; // e.g. "llm_call", "post_to_slack", "update_channel_history"
     result : { #ok; #err : Text };
     timestamp : Int; // Time.now() when this step completed
   };

@@ -314,7 +314,7 @@ module {
     };
   };
 
-  /// Phase 1.4 — Fetch the existing conversation entry (for LLM context), then
+  /// Phase 1.4 — Fetch the existing channel history entry (for LLM context), then
   /// immediately persist the incoming message with a null auth context.
   ///
   /// The entry is fetched BEFORE the message is stored so the LLM context does
