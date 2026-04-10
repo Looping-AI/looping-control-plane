@@ -10,7 +10,7 @@ import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
 import Types "./types";
 import AgentModel "./models/agent-model";
-import ConversationModel "./models/conversation-model";
+import ChannelHistoryModel "./models/channel-history-model";
 import SlackUserModel "./models/slack-user-model";
 import WorkspaceModel "./models/workspace-model";
 import SecretModel "./models/secret-model";
@@ -29,7 +29,7 @@ import ClearKeyCacheRunner "./timers/clear-key-cache-runner";
 import MetricRetentionRunner "./timers/metric-retention-runner";
 import ProcessedEventsCleanupRunner "./timers/processed-events-cleanup-runner";
 import WeeklyReconciliationRunner "./timers/weekly-reconciliation-runner";
-import ConversationPruneRunner "./timers/conversation-prune-runner";
+import ChannelHistoryPruneRunner "./timers/channel-history-prune-runner";
 import TurnCleanupRunner "./timers/turn-cleanup-runner";
 import SlackEventIntakeService "./services/slack-event-intake-service";
 import SessionModel "./models/session-model";
@@ -39,9 +39,8 @@ persistent actor class OpenOrgBackend() {
   // State
   // ============================================
 
-  // Channel-keyed conversation store (Phase 1.4): replaces the old (workspaceId, agentId)-keyed
-  // `conversations` map and the workspaceId-keyed `adminConversations` map.
-  let conversationStore = ConversationModel.empty();
+  // Channel history store: channel-keyed Slack message timeline for LLM context assembly.
+  let channelHistoryStore = ChannelHistoryModel.empty();
   let secrets = SecretModel.initState(); // Encrypted secrets and audit logs per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
@@ -69,7 +68,7 @@ persistent actor class OpenOrgBackend() {
   let eventStore = EventStoreModel.empty();
   var lastProcessedCleanupTimestamp : Int = Time.now(); // Track last time processed events were purged
   var lastWeeklyReconciliationTimestamp : Int = Time.now(); // Track last time weekly reconciliation ran
-  var lastConversationPruneTimestamp : Int = Time.now(); // Track last time conversation store was pruned
+  var lastChannelHistoryPruneTimestamp : Int = Time.now(); // Track last time channel history store was pruned
   var lastTurnCleanupTimestamp : Int = Time.now(); // Track last time turn cleanup ran
 
   // Agent session stores (sessions, turns, traces)
@@ -145,12 +144,12 @@ persistent actor class OpenOrgBackend() {
         };
       },
       {
-        name = "conversation-prune";
+        name = "channel-history-prune";
         interval = Constants.SEVEN_DAYS_NS;
-        getLastRun = func() : Int { lastConversationPruneTimestamp };
-        setLastRun = func(t : Int) { lastConversationPruneTimestamp := t };
+        getLastRun = func() : Int { lastChannelHistoryPruneTimestamp };
+        setLastRun = func(t : Int) { lastChannelHistoryPruneTimestamp := t };
         wrappedRun = func() : async { #ok; #err : Text } {
-          ConversationPruneRunner.run(conversationStore);
+          ChannelHistoryPruneRunner.run(channelHistoryStore);
         };
       },
       {
@@ -229,7 +228,7 @@ persistent actor class OpenOrgBackend() {
     let ctx : EventRouter.EventProcessingContext = {
       secrets;
       keyCache;
-      conversationStore;
+      channelHistory = channelHistoryStore;
       mcpToolRegistry;
       agentRegistry;
       workspaceValueStreams;

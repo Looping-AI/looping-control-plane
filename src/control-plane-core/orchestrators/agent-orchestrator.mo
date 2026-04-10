@@ -3,7 +3,7 @@ import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Types "../types";
 import SecretModel "../models/secret-model";
-import ConversationModel "../models/conversation-model";
+import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
 import OrgAdminAgent "../agents/admin/org-admin-agent";
 import WorkPlanningAgent "../agents/planning/work-planning-agent";
@@ -50,17 +50,17 @@ module {
   // `agentCtx` carries the category-specific data slice.  The variant tag must
   // match `agent.category`; the router enforces this before calling here.
   //
-  // `conversationEntry` provides the timeline entry (from the conversation store)
+  // `channelHistoryEntry` provides the timeline entry (from the channel history store)
   // to use as LLM context. Pass `null` when no history exists or is needed.
   //
   // Returns the LLM's final text response. The caller is responsible for
-  // persisting the user message and agent response to the conversation store.
+  // persisting the user message and agent response to the channel history store.
   public func orchestrateAgentTalk(
     agent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     secrets : SecretModel.SecretsState,
     slackUserId : ?Text,
-    conversationEntry : ?ConversationModel.TimelineEntry,
+    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
     agentCtx : AgentCtx,
     message : Text,
     workspaceKey : [Nat8],

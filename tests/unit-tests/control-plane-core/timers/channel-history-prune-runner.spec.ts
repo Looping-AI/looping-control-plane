@@ -15,11 +15,11 @@ import {
 import { expectOk } from "../../../helpers";
 
 // ============================================
-// ConversationPruneRunner Unit Tests
+// ChannelHistoryPruneRunner Unit Tests
 //
-// The runner calls ConversationModel.pruneAll which:
-//   - Computes cutoff = Int.abs(Time.now() / 1_000_000_000) - CONVERSATION_RETENTION_SECS
-//   - CONVERSATION_RETENTION_SECS = 2_592_000 (30 days in seconds)
+// The runner calls ChannelHistoryModel.pruneAll which:
+//   - Computes cutoff = Int.abs(Time.now() / 1_000_000_000) - CHANNEL_HISTORY_RETENTION_SECS
+//   - CHANNEL_HISTORY_RETENTION_SECS = 2_592_000 (30 days in seconds)
 //   - Removes channel timeline entries whose ts (Slack "SECONDS.MICROSECONDS")
 //     parsed seconds are older than the cutoff
 //
@@ -32,7 +32,7 @@ import { expectOk } from "../../../helpers";
 const DAY_SECS = 24 * 60 * 60;
 const DAY_MS = DAY_SECS * 1000;
 
-describe("Conversation Prune Runner Unit Tests", () => {
+describe("Channel History Prune Runner Unit Tests", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
@@ -49,8 +49,8 @@ describe("Conversation Prune Runner Unit Tests", () => {
     await pic.tearDown();
   });
 
-  it("should complete without error on empty conversation store", async () => {
-    const result = await testCanister.testConversationPruneRunner();
+  it("should complete without error on empty channel history store", async () => {
+    const result = await testCanister.testChannelHistoryPruneRunner();
     expect(result).toEqual({ ok: null });
   });
 
@@ -69,20 +69,24 @@ describe("Conversation Prune Runner Unit Tests", () => {
     await pic.setTime(now);
     await pic.tick(1);
 
-    await testCanister.testSeedConversationMessage("C_OLD", oldTs, []);
-    await testCanister.testSeedConversationMessage("C_FRESH", freshTs, []);
+    await testCanister.testSeedChannelHistoryMessage("C_OLD", oldTs, []);
+    await testCanister.testSeedChannelHistoryMessage("C_FRESH", freshTs, []);
 
     // Sanity: both channels have 1 entry before the prune.
-    expect(await testCanister.testGetConversationEntryCount("C_OLD")).toBe(1n);
-    expect(await testCanister.testGetConversationEntryCount("C_FRESH")).toBe(
+    expect(await testCanister.testGetChannelHistoryEntryCount("C_OLD")).toBe(
+      1n,
+    );
+    expect(await testCanister.testGetChannelHistoryEntryCount("C_FRESH")).toBe(
       1n,
     );
 
-    expectOk(await testCanister.testConversationPruneRunner());
+    expectOk(await testCanister.testChannelHistoryPruneRunner());
 
     // C_OLD is fully pruned; C_FRESH is untouched.
-    expect(await testCanister.testGetConversationEntryCount("C_OLD")).toBe(0n);
-    expect(await testCanister.testGetConversationEntryCount("C_FRESH")).toBe(
+    expect(await testCanister.testGetChannelHistoryEntryCount("C_OLD")).toBe(
+      0n,
+    );
+    expect(await testCanister.testGetChannelHistoryEntryCount("C_FRESH")).toBe(
       1n,
     );
   });
@@ -99,12 +103,12 @@ describe("Conversation Prune Runner Unit Tests", () => {
     await pic.setTime(now);
     await pic.tick(1);
 
-    await testCanister.testSeedConversationMessage("C_RECENT", recentTs, []);
+    await testCanister.testSeedChannelHistoryMessage("C_RECENT", recentTs, []);
 
-    expectOk(await testCanister.testConversationPruneRunner());
+    expectOk(await testCanister.testChannelHistoryPruneRunner());
 
     // Message is within the window — must not be pruned.
-    expect(await testCanister.testGetConversationEntryCount("C_RECENT")).toBe(
+    expect(await testCanister.testGetChannelHistoryEntryCount("C_RECENT")).toBe(
       1n,
     );
   });

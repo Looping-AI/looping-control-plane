@@ -5,7 +5,7 @@
 /// required for execution, dispatch to the correct category service.
 
 import Time "mo:core/Time";
-import ConversationModel "../models/conversation-model";
+import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
 import Types "../types";
 import AgentOrchestrator "../orchestrators/agent-orchestrator";
@@ -51,7 +51,7 @@ module {
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     secrets : SecretModel.SecretsState,
     slackUserId : ?Text,
-    conversationEntry : ?ConversationModel.TimelineEntry,
+    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
     agentCtx : AgentCtx,
     message : Text,
     workspaceKey : [Nat8],

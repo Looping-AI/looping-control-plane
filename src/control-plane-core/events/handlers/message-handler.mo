@@ -39,7 +39,7 @@ import EventProcessingContextTypes "../types/event-processing-context";
 import Types "../../types";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
-import ConversationModel "../../models/conversation-model";
+import ChannelHistoryModel "../../models/channel-history-model";
 import ValueStreamModel "../../models/value-stream-model";
 import ObjectiveModel "../../models/objective-model";
 import AgentRouter "../agent-router";
@@ -132,10 +132,10 @@ module {
       case (?m) { m };
     };
 
-    // Guard: parent message must exist in the conversation store.
+    // Guard: parent message must exist in the channel history store.
     let parentMsg = switch (
-      ConversationModel.getMessage(
-        ctx.conversationStore,
+      ChannelHistoryModel.getMessage(
+        ctx.channelHistory,
         agentMeta.event_payload.parent_channel,
         agentMeta.event_payload.parent_ts,
       )
@@ -323,10 +323,10 @@ module {
     msg : IncomingMsg,
     ctx : EventProcessingContextTypes.EventProcessingContext,
     rootTs : Text,
-  ) : ?ConversationModel.TimelineEntry {
-    let entry = ConversationModel.getEntry(ctx.conversationStore, msg.channel, rootTs);
-    ConversationModel.addMessage(
-      ctx.conversationStore,
+  ) : ?ChannelHistoryModel.TimelineEntry {
+    let entry = ChannelHistoryModel.getEntry(ctx.channelHistory, msg.channel, rootTs);
+    ChannelHistoryModel.addMessage(
+      ctx.channelHistory,
       msg.channel,
       {
         ts = msg.ts;
@@ -381,7 +381,7 @@ module {
     primaryAgent : AgentModel.AgentRecord,
     ctx : EventProcessingContextTypes.EventProcessingContext,
     slackUserId : ?Text,
-    conversationEntry : ?ConversationModel.TimelineEntry,
+    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
     agentCtx : AgentRouter.AgentCtx,
     msgText : Text,
     workspaceKey : [Nat8],
@@ -483,7 +483,7 @@ module {
     };
 
     // Stamp the auth context on the persisted message.
-    ignore ConversationModel.updateMessageContext(ctx.conversationStore, msg.channel, rootTs, msg.ts, activeCtxOpt);
+    ignore ChannelHistoryModel.updateMessageContext(ctx.channelHistory, msg.channel, rootTs, msg.ts, activeCtxOpt);
 
     // ── Phase 1.6 — Resolve primary agent ────────────────────────────────────
     let primaryAgent : AgentModel.AgentRecord = switch (resolvePrimaryAgent(msg, ctx)) {

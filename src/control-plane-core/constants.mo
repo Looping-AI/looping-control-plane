@@ -24,10 +24,10 @@ module {
   // Retention period for the access change log in SlackUserModel
   public let ACCESS_LOG_RETENTION_NS : Nat = 31_536_000_000_000_000;
 
-  // Conversation retention
-  // Messages/groups older than this are dropped by the Sunday prune timer.
+  // Channel history retention
+  // Messages/groups older than this are dropped by the weekly prune timer.
   // 30 days in seconds (30 * 24 * 3600)
-  public let CONVERSATION_RETENTION_SECS : Nat = 2_592_000;
+  public let CHANNEL_HISTORY_RETENTION_SECS : Nat = 2_592_000;
 
   // Agent routing round control
   // Absolute ceiling on the number of LLM rounds any session may run.

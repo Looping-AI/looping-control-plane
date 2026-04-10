@@ -4,6 +4,7 @@
 /// crashed workers). Scheduled to run every 7 days alongside the conversation
 /// prune timer.
 
+import Int "mo:core/Int";
 import Time "mo:core/Time";
 
 import SessionModel "../models/session-model";
@@ -14,7 +15,7 @@ module {
     #ok : Nat;
     #err : Text;
   } {
-    let cutoffNs : Int = Time.now() - Constants.TURN_CLEANUP_RETENTION_NS;
+    let cutoffNs : Int = Time.now() - Int.fromNat(Constants.TURN_CLEANUP_RETENTION_NS);
     let deleted = SessionModel.deleteTurnsOlderThan(stores, cutoffNs);
     #ok(deleted);
   };

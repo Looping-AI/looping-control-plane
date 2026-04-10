@@ -8,7 +8,7 @@ import Float "mo:core/Float";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Types "../../types";
-import ConversationModel "../../models/conversation-model";
+import ChannelHistoryModel "../../models/channel-history-model";
 import ValueStreamModel "../../models/value-stream-model";
 import ObjectiveModel "../../models/objective-model";
 import MetricModel "../../models/metric-model";
@@ -28,8 +28,8 @@ module {
   // Maximum iterations for multi-turn tool execution loop
   let MAX_ITERATIONS : Nat = 10;
 
-  // Maximum number of previous conversation messages to include as context
-  let MAX_CONVERSATION_HISTORY : Nat = 30;
+  // Maximum number of channel history messages to include as LLM context
+  let MAX_CHANNEL_HISTORY_MESSAGES : Nat = 30;
 
   /// All planning-domain data the work-planning agent needs at execution time.
   /// Scoped to a single workspace — the caller (MessageHandler via AgentRouter/Orchestrator)
@@ -60,13 +60,13 @@ module {
   ///
   /// `agent` drives persona, tool filtering, and knowledge sources.
   /// `ctx` carries the workspace-scoped planning data (value streams, metrics, objectives).
-  /// `conversationEntry` carries the timeline entry for LLM context.
+  /// `channelHistoryEntry` carries the timeline entry for LLM context.
   /// Pass `null` when no persistent history exists.
   /// Tool call / tool response messages are ephemeral and never written to the store.
   public func process(
     agent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
-    conversationEntry : ?ConversationModel.TimelineEntry,
+    conversationEntry : ?ChannelHistoryModel.TimelineEntry,
     ctx : PlanningCtx,
     message : Text,
     apiKey : Text,
@@ -128,9 +128,9 @@ module {
 
     let toolsOpt : ?[OpenRouterWrapper.Tool] = if (filteredTools.size() == 0) null else ?filteredTools;
 
-    // Build LLM context from persistent conversation history.
+    // Build LLM context from channel history.
     // Tool call / tool response artifacts are appended to inputMessages during the
-    // reasoning loop below but are NOT written to the conversation store — they are
+    // reasoning loop below but are NOT written to the channel history store — they are
     // ephemeral and discarded when this function returns.
     let inputMessages = buildContextMessages(conversationEntry);
 
@@ -174,7 +174,7 @@ module {
           );
           SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "tool_calls"; content = null; thinking = null; toolRequests = ?toolReqs; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
 
-          // Format tool call message (ephemeral — not written to conversation store)
+          // Format tool call message (ephemeral — not written to channel history store)
           let toolCallContent = "Using tools: " # Array.foldLeft<OpenRouterWrapper.ToolCall, Text>(
             calls,
             "",
@@ -245,16 +245,16 @@ module {
     };
   };
 
-  /// Build LLM input messages from a TimelineEntry (conversation history).
+  /// Build LLM input messages from a TimelineEntry (channel history).
   ///
   /// Role mapping:
-  ///   ConversationMessage.userAuthContext = null  → #assistant  (bot/agent message)
-  ///   ConversationMessage.userAuthContext = ?_    → #user       (human message)
+  ///   ChannelMessage.userAuthContext = null  → #assistant  (bot/agent message)
+  ///   ChannelMessage.userAuthContext = ?_    → #user       (human message)
   ///
   /// For a #post: a single message is added.
-  /// For a #thread: the last MAX_CONVERSATION_HISTORY messages are added.
+  /// For a #thread: the last MAX_CHANNEL_HISTORY_MESSAGES messages are added.
   private func buildContextMessages(
-    conversationEntry : ?ConversationModel.TimelineEntry
+    conversationEntry : ?ChannelHistoryModel.TimelineEntry
   ) : List.List<OpenRouterWrapper.ResponseInputMessage> {
     let inputMessages = List.empty<OpenRouterWrapper.ResponseInputMessage>();
     switch (conversationEntry) {
@@ -268,9 +268,9 @@ module {
       };
       case (?#thread thread) {
         // Map.toArray returns entries sorted by ts (lexicographic = chronological)
-        let messagesArr = Map.toArray(thread.messages); // [(ts, ConversationMessage)]
-        let startIndex = if (messagesArr.size() > MAX_CONVERSATION_HISTORY) {
-          Nat.sub(messagesArr.size(), MAX_CONVERSATION_HISTORY);
+        let messagesArr = Map.toArray(thread.messages); // [(ts, ChannelMessage)]
+        let startIndex = if (messagesArr.size() > MAX_CHANNEL_HISTORY_MESSAGES) {
+          Nat.sub(messagesArr.size(), MAX_CHANNEL_HISTORY_MESSAGES);
         } else {
           0;
         };
