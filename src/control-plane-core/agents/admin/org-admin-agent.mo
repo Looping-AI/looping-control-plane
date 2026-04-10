@@ -217,9 +217,7 @@ module {
           List.add(inputMessages, { role = #assistant; content = toolCallContent });
 
           // Execute tool calls
-          let toolStartNs = Time.now();
           let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
-          let toolDurationMs : Nat = Int.abs(Time.now() - toolStartNs) / 1_000_000;
 
           // Add individual execution steps and emit traces for each tool
           for (i in Array.keys(toolResults)) {
@@ -236,7 +234,7 @@ module {
                 timestamp = Time.now();
               },
             );
-            SessionModel.appendTrace(sessionStores, turnId, #toolCall({ name = toolName; input = calls[i].arguments; output = toolOutput; success = toolSuccess; durationMs = toolDurationMs }));
+            SessionModel.appendTrace(sessionStores, turnId, #toolCall({ name = toolName; input = calls[i].arguments; output = toolOutput; success = toolSuccess; durationMs = toolResults[i].durationMs }));
           };
 
           // Append tool results to in-memory input for the next LLM round

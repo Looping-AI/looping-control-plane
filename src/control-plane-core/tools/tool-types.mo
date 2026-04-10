@@ -21,6 +21,7 @@ module {
   public type ToolResult = {
     callId : Text;
     result : ToolCallOutcome;
+    durationMs : Nat;
   };
 
   /// Outcome of a tool call execution
