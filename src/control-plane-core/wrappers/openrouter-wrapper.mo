@@ -1125,7 +1125,7 @@ module {
       instructions,
       temperature,
       null, // maxOutputTokens
-      ?{ effort = ?"medium"; summary = ?"auto" }, // request reasoning when model supports it
+      ?{ effort = ?"high"; summary = ?"auto" }, // request reasoning when model supports it
       tools,
       null, // no tool choice
       ?userKey, // user key for identification
