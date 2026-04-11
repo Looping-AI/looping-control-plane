@@ -51,7 +51,7 @@ Add a per-agent Slack channel allowlist (`allowedChannelIds`) to the agent model
 **Desired State**
 
 - `AgentRecord` gains `allowedChannelIds : [Text]` — a list of Slack channel IDs where the agent is permitted to run. Empty list = unrestricted (no breaking change for existing agents).
-- `AgentRouter.route()` gains a pre-dispatch guard: if `allowedChannelIds` is non-empty and the message's channel ID is not in the list, return an error with the allowed channels listed. Optionally post a Slack message warning the user.
+- `AgentRouter.route()` gains a pre-dispatch guard: if `allowedChannelIds` is non-empty and the message's channel ID is not in the list, it posts an automatic Slack warning listing the allowed channels and skips execution (no category service dispatch).
 - `register_agent` and `update_agent` tool schemas include `allowedChannelIds` as an optional array of channel ID strings.
 - `get_agent` and `list_agents` tool responses include `allowedChannelIds`.
 - `forkAgent` copies `allowedChannelIds` from the original (can be overridden after fork via `update_agent`).
