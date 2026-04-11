@@ -18,7 +18,7 @@ import MemberLeftChannelHandler "../../../src/control-plane-core/events/handlers
 import NormalizedEventTypes "../../../src/control-plane-core/events/types/normalized-event-types";
 import SlackAdapter "../../../src/control-plane-core/events/slack-adapter";
 import SetWorkspaceAdminChannelHandler "../../../src/control-plane-core/tools/handlers/workspaces/set-workspace-admin-channel-handler";
-import SetWorkspaceMemberChannelHandler "../../../src/control-plane-core/tools/handlers/workspaces/set-workspace-member-channel-handler";
+
 import CreateWorkspaceHandler "../../../src/control-plane-core/tools/handlers/workspaces/create-workspace-handler";
 import ListWorkspacesHandler "../../../src/control-plane-core/tools/handlers/workspaces/list-workspaces-handler";
 import CreateMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/create-metric-handler";
@@ -102,16 +102,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   // Pre-seeded workspace state with channel anchors for handler tests.
   //   Workspace 0: Default (no channel anchors) — from emptyState()
-  //   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
-  //   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
+  //   Workspace 1: adminChannelId = C_ADMIN_CHANNEL
+  //   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN
   let testWorkspacesState : WorkspaceModel.WorkspacesState = do {
     let s = WorkspaceModel.emptyState();
     ignore WorkspaceModel.createWorkspace(s, "Test Workspace 1"); // id = 1
     ignore WorkspaceModel.setAdminChannel(s, 1, "C_ADMIN_CHANNEL");
-    ignore WorkspaceModel.setMemberChannel(s, 1, "C_MEMBER_CHANNEL");
     ignore WorkspaceModel.createWorkspace(s, "Test Workspace 2"); // id = 2
     ignore WorkspaceModel.setAdminChannel(s, 2, "C_ROUND_TRIP_ADMIN");
-    ignore WorkspaceModel.setMemberChannel(s, 2, "C_ROUND_TRIP_MEMBER");
     s;
   };
 
@@ -635,7 +633,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     isPrimaryOwner : Bool;
     isOrgAdmin : Bool;
     isBot : Bool;
-    workspaceMemberships : [(Nat, { #admin; #member })];
+    workspaceMemberships : [(Nat, { #admin })];
   };
 
   /// Serializable version of AccessChangeEntry for Candid response.
@@ -707,14 +705,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
           case (#primaryOwnerRevoked) { "primaryOwnerRevoked" };
           case (#workspaceAdminGranted(_)) { "workspaceAdminGranted" };
           case (#workspaceAdminRevoked(_)) { "workspaceAdminRevoked" };
-          case (#workspaceMemberGranted(_)) { "workspaceMemberGranted" };
-          case (#workspaceMemberRevoked(_)) { "workspaceMemberRevoked" };
         };
         let wsIdOpt : ?Nat = switch (e.changeType) {
           case (#workspaceAdminGranted(wsId)) { ?wsId };
           case (#workspaceAdminRevoked(wsId)) { ?wsId };
-          case (#workspaceMemberGranted(wsId)) { ?wsId };
-          case (#workspaceMemberRevoked(wsId)) { ?wsId };
           case (_) { null };
         };
         let sourceText = switch (e.source) {
@@ -759,22 +753,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     );
   };
 
-  /// Seed a workspace channel membership for a user in the persistent state.
+  /// Seed a workspace admin channel membership for a user in the persistent state.
   /// The user must already exist in the cache (seed via seedSlackUser first).
   public shared ({ caller }) func seedWorkspaceMembership(
     slackUserId : Text,
     workspaceId : Nat,
-    slot : { #admin; #member },
   ) : async () {
     assert caller == parent;
-    switch (slot) {
-      case (#admin) {
-        ignore SlackUserModel.joinAdminChannel(slackUsers, slackUserId, workspaceId, #manual);
-      };
-      case (#member) {
-        ignore SlackUserModel.joinMemberChannel(slackUsers, slackUserId, workspaceId, #manual);
-      };
-    };
+    ignore SlackUserModel.joinAdminChannel(slackUsers, slackUserId, workspaceId, #manual);
   };
 
   /// Run the weekly reconciliation runner against the shared test cache and
@@ -956,8 +942,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ///
   /// Note: the handler runs against the pre-seeded testWorkspacesState:
   ///   Workspace 0: Default (no channel anchors)
-  ///   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
-  ///   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
+  ///   Workspace 1: adminChannelId = C_ADMIN_CHANNEL
+  ///   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN
   public shared ({ caller }) func testSetWorkspaceAdminChannelHandler(
     args : Text,
     botToken : Text,
@@ -1026,42 +1012,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await ListWorkspacesHandler.handle(testWorkspacesState, args);
-  };
-
-  /// Test the SetWorkspaceMemberChannelHandler in isolation.
-  ///
-  /// @param args       JSON-encoded tool arguments (workspaceId + channelId).
-  /// @param botToken   Slack bot token forwarded to SlackWrapper for channel verification.
-  /// @param auth       Simplified auth context.
-  ///
-  /// Note: the handler runs against the pre-seeded testWorkspacesState:
-  ///   Workspace 0: Default (no channel anchors)
-  ///   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
-  ///   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
-  public shared ({ caller }) func testSetWorkspaceMemberChannelHandler(
-    args : Text,
-    botToken : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-      workspaceAdminFor : ?Nat;
-    },
-  ) : async Text {
-    assert caller == parent;
-    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
-    switch (auth.workspaceAdminFor) {
-      case (?wsId) {
-        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
-      };
-      case (null) {};
-    };
-    let uac : SlackAuthMiddleware.UserAuthContext = {
-      slackUserId = "U_TEST_USER";
-      isPrimaryOwner = auth.isPrimaryOwner;
-      isOrgAdmin = auth.isOrgAdmin;
-      workspaceScopes;
-    };
-    await SetWorkspaceMemberChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
 
   // ============================================

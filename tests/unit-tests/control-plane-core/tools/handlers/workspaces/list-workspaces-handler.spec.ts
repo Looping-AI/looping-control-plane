@@ -19,8 +19,8 @@ import {
 // This handler reads from WorkspacesState and returns all workspace records as JSON.
 // The test canister is pre-seeded with three workspaces:
 //   Workspace 0: Default (no channel anchors)
-//   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
-//   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
+//   Workspace 1: adminChannelId = C_ADMIN_CHANNEL
+//   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN
 // ============================================
 
 function parseResponse(json: string): {
@@ -29,7 +29,6 @@ function parseResponse(json: string): {
     id: number;
     name: string;
     adminChannelId: string | null;
-    memberChannelId: string | null;
   }>;
   error?: string;
 } {
@@ -67,7 +66,6 @@ describe("ListWorkspacesHandler", () => {
     expect(ws0).toBeDefined();
     expect(ws0!.name).toBe("Default");
     expect(ws0!.adminChannelId).toBeNull();
-    expect(ws0!.memberChannelId).toBeNull();
   });
 
   it("should include workspace 1 with correct channel anchors", async () => {
@@ -77,7 +75,6 @@ describe("ListWorkspacesHandler", () => {
     expect(ws1).toBeDefined();
     expect(ws1!.name).toBe("Test Workspace 1");
     expect(ws1!.adminChannelId).toBe("C_ADMIN_CHANNEL");
-    expect(ws1!.memberChannelId).toBe("C_MEMBER_CHANNEL");
   });
 
   it("should include workspace 2 with correct channel anchors", async () => {
@@ -87,7 +84,6 @@ describe("ListWorkspacesHandler", () => {
     expect(ws2).toBeDefined();
     expect(ws2!.name).toBe("Test Workspace 2");
     expect(ws2!.adminChannelId).toBe("C_ROUND_TRIP_ADMIN");
-    expect(ws2!.memberChannelId).toBe("C_ROUND_TRIP_MEMBER");
   });
 
   it("should reflect newly created workspaces", async () => {
