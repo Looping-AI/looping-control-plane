@@ -126,7 +126,7 @@ flowchart TD
     EA --> AS
     EA --> CH
     SW -->|postMessage| S
-    GHW -->|workflow_dispatch [planned]| GH
+    GHW -->|"workflow_dispatch [planned]"| GH
     LLM -->|chat completions| OpenRouter([OpenRouter])
     PE <-.->|"read context"| AS
     PE <-.->|"read context"| CH
