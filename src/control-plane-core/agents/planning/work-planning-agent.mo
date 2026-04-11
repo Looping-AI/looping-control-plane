@@ -135,9 +135,6 @@ module {
     let assembled = ContextAssembler.assemble(sessionStores, agent.id, turnId, channelHistory, channelId, threadTs);
     let inputMessages = List.fromArray<OpenRouterWrapper.ResponseInputMessage>(assembled.messages);
 
-    // Add the new user message
-    List.add(inputMessages, { role = #user; content = message });
-
     var iteration = 0;
 
     loop {
