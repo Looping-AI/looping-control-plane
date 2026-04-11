@@ -158,7 +158,7 @@ The resolved identity and permissions of the user who initiated a request. Built
 - `slackUserId`: the Slack user ID.
 - `isPrimaryOwner`: whether this user is the Slack Primary Owner.
 - `isOrgAdmin`: whether this user is a member of `#looping-ai-org-admins`.
-- `workspaceScopes`: per-workspace admin scope — `Map<workspaceId, #admin>`.
+- `adminWorkspaces`: set of workspace IDs where the user is an admin — `Map<workspaceId, ()>`.
 
 The `userAuthContext` is the single source of truth for authorization in all downstream operations. It is carried through agent delegations: when agent A references agent B (on a Slack Message), the `userAuthContext` of the original human user is inherited, not the agent's identity.
 

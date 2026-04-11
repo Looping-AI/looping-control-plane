@@ -52,7 +52,7 @@ suite(
         expect.text(entry.displayName).equal("Alice");
         expect.bool(entry.isPrimaryOwner).equal(true);
         expect.bool(entry.isOrgAdmin).equal(false);
-        expect.nat(SlackUserModel.getWorkspaceMemberships(entry).size()).equal(0);
+        expect.nat(SlackUserModel.getAdminWorkspaceIds(entry).size()).equal(0);
       },
     );
   },
@@ -186,7 +186,7 @@ suite(
   "SlackUserModel - joinAdminChannel",
   func() {
     test(
-      "sets inAdminChannel and scope becomes #admin",
+      "sets admin membership for workspace",
       func() {
         let state = SlackUserModel.emptyState();
         SlackUserModel.upsertUser(state, SlackUserModel.newEntry("U001", "Alice", false, false, false), #manual);
@@ -194,10 +194,7 @@ suite(
         let result = SlackUserModel.joinAdminChannel(state, "U001", 1, #manual);
         expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).isOk();
 
-        switch (SlackUserModel.getWorkspaceScope(state.cache, "U001", 1)) {
-          case (null) { expect.bool(false).equal(true) };
-          case (?s) { expect.bool(s == #admin).equal(true) };
-        };
+        expect.bool(SlackUserModel.isWorkspaceAdmin(state.cache, "U001", 1)).equal(true);
       },
     );
 
@@ -223,8 +220,8 @@ suite(
         switch (SlackUserModel.lookupUser(state.cache, "U001")) {
           case (null) { expect.bool(false).equal(true) };
           case (?entry) {
-            let memberships = SlackUserModel.getWorkspaceMemberships(entry);
-            expect.nat(memberships.size()).equal(2);
+            let adminIds = SlackUserModel.getAdminWorkspaceIds(entry);
+            expect.nat(adminIds.size()).equal(2);
           };
         };
       },
@@ -249,10 +246,7 @@ suite(
         let result = SlackUserModel.leaveAdminChannel(state, "U001", 1, #manual);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
-        switch (SlackUserModel.getWorkspaceScope(state.cache, "U001", 1)) {
-          case (null) { expect.bool(true).equal(true) }; // expected — no longer in any channel
-          case (?_) { expect.bool(false).equal(true) };
-        };
+        expect.bool(SlackUserModel.isWorkspaceAdmin(state.cache, "U001", 1)).equal(false);
       },
     );
 
@@ -269,8 +263,8 @@ suite(
         switch (SlackUserModel.lookupUser(state.cache, "U001")) {
           case (null) { expect.bool(false).equal(true) };
           case (?entry) {
-            let memberships = SlackUserModel.getWorkspaceMemberships(entry);
-            expect.nat(memberships.size()).equal(0);
+            let adminIds = SlackUserModel.getAdminWorkspaceIds(entry);
+            expect.nat(adminIds.size()).equal(0);
           };
         };
       },
@@ -311,13 +305,10 @@ suite(
         switch (SlackUserModel.lookupUser(state.cache, "U001")) {
           case (null) { expect.bool(false).equal(true) };
           case (?entry) {
-            let memberships = SlackUserModel.getWorkspaceMemberships(entry);
-            expect.nat(memberships.size()).equal(1);
+            let adminIds = SlackUserModel.getAdminWorkspaceIds(entry);
+            expect.nat(adminIds.size()).equal(1);
 
-            switch (SlackUserModel.getWorkspaceScope(state.cache, "U001", 2)) {
-              case (null) { expect.bool(false).equal(true) };
-              case (?s) { expect.bool(s == #admin).equal(true) };
-            };
+            expect.bool(SlackUserModel.isWorkspaceAdmin(state.cache, "U001", 2)).equal(true);
           };
         };
       },
@@ -326,46 +317,37 @@ suite(
 );
 
 // ============================================
-// Suite: getWorkspaceScope
+// Suite: isWorkspaceAdmin
 // ============================================
 
 suite(
-  "SlackUserModel - getWorkspaceScope",
+  "SlackUserModel - isWorkspaceAdmin",
   func() {
     test(
-      "returns null when user not in cache",
+      "returns false when user not in cache",
       func() {
         let state = SlackUserModel.emptyState();
-        switch (SlackUserModel.getWorkspaceScope(state.cache, "U999", 1)) {
-          case (null) { expect.bool(true).equal(true) };
-          case (?_) { expect.bool(false).equal(true) };
-        };
+        expect.bool(SlackUserModel.isWorkspaceAdmin(state.cache, "U999", 1)).equal(false);
       },
     );
 
     test(
-      "returns null when user exists but has no membership in that workspace",
+      "returns false when user exists but has no membership in that workspace",
       func() {
         let state = SlackUserModel.emptyState();
         SlackUserModel.upsertUser(state, SlackUserModel.newEntry("U001", "Alice", false, false, false), #manual);
-        switch (SlackUserModel.getWorkspaceScope(state.cache, "U001", 5)) {
-          case (null) { expect.bool(true).equal(true) };
-          case (?_) { expect.bool(false).equal(true) };
-        };
+        expect.bool(SlackUserModel.isWorkspaceAdmin(state.cache, "U001", 5)).equal(false);
       },
     );
 
     test(
-      "returns correct scope after membership is set",
+      "returns true after admin membership is set",
       func() {
         let state = SlackUserModel.emptyState();
         SlackUserModel.upsertUser(state, SlackUserModel.newEntry("U001", "Alice", false, false, false), #manual);
         ignore SlackUserModel.joinAdminChannel(state, "U001", 1, #manual);
 
-        switch (SlackUserModel.getWorkspaceScope(state.cache, "U001", 1)) {
-          case (null) { expect.bool(false).equal(true) };
-          case (?s) { expect.bool(s == #admin).equal(true) };
-        };
+        expect.bool(SlackUserModel.isWorkspaceAdmin(state.cache, "U001", 1)).equal(true);
       },
     );
   },

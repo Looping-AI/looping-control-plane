@@ -78,7 +78,7 @@ describe("MemberLeftChannelHandler", () => {
 
     // Verify user has admin membership before leaving
     let user = unwrapOpt(await testCanister.getSlackUser(userId));
-    expect(user?.workspaceMemberships.length).toBe(1);
+    expect(user?.adminWorkspaces.length).toBe(1);
 
     // Now they leave the admin channel
     const result = await testCanister.testMemberLeftChannelHandler({
@@ -93,7 +93,7 @@ describe("MemberLeftChannelHandler", () => {
 
     // Verify the membership was removed
     user = unwrapOpt(await testCanister.getSlackUser(userId));
-    expect(user?.workspaceMemberships.length).toBe(0);
+    expect(user?.adminWorkspaces.length).toBe(0);
   });
 
   it("should handle user leaving direct message channel", async () => {
@@ -134,7 +134,7 @@ describe("MemberLeftChannelHandler", () => {
 
     // Verify membership was added
     let user = unwrapOpt(await testCanister.getSlackUser(userId));
-    expect(user?.workspaceMemberships.length).toBe(1);
+    expect(user?.adminWorkspaces.length).toBe(1);
 
     // Leave the channel
     const leaveResult = await testCanister.testMemberLeftChannelHandler({
@@ -148,7 +148,7 @@ describe("MemberLeftChannelHandler", () => {
 
     // Verify membership was removed
     user = unwrapOpt(await testCanister.getSlackUser(userId));
-    expect(user?.workspaceMemberships.length).toBe(0);
+    expect(user?.adminWorkspaces.length).toBe(0);
   });
 
   it("should handle gracefully when user leaving was not in cache", async () => {

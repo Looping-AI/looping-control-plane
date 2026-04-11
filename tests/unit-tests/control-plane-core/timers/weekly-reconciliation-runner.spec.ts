@@ -748,13 +748,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(user).toHaveLength(1);
       const u = user[0];
       if (!u) throw new Error("Expected user to be defined");
-      const memberships = u.workspaceMemberships;
-      // Workspace 1 should have the admin flag set.
-      const ws1 = memberships.find(([wsId]: [bigint, unknown]) => wsId === 1n);
-      expect(ws1).toBeDefined();
-      if (ws1) {
-        expect("admin" in ws1[1]).toBe(true);
-      }
+      const memberships = u.adminWorkspaces;
+      // Workspace 1 should be in the admin set.
+      expect(memberships).toContainEqual(1n);
     });
 
     it("should clear workspace admin flag when user has left the admin channel", async () => {
@@ -784,11 +780,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(user).toHaveLength(1);
       const u = user[0];
       if (!u) throw new Error("Expected user to be defined");
-      // Workspace 1 membership should be gone (no admin flag).
-      const ws1 = u.workspaceMemberships.find(
-        ([wsId]: [bigint, unknown]) => wsId === 1n,
-      );
-      expect(ws1).toBeUndefined();
+      // Workspace 1 membership should be gone.
+      expect(u.adminWorkspaces).not.toContainEqual(1n);
     });
 
     it("should NOT notify org admin channel when it is already inaccessible and a workspace channel is also gone", async () => {
@@ -863,11 +856,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(known).toHaveLength(1);
       const k = known[0];
       if (!k) throw new Error("Expected known user to be defined");
-      const ws1 = k.workspaceMemberships.find(
-        ([wsId]: [bigint, unknown]) => wsId === 1n,
-      );
-      expect(ws1).toBeDefined();
-      if (ws1) expect("admin" in ws1[1]).toBe(true);
+      expect(k.adminWorkspaces).toContainEqual(1n);
     });
   });
 

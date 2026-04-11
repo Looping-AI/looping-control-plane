@@ -108,11 +108,8 @@ suite(
         switch (SlackAuthMiddleware.buildFromCache(workspaceAdmin1, cache)) {
           case (null) { expect.bool(false).equal(true) };
           case (?ctx) {
-            // workspaceAdmin1 has #admin scope in workspace 0
-            switch (Map.get(ctx.workspaceScopes, Nat.compare, 0)) {
-              case (null) { expect.bool(false).equal(true) };
-              case (?scope) { expect.bool(scope == #admin).equal(true) };
-            };
+            // workspaceAdmin1 has admin membership in workspace 0
+            expect.bool(Map.containsKey(ctx.adminWorkspaces, Nat.compare, 0)).equal(true);
           };
         };
       },

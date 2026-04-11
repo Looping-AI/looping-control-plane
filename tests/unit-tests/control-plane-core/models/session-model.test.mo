@@ -17,13 +17,13 @@ func makeDummyAuthCtx() : {
   slackUserId : Text;
   isPrimaryOwner : Bool;
   isOrgAdmin : Bool;
-  workspaceScopes : Map.Map<Nat, SlackUserModel.WorkspaceScope>;
+  adminWorkspaces : Map.Map<Nat, ()>;
 } {
   {
     slackUserId = "U_TEST";
     isPrimaryOwner = false;
     isOrgAdmin = false;
-    workspaceScopes = Map.empty();
+    adminWorkspaces = Map.empty();
   };
 };
 

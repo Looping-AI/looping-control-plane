@@ -21,20 +21,20 @@ module {
   /// Authorization context built from the Slack user cache.
   /// Passed to all downstream services instead of a caller Principal.
   ///
-  /// `workspaceScopes` contains only the workspaces the user explicitly belongs to.
+  /// `adminWorkspaces` is a set of workspace IDs where the user is an admin.
   /// A missing workspace ID means the user has no access to that workspace.
   public type UserAuthContext = {
     slackUserId : Text;
     isPrimaryOwner : Bool;
     isOrgAdmin : Bool;
-    workspaceScopes : Map.Map<Nat, SlackUserModel.WorkspaceScope>;
+    adminWorkspaces : Map.Map<Nat, ()>;
   };
 
   /// Authorization step — describes a single access requirement.
   /// `authorize` uses OR logic: the check passes as soon as any one step succeeds.
   ///
   /// Steps that require a specific workspace carry the workspace ID inline so
-  /// the middleware can look it up in `workspaceScopes` without extra parameters.
+  /// the middleware can look it up in `adminWorkspaces` without extra parameters.
   public type AuthStep = {
     #IsPrimaryOwner; // User must be the Slack workspace's Primary Owner
     #IsOrgAdmin; // User must be flagged as org admin (isPrimaryOwner or isOrgAdmin)
@@ -60,7 +60,7 @@ module {
           slackUserId = entry.slackUserId;
           isPrimaryOwner = entry.isPrimaryOwner;
           isOrgAdmin = entry.isOrgAdmin;
-          workspaceScopes = SlackUserModel.buildWorkspaceScopeMap(entry);
+          adminWorkspaces = entry.adminWorkspaces;
         };
       };
     };
@@ -122,11 +122,10 @@ module {
   };
 
   private func checkIsWorkspaceAdmin(ctx : UserAuthContext, workspaceId : Nat) : Result.Result<(), Text> {
-    switch (Map.get(ctx.workspaceScopes, Nat.compare, workspaceId)) {
-      case (null) {
-        #err("Only workspace admins of workspace " # debug_show (workspaceId) # " can perform this action.");
-      };
-      case (?#admin) { #ok(()) };
+    if (Map.containsKey(ctx.adminWorkspaces, Nat.compare, workspaceId)) {
+      #ok(());
+    } else {
+      #err("Only workspace admins of workspace " # debug_show (workspaceId) # " can perform this action.");
     };
   };
 

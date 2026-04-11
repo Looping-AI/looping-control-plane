@@ -81,13 +81,7 @@ describe("MemberJoinedChannelHandler", () => {
     const user = unwrapOpt(await testCanister.getSlackUser("U_USER_ADMIN_1"));
     expect(user).not.toBeNull();
     if (user) {
-      const membership = user.workspaceMemberships.find(
-        ([wsId]: [bigint, unknown]) => wsId === 1n,
-      );
-      expect(membership).toBeDefined();
-      if (membership) {
-        expect(membership[1]).toEqual({ admin: null });
-      }
+      expect(user.adminWorkspaces).toContainEqual(1n);
     }
   });
 

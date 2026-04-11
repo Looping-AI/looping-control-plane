@@ -22,7 +22,7 @@ func makeRoundCtx(userId : Text, roundCount : Nat, forceTerminated : Bool) : Sla
     slackUserId = userId;
     isPrimaryOwner = false;
     isOrgAdmin = false;
-    workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    adminWorkspaces = Map.empty<Nat, ()>();
     roundCount;
     forceTerminated;
     parentRef = null;

@@ -5,7 +5,7 @@
 ///
 /// 1. **User refresh** — calls `users.list` and compares each org member against the
 ///    cache. Only new users or users with profile changes (displayName, isPrimaryOwner,
-///    isBot) are upserted. Existing `isOrgAdmin` and `workspaceMemberships` flags are
+///    isBot) are upserted. Existing `isOrgAdmin` and `adminWorkspaces` flags are
 ///    preserved and not touched here (those are reconciled by the channel sync steps).
 ///    After the comparison loop, any users still in the cache but **absent** from the
 ///    fresh `users.list` are removed as stale (deleted/deactivated in Slack).
@@ -136,7 +136,7 @@ module {
               isPrimaryOwner = entry.isPrimaryOwner;
               isOrgAdmin = false;
               isBot = entry.isBot;
-              workspaceMemberships = entry.workspaceMemberships;
+              adminWorkspaces = entry.adminWorkspaces;
             },
             #reconciliation,
           );
@@ -164,7 +164,7 @@ module {
                 isPrimaryOwner = entry.isPrimaryOwner;
                 isOrgAdmin = true;
                 isBot = entry.isBot;
-                workspaceMemberships = entry.workspaceMemberships;
+                adminWorkspaces = entry.adminWorkspaces;
               },
               #reconciliation,
             );
@@ -174,12 +174,12 @@ module {
     };
   };
 
-  /// Reconcile the `inAdminChannel` flag for a specific workspace
+  /// Reconcile the admin workspace membership for a specific workspace
   /// against a fresh member list obtained from Slack.
   ///
   /// Uses collect-then-apply to avoid mutating the cache during iteration.
-  /// - Cached users with the flag set but absent from `freshMemberIds` → flag cleared.
-  /// - IDs in `freshMemberIds` that are in the cache → flag set.
+  /// - Cached users with admin membership but absent from `freshMemberIds` → membership removed.
+  /// - IDs in `freshMemberIds` that are in the cache → membership granted.
   private func syncWorkspaceChannelMembership(
     slackUsers : SlackUserModel.SlackUserState,
     workspaceId : Nat,
@@ -187,16 +187,11 @@ module {
   ) {
     let freshSet = makeIdSet(freshMemberIds);
 
-    // Phase 1: Collect IDs whose channel flag must be cleared
+    // Phase 1: Collect IDs whose admin flag must be cleared
     let toRevoke = List.empty<Text>();
     for (entry in Map.values(slackUsers.cache)) {
-      switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
-        case (null) {};
-        case (?flags) {
-          if (flags.inAdminChannel and Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
-            List.add(toRevoke, entry.slackUserId);
-          };
-        };
+      if (Map.containsKey(entry.adminWorkspaces, Nat.compare, workspaceId) and Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
+        List.add(toRevoke, entry.slackUserId);
       };
     };
 
@@ -340,16 +335,16 @@ module {
         );
 
         for (user in allUsers.vals()) {
-          // Preserve existing isOrgAdmin and workspaceMemberships — only refresh top-level fields.
+          // Preserve existing isOrgAdmin and adminWorkspaces — only refresh top-level fields.
           // Skip the upsert entirely when nothing has changed to avoid unnecessary log entries.
-          let (isOrgAdmin, workspaceMemberships, needsUpdate) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
+          let (isOrgAdmin, adminWorkspaces, needsUpdate) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
             case (null) {
               // New user — always write
-              (false, Map.empty<Nat, SlackUserModel.WorkspaceChannelFlags>(), true);
+              (false, Map.empty<Nat, ()>(), true);
             };
             case (?existing) {
               let changed = existing.displayName != user.name or existing.isPrimaryOwner != user.isPrimaryOwner or existing.isBot != user.isBot;
-              (existing.isOrgAdmin, existing.workspaceMemberships, changed);
+              (existing.isOrgAdmin, existing.adminWorkspaces, changed);
             };
           };
           if (needsUpdate) {
@@ -361,7 +356,7 @@ module {
                 isPrimaryOwner = user.isPrimaryOwner;
                 isOrgAdmin;
                 isBot = user.isBot;
-                workspaceMemberships;
+                adminWorkspaces;
               },
               #reconciliation,
             );

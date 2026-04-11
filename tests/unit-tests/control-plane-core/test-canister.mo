@@ -354,7 +354,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
       isOrgAdmin = false;
-      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      adminWorkspaces = Map.empty<Nat, ()>();
     };
     ChannelHistoryModel.addMessage(
       ctx.channelHistory,
@@ -441,7 +441,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
       isOrgAdmin = false;
-      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      adminWorkspaces = Map.empty<Nat, ()>();
     };
     ChannelHistoryModel.addMessage(
       ctx.channelHistory,
@@ -633,7 +633,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     isPrimaryOwner : Bool;
     isOrgAdmin : Bool;
     isBot : Bool;
-    workspaceMemberships : [(Nat, { #admin })];
+    adminWorkspaces : [Nat];
   };
 
   /// Serializable version of AccessChangeEntry for Candid response.
@@ -658,14 +658,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     Array.map<SlackUserModel.SlackUserEntry, SlackUserInfo>(
       entries,
       func(entry : SlackUserModel.SlackUserEntry) : SlackUserInfo {
-        let memberships = SlackUserModel.getWorkspaceMemberships(entry);
+        let adminIds = SlackUserModel.getAdminWorkspaceIds(entry);
         {
           slackUserId = entry.slackUserId;
           displayName = entry.displayName;
           isPrimaryOwner = entry.isPrimaryOwner;
           isOrgAdmin = entry.isOrgAdmin;
           isBot = entry.isBot;
-          workspaceMemberships = memberships;
+          adminWorkspaces = adminIds;
         };
       },
     );
@@ -676,14 +676,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     switch (SlackUserModel.lookupUser(slackUsers.cache, slackUserId)) {
       case (null) { null };
       case (?entry) {
-        let memberships = SlackUserModel.getWorkspaceMemberships(entry);
+        let adminIds = SlackUserModel.getAdminWorkspaceIds(entry);
         ?({
           slackUserId = entry.slackUserId;
           displayName = entry.displayName;
           isPrimaryOwner = entry.isPrimaryOwner;
           isOrgAdmin = entry.isOrgAdmin;
           isBot = entry.isBot;
-          workspaceMemberships = memberships;
+          adminWorkspaces = adminIds;
         });
       };
     };
@@ -747,7 +747,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         isPrimaryOwner;
         isOrgAdmin;
         isBot;
-        workspaceMemberships = Map.empty<Nat, SlackUserModel.WorkspaceChannelFlags>();
+        adminWorkspaces = Map.empty<Nat, ()>();
       },
       #manual,
     );
@@ -954,10 +954,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    let adminWorkspaces = Map.empty<Nat, ()>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+        Map.add(adminWorkspaces, Nat.compare, wsId, ());
       };
       case (null) {};
     };
@@ -965,7 +965,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_TEST_USER";
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
-      workspaceScopes;
+      adminWorkspaces;
     };
     await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
@@ -986,10 +986,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    let adminWorkspaces = Map.empty<Nat, ()>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+        Map.add(adminWorkspaces, Nat.compare, wsId, ());
       };
       case (null) {};
     };
@@ -997,7 +997,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_TEST_USER";
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
-      workspaceScopes;
+      adminWorkspaces;
     };
     await CreateWorkspaceHandler.handle(testWorkspacesState, uac, args);
   };
@@ -1252,7 +1252,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_TEST_USER";
       isPrimaryOwner;
       isOrgAdmin;
-      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      adminWorkspaces = Map.empty<Nat, ()>();
     };
   };
 
@@ -1409,10 +1409,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    let adminWorkspaces = Map.empty<Nat, ()>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+        Map.add(adminWorkspaces, Nat.compare, wsId, ());
       };
       case (null) {};
     };
@@ -1420,7 +1420,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_TEST_USER";
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
-      workspaceScopes;
+      adminWorkspaces;
     };
     await StoreSecretHandler.handle(testSecretsMap, testSecretsKeyCache, testWorkspacesState, uac, args);
   };
@@ -1437,10 +1437,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    let adminWorkspaces = Map.empty<Nat, ()>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+        Map.add(adminWorkspaces, Nat.compare, wsId, ());
       };
       case (null) {};
     };
@@ -1448,7 +1448,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_TEST_USER";
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
-      workspaceScopes;
+      adminWorkspaces;
     };
     await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, args);
   };
@@ -1465,10 +1465,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+    let adminWorkspaces = Map.empty<Nat, ()>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(workspaceScopes, Nat.compare, wsId, #admin);
+        Map.add(adminWorkspaces, Nat.compare, wsId, ());
       };
       case (null) {};
     };
@@ -1476,7 +1476,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_TEST_USER";
       isPrimaryOwner = auth.isPrimaryOwner;
       isOrgAdmin = auth.isOrgAdmin;
-      workspaceScopes;
+      adminWorkspaces;
     };
     await DeleteSecretHandler.handle(testSecretsMap, uac, args);
   };

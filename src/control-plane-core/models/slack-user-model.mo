@@ -2,7 +2,6 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
-import Array "mo:core/Array";
 import Result "mo:core/Result";
 import List "mo:core/List";
 import Time "mo:core/Time";
@@ -12,31 +11,17 @@ module {
   // Types
   // ============================================
 
-  /// Access level a user has within a workspace.
-  /// Derived from Slack channel membership: admin channel → #admin.
-  public type WorkspaceScope = {
-    #admin;
-  };
-
-  /// A (workspaceId, scope) pair for readable output (e.g. API responses, tests).
-  public type WorkspaceMembership = (Nat, WorkspaceScope);
-
-  /// Internal per-workspace flag tracking whether a user is in the admin channel anchor.
-  public type WorkspaceChannelFlags = {
-    inAdminChannel : Bool;
-  };
-
-  /// A cached Slack user with their resolved org-level roles and workspace memberships.
+  /// A cached Slack user with their resolved org-level roles and workspace admin memberships.
   ///
-  /// `workspaceMemberships` maps each workspace the user belongs to → per-channel flags.
-  /// Only workspaces where the user has an explicit membership are present.
+  /// `adminWorkspaces` is a set of workspace IDs where the user is an admin
+  /// (derived from Slack admin-channel membership). Presence in the set ≡ is admin.
   public type SlackUserEntry = {
     slackUserId : Text;
     displayName : Text;
     isPrimaryOwner : Bool;
     isOrgAdmin : Bool;
     isBot : Bool;
-    workspaceMemberships : Map.Map<Nat, WorkspaceChannelFlags>;
+    adminWorkspaces : Map.Map<Nat, ()>;
   };
 
   /// The full Slack user cache: Slack user ID → SlackUserEntry.
@@ -122,7 +107,7 @@ module {
       isPrimaryOwner;
       isOrgAdmin;
       isBot;
-      workspaceMemberships = Map.empty<Nat, WorkspaceChannelFlags>();
+      adminWorkspaces = Map.empty<Nat, ()>();
     };
   };
 
@@ -183,19 +168,7 @@ module {
   // Private Helpers
   // ============================================
 
-  /// Derive the observable WorkspaceScope from per-channel flags.
-  /// Returns null when the user is not in the admin channel (entry should be removed).
-  private func scopeFromFlags(flags : WorkspaceChannelFlags) : ?WorkspaceScope {
-    if (flags.inAdminChannel) { ?#admin } else { null };
-  };
-
-  /// Read the existing channel flags for a workspace, defaulting to false.
-  private func getOrInitFlags(entry : SlackUserEntry, workspaceId : Nat) : WorkspaceChannelFlags {
-    switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
-      case (?flags) { flags };
-      case (null) { { inAdminChannel = false } };
-    };
-  };
+  // (No private helpers needed — admin workspace set uses direct Map operations.)
 
   // ============================================
   // CRUD — Users
@@ -207,8 +180,8 @@ module {
   /// - Existing user: logs #orgAdminGranted/Revoked and #primaryOwnerGranted/Revoked only
   ///   when the corresponding flags actually change.
   ///
-  /// Workspace memberships are NOT touched here; callers doing a profile-only refresh
-  /// must pass back the existing `workspaceMemberships` from the current entry.
+  /// Workspace admin memberships are NOT touched here; callers doing a profile-only refresh
+  /// must pass back the existing `adminWorkspaces` from the current entry.
   public func upsertUser(state : SlackUserState, entry : SlackUserEntry, source : AccessChangeSource) {
     switch (Map.get(state.cache, Text.compare, entry.slackUserId)) {
       case (null) {
@@ -268,8 +241,8 @@ module {
 
   /// Record that a user has joined the admin-channel anchor of a workspace.
   ///
-  /// Sets `inAdminChannel = true`.
-  /// Logs #workspaceAdminGranted(workspaceId) only when the flag was previously clear.
+  /// Adds the workspace to the user's `adminWorkspaces` set.
+  /// Logs #workspaceAdminGranted(workspaceId) only when the workspace was not already present.
   /// Returns #err if the user is not found in the cache.
   public func joinAdminChannel(
     state : SlackUserState,
@@ -280,14 +253,11 @@ module {
     switch (Map.get(state.cache, Text.compare, slackUserId)) {
       case (null) { #err("User not found: " # slackUserId) };
       case (?entry) {
-        let current = getOrInitFlags(entry, workspaceId);
-        if (not current.inAdminChannel) {
+        let wasAdmin = Map.containsKey(entry.adminWorkspaces, Nat.compare, workspaceId);
+        if (not wasAdmin) {
           logChange(state.changeLog, slackUserId, #workspaceAdminGranted(workspaceId), source);
         };
-        let updated : WorkspaceChannelFlags = {
-          inAdminChannel = true;
-        };
-        Map.add(entry.workspaceMemberships, Nat.compare, workspaceId, updated);
+        Map.add(entry.adminWorkspaces, Nat.compare, workspaceId, ());
         #ok(());
       };
     };
@@ -295,10 +265,10 @@ module {
 
   /// Record that a user has left the admin-channel anchor of a workspace.
   ///
-  /// Clears `inAdminChannel` and removes the workspace membership entry entirely.
-  /// Logs #workspaceAdminRevoked(workspaceId) when the flag was actually cleared.
+  /// Removes the workspace from the user's `adminWorkspaces` set.
+  /// Logs #workspaceAdminRevoked(workspaceId) when the workspace was actually removed.
   /// Returns #err if the user is not in the cache.
-  /// Returns #ok(false) if the flag was already clear; #ok(true) if it was cleared.
+  /// Returns #ok(false) if the workspace was not in the set; #ok(true) if it was removed.
   public func leaveAdminChannel(
     state : SlackUserState,
     slackUserId : Text,
@@ -308,15 +278,12 @@ module {
     switch (Map.get(state.cache, Text.compare, slackUserId)) {
       case (null) { #err("User not found: " # slackUserId) };
       case (?entry) {
-        switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
-          case (null) { #ok(false) };
-          case (?flags) {
-            if (not flags.inAdminChannel) { #ok(false) } else {
-              Map.remove(entry.workspaceMemberships, Nat.compare, workspaceId);
-              logChange(state.changeLog, slackUserId, #workspaceAdminRevoked(workspaceId), source);
-              #ok(true);
-            };
-          };
+        if (not Map.containsKey(entry.adminWorkspaces, Nat.compare, workspaceId)) {
+          #ok(false);
+        } else {
+          Map.remove(entry.adminWorkspaces, Nat.compare, workspaceId);
+          logChange(state.changeLog, slackUserId, #workspaceAdminRevoked(workspaceId), source);
+          #ok(true);
         };
       };
     };
@@ -326,48 +293,22 @@ module {
   // Query Helpers
   // ============================================
 
-  /// Return the workspace memberships of an entry as an array of (workspaceId, scope) tuples.
-  /// Entries where both channel flags are false are excluded (should not normally exist).
-  public func getWorkspaceMemberships(entry : SlackUserEntry) : [WorkspaceMembership] {
-    Array.filterMap<(Nat, WorkspaceChannelFlags), WorkspaceMembership>(
-      Iter.toArray(Map.entries(entry.workspaceMemberships)),
-      func((wsId, flags)) {
-        switch (scopeFromFlags(flags)) {
-          case (?scope) { ?(wsId, scope) };
-          case (null) { null };
-        };
-      },
-    );
+  /// Return the IDs of workspaces where the user is an admin.
+  public func getAdminWorkspaceIds(entry : SlackUserEntry) : [Nat] {
+    Iter.toArray(Map.keys(entry.adminWorkspaces));
   };
 
-  /// Build a `Map<workspaceId, WorkspaceScope>` from a user entry suitable for
-  /// embedding in a `UserAuthContext`.  Only workspaces with an active membership
-  /// (at least one channel flag set) are included.
-  public func buildWorkspaceScopeMap(entry : SlackUserEntry) : Map.Map<Nat, WorkspaceScope> {
-    let scopeMap = Map.empty<Nat, WorkspaceScope>();
-    for ((wsId, flags) in Map.entries(entry.workspaceMemberships)) {
-      switch (scopeFromFlags(flags)) {
-        case (?scope) { Map.add(scopeMap, Nat.compare, wsId, scope) };
-        case (null) {};
-      };
-    };
-    scopeMap;
-  };
-
-  /// Look up the scope a user has in a specific workspace.
-  /// Returns null if the user is not found or has no membership in that workspace.
-  public func getWorkspaceScope(
+  /// Check whether a user is an admin of a specific workspace.
+  /// Returns false if the user is not found or has no admin membership in that workspace.
+  public func isWorkspaceAdmin(
     cache : SlackUserCache,
     slackUserId : Text,
     workspaceId : Nat,
-  ) : ?WorkspaceScope {
+  ) : Bool {
     switch (Map.get(cache, Text.compare, slackUserId)) {
-      case (null) { null };
+      case (null) { false };
       case (?entry) {
-        switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
-          case (null) { null };
-          case (?flags) { scopeFromFlags(flags) };
-        };
+        Map.containsKey(entry.adminWorkspaces, Nat.compare, workspaceId);
       };
     };
   };

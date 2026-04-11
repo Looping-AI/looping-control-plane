@@ -23,7 +23,7 @@ func userMsg(ts : Text, text : Text) : ChannelHistoryModel.ChannelMessage {
       slackUserId = "U_TEST";
       isPrimaryOwner = false;
       isOrgAdmin = false;
-      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      adminWorkspaces = Map.empty<Nat, ()>();
     };
     text;
     agentMetadata = null;
