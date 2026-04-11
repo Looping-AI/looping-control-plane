@@ -182,7 +182,7 @@ Delegation lineage is carried via Slack metadata (`AgentMessageMetadata`), not a
 
 An immutable, append-only log of execution events within a single turn. Each `TurnTraceEntry` is a self-contained record of one completed operation — no started/finished pairing. Variant tags on `detail : TraceDetail` distinguish entry types: `#llmCall`, `#toolCall`, `#slackPost`, `#contextAssembled`, `#roundLimitHit`, `#policyRejection`, `#faultRecovered`.
 
-**Key invariants**: trace entries are never mutated or deleted by the maintenance worker. Read-time truncation shortens old text fields for LLM context while originals remain in storage. A cleanup timer hard-deletes entire turns (with their traces) older than 3 months.
+**Key invariants**: trace entries are never mutated or deleted by the maintenance worker. For large text fields, traces store both the full value and a precomputed truncated variant (for example, `truncatedContent`, `truncatedThinking`, or `truncatedOutput`); readers such as the context assembler choose which field to use, rather than truncating during reads. A cleanup timer hard-deletes entire turns (with their traces) older than 3 months.
 
 ### Agent
 
