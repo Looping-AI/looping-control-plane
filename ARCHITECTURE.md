@@ -74,63 +74,53 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 
 ### System flow diagram
 
-The diagram below shows the target layered flow. Dashed borders indicate planned layers not yet implemented.
+#### Pipeline overview
+
+```mermaid
+flowchart LR
+    Ext(["Sources\nSlack · GitHub"])
+    Ing["Ingress\nverify + normalize"]
+    ED["Event Store\n+ Router"]
+    PE["Process Engine\npure step → effects"]
+    EA["Effect Applicator"]
+    IO["Wrappers\nSlack · LLM · GitHub · MCP"]
+    State[("State\nsessions · history\nregistry · secrets")]
+
+    Ext -->|webhooks| Ing --> ED --> PE --> EA
+    EA --> IO -->|API calls| Ext
+    EA -->|write| State
+    PE -.->|read| State
+```
+
+#### Component detail
+
+Dashed borders indicate planned components not yet implemented.
 
 ```mermaid
 flowchart TD
-    subgraph External
-        S([Slack])
-        GH([GitHub])
-    end
+    classDef planned stroke-dasharray:5 5
 
-    subgraph Ingress ["Ingress layer (current)"]
-        SA["SlackAdapter\nHMAC-SHA256 verify\n+ normalize"]
-        GHA["GitHubWebhookAdapter [planned]\nHMAC-SHA256 verify\n+ normalize"]
-    end
+    S([Slack]) -->|"/webhook/slack"| SA[SlackAdapter]
+    GH([GitHub]) -->|"/github/webhook"| GHA[GitHubWebhookAdapter]
 
-    subgraph Dispatch ["Event Dispatch (current)"]
-        ES[("Event Store\nunprocessed → processed/failed")]
-        ER["Event Router\nclaim + dispatch by type"]
-    end
-
-    subgraph Engine ["Process Engine — Loop Engine [planned]"]
-        direction LR
-        PE["Process.step(process, event)\n→ [Effect]\n(pure function)"]
-        EA["Effect Applicator\nexecutes effects in order:\nStateWrite → SlackPost\n→ EventEmit → ProcessSuspend"]
-    end
-
-    subgraph Wrappers ["Wrappers (current + planned)"]
-        SW["SlackWrapper"]
-        GHW["GitHubWrapper [planned]"]
-        LLM["OpenRouterWrapper\n(HTTP outcall)"]
-        MCP["MCP tools [planned]"]
-    end
-
-    subgraph State ["Stable state"]
-        AS[("Agent Sessions\n+ Turn Traces")]
-        CH[("Channel History")]
-        AR[("Agent Registry\n+ Secrets")]
-    end
-
-    S -->|"http_request_update\n/webhook/slack"| SA
-    GH -->|"http_request_update\n/github/webhook [planned]"| GHA
     SA --> ES
     GHA --> ES
-    ES --> ER
-    ER --> PE
-    PE --> EA
-    EA --> SW
-    EA --> GHW
-    EA --> LLM
-    EA --> MCP
-    EA --> AS
-    EA --> CH
-    SW -->|postMessage| S
-    GHW -->|"workflow_dispatch [planned]"| GH
-    LLM -->|chat completions| OpenRouter([OpenRouter])
-    PE <-.->|"read context"| AS
-    PE <-.->|"read context"| CH
-    PE <-.->|"read agent config"| AR
+    ES[("Event Store")] --> ER[Event Router]
+    ER --> PE[Process Step] --> EA[Effect Applicator]
+
+    EA -->|SlackPost| SW["SlackWrapper → Slack API"]
+    EA -->|LLM call| LLM["OpenRouterWrapper → OpenRouter"]
+    EA -->|dispatch| GHW["GitHubWrapper → GitHub API"]
+    EA -->|tool call| MCP[MCP tools]
+
+    EA -->|StateWrite| AS[("Sessions + Traces")]
+    EA -->|StateWrite| CH[("Channel History")]
+
+    PE -.->|read| AS
+    PE -.->|read| CH
+    PE -.->|read| AR[("Registry + Secrets")]
+
+    class GH,GHA,PE,EA,GHW,MCP planned
 ```
 
 ## Architecture Principles
