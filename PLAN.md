@@ -121,7 +121,6 @@ Introduce the Store — a file-like key-value persistence layer for structured a
   ```motoko
   filesystem : ?{
     state : FilesystemModel.FilesystemState; // this agent's isolated filesystem instance
-    agentId : Nat;
     write : Bool;
   };
 
@@ -146,7 +145,7 @@ Introduce the Store — a file-like key-value persistence layer for structured a
 **Source Steps**
 
 1. New file: `models/filesystem-model.mo` — `FileEntry` type (no `workspaceId`), `FilesystemState` type alias, `put`, `get`, `delete`, `list`, `listPaths`, path normalization utility.
-2. `tool-types.mo` — Add `filesystem` field to `ToolResources` (with `agentId : Nat`, no `workspaceId`).
+2. `tool-types.mo` — Add `filesystem` field to `ToolResources` (no `workspaceId`, no `agentId` — the state is already agent-resolved).
 3. New files: `tools/handlers/filesystem/create-file-entry-handler.mo`, `update-file-entry-handler.mo`, `get-file-entry-handler.mo`, `list-file-entries-handler.mo`, `delete-file-entry-handler.mo`.
 4. `tools/function-tool-registry.mo` — Import handlers, add tool definitions with JSON schemas, wire into admin tool set (gated on `resources.filesystem`).
 5. `main.mo` — Add `allFilesystemStates : Map<Nat, FilesystemModel.FilesystemState>` to persistent state (keyed by agent ID). On each request, look up the dispatched agent's ID, extract its `FilesystemState` (defaulting to empty if first use), and pass it through the context.
