@@ -39,7 +39,6 @@ module {
     #IsPrimaryOwner; // User must be the Slack workspace's Primary Owner
     #IsOrgAdmin; // User must be flagged as org admin (isPrimaryOwner or isOrgAdmin)
     #IsWorkspaceAdmin : Nat; // User must be admin of the given workspace ID
-    #IsWorkspaceMember : Nat; // User must be a member (any scope) of the given workspace ID
   };
 
   // ============================================
@@ -107,7 +106,6 @@ module {
       case (#IsPrimaryOwner) { checkIsPrimaryOwner(ctx) };
       case (#IsOrgAdmin) { checkIsOrgAdmin(ctx) };
       case (#IsWorkspaceAdmin(wsId)) { checkIsWorkspaceAdmin(ctx, wsId) };
-      case (#IsWorkspaceMember(wsId)) { checkIsWorkspaceMember(ctx, wsId) };
     };
   };
 
@@ -129,18 +127,6 @@ module {
         #err("Only workspace admins of workspace " # debug_show (workspaceId) # " can perform this action.");
       };
       case (?#admin) { #ok(()) };
-      case (?#member) {
-        #err("Only workspace admins of workspace " # debug_show (workspaceId) # " can perform this action.");
-      };
-    };
-  };
-
-  private func checkIsWorkspaceMember(ctx : UserAuthContext, workspaceId : Nat) : Result.Result<(), Text> {
-    switch (Map.get(ctx.workspaceScopes, Nat.compare, workspaceId)) {
-      case (null) {
-        #err("Only workspace members of workspace " # debug_show (workspaceId) # " can perform this action.");
-      };
-      case (?_) { #ok(()) }; // both #admin and #member satisfy membership
     };
   };
 
@@ -244,7 +230,6 @@ module {
   /// Returns ?(role, workspaceId) if the message matches "Only {role} of workspace {id} can perform this action."
   private func extractWorkspaceError(error : Text) : ?(Text, Nat) {
     let adminPattern = "Only workspace admins of workspace ";
-    let memberPattern = "Only workspace members of workspace ";
     let suffix = " can perform this action.";
 
     if (Text.startsWith(error, #text adminPattern)) {
@@ -254,17 +239,6 @@ module {
         case (null) { null };
         case (?wsId) {
           if (wsId >= 0) { ?("admins", Int.toNat(wsId)) } else {
-            null;
-          };
-        };
-      };
-    } else if (Text.startsWith(error, #text memberPattern)) {
-      let afterRole = Text.replace(error, #text memberPattern, "");
-      let wsIdStr = Text.replace(afterRole, #text suffix, "");
-      switch (Int.fromText(wsIdStr)) {
-        case (null) { null };
-        case (?wsId) {
-          if (wsId >= 0) { ?("members", Int.toNat(wsId)) } else {
             null;
           };
         };

@@ -1,9 +1,8 @@
 /// Workspace Model
-/// Persistent workspace records with Slack channel anchors for admin and member channels.
+/// Persistent workspace records with Slack channel anchors for admin channels.
 ///
-/// A workspace record stores the channel IDs that determine membership:
+/// A workspace record stores the channel ID that determines admin membership:
 ///   - `adminChannelId`  — members of this Slack channel get `#admin` scope for the workspace
-///   - `memberChannelId` — members of this Slack channel get `#member` scope for the workspace
 ///
 /// Workspace 0 is the org workspace. Its `adminChannelId` doubles as the org-admin channel
 /// anchor — members of that channel are treated as org-level admins. There is no separate
@@ -26,12 +25,11 @@ module {
   // Types
   // ============================================
 
-  /// A workspace record with Slack channel anchors.
+  /// A workspace record with a Slack channel anchor.
   public type WorkspaceRecord = {
     id : Nat;
     name : Text;
     adminChannelId : ?Text; // Slack channel ID whose members become workspace admins
-    memberChannelId : ?Text; // Slack channel ID whose members become workspace members
   };
 
   /// Mutable state for the workspace registry.
@@ -44,11 +42,9 @@ module {
   ///
   /// #none              — channel not found in any workspace anchor
   /// #adminChannel(id)  — channel is the admin channel of workspace `id`
-  /// #memberChannel(id) — channel is the member channel of workspace `id`
   public type ChannelResolution = {
     #none;
     #adminChannel : Nat;
-    #memberChannel : Nat;
   };
 
   // ============================================
@@ -67,7 +63,6 @@ module {
       id = 0;
       name = "Default";
       adminChannelId = null;
-      memberChannelId = null;
     };
     Map.add(state.workspaces, Nat.compare, 0, defaultWorkspace);
     state;
@@ -98,7 +93,6 @@ module {
       id;
       name;
       adminChannelId = null;
-      memberChannelId = null;
     };
     Map.add(state.workspaces, Nat.compare, id, record);
     state.nextId += 1;
@@ -114,41 +108,21 @@ module {
   // Channel Anchor Management
   // ============================================
 
-  /// Guard: verify that `channelId` is not already in use by any anchor except the slot
-  /// being replaced (`excludedSlot` of `workspaceId`).
-  ///
-  /// `excludedSlot` identifies which anchor slot is about to be overwritten so that
-  /// re-assigning the same channel ID to the same slot is treated as a legal no-op
-  /// rather than a conflict.
+  /// Guard: verify that `channelId` is not already in use by any admin anchor except the one
+  /// being replaced (`workspaceId`).
   func checkChannelUniqueness(
     state : WorkspacesState,
     workspaceId : Nat,
     channelId : Text,
-    excludedSlot : { #admin; #member },
   ) : Result.Result<(), Text> {
     for ((_, existing) in Map.entries(state.workspaces)) {
       let isSameWorkspace = Nat.equal(existing.id, workspaceId);
-      // Admin anchor — skip only when this is the exact slot being replaced.
-      if (not (isSameWorkspace and excludedSlot == #admin)) {
+      // Skip the exact workspace being updated.
+      if (not isSameWorkspace) {
         switch (existing.adminChannelId) {
           case (?ch) {
             if (Text.equal(ch, channelId)) {
-              return #err(
-                if isSameWorkspace "Channel is already used as the admin anchor of this workspace." else "Channel is already used as an admin anchor in another workspace."
-              );
-            };
-          };
-          case (null) {};
-        };
-      };
-      // Member anchor — skip only when this is the exact slot being replaced.
-      if (not (isSameWorkspace and excludedSlot == #member)) {
-        switch (existing.memberChannelId) {
-          case (?ch) {
-            if (Text.equal(ch, channelId)) {
-              return #err(
-                if isSameWorkspace "Channel is already used as the member anchor of this workspace." else "Channel is already used as a member anchor in another workspace."
-              );
+              return #err("Channel is already used as an admin anchor in another workspace.");
             };
           };
           case (null) {};
@@ -173,40 +147,13 @@ module {
     switch (Map.get(state.workspaces, Nat.compare, workspaceId)) {
       case (null) { #err("Workspace not found.") };
       case (?record) {
-        switch (checkChannelUniqueness(state, workspaceId, channelId, #admin)) {
+        switch (checkChannelUniqueness(state, workspaceId, channelId)) {
           case (#err(msg)) { #err(msg) };
           case (#ok()) {
             let updated : WorkspaceRecord = {
               id = record.id;
               name = record.name;
               adminChannelId = ?channelId;
-              memberChannelId = record.memberChannelId;
-            };
-            Map.add(state.workspaces, Nat.compare, workspaceId, updated);
-            #ok(());
-          };
-        };
-      };
-    };
-  };
-
-  /// Set the member channel anchor for a workspace.
-  /// The members of this Slack channel will be treated as workspace members.
-  /// Returns `#err` if the workspace does not exist or the channel ID is already
-  /// used as any anchor (channel IDs must be globally unique across all anchors
-  /// to keep channel→workspace resolution unambiguous).
-  public func setMemberChannel(state : WorkspacesState, workspaceId : Nat, channelId : Text) : Result.Result<(), Text> {
-    switch (Map.get(state.workspaces, Nat.compare, workspaceId)) {
-      case (null) { #err("Workspace not found.") };
-      case (?record) {
-        switch (checkChannelUniqueness(state, workspaceId, channelId, #member)) {
-          case (#err(msg)) { #err(msg) };
-          case (#ok()) {
-            let updated : WorkspaceRecord = {
-              id = record.id;
-              name = record.name;
-              adminChannelId = record.adminChannelId;
-              memberChannelId = ?channelId;
             };
             Map.add(state.workspaces, Nat.compare, workspaceId, updated);
             #ok(());
@@ -224,25 +171,13 @@ module {
   ///
   /// Iterates all workspace records and returns:
   ///   `#adminChannel(workspaceId)` if the channel is the admin channel of that workspace
-  ///   `#memberChannel(workspaceId)` if the channel is the member channel of that workspace
   ///   `#none` if the channel is not anchored to any workspace
-  ///
-  /// Admin channel is checked first; if a channel is somehow set as both (misconfiguration),
-  /// `#adminChannel` takes precedence.
   public func resolveWorkspaceByChannel(state : WorkspacesState, channelId : Text) : ChannelResolution {
     for ((_, record) in Map.entries(state.workspaces)) {
       switch (record.adminChannelId) {
         case (?adminCh) {
           if (Text.equal(adminCh, channelId)) {
             return #adminChannel(record.id);
-          };
-        };
-        case (null) {};
-      };
-      switch (record.memberChannelId) {
-        case (?memberCh) {
-          if (Text.equal(memberCh, channelId)) {
-            return #memberChannel(record.id);
           };
         };
         case (null) {};

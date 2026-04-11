@@ -13,26 +13,17 @@ module {
   // ============================================
 
   /// Access level a user has within a workspace.
-  /// Derived from Slack channel membership: admin channel → #admin, member channel → #member.
+  /// Derived from Slack channel membership: admin channel → #admin.
   public type WorkspaceScope = {
     #admin;
-    #member;
   };
 
   /// A (workspaceId, scope) pair for readable output (e.g. API responses, tests).
   public type WorkspaceMembership = (Nat, WorkspaceScope);
 
-  /// Internal per-workspace flags tracking which channel anchors a user is a member of.
-  ///
-  /// Storing both flags separately (rather than a single WorkspaceScope) lets the
-  /// leave-channel handler correctly downgrade scope instead of blindly removing the
-  /// workspace membership:
-  ///   - leave admin channel while still in member channel → #admin drops to #member
-  ///   - leave member channel while still in admin channel → scope stays #admin
-  ///   - leave the only channel they were in → membership removed entirely
+  /// Internal per-workspace flag tracking whether a user is in the admin channel anchor.
   public type WorkspaceChannelFlags = {
     inAdminChannel : Bool;
-    inMemberChannel : Bool;
   };
 
   /// A cached Slack user with their resolved org-level roles and workspace memberships.
@@ -73,8 +64,6 @@ module {
     #primaryOwnerRevoked;
     #workspaceAdminGranted : Nat; // workspaceId
     #workspaceAdminRevoked : Nat; // workspaceId
-    #workspaceMemberGranted : Nat; // workspaceId
-    #workspaceMemberRevoked : Nat; // workspaceId
   };
 
   /// A single entry in the access change log.
@@ -195,18 +184,16 @@ module {
   // ============================================
 
   /// Derive the observable WorkspaceScope from per-channel flags.
-  /// Returns null when the user is in neither channel (entry should be removed).
+  /// Returns null when the user is not in the admin channel (entry should be removed).
   private func scopeFromFlags(flags : WorkspaceChannelFlags) : ?WorkspaceScope {
-    if (flags.inAdminChannel) { ?#admin } else if (flags.inMemberChannel) {
-      ?#member;
-    } else { null };
+    if (flags.inAdminChannel) { ?#admin } else { null };
   };
 
-  /// Read the existing channel flags for a workspace, defaulting to both-false.
+  /// Read the existing channel flags for a workspace, defaulting to false.
   private func getOrInitFlags(entry : SlackUserEntry, workspaceId : Nat) : WorkspaceChannelFlags {
     switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
       case (?flags) { flags };
-      case (null) { { inAdminChannel = false; inMemberChannel = false } };
+      case (null) { { inAdminChannel = false } };
     };
   };
 
@@ -281,7 +268,7 @@ module {
 
   /// Record that a user has joined the admin-channel anchor of a workspace.
   ///
-  /// Sets `inAdminChannel = true` without touching `inMemberChannel`.
+  /// Sets `inAdminChannel = true`.
   /// Logs #workspaceAdminGranted(workspaceId) only when the flag was previously clear.
   /// Returns #err if the user is not found in the cache.
   public func joinAdminChannel(
@@ -299,35 +286,6 @@ module {
         };
         let updated : WorkspaceChannelFlags = {
           inAdminChannel = true;
-          inMemberChannel = current.inMemberChannel;
-        };
-        Map.add(entry.workspaceMemberships, Nat.compare, workspaceId, updated);
-        #ok(());
-      };
-    };
-  };
-
-  /// Record that a user has joined the member-channel anchor of a workspace.
-  ///
-  /// Sets `inMemberChannel = true` without touching `inAdminChannel`.
-  /// Logs #workspaceMemberGranted(workspaceId) only when the flag was previously clear.
-  /// Returns #err if the user is not found in the cache.
-  public func joinMemberChannel(
-    state : SlackUserState,
-    slackUserId : Text,
-    workspaceId : Nat,
-    source : AccessChangeSource,
-  ) : Result.Result<(), Text> {
-    switch (Map.get(state.cache, Text.compare, slackUserId)) {
-      case (null) { #err("User not found: " # slackUserId) };
-      case (?entry) {
-        let current = getOrInitFlags(entry, workspaceId);
-        if (not current.inMemberChannel) {
-          logChange(state.changeLog, slackUserId, #workspaceMemberGranted(workspaceId), source);
-        };
-        let updated : WorkspaceChannelFlags = {
-          inAdminChannel = current.inAdminChannel;
-          inMemberChannel = true;
         };
         Map.add(entry.workspaceMemberships, Nat.compare, workspaceId, updated);
         #ok(());
@@ -337,8 +295,7 @@ module {
 
   /// Record that a user has left the admin-channel anchor of a workspace.
   ///
-  /// Clears `inAdminChannel`. If `inMemberChannel` is also false the workspace
-  /// membership entry is removed entirely (user is no longer in any channel).
+  /// Clears `inAdminChannel` and removes the workspace membership entry entirely.
   /// Logs #workspaceAdminRevoked(workspaceId) when the flag was actually cleared.
   /// Returns #err if the user is not in the cache.
   /// Returns #ok(false) if the flag was already clear; #ok(true) if it was cleared.
@@ -355,54 +312,8 @@ module {
           case (null) { #ok(false) };
           case (?flags) {
             if (not flags.inAdminChannel) { #ok(false) } else {
-              let updated : WorkspaceChannelFlags = {
-                inAdminChannel = false;
-                inMemberChannel = flags.inMemberChannel;
-              };
-              if (not updated.inAdminChannel and not updated.inMemberChannel) {
-                Map.remove(entry.workspaceMemberships, Nat.compare, workspaceId);
-              } else {
-                Map.add(entry.workspaceMemberships, Nat.compare, workspaceId, updated);
-              };
+              Map.remove(entry.workspaceMemberships, Nat.compare, workspaceId);
               logChange(state.changeLog, slackUserId, #workspaceAdminRevoked(workspaceId), source);
-              #ok(true);
-            };
-          };
-        };
-      };
-    };
-  };
-
-  /// Record that a user has left the member-channel anchor of a workspace.
-  ///
-  /// Clears `inMemberChannel`. If `inAdminChannel` is also false the workspace
-  /// membership entry is removed entirely.
-  /// Logs #workspaceMemberRevoked(workspaceId) when the flag was actually cleared.
-  /// Returns #err if the user is not in the cache.
-  /// Returns #ok(false) if the flag was already clear; #ok(true) if it was cleared.
-  public func leaveMemberChannel(
-    state : SlackUserState,
-    slackUserId : Text,
-    workspaceId : Nat,
-    source : AccessChangeSource,
-  ) : Result.Result<Bool, Text> {
-    switch (Map.get(state.cache, Text.compare, slackUserId)) {
-      case (null) { #err("User not found: " # slackUserId) };
-      case (?entry) {
-        switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
-          case (null) { #ok(false) };
-          case (?flags) {
-            if (not flags.inMemberChannel) { #ok(false) } else {
-              let updated : WorkspaceChannelFlags = {
-                inAdminChannel = flags.inAdminChannel;
-                inMemberChannel = false;
-              };
-              if (not updated.inAdminChannel and not updated.inMemberChannel) {
-                Map.remove(entry.workspaceMemberships, Nat.compare, workspaceId);
-              } else {
-                Map.add(entry.workspaceMemberships, Nat.compare, workspaceId, updated);
-              };
-              logChange(state.changeLog, slackUserId, #workspaceMemberRevoked(workspaceId), source);
               #ok(true);
             };
           };
