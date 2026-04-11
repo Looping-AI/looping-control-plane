@@ -189,7 +189,9 @@ module {
     let turnsArr = Map.toArray(turnMap); // [(turnNumber, AgentTurnRecord)], sorted by key (chronological)
     // Collect in reverse order (newest first), then reverse for chronological output
     let collected = List.empty<Json.Json>();
-    var idx : Int = turnsArr.size() - 1;
+    let turnsCount = turnsArr.size();
+    if (turnsCount == 0) { return ([], 0) };
+    var idx : Int = Int.fromNat(turnsCount) - 1;
 
     label scanLoop while (idx >= 0) {
       let (_, turn) = turnsArr[Int.abs(idx)];
