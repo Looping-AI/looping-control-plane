@@ -391,7 +391,6 @@ suite(
             content = ?"hello";
             truncatedContent = null;
             thinking = null;
-            truncatedThinking = null;
             toolRequests = null;
             cost = {
               promptTokens = 100;
@@ -410,7 +409,6 @@ suite(
             content = ?"world";
             truncatedContent = null;
             thinking = null;
-            truncatedThinking = null;
             toolRequests = null;
             cost = {
               promptTokens = 80;

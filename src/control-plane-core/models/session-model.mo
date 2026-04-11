@@ -75,7 +75,6 @@ module {
       content : ?Text;
       truncatedContent : ?Text;
       thinking : ?Text;
-      truncatedThinking : ?Text;
       toolRequests : ?[{ name : Text; input : Text }];
       cost : TurnCost;
     };

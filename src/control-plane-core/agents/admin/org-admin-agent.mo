@@ -188,11 +188,7 @@ module {
             },
           );
           let maxTruncChars = SessionModel.getOrCreateSession(sessionStores, agent.id).policy.maxTruncatedTokens * 4;
-          let truncatedThinkingOpt = switch (thinking) {
-            case (null) { null };
-            case (?t) { ?TextUtils.truncateMiddle(t, maxTruncChars) };
-          };
-          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "stop"; content = ?response; truncatedContent = ?TextUtils.truncateMiddle(response, maxTruncChars); thinking; truncatedThinking = truncatedThinkingOpt; toolRequests = null; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
+          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "stop"; content = ?response; truncatedContent = ?TextUtils.truncateMiddle(response, maxTruncChars); thinking; toolRequests = null; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
           return #ok({ response; steps = List.toArray(steps) });
         };
 
@@ -202,7 +198,7 @@ module {
             calls,
             func(c) { { name = c.toolName; input = c.arguments } },
           );
-          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "tool_calls"; content = null; truncatedContent = null; thinking = null; truncatedThinking = null; toolRequests = ?toolReqs; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
+          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "tool_calls"; content = null; truncatedContent = null; thinking = null; toolRequests = ?toolReqs; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
 
           // Format tool call message (ephemeral — not written to channel history store)
           let toolCallContent = "Using tools: " # Array.foldLeft<OpenRouterWrapper.ToolCall, Text>(
