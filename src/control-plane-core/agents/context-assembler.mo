@@ -120,8 +120,9 @@ module {
   };
 
   /// Build a JSON entry for a single turn from its traces.
-  /// Reads pre-computed `truncatedContent`, `truncatedThinking`, and
-  /// `truncatedOutput` fields written at trace time — no truncation here.
+  /// Reads pre-computed `truncatedContent` and `truncatedOutput` fields written
+  /// at trace time — no truncation here. Thinking blocks are logged in traces
+  /// but intentionally excluded from context assembly.
   func buildTurnDigestEntry(
     turn : SessionModel.AgentTurnRecord,
     stores : SessionModel.SessionStores,
@@ -134,17 +135,9 @@ module {
       case (?traceList) {
         for (trace in List.values(traceList)) {
           switch (trace.detail) {
-            case (#llmCall({ truncatedContent; truncatedThinking; toolRequests = _; model = _; durationMs = _; finishReason = _; cost = _; content = _; thinking = _ })) {
+            case (#llmCall({ truncatedContent; toolRequests = _; model = _; durationMs = _; finishReason = _; cost = _; content = _; thinking = _ })) {
               switch (truncatedContent) {
                 case (?c) { response := c };
-                case (null) {};
-              };
-              switch (truncatedThinking) {
-                case (?t) {
-                  if (response == "") {
-                    response := "[thinking] " # t;
-                  };
-                };
                 case (null) {};
               };
             };

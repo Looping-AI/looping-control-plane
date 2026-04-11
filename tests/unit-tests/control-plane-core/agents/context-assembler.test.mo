@@ -182,7 +182,6 @@ suite(
             content = ?"Turn 1 response text";
             truncatedContent = ?"Turn 1 response text";
             thinking = null;
-            truncatedThinking = null;
             toolRequests = null;
             cost = {
               promptTokens = 10;
