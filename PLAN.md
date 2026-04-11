@@ -40,7 +40,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 **Goal**
 
-Add a per-agent Slack channel allowlist (`allowedChannelIds`) to the agent model and enforce it in the `AgentRouter` before dispatching to any category service. When a message references an agent outside its allowed channels, the router blocks execution and posts an automatic warning to Slack. Agents with an empty allowlist are unrestricted (backward-compatible default).
+Add a per-agent Slack channel allowlist (`allowedChannelIds`) to the agent model and enforce it in the `AgentRouter` before dispatching to any category service. When a message references an agent outside its allowed channels, the router blocks execution and posts an automatic warning to Slack. Each agent must be registered with at least one channel in its allowlist; the allowlist cannot be emptied after registration.
 
 **Current State**
 
