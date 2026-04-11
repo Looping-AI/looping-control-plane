@@ -431,7 +431,7 @@ module {
         tool_type = "function";
         function = {
           name = "list_workspaces";
-          description = ?"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.";
+          description = ?"Lists all workspace records including their IDs, names, and Slack admin channel anchors. Workspace 0 is the org workspace; its admin channel is also the org-admin channel.";
           parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
         };
       };
