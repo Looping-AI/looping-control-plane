@@ -170,7 +170,7 @@ The session does not duplicate Channel History — it stores only agent-specific
 
 **Key invariants**: isolation is agent-scoped (no access to channels the agent isn't invited to); compaction [planned] never drops events, only reduces granularity; cleanup hard-deletes turns older than 3 months while summary layers are the permanent record.
 
-See [src/control-plane-core/models/session-model.mo](src/control-plane-core/models/session-model.mo) for field definitions, compaction algorithm (halving budget distribution), and retention policy.
+See [src/control-plane-core/models/session-model.mo](src/control-plane-core/models/session-model.mo) for the session, turn, and trace field definitions, plus session CRUD and turn cleanup behavior.
 
 ### Agent Turn
 
