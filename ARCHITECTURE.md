@@ -43,7 +43,7 @@ Read until "Core Flows" for a high-level view of what exists today and where the
 - Metrics, value streams, and objectives models (org-level metrics, workspace-scoped value streams/objectives).
 - API keys and secrets encrypted at rest using workspace-scoped derived keys (ICP Threshold Schnorr).
 - LLM provider integration via HTTP outcalls (OpenRouter).
-- Credential cascade implemented in secrets model: agent override (`secretOverrides`) -> workspace -> org fallback, with access audit logging.
+- Credential cascade implemented in secrets model (agent → workspace → org), with access audit logging. See [Credential Cascade](#credential-cascade).
 - Identity and authorization derived from Slack, with workspace administration anchored on admin channels.
 - Agent registry with `::` routing and category-based dispatch via Agent Router.
 - Session tracking linking Slack message IDs to user auth context and agent execution context. Agent session model with per-agent persistent sessions, turn logs, and trace entries (see [docs/plans/agent-session-schema.md](docs/plans/agent-session-schema.md)).
@@ -57,7 +57,7 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 - **[GitHub Coding Agent integration](#core-flows)**: each `#runtime` agent is bound to its own repository; the canister dispatches via `workflow_dispatch`, tracks session state, and receives signed webhook callbacks with structured results.
 - **Admin-channel-only workspace model**: each workspace is anchored by an admin channel. The member-channel concept and workspace member role are removed from the target model.
 - **Agent channel allowlist**: each agent has an explicit list of Slack channels where it is allowed to run. Agents are still configured from the workspace admin channel, but execution is gated by this per-agent allowlist.
-- **Out-of-allowlist behavior**: when an agent is referenced outside its allowed channels, execution is blocked and the bot posts an automatic warning describing allowed channels and instructing users to contact a workspace admin to update the allowlist.
+- **Out-of-allowlist behavior**: execution is blocked and the bot posts an automatic warning; enforcement details in [Agent routing and round control](#agent-routing-and-round-control).
 - **[Process Engine (Loop Engine)](#process-engine-loop-engine)**: all agent invocations, multi-turn LLM conversations, and delegation chains are modelled as processes; `LoopEngine.step(process, event) → [Effect]` is a pure function executed by the Effect Applicator.
 - **[Effect-driven execution](#effect)**: the only side-effect mechanism is the effect list returned by a process step — `StateWrite`, `SlackPost`, `EventEmit`, `ProcessSuspend`. Process logic never writes state or calls external APIs directly.
 - **[Channel History](#channel-history)**: per-channel Slack message timeline, append-optimised, with retroactive edit support; the source material for agent context assembly, maintained independently of agents.
@@ -111,9 +111,19 @@ The `userAuthContext` is the single source of truth for authorization in all dow
 
 ### Agent Session
 
-A persistent, long-lived record per agent — not per message or per request. Exactly one session exists per `agentId` (the agent registry ID is the map key; no separate session ID). The session is the agent's memory container: it tracks turn sequencing, compaction state, and context-budget policy.
+A persistent, long-lived record per agent — not per message or per request. Exactly one session exists per `agentId` (no separate session ID); sessions are never archived or deleted independently. The session is the agent's memory container, structured as a strict hierarchy:
 
-Sessions are never archived or deleted independently. Maintenance actions operate on turns within the session.
+1. **Session record** (`AgentSessionRecord`): keyed by `agentId`, tracks turn sequencing, compaction state (summary layers), and context-budget policy.
+2. **Turn log** (`List<AgentTurnRecord>`): append-only, per-session. Each turn is one execution episode triggered by a Slack event, GitHub callback, or timer.
+3. **Trace log** (`List<TurnTraceEntry>`): append-only, per-turn. Each entry is a self-contained record of one completed operation (see [Turn Trace](#turn-trace) for variant details, read-time truncation, and retention policy).
+
+The session does not duplicate Channel History. Channel History remains the raw communication record; the session stores only agent-specific execution data.
+
+**Compaction**: a maintenance worker periodically summarizes old turns into layered summaries using a halving budget distribution (`raw = N/2`, `hot = N/4`, `warm = N/8`, `cold = N/8`). The `coldSummary` is a coarsening timeline where the oldest events are progressively grouped into broader time periods. Events are never dropped — only their granularity decreases. Compaction triggers when raw turns consume ≥ 90% of the raw budget.
+
+**Cleanup**: a timer hard-deletes entire turns and traces older than 3 months. Summary layers are the permanent record.
+
+Isolation is agent-scoped: if an agent is not invited to a channel, it has no access to that channel's history.
 
 See [docs/plans/agent-session-schema.md](docs/plans/agent-session-schema.md) for the full target schema, invariants, and compaction flow.
 
@@ -208,35 +218,17 @@ A timeline of Slack messages for a single channel — who said what and when. Ch
 
 Writes are the common case (new messages), but Slack can send `message_changed` events for edited messages at any time. The structure is optimised for writes and the common read path, with retroactive edits applied when the corresponding event arrives. No strict immutability is assumed.
 
-### Agent Session (detailed)
-
-One per agent, persistent across all channels the agent is allowlisted to. The Agent Session is the agent's memory container, structured as a strict hierarchy:
-
-1. **Session record** (`AgentSessionRecord`): keyed by `agentId`, tracks turn sequencing, compaction state (summary layers), and context-budget policy.
-2. **Turn log** (`List<AgentTurnRecord>`): append-only, per-session. Each turn is one execution episode triggered by a Slack event, GitHub callback, or timer.
-3. **Trace log** (`List<TurnTraceEntry>`): append-only, per-turn. Each entry is a self-contained record of one completed operation.
-
-The session does not duplicate Channel History. Channel History remains the raw communication record, maintained independently of agents. The session stores only agent-specific execution data.
-
-**Compaction**: a maintenance worker periodically summarizes old turns into layered summaries using a halving budget distribution (`raw = N/2`, `hot = N/4`, `warm = N/8`, `cold = N/8`). The `coldSummary` is a coarsening timeline where the oldest events are progressively grouped into broader time periods. Events are never dropped — only their granularity decreases. Compaction triggers when raw turns consume ≥ 90% of the raw budget.
-
-**Read-time truncation**: when assembling LLM context, text fields in trace entries older than 1 hour are truncated. Originals remain in storage for compaction and audit.
-
-**Cleanup**: a timer hard-deletes entire turns and traces older than 3 months. Summary layers are the permanent record.
-
-Isolation is agent-scoped: if an agent is not invited to a channel, it has no access to that channel's history.
-
 ### Prompt Context Assembly and Embedding Retrieval
 
 At each LLM call, the control plane assembles a turn-specific context from multiple sources, ordered oldest → newest:
 
 1. **Compacted session summaries**: `coldSummary` → `warmSummary` → `hotSummary` (compressed history layers from the Agent Session).
-2. **Raw turns**: uncompacted turns after `lastCompactedTurnId` (recent, full-fidelity interaction traces). Text fields in trace entries older than 1 hour are truncated at read-time.
+2. **Raw turns**: uncompacted turns after `lastCompactedTurnId` (recent, full-fidelity interaction traces; read-time truncation applies — see [Turn Trace](#turn-trace)).
 3. **Channel History snippets**: selected messages from channels the agent is invited to, relevant to the current prompt.
 4. **Core files**: policy, config, and identity documents.
 5. **Store documents and embeddings**: including skill documents under `/skills/`. The current user prompt is embedded at call time and used to query embedding indexes for memory, core files, and Store documents (with optional `path` filtering).
 
-This retrieval step is dynamic and per-call; it enriches context beyond Agent Session without mutating the session. Token budgets for each layer are deterministic, governed by `summaryTokenBudget` in the session policy (halving distribution: raw = N/2, hot = N/4, warm = N/8, cold = N/8).
+This retrieval step is dynamic and per-call; it enriches context beyond Agent Session without mutating the session. Token budgets for each layer are deterministic, governed by `summaryTokenBudget` in the session policy (halving distribution — see [Agent Session](#agent-session)).
 
 ### Skill Documents (Store Subtype)
 
@@ -435,17 +427,17 @@ All authorization decisions are based on the `UserAuthContext`, not on IC caller
 
 ### Access scoping on models and tools
 
-Resources have read/write visibility levels: `org`, `team`, `admin`.
+Resources have read/write visibility levels: `org`, `admin`.
 
 Model examples:
 
 - Objectives: `read: org`, `write: admin`.
-- Tasks: `read: org`, `write: team`.
+- Tasks: `read: org`, `write: org`.
 
 Tool examples:
 
-- `web_search`: team access.
-- `mcp_send_social_post`: team access.
+- `web_search`: org access.
+- `mcp_send_social_post`: org access.
 - `mcp_send_job_opening`: admin access.
 
 No individual access configuration is allowed. If truly needed, the org admin can create a workspace with only that individual and explicitly assign the desired resources and tools.
@@ -472,7 +464,7 @@ Agents are stored in a persistent registry with dual indexes (`agentsById: Map<N
 - `llmModel`: the LLM provider and model to use (e.g., `#openRouter(#gpt_oss_120b)`).
 - `allowedChannelIds`: explicit Slack channel allowlist for agent execution. If a message references the agent outside this list, execution is blocked with an automatic warning.
 - `secretsAllowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent is permitted to access. The agent process must check this list before decrypting any secret.
-- `secretOverrides`: `[(targetSecretId: SecretId, customSecretName: Text)]` — when resolving `targetSecretId`, the model first checks `#custom(customSecretName)` in the agent workspace before standard workspace/org fallback (credential cascade).
+- `secretOverrides`: `[(targetSecretId: SecretId, customSecretName: Text)]` — agent-level credential override; see [Credential Cascade](#credential-cascade).
 - `toolsAllowed`: subset of the category's `category_tools` that this agent is permitted to use.
 - `toolsState`: per-tool runtime state (`Map<Text, ToolState>`):
   - `usageCount`: how many times this tool has been invoked by this agent.
@@ -541,12 +533,7 @@ The Process Engine implements a pure functional step model: a process step is a 
 
 For LLM-bound steps, context assembly is explicit: the step prepares a retrieval request that combines Agent Session context with external knowledge layers (core files, memory, and Store documents, including `skills/`). The embedding lookup and fetch are executed by effect handlers/wrappers, then fed back into the next step as inputs.
 
-The **Effect Applicator** then executes the returned effects in order:
-
-1. `StateWrite` — writes are committed to canister stable state.
-2. `SlackPost` — the Slack wrapper sends the message; the returned `ts` is available to subsequent effects in the same batch.
-3. `EventEmit` — new events are enqueued (immediate) or scheduled via the timer system (delayed/cron).
-4. `ProcessSuspend` — the process is parked in the process store with a resume trigger; the Effect Applicator stores it and moves on.
+The **Effect Applicator** then executes the returned effects in order (see [Effect](#effect) for type definitions): `StateWrite` → `SlackPost` → `EventEmit` → `ProcessSuspend`. The `ts` returned by `SlackPost` is available to subsequent effects in the same batch.
 
 ### Process lifecycle
 
@@ -621,7 +608,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 - **SlackWrapper expansion**: add private internal functions matching Slack API method names (`users_list()`, `conversations_list()`, `conversations_members()`), with parameters aligned to Slack's API. Public higher-level functions (e.g., `getWorkspaceMembers()`, `listChannels()`) wrap these for use by internal services. Adapter pattern: the wrapper is the single boundary for all Slack API I/O.
 - **Embedding retrieval pipeline**: at each LLM call, embed the active prompt and query indexes for memory, core files, and Store documents (optionally filtered by `path`, such as `/skills/**`); inject top findings into the turn context.
 - **Embedding indexes**: maintain searchable embeddings for memory records, core files, and Store documents. Index updates happen asynchronously when source documents change.
-- **Tool scoping**: tools have access level requirements (`org`, `team`, `admin`). Enforcement happens at the Agent Router level by comparing the tool's required level against the `userAuthContext`. For tools that carry inherent risk (e.g., `browser`), the preferred mitigation is scoping their reach (e.g., a URL/domain allowlist) rather than revoking access — consistent with the least-privilege, capability-scoped control principle.
+- **Tool scoping**: tools have access level requirements (`org`, `admin`). Enforcement happens at the Agent Router level by comparing the tool's required level against the `userAuthContext`. For tools that carry inherent risk (e.g., `browser`), the preferred mitigation is scoping their reach (e.g., a URL/domain allowlist) rather than revoking access — consistent with the least-privilege, capability-scoped control principle.
 - **Category tools**: each agent category defines a `category_tools` array of tool enum variants. Agents within the category configure `toolsAllowed` (a subset) and `toolsState` (per-tool runtime data).
 - **LLM tools** (for `#api` agents): a focused, powerful set — `file_read`, `file_write`, `mcp` (call an MCP tool), `browser`, `memory_search`, `store_search` (including `path` filters like `/skills/**`). Agents choose from this list based on `toolsAllowed`.
 - **Interactive Messages** (future): support for `block_actions` and `view_submission` payloads in the Slack adapter.
@@ -734,8 +721,6 @@ See [AGENTS.md](AGENTS.md) for build commands, test strategy, cassette usage, an
 
 ## Open Questions
 
-- Which metrics define "impact" for the first real use case (and how are they measured)?
 - What is the initial tool allowlist and approval workflow?
-- What is the retention policy for session records?
 - What concurrency and timeout policies should govern GitHub Coding Agent sessions per workspace/agent?
 - What is the reconciliation strategy when an agent repository/workflow is changed or deleted outside the control plane?
