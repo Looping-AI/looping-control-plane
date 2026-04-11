@@ -71,7 +71,6 @@ module {
     channelId : Text,
     threadTs : ?Text,
     ctx : AdminCtx,
-    message : Text,
     apiKey : Text,
     turnId : Text,
     sessionStores : SessionModel.SessionStores,

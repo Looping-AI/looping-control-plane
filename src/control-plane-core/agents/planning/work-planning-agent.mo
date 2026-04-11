@@ -68,7 +68,6 @@ module {
     channelId : Text,
     threadTs : ?Text,
     ctx : PlanningCtx,
-    message : Text,
     apiKey : Text,
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
