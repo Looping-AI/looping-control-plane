@@ -19,7 +19,7 @@ const unwrapOpt = <T>(opt: [] | [T]): T | null => (opt.length ? opt[0]! : null);
 // ============================================
 // MemberJoinedChannelHandler tests
 // Fired when a user joins a Slack channel.
-// Handler resolves the channel against workspace admin/member channel anchors.
+// Handler resolves the channel against workspace admin channel anchors.
 // If anchored: updates the user's workspace membership in the SlackUserCache.
 // If not anchored: no-op (logged as info).
 // ============================================
@@ -81,49 +81,7 @@ describe("MemberJoinedChannelHandler", () => {
     const user = unwrapOpt(await testCanister.getSlackUser("U_USER_ADMIN_1"));
     expect(user).not.toBeNull();
     if (user) {
-      const membership = user.workspaceMemberships.find(
-        ([wsId]: [bigint, unknown]) => wsId === 1n,
-      );
-      expect(membership).toBeDefined();
-      if (membership) {
-        expect(membership[1]).toEqual({ admin: null });
-      }
-    }
-  });
-
-  it("should add user to workspace members when channel is member anchor", async () => {
-    // First, add the user to the cache via team_join
-    await testCanister.testTeamJoinHandler({
-      userId: "U_USER_MEM_1",
-      displayName: "user_mem_1",
-      realName: ["User Mem 1"],
-      isPrimaryOwner: false,
-      isOrgAdmin: false,
-      eventTs: "1700000004.000000",
-    });
-
-    // Now add them to the member channel anchor
-    const result = await testCanister.testMemberJoinedChannelHandler({
-      userId: "U_USER_MEM_1",
-      channelId: "C_MEMBER_CHANNEL",
-      channelType: "public_channel",
-      teamId: "T_TEST_TEAM",
-      eventTs: "1700000005.000000",
-    });
-
-    expect("ok" in result).toBe(true);
-
-    // Verify the user now has workspace membership as member
-    const user = unwrapOpt(await testCanister.getSlackUser("U_USER_MEM_1"));
-    expect(user).not.toBeNull();
-    if (user) {
-      const membership = user.workspaceMemberships.find(
-        ([wsId]: [bigint, unknown]) => wsId === 1n,
-      );
-      expect(membership).toBeDefined();
-      if (membership) {
-        expect(membership[1]).toEqual({ member: null });
-      }
+      expect(user.adminWorkspaces).toContainEqual(1n);
     }
   });
 

@@ -38,8 +38,8 @@ import {
 //
 // Pre-seeded test workspace state (from test-canister.mo):
 //   Workspace 0: Default (no channel anchors)
-//   Workspace 1: adminChannelId = C_ADMIN_CHANNEL, memberChannelId = C_MEMBER_CHANNEL
-//   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN, memberChannelId = C_ROUND_TRIP_MEMBER
+//   Workspace 1: adminChannelId = C_ADMIN_CHANNEL
+//   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN
 // ============================================
 
 const CASSETTE_BASE =

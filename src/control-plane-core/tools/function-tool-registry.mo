@@ -17,7 +17,6 @@ import DeleteValueStreamHandler "./handlers/value-streams/delete-value-stream-ha
 import ListWorkspacesHandler "./handlers/workspaces/list-workspaces-handler";
 import CreateWorkspaceHandler "./handlers/workspaces/create-workspace-handler";
 import SetWorkspaceAdminChannelHandler "./handlers/workspaces/set-workspace-admin-channel-handler";
-import SetWorkspaceMemberChannelHandler "./handlers/workspaces/set-workspace-member-channel-handler";
 import WebSearchHandler "./handlers/web-search-handler";
 import CreateMetricHandler "./handlers/metrics/create-metric-handler";
 import UpdateMetricHandler "./handlers/metrics/update-metric-handler";
@@ -186,7 +185,6 @@ module {
             if (ws.write) {
               List.add(tools, createWorkspaceTool(ws.state, uac));
               List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver));
-              List.add(tools, setWorkspaceMemberChannelTool(ws.state, uac, resolver));
             };
           };
           case _ {};
@@ -433,7 +431,7 @@ module {
         tool_type = "function";
         function = {
           name = "list_workspaces";
-          description = ?"Lists all workspace records including their IDs, names, and Slack channel anchors (admin and member channel IDs). Workspace 0 is the org workspace; its admin channel is also the org-admin channel.";
+          description = ?"Lists all workspace records including their IDs, names, and Slack admin channel anchors. Workspace 0 is the org workspace; its admin channel is also the org-admin channel.";
           parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
         };
       };
@@ -480,27 +478,6 @@ module {
       };
       handler = func(args : Text) : async Text {
         await SetWorkspaceAdminChannelHandler.handle(state, uac, resolver, args);
-      };
-    };
-  };
-
-  /// Set workspace member channel tool — requires workspaces resource with write
-  private func setWorkspaceMemberChannelTool(
-    state : WorkspaceModel.WorkspacesState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-    resolver : Text -> ?Text,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "set_workspace_member_channel";
-          description = ?"Sets the Slack channel whose members become members of the given workspace. Channel IDs must be globally unique across all workspace anchors.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to configure.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the member channel.\"}},\"required\":[\"workspaceId\",\"channelId\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await SetWorkspaceMemberChannelHandler.handle(state, uac, resolver, args);
       };
     };
   };

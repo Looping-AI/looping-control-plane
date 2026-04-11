@@ -1,7 +1,7 @@
 import { test; suite; expect } "mo:test";
 import List "mo:core/List";
-import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import ContextAssembler "../../../../src/control-plane-core/agents/context-assembler";
@@ -23,7 +23,7 @@ func userMsg(ts : Text, text : Text) : ChannelHistoryModel.ChannelMessage {
       slackUserId = "U_TEST";
       isPrimaryOwner = false;
       isOrgAdmin = false;
-      workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
+      adminWorkspaces = Set.empty<Nat>();
     };
     text;
     agentMetadata = null;

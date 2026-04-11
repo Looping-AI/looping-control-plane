@@ -1,5 +1,5 @@
 import { test; suite; expect } "mo:test";
-import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
@@ -15,8 +15,7 @@ let orgAdmin1 = "U002";
 let orgAdmin2 = "U003";
 let workspaceAdmin1 = "U004";
 let workspaceAdmin2 = "U005";
-let workspaceMember1 = "U006";
-let workspaceMember2 = "U007";
+let regularUser = "U006";
 let unknownUser = "U999";
 
 // ============================================
@@ -58,14 +57,9 @@ func buildTestCache() : SlackUserModel.SlackUserCache {
   SlackUserModel.upsertUser(state, wsAdmin2Entry, #manual);
   ignore SlackUserModel.joinAdminChannel(state, workspaceAdmin2, 1, #manual);
 
-  // Workspace Members: joined the member-channel anchor
-  var wsMember1Entry = SlackUserModel.newEntry(workspaceMember1, "Frank (Member)", false, false, false);
-  SlackUserModel.upsertUser(state, wsMember1Entry, #manual);
-  ignore SlackUserModel.joinMemberChannel(state, workspaceMember1, 0, #manual);
-
-  var wsMember2Entry = SlackUserModel.newEntry(workspaceMember2, "Grace (Member)", false, false, false);
-  SlackUserModel.upsertUser(state, wsMember2Entry, #manual);
-  ignore SlackUserModel.joinMemberChannel(state, workspaceMember2, 1, #manual);
+  // Regular user: no special roles or workspace memberships
+  let regularUserEntry = SlackUserModel.newEntry(regularUser, "Frank (Regular)", false, false, false);
+  SlackUserModel.upsertUser(state, regularUserEntry, #manual);
 
   state.cache;
 };
@@ -114,11 +108,8 @@ suite(
         switch (SlackAuthMiddleware.buildFromCache(workspaceAdmin1, cache)) {
           case (null) { expect.bool(false).equal(true) };
           case (?ctx) {
-            // workspaceAdmin1 has #admin scope in workspace 0
-            switch (Map.get(ctx.workspaceScopes, Nat.compare, 0)) {
-              case (null) { expect.bool(false).equal(true) };
-              case (?scope) { expect.bool(scope == #admin).equal(true) };
-            };
+            // workspaceAdmin1 has admin membership in workspace 0
+            expect.bool(Set.contains(ctx.adminWorkspaces, Nat.compare, 0)).equal(true);
           };
         };
       },
@@ -218,10 +209,10 @@ suite(
     );
 
     test(
-      "should reject workspace member",
+      "should reject regular user",
       func() {
         let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(regularUser, cache)) {
           case (null) { expect.bool(false).equal(true); loop {} };
           case (?c) { c };
         };
@@ -255,10 +246,10 @@ suite(
     );
 
     test(
-      "should reject member when requiring admin",
+      "should reject non-admin user",
       func() {
         let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(regularUser, cache)) {
           case (null) { expect.bool(false).equal(true); loop {} };
           case (?c) { c };
         };
@@ -298,64 +289,6 @@ suite(
 );
 
 // ============================================
-// Suite: authorize - IsWorkspaceMember
-// ============================================
-
-suite(
-  "SlackAuthMiddleware.authorize - IsWorkspaceMember",
-  func() {
-    test(
-      "should allow workspace member",
-      func() {
-        let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
-          case (null) { expect.bool(false).equal(true); loop {} };
-          case (?c) { c };
-        };
-
-        let result = SlackAuthMiddleware.authorize(ctx, [#IsWorkspaceMember(0)]);
-        expect.result<(), Text>(result, resultToText, resultEqual).isOk();
-      },
-    );
-
-    test(
-      "should allow workspace admin as member",
-      func() {
-        let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceAdmin1, cache)) {
-          case (null) { expect.bool(false).equal(true); loop {} };
-          case (?c) { c };
-        };
-
-        let result = SlackAuthMiddleware.authorize(ctx, [#IsWorkspaceMember(0)]);
-        expect.result<(), Text>(result, resultToText, resultEqual).isOk();
-      },
-    );
-
-    test(
-      "should reject non-member",
-      func() {
-        let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
-          case (null) { expect.bool(false).equal(true); loop {} };
-          case (?c) { c };
-        };
-
-        // workspaceMember1 is only a member of workspace 0
-        let result = SlackAuthMiddleware.authorize(ctx, [#IsWorkspaceMember(1)]);
-        expect.result<(), Text>(result, resultToText, resultEqual).isErr();
-        switch (result) {
-          case (#err(msg)) {
-            expect.bool(Text.contains(msg, #text "workspace 1")).equal(true);
-          };
-          case (#ok(_)) { expect.bool(false).equal(true) };
-        };
-      },
-    );
-  },
-);
-
-// ============================================
 // Suite: authorize - OR Logic (multiple steps)
 // ============================================
 
@@ -363,7 +296,7 @@ suite(
   "SlackAuthMiddleware.authorize - OR Logic",
   func() {
     test(
-      "should pass workspace admin check when requiring admin OR member of same workspace",
+      "should pass workspace admin check",
       func() {
         let cache = buildTestCache();
         let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceAdmin1, cache)) {
@@ -371,38 +304,23 @@ suite(
           case (?c) { c };
         };
 
-        // workspaceAdmin1 is #admin of workspace 0, so satisfies first step
-        let result = SlackAuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin(0), #IsWorkspaceMember(0)]);
+        // workspaceAdmin1 is #admin of workspace 0
+        let result = SlackAuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin(0)]);
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
       },
     );
 
     test(
-      "should pass workspace member check when admin check fails but member check succeeds",
+      "should reject when no step matches",
       func() {
         let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(regularUser, cache)) {
           case (null) { expect.bool(false).equal(true); loop {} };
           case (?c) { c };
         };
 
-        // workspaceMember1 fails #admin check for workspace 0, but passes #member check for workspace 0
-        let result = SlackAuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin(0), #IsWorkspaceMember(0)]);
-        expect.result<(), Text>(result, resultToText, resultEqual).isOk();
-      },
-    );
-
-    test(
-      "should fail workspace checks when user has no access to either workspace",
-      func() {
-        let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
-          case (null) { expect.bool(false).equal(true); loop {} };
-          case (?c) { c };
-        };
-
-        // workspaceMember1 only has access to workspace 0, so both workspace 1 checks fail
-        let result = SlackAuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin(1), #IsWorkspaceMember(1)]);
+        // regularUser has no workspace access, so the workspace 1 check fails
+        let result = SlackAuthMiddleware.authorize(ctx, [#IsWorkspaceAdmin(1)]);
         expect.result<(), Text>(result, resultToText, resultEqual).isErr();
         switch (result) {
           case (#err(msg)) {
@@ -426,19 +344,19 @@ suite(
       "should consolidate multiple role errors into comma-separated list",
       func() {
         let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(regularUser, cache)) {
           case (null) { expect.bool(false).equal(true); loop {} };
           case (?c) { c };
         };
 
         let result = SlackAuthMiddleware.authorize(
           ctx,
-          [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(0), #IsWorkspaceMember(1)],
+          [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(0)],
         );
         switch (result) {
           case (#ok(_)) { expect.bool(false).equal(true) }; // should fail
           case (#err(msg)) {
-            // Should consolidate role-based errors and include member error
+            // Should consolidate role-based errors
             expect.bool(Text.contains(msg, #text "Only")).equal(true);
             expect.bool(Text.contains(msg, #text "can perform this action")).equal(true);
           };
@@ -450,7 +368,7 @@ suite(
       "should return single error message when only one step",
       func() {
         let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(regularUser, cache)) {
           case (null) { expect.bool(false).equal(true); loop {} };
           case (?c) { c };
         };
@@ -466,7 +384,7 @@ suite(
       "should include workspace ID in error for workspace-scoped checks",
       func() {
         let cache = buildTestCache();
-        let ctx = switch (SlackAuthMiddleware.buildFromCache(workspaceMember1, cache)) {
+        let ctx = switch (SlackAuthMiddleware.buildFromCache(regularUser, cache)) {
           case (null) { expect.bool(false).equal(true); loop {} };
           case (?c) { c };
         };

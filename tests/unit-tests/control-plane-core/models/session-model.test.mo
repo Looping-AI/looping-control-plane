@@ -1,6 +1,7 @@
 import { test; suite; expect } "mo:test";
 import List "mo:core/List";
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import SessionModel "../../../../src/control-plane-core/models/session-model";
 import Constants "../../../../src/control-plane-core/constants";
 import SlackUserModel "../../../../src/control-plane-core/models/slack-user-model";
@@ -17,13 +18,13 @@ func makeDummyAuthCtx() : {
   slackUserId : Text;
   isPrimaryOwner : Bool;
   isOrgAdmin : Bool;
-  workspaceScopes : Map.Map<Nat, SlackUserModel.WorkspaceScope>;
+  adminWorkspaces : Set.Set<Nat>;
 } {
   {
     slackUserId = "U_TEST";
     isPrimaryOwner = false;
     isOrgAdmin = false;
-    workspaceScopes = Map.empty();
+    adminWorkspaces = Set.empty();
   };
 };
 

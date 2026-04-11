@@ -2,8 +2,8 @@
 /// Handles member_joined_channel events — fired when a user joins a channel.
 ///
 /// Resolves the Slack channel ID against workspace channel anchors. If the channel
-/// is an admin or member channel for a known workspace, the user's workspace
-/// membership in the SlackUserCache is updated accordingly.
+/// is an admin channel for a known workspace, the user's workspace membership in
+/// the SlackUserCache is updated accordingly.
 ///
 /// No-ops (with a warning log) when:
 ///   - the channel is not anchored to any workspace
@@ -60,23 +60,6 @@ module {
           "Channel is admin channel for workspace " # debug_show (wsId) # ", granting #admin scope to user: " # event.userId,
         );
         switch (SlackUserModel.joinAdminChannel(ctx.slackUsers, event.userId, wsId, #slackEvent(event.eventTs))) {
-          case (#ok(())) {};
-          case (#err(msg)) {
-            Logger.log(
-              #warn,
-              ?"MemberJoinedChannelHandler",
-              "Could not update workspace membership (user not in cache?): " # msg,
-            );
-          };
-        };
-      };
-      case (#memberChannel(wsId)) {
-        Logger.log(
-          #info,
-          ?"MemberJoinedChannelHandler",
-          "Channel is member channel for workspace " # debug_show (wsId) # ", granting #member scope to user: " # event.userId,
-        );
-        switch (SlackUserModel.joinMemberChannel(ctx.slackUsers, event.userId, wsId, #slackEvent(event.eventTs))) {
           case (#ok(())) {};
           case (#err(msg)) {
             Logger.log(

@@ -94,7 +94,6 @@ module {
   ) : Nat {
     switch (WorkspaceModel.resolveWorkspaceByChannel(workspaces, channel)) {
       case (#adminChannel(wsId)) { wsId };
-      case (#memberChannel(wsId)) { wsId };
       case (#none) { 0 };
     };
   };

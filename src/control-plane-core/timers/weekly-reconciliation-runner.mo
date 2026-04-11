@@ -5,7 +5,7 @@
 ///
 /// 1. **User refresh** — calls `users.list` and compares each org member against the
 ///    cache. Only new users or users with profile changes (displayName, isPrimaryOwner,
-///    isBot) are upserted. Existing `isOrgAdmin` and `workspaceMemberships` flags are
+///    isBot) are upserted. Existing `isOrgAdmin` and `adminWorkspaces` flags are
 ///    preserved and not touched here (those are reconciled by the channel sync steps).
 ///    After the comparison loop, any users still in the cache but **absent** from the
 ///    fresh `users.list` are removed as stale (deleted/deactivated in Slack).
@@ -39,6 +39,7 @@ import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Set "mo:core/Set";
 import Time "mo:core/Time";
 import Constants "../constants";
 import SlackUserModel "../models/slack-user-model";
@@ -62,8 +63,6 @@ module {
     changeType : {
       #adminGranted;
       #adminRevoked;
-      #memberGranted;
-      #memberRevoked;
     };
   };
 
@@ -138,7 +137,7 @@ module {
               isPrimaryOwner = entry.isPrimaryOwner;
               isOrgAdmin = false;
               isBot = entry.isBot;
-              workspaceMemberships = entry.workspaceMemberships;
+              adminWorkspaces = entry.adminWorkspaces;
             },
             #reconciliation,
           );
@@ -166,7 +165,7 @@ module {
                 isPrimaryOwner = entry.isPrimaryOwner;
                 isOrgAdmin = true;
                 isBot = entry.isBot;
-                workspaceMemberships = entry.workspaceMemberships;
+                adminWorkspaces = entry.adminWorkspaces;
               },
               #reconciliation,
             );
@@ -176,47 +175,30 @@ module {
     };
   };
 
-  /// Reconcile the `inAdminChannel` or `inMemberChannel` flag for a specific workspace
+  /// Reconcile the admin workspace membership for a specific workspace
   /// against a fresh member list obtained from Slack.
   ///
   /// Uses collect-then-apply to avoid mutating the cache during iteration.
-  /// - Cached users with the flag set but absent from `freshMemberIds` → flag cleared.
-  /// - IDs in `freshMemberIds` that are in the cache → flag set.
+  /// - Cached users with admin membership but absent from `freshMemberIds` → membership removed.
+  /// - IDs in `freshMemberIds` that are in the cache → membership granted.
   private func syncWorkspaceChannelMembership(
     slackUsers : SlackUserModel.SlackUserState,
     workspaceId : Nat,
     freshMemberIds : [Text],
-    slot : { #admin; #member },
   ) {
     let freshSet = makeIdSet(freshMemberIds);
 
-    // Phase 1: Collect IDs whose channel flag must be cleared
+    // Phase 1: Collect IDs whose admin flag must be cleared
     let toRevoke = List.empty<Text>();
     for (entry in Map.values(slackUsers.cache)) {
-      switch (Map.get(entry.workspaceMemberships, Nat.compare, workspaceId)) {
-        case (null) {};
-        case (?flags) {
-          let hasFlag = switch (slot) {
-            case (#admin) { flags.inAdminChannel };
-            case (#member) { flags.inMemberChannel };
-          };
-          if (hasFlag and Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
-            List.add(toRevoke, entry.slackUserId);
-          };
-        };
+      if (Set.contains(entry.adminWorkspaces, Nat.compare, workspaceId) and Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
+        List.add(toRevoke, entry.slackUserId);
       };
     };
 
     // Phase 2: Apply revocations
     for (userId in List.values(toRevoke)) {
-      switch (slot) {
-        case (#admin) {
-          ignore SlackUserModel.leaveAdminChannel(slackUsers, userId, workspaceId, #reconciliation);
-        };
-        case (#member) {
-          ignore SlackUserModel.leaveMemberChannel(slackUsers, userId, workspaceId, #reconciliation);
-        };
-      };
+      ignore SlackUserModel.leaveAdminChannel(slackUsers, userId, workspaceId, #reconciliation);
     };
 
     // Phase 3: Grant the flag for fresh members that are already in the cache
@@ -230,14 +212,7 @@ module {
           );
         };
         case (?_) {
-          switch (slot) {
-            case (#admin) {
-              ignore SlackUserModel.joinAdminChannel(slackUsers, memberId, workspaceId, #reconciliation);
-            };
-            case (#member) {
-              ignore SlackUserModel.joinMemberChannel(slackUsers, memberId, workspaceId, #reconciliation);
-            };
-          };
+          ignore SlackUserModel.joinAdminChannel(slackUsers, memberId, workspaceId, #reconciliation);
         };
       };
     };
@@ -273,12 +248,6 @@ module {
             };
             case (#workspaceAdminRevoked(wsId)) {
               List.add(scopeChanges, { slackUserId = entry.slackUserId; workspaceId = wsId; changeType = #adminRevoked });
-            };
-            case (#workspaceMemberGranted(wsId)) {
-              List.add(scopeChanges, { slackUserId = entry.slackUserId; workspaceId = wsId; changeType = #memberGranted });
-            };
-            case (#workspaceMemberRevoked(wsId)) {
-              List.add(scopeChanges, { slackUserId = entry.slackUserId; workspaceId = wsId; changeType = #memberRevoked });
             };
             case (_) {}; // #userAdded, #primaryOwnerGranted/Revoked — not included in these summary fields
           };
@@ -367,16 +336,16 @@ module {
         );
 
         for (user in allUsers.vals()) {
-          // Preserve existing isOrgAdmin and workspaceMemberships — only refresh top-level fields.
+          // Preserve existing isOrgAdmin and adminWorkspaces — only refresh top-level fields.
           // Skip the upsert entirely when nothing has changed to avoid unnecessary log entries.
-          let (isOrgAdmin, workspaceMemberships, needsUpdate) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
+          let (isOrgAdmin, adminWorkspaces, needsUpdate) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
             case (null) {
               // New user — always write
-              (false, Map.empty<Nat, SlackUserModel.WorkspaceChannelFlags>(), true);
+              (false, Set.empty<Nat>(), true);
             };
             case (?existing) {
               let changed = existing.displayName != user.name or existing.isPrimaryOwner != user.isPrimaryOwner or existing.isBot != user.isBot;
-              (existing.isOrgAdmin, existing.workspaceMemberships, changed);
+              (existing.isOrgAdmin, existing.adminWorkspaces, changed);
             };
           };
           if (needsUpdate) {
@@ -388,7 +357,7 @@ module {
                 isPrimaryOwner = user.isPrimaryOwner;
                 isOrgAdmin;
                 isBot = user.isBot;
-                workspaceMemberships;
+                adminWorkspaces;
               },
               #reconciliation,
             );
@@ -580,83 +549,8 @@ module {
                 };
               };
               case (#ok(freshMembers)) {
-                syncWorkspaceChannelMembership(slackUsers, ws.id, freshMembers, #admin);
+                syncWorkspaceChannelMembership(slackUsers, ws.id, freshMembers);
               };
-            };
-          };
-        };
-      };
-
-      // -- Member channel for this workspace --
-      switch (ws.memberChannelId) {
-        case (null) {};
-        case (?memberChanId) {
-          switch (await SlackWrapper.getChannelMembers(token, memberChanId)) {
-            case (#err(e)) {
-              List.add(goneChannels, memberChanId);
-              Logger.log(
-                #error,
-                ?"WeeklyReconciliation",
-                "Workspace " # Nat.toText(ws.id) # " (" # ws.name # ") member channel gone " #
-                "(channelId: " # memberChanId # "): " # e,
-              );
-              // Notify workspace admin channel (fall back to org admin channel)
-              switch (ws.adminChannelId) {
-                case (?adminChanId) {
-                  let notifyText = ":warning: *Looping AI — Workspace Member Channel Issue*\n\n" #
-                  "The member channel for workspace *" # ws.name # "* " #
-                  "(ID: `" # memberChanId # "`) is no longer accessible.\n\n" #
-                  "Please assign a new member channel for this workspace.";
-                  switch (await SlackWrapper.postMessage(token, adminChanId, notifyText, null, null)) {
-                    case (#err(e2)) {
-                      let msg = "Failed to notify workspace admin channel about gone member channel: " # e2;
-                      Logger.log(#error, ?"WeeklyReconciliation", msg);
-                      List.add(errors, msg);
-                    };
-                    case (#ok(_)) {};
-                  };
-                };
-                case (null) {
-                  // No workspace admin channel — fall back to org admin channel (only if accessible)
-                  if (orgAdminChannelOk) {
-                    switch (orgAdminChannelId) {
-                      case (null) {
-                        Logger.log(
-                          #warn,
-                          ?"WeeklyReconciliation",
-                          "Neither workspace admin channel nor org admin channel available to notify " #
-                          "about gone member channel for workspace " # Nat.toText(ws.id) # " (" # ws.name # ").",
-                        );
-                      };
-                      case (?orgChanId) {
-                        let notifyText = ":warning: *Looping AI — Workspace Member Channel Issue*\n\n" #
-                        "The member channel for workspace *" # ws.name # "* " #
-                        "(ID: `" # memberChanId # "`) is no longer accessible, " #
-                        "and no admin channel is configured for this workspace.\n\n" #
-                        "Please assign a new member channel or admin channel for workspace *" # ws.name # "*.";
-                        switch (await SlackWrapper.postMessage(token, orgChanId, notifyText, null, null)) {
-                          case (#err(e2)) {
-                            let msg = "Failed to notify org admin channel about gone member channel: " # e2;
-                            Logger.log(#error, ?"WeeklyReconciliation", msg);
-                            List.add(errors, msg);
-                          };
-                          case (#ok(_)) {};
-                        };
-                      };
-                    };
-                  } else {
-                    Logger.log(
-                      #warn,
-                      ?"WeeklyReconciliation",
-                      "Skipping notification for gone member channel (workspace " # Nat.toText(ws.id) #
-                      ") — org admin channel is also inaccessible.",
-                    );
-                  };
-                };
-              };
-            };
-            case (#ok(freshMembers)) {
-              syncWorkspaceChannelMembership(slackUsers, ws.id, freshMembers, #member);
             };
           };
         };

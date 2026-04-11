@@ -158,7 +158,7 @@ The resolved identity and permissions of the user who initiated a request. Built
 - `slackUserId`: the Slack user ID.
 - `isPrimaryOwner`: whether this user is the Slack Primary Owner.
 - `isOrgAdmin`: whether this user is a member of `#looping-ai-org-admins`.
-- `workspaceScopes`: per-workspace admin scope — `Map<workspaceId, #admin>`. In the simplified target model there is no workspace `#member` role.
+- `adminWorkspaces`: set of workspace IDs where the user is an admin — `Set<Nat>`.
 
 The `userAuthContext` is the single source of truth for authorization in all downstream operations. It is carried through agent delegations: when agent A references agent B (on a Slack Message), the `userAuthContext` of the original human user is inherited, not the agent's identity.
 
@@ -391,7 +391,7 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 - `agentRegistry`: global agent registry with dual index by ID and name (Phase 1.1, implemented).
 - `channelHistoryStore`: channel-keyed, timeline-structured message history stored via `ChannelHistoryModel`, with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Messages carry `userAuthContext` for identity/authorization snapshot only. Routing round progression and force-termination state are tracked in `SessionsModel`, not in channel history messages.
 - `slackUsers`: Slack user cache (`SlackUserEntry` records indexed by Slack user ID); populated by event-driven membership events and weekly reconciliation.
-- `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId` / `memberChannelId`). Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor.
+- `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId`). Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor.
 - `secrets`: encrypted secrets per workspace.
 - `mcpToolRegistry`: dynamic MCP tool registry.
 - `metricsRegistry` / `metricDatapoints`: org-level metrics.

@@ -62,7 +62,7 @@ describe("TeamJoinHandler", () => {
       expect(user.displayName).toBe("New User");
       expect(user.isPrimaryOwner).toBe(false);
       expect(user.isOrgAdmin).toBe(false);
-      expect(user.workspaceMemberships.length).toBe(0);
+      expect(user.adminWorkspaces.length).toBe(0);
     }
   });
 

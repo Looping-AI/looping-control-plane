@@ -74,7 +74,7 @@ module {
     };
 
     // Workspaces - if provided, workspace-management tools are available.
-    // write=true enables create_workspace, set_workspace_admin_channel, set_workspace_member_channel.
+    // write=true enables create_workspace, set_workspace_admin_channel.
     workspaces : ?{
       state : WorkspaceModel.WorkspacesState;
       write : Bool;

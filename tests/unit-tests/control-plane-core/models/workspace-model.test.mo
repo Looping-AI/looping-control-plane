@@ -103,7 +103,6 @@ suite(
           case (null) { assert false };
           case (?ws) {
             expect.option<Text>(ws.adminChannelId, func t { t }, func(a, b) { a == b }).isNull();
-            expect.option<Text>(ws.memberChannelId, func t { t }, func(a, b) { a == b }).isNull();
           };
         };
       },
@@ -249,152 +248,6 @@ suite(
       },
     );
 
-    test(
-      "rejects channel already used as member anchor in another workspace",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.createWorkspace(state, "Marketing");
-        ignore WorkspaceModel.setMemberChannel(state, 1, "C001");
-        let result = WorkspaceModel.setAdminChannel(state, 2, "C001");
-        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
-          #err("Channel is already used as a member anchor in another workspace.")
-        );
-      },
-    );
-
-    test(
-      "rejects channel already used as the member anchor of the same workspace",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.setMemberChannel(state, 1, "C001");
-        let result = WorkspaceModel.setAdminChannel(state, 1, "C001");
-        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
-          #err("Channel is already used as the member anchor of this workspace.")
-        );
-      },
-    );
-
-    test(
-      "does not affect member channel when setting admin channel",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.setMemberChannel(state, 1, "C002");
-        ignore WorkspaceModel.setAdminChannel(state, 1, "C001");
-        switch (WorkspaceModel.getWorkspace(state, 1)) {
-          case (null) { assert false };
-          case (?ws) {
-            expect.option<Text>(ws.memberChannelId, func t { t }, func(a, b) { a == b }).equal(?"C002");
-          };
-        };
-      },
-    );
-  },
-);
-
-// ============================================
-// Suite: setMemberChannel
-// ============================================
-
-suite(
-  "WorkspaceModel - setMemberChannel",
-  func() {
-    test(
-      "rejects unknown workspace id",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        let result = WorkspaceModel.setMemberChannel(state, 99, "C001");
-        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
-          #err("Workspace not found.")
-        );
-      },
-    );
-
-    test(
-      "sets member channel successfully",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        let result = WorkspaceModel.setMemberChannel(state, 1, "C002");
-        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).isOk();
-        switch (WorkspaceModel.getWorkspace(state, 1)) {
-          case (null) { assert false };
-          case (?ws) {
-            expect.option<Text>(ws.memberChannelId, func t { t }, func(a, b) { a == b }).equal(?"C002");
-          };
-        };
-      },
-    );
-
-    test(
-      "re-assigning the same channel id to the same member slot is allowed",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.setMemberChannel(state, 1, "C002");
-        let result = WorkspaceModel.setMemberChannel(state, 1, "C002");
-        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).isOk();
-      },
-    );
-
-    test(
-      "rejects channel already used as member anchor in another workspace",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.createWorkspace(state, "Marketing");
-        ignore WorkspaceModel.setMemberChannel(state, 1, "C002");
-        let result = WorkspaceModel.setMemberChannel(state, 2, "C002");
-        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
-          #err("Channel is already used as a member anchor in another workspace.")
-        );
-      },
-    );
-
-    test(
-      "rejects channel already used as admin anchor in another workspace",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.createWorkspace(state, "Marketing");
-        ignore WorkspaceModel.setAdminChannel(state, 1, "C001");
-        let result = WorkspaceModel.setMemberChannel(state, 2, "C001");
-        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
-          #err("Channel is already used as an admin anchor in another workspace.")
-        );
-      },
-    );
-
-    test(
-      "rejects channel already used as the admin anchor of the same workspace",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.setAdminChannel(state, 1, "C001");
-        let result = WorkspaceModel.setMemberChannel(state, 1, "C001");
-        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
-          #err("Channel is already used as the admin anchor of this workspace.")
-        );
-      },
-    );
-
-    test(
-      "does not affect admin channel when setting member channel",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.setAdminChannel(state, 1, "C001");
-        ignore WorkspaceModel.setMemberChannel(state, 1, "C002");
-        switch (WorkspaceModel.getWorkspace(state, 1)) {
-          case (null) { assert false };
-          case (?ws) {
-            expect.option<Text>(ws.adminChannelId, func t { t }, func(a, b) { a == b }).equal(?"C001");
-          };
-        };
-      },
-    );
   },
 );
 
@@ -426,38 +279,15 @@ suite(
     );
 
     test(
-      "returns #memberChannel with correct workspace id",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.setMemberChannel(state, 1, "C002");
-        let result = WorkspaceModel.resolveWorkspaceByChannel(state, "C002");
-        expect.bool(resolutionEqual(result, #memberChannel(1))).isTrue();
-      },
-    );
-
-    test(
-      "resolves admin and member channels of the same workspace independently",
-      func() {
-        let state = WorkspaceModel.emptyState();
-        ignore WorkspaceModel.createWorkspace(state, "Engineering");
-        ignore WorkspaceModel.setAdminChannel(state, 1, "C001");
-        ignore WorkspaceModel.setMemberChannel(state, 1, "C002");
-        expect.bool(resolutionEqual(WorkspaceModel.resolveWorkspaceByChannel(state, "C001"), #adminChannel(1))).isTrue();
-        expect.bool(resolutionEqual(WorkspaceModel.resolveWorkspaceByChannel(state, "C002"), #memberChannel(1))).isTrue();
-      },
-    );
-
-    test(
       "resolves channels across multiple workspaces correctly",
       func() {
         let state = WorkspaceModel.emptyState();
         ignore WorkspaceModel.createWorkspace(state, "Engineering");
         ignore WorkspaceModel.createWorkspace(state, "Marketing");
         ignore WorkspaceModel.setAdminChannel(state, 1, "C001");
-        ignore WorkspaceModel.setMemberChannel(state, 2, "C010");
+        ignore WorkspaceModel.setAdminChannel(state, 2, "C010");
         expect.bool(resolutionEqual(WorkspaceModel.resolveWorkspaceByChannel(state, "C001"), #adminChannel(1))).isTrue();
-        expect.bool(resolutionEqual(WorkspaceModel.resolveWorkspaceByChannel(state, "C010"), #memberChannel(2))).isTrue();
+        expect.bool(resolutionEqual(WorkspaceModel.resolveWorkspaceByChannel(state, "C010"), #adminChannel(2))).isTrue();
         expect.bool(resolutionEqual(WorkspaceModel.resolveWorkspaceByChannel(state, "C_NONE"), #none)).isTrue();
       },
     );

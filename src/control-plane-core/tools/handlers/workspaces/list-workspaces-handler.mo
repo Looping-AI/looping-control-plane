@@ -16,15 +16,10 @@ module {
           case (?id) { str(id) };
           case (null) { #null_ };
         };
-        let memberCh : Json.Json = switch (r.memberChannelId) {
-          case (?id) { str(id) };
-          case (null) { #null_ };
-        };
         obj([
           ("id", int(r.id)),
           ("name", str(r.name)),
           ("adminChannelId", adminCh),
-          ("memberChannelId", memberCh),
         ]);
       },
     );

@@ -23,11 +23,7 @@ import { withCassette } from "../../../lib/cassette";
 interface WorkspaceScopeChange {
   slackUserId: string;
   workspaceId: bigint;
-  changeType:
-    | { adminGranted: null }
-    | { adminRevoked: null }
-    | { memberGranted: null }
-    | { memberRevoked: null };
+  changeType: { adminGranted: null } | { adminRevoked: null };
 }
 
 interface ReconciliationSummary {
@@ -212,29 +208,24 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
   async function seedWorkspaceMembership(
     slackUserId: string,
     workspaceId: bigint,
-    slot: "admin" | "member",
   ) {
-    const slotVariant = slot === "admin" ? { admin: null } : { member: null };
     const deferred = await testCanister.seedWorkspaceMembership(
       slackUserId,
       workspaceId,
-      slotVariant as { admin: null } | { member: null },
     );
     await deferred();
   }
 
   // The test workspace state pre-seeded in test-canister.mo has:
   //   Workspace 0: default — no channel anchors
-  //   Workspace 1: adminChannelId = "C_ADMIN_CHANNEL", memberChannelId = "C_MEMBER_CHANNEL"
-  //   Workspace 2: adminChannelId = "C_ROUND_TRIP_ADMIN", memberChannelId = "C_ROUND_TRIP_MEMBER"
+  //   Workspace 1: adminChannelId = "C_ADMIN_CHANNEL"
+  //   Workspace 2: adminChannelId = "C_ROUND_TRIP_ADMIN"
   //
-  // Hence a run without org admin channel triggers exactly 4 workspace channel
-  // HTTP calls (ws1-admin, ws1-member, ws2-admin, ws2-member).
+  // Hence a run without org admin channel triggers exactly 2 workspace channel
+  // HTTP calls (ws1-admin, ws2-admin).
   const WORKSPACE_CHANNEL_RESPONSES = [
     slackChannelMembersResponse([]), // ws1 admin channel
-    slackChannelMembersResponse([]), // ws1 member channel
     slackChannelMembersResponse([]), // ws2 admin channel
-    slackChannelMembersResponse([]), // ws2 member channel
   ];
 
   // ===========================================================================
@@ -713,34 +704,10 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
         slackChannelMembersResponse([]), // org admin channel — members ok
         slackChannelNotFoundError, // ws1 admin channel — gone
         slackPostMessageResponse(ORG_ADMIN_CHANNEL_ID), // notification to org admin channel
-        slackChannelMembersResponse([]), // ws1 member channel — ok
         slackChannelMembersResponse([]), // ws2 admin channel — ok
-        slackChannelMembersResponse([]), // ws2 member channel — ok
       ])) as ReconciliationSummary;
 
       expect(result.goneChannels).toContain("C_ADMIN_CHANNEL");
-    });
-
-    it("should mark workspace member channel as gone when getChannelMembers fails", async () => {
-      await resetCache();
-
-      const call = await testCanister.testWeeklyReconciliationRunner(
-        SLACK_TEST_TOKEN,
-        some(ORG_ADMIN_CHANNEL_ID),
-      );
-
-      const result = (await mockSequentialResponses(pic, call, [
-        slackUsersListResponse([]),
-        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, ORG_ADMIN_CHANNEL_NAME), // org admin — info ok
-        slackChannelMembersResponse([]), // org admin channel — members ok
-        slackChannelMembersResponse([]), // ws1 admin channel — ok
-        slackChannelNotFoundError, // ws1 member channel — gone
-        slackPostMessageResponse("C_ADMIN_CHANNEL"), // notification to ws1 admin channel
-        slackChannelMembersResponse([]), // ws2 admin channel — ok
-        slackChannelMembersResponse([]), // ws2 member channel — ok
-      ])) as ReconciliationSummary;
-
-      expect(result.goneChannels).toContain("C_MEMBER_CHANNEL");
     });
 
     it("should sync workspace admin channel membership flags", async () => {
@@ -771,9 +738,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
           { id: "U_OTHER", name: "other" },
         ]),
         slackChannelMembersResponse(["U_WS_ADMIN"]), // ws1 admin — U_WS_ADMIN is a member
-        slackChannelMembersResponse([]), // ws1 member
         slackChannelMembersResponse([]), // ws2 admin
-        slackChannelMembersResponse([]), // ws2 member
       ]);
 
       // Verify via getSlackUser that the workspaceMembership flag was set.
@@ -783,13 +748,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(user).toHaveLength(1);
       const u = user[0];
       if (!u) throw new Error("Expected user to be defined");
-      const memberships = u.workspaceMemberships;
-      // Workspace 1 should have the admin flag set.
-      const ws1 = memberships.find(([wsId]: [bigint, unknown]) => wsId === 1n);
-      expect(ws1).toBeDefined();
-      if (ws1) {
-        expect("admin" in ws1[1]).toBe(true);
-      }
+      const memberships = u.adminWorkspaces;
+      // Workspace 1 should be in the admin set.
+      expect(memberships).toContainEqual(1n);
     });
 
     it("should clear workspace admin flag when user has left the admin channel", async () => {
@@ -802,7 +763,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
         isPrimaryOwner: false,
         isOrgAdmin: false,
       });
-      await seedWorkspaceMembership("U_EX_WS_ADMIN", 1n, "admin");
+      await seedWorkspaceMembership("U_EX_WS_ADMIN", 1n);
 
       const call = await testCanister.testWeeklyReconciliationRunner(
         SLACK_TEST_TOKEN,
@@ -811,9 +772,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_EX_WS_ADMIN", name: "ex-ws-admin" }]),
         slackChannelMembersResponse([]), // ws1 admin — now empty, user left
-        slackChannelMembersResponse([]), // ws1 member
         slackChannelMembersResponse([]), // ws2 admin
-        slackChannelMembersResponse([]), // ws2 member
       ]);
 
       const getFn = await testCanister.getSlackUser("U_EX_WS_ADMIN");
@@ -821,45 +780,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(user).toHaveLength(1);
       const u = user[0];
       if (!u) throw new Error("Expected user to be defined");
-      // Workspace 1 membership should be gone (no admin or member flag).
-      const ws1 = u.workspaceMemberships.find(
-        ([wsId]: [bigint, unknown]) => wsId === 1n,
-      );
-      expect(ws1).toBeUndefined();
-    });
-
-    it("should clear workspace member flag when user has left the member channel", async () => {
-      await resetCache();
-
-      await seedUser({
-        slackUserId: "U_EX_WS_MEM",
-        displayName: "ex-ws-member",
-        isPrimaryOwner: false,
-        isOrgAdmin: false,
-      });
-      await seedWorkspaceMembership("U_EX_WS_MEM", 1n, "member");
-
-      const call = await testCanister.testWeeklyReconciliationRunner(
-        SLACK_TEST_TOKEN,
-        none,
-      );
-      await mockSequentialResponses(pic, call, [
-        slackUsersListResponse([{ id: "U_EX_WS_MEM", name: "ex-ws-member" }]),
-        slackChannelMembersResponse([]), // ws1 admin
-        slackChannelMembersResponse([]), // ws1 member — now empty, user left
-        slackChannelMembersResponse([]), // ws2 admin
-        slackChannelMembersResponse([]), // ws2 member
-      ]);
-
-      const getFn = await testCanister.getSlackUser("U_EX_WS_MEM");
-      const user = await getFn();
-      expect(user).toHaveLength(1);
-      const u = user[0];
-      if (!u) throw new Error("Expected user to be defined");
-      const ws1 = u.workspaceMemberships.find(
-        ([wsId]: [bigint, unknown]) => wsId === 1n,
-      );
-      expect(ws1).toBeUndefined();
+      // Workspace 1 membership should be gone.
+      expect(u.adminWorkspaces).not.toContainEqual(1n);
     });
 
     it("should NOT notify org admin channel when it is already inaccessible and a workspace channel is also gone", async () => {
@@ -879,8 +801,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       );
 
       // Sequence: users.list → org admin getChannelInfo fails (gone) → DM to PO → ws1 admin GONE
-      //           (no postMessage to org admin channel — it's gone!) → ws1 member ok
-      //           → ws2 admin ok → ws2 member ok
+      //           (no postMessage to org admin channel — it's gone!) → ws2 admin ok
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([
           { id: "U_PO", name: "primary-owner", isPrimaryOwner: true },
@@ -889,9 +810,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
         slackPostMessageResponse("U_PO"), // DM to primary owner
         slackChannelNotFoundError, // ws1 admin channel — also gone
         // Critically: no postMessage response here (code must NOT try to notify)
-        slackChannelMembersResponse([]), // ws1 member channel — ok
         slackChannelMembersResponse([]), // ws2 admin channel — ok
-        slackChannelMembersResponse([]), // ws2 member channel — ok
       ])) as ReconciliationSummary;
 
       expect(result.orgAdminChannelOk).toBe(false);
@@ -923,9 +842,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_KNOWN", name: "known" }]),
         slackChannelMembersResponse(["U_KNOWN", "U_GHOST"]), // ws1 admin
-        slackChannelMembersResponse([]), // ws1 member
         slackChannelMembersResponse([]), // ws2 admin
-        slackChannelMembersResponse([]), // ws2 member
       ]);
 
       // U_GHOST must NOT have been added to the cache (warning is logged but user is not created).
@@ -939,11 +856,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(known).toHaveLength(1);
       const k = known[0];
       if (!k) throw new Error("Expected known user to be defined");
-      const ws1 = k.workspaceMemberships.find(
-        ([wsId]: [bigint, unknown]) => wsId === 1n,
-      );
-      expect(ws1).toBeDefined();
-      if (ws1) expect("admin" in ws1[1]).toBe(true);
+      expect(k.adminWorkspaces).toContainEqual(1n);
     });
   });
 
