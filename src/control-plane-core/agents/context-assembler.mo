@@ -19,9 +19,11 @@ import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
+import Time "mo:core/Time";
 import Json "mo:json";
 import { str; obj; arr } "mo:json";
 import ChannelHistoryModel "../models/channel-history-model";
+import Constants "../constants";
 import SessionModel "../models/session-model";
 import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 
@@ -120,12 +122,15 @@ module {
   };
 
   /// Build a JSON entry for a single turn from its traces.
-  /// Reads pre-computed `truncatedContent` and `truncatedOutput` fields written
-  /// at trace time — no truncation here. Thinking blocks are logged in traces
-  /// but intentionally excluded from context assembly.
+  /// When `useRaw` is true (turn completed within the last hour), raw `content`
+  /// and `output` fields are used directly. Otherwise the pre-computed
+  /// `truncatedContent`/`truncatedOutput` fields are used.
+  /// Thinking blocks are logged in traces but intentionally excluded from
+  /// context assembly regardless of `useRaw`.
   func buildTurnDigestEntry(
     turn : SessionModel.AgentTurnRecord,
     stores : SessionModel.SessionStores,
+    useRaw : Bool,
   ) : Json.Json {
     let tools = List.empty<Json.Json>();
     var response : Text = "";
@@ -135,14 +140,16 @@ module {
       case (?traceList) {
         for (trace in List.values(traceList)) {
           switch (trace.detail) {
-            case (#llmCall({ truncatedContent; toolRequests = _; model = _; durationMs = _; finishReason = _; cost = _; content = _; thinking = _ })) {
-              switch (truncatedContent) {
+            case (#llmCall({ content; truncatedContent; toolRequests = _; model = _; durationMs = _; finishReason = _; cost = _; thinking = _ })) {
+              let textOpt = if (useRaw) { content } else { truncatedContent };
+              switch (textOpt) {
                 case (?c) { response := c };
                 case (null) {};
               };
             };
-            case (#toolCall({ name; truncatedOutput; input = _; output = _; success = _; durationMs = _ })) {
-              switch (truncatedOutput) {
+            case (#toolCall({ name; output; truncatedOutput; input = _; success = _; durationMs = _ })) {
+              let outOpt = if (useRaw) { ?output } else { truncatedOutput };
+              switch (outOpt) {
                 case (?o) { List.add(tools, str(name # ": " # o)) };
                 case (null) { List.add(tools, str(name)) };
               };
@@ -204,7 +211,14 @@ module {
         case (null) {};
       };
 
-      let entry = buildTurnDigestEntry(turn, stores);
+      // Use raw fields for turns completed (or started) within the last hour
+      let turnTime : Int = switch (turn.completedAtNs) {
+        case (?t) { t };
+        case (null) { turn.startedAtNs };
+      };
+      let useRaw : Bool = Time.now() - turnTime < Constants.ONE_HOUR_NS;
+
+      let entry = buildTurnDigestEntry(turn, stores, useRaw);
       let entryText = Json.stringify(entry, null);
       let entryTokens = estimateTokens(entryText);
 

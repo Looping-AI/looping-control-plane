@@ -3,8 +3,10 @@ import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
+import Time "mo:core/Time";
 import ContextAssembler "../../../../src/control-plane-core/agents/context-assembler";
 import ChannelHistoryModel "../../../../src/control-plane-core/models/channel-history-model";
+import Constants "../../../../src/control-plane-core/constants";
 import SessionModel "../../../../src/control-plane-core/models/session-model";
 import SlackUserModel "../../../../src/control-plane-core/models/slack-user-model";
 
@@ -251,6 +253,100 @@ suite(
             expect.bool(found).equal(true);
           };
         };
+      },
+    );
+  },
+);
+
+// ── assemble – raw vs truncated field selection ───────────────────────────────
+
+suite(
+  "ContextAssembler - raw vs truncated field selection",
+  func() {
+
+    func makeTraceWithDistinctFields(stores : SessionModel.SessionStores, turnId : Text) {
+      SessionModel.appendTrace(
+        stores,
+        turnId,
+        #llmCall({
+          model = "test";
+          durationMs = 100;
+          finishReason = "stop";
+          content = ?"full raw response";
+          truncatedContent = ?"truncated response";
+          thinking = null;
+          toolRequests = null;
+          cost = {
+            promptTokens = 10;
+            completionTokens = 5;
+            estimatedMicroUnits = 100;
+          };
+        }),
+      );
+      SessionModel.appendTrace(
+        stores,
+        turnId,
+        #toolCall({
+          name = "my_tool";
+          input = "{}";
+          output = "full raw output";
+          truncatedOutput = ?"truncated output";
+          success = true;
+          durationMs = 50;
+        }),
+      );
+    };
+
+    test(
+      "recent turn (< 1h old) uses raw content and output fields",
+      func() {
+        let stores = SessionModel.emptyStores();
+        let chStore = ChannelHistoryModel.empty();
+
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        makeTraceWithDistinctFields(stores, turn.turnId);
+        SessionModel.completeTurn(stores, turn.turnId, #succeeded, null, null);
+        // completedAtNs is Time.now() — well within 1h
+
+        let currentTurn = SessionModel.createTurn(stores, 1, null, null, null);
+        let result = ContextAssembler.assemble(stores, 1, currentTurn.turnId, chStore, "C001", null);
+
+        expect.nat(result.stats.rawTurnsIncluded).equal(1);
+        let content = result.messages[0].content;
+        expect.bool(Text.contains(content, #text "full raw response")).equal(true);
+        expect.bool(Text.contains(content, #text "truncated response")).equal(false);
+        expect.bool(Text.contains(content, #text "full raw output")).equal(true);
+        expect.bool(Text.contains(content, #text "truncated output")).equal(false);
+      },
+    );
+
+    test(
+      "old turn (> 1h old) uses truncatedContent and truncatedOutput fields",
+      func() {
+        let stores = SessionModel.emptyStores();
+        let chStore = ChannelHistoryModel.empty();
+
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        makeTraceWithDistinctFields(stores, turn.turnId);
+        SessionModel.completeTurn(stores, turn.turnId, #succeeded, null, null);
+
+        // Backdate completedAtNs to 2 hours ago so the turn appears old
+        switch (SessionModel.findTurn(stores, turn.turnId)) {
+          case (null) { assert false };
+          case (?t) {
+            t.completedAtNs := ?(Time.now() - 2 * Constants.ONE_HOUR_NS);
+          };
+        };
+
+        let currentTurn = SessionModel.createTurn(stores, 1, null, null, null);
+        let result = ContextAssembler.assemble(stores, 1, currentTurn.turnId, chStore, "C001", null);
+
+        expect.nat(result.stats.rawTurnsIncluded).equal(1);
+        let content = result.messages[0].content;
+        expect.bool(Text.contains(content, #text "truncated response")).equal(true);
+        expect.bool(Text.contains(content, #text "full raw response")).equal(false);
+        expect.bool(Text.contains(content, #text "truncated output")).equal(true);
+        expect.bool(Text.contains(content, #text "full raw output")).equal(false);
       },
     );
   },
