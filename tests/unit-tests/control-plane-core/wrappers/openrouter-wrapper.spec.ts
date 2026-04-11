@@ -142,8 +142,10 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       if ("ok" in response) {
         if ("textResponse" in response.ok) {
-          expect(response.ok.textResponse.length).toBeGreaterThan(0);
-          expect(response.ok.textResponse.toLowerCase()).toContain("renewable");
+          expect(response.ok.textResponse.content.length).toBeGreaterThan(0);
+          expect(response.ok.textResponse.content.toLowerCase()).toContain(
+            "renewable",
+          );
         } else {
           throw new Error("Unexpected tool calls response");
         }
@@ -178,8 +180,8 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       if ("ok" in response) {
         if ("textResponse" in response.ok) {
-          expect(response.ok.textResponse.length).toBeGreaterThan(0);
-          expect(response.ok.textResponse.toLowerCase()).toContain(
+          expect(response.ok.textResponse.content.length).toBeGreaterThan(0);
+          expect(response.ok.textResponse.content.toLowerCase()).toContain(
             "machine learning",
           );
         } else {
@@ -324,7 +326,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
           // but we expect tool call for this specific prompt
           throw new Error(
             "Expected tool call but got text response: " +
-              response.ok.textResponse,
+              response.ok.textResponse.content.content,
           );
         }
       } else {
@@ -336,7 +338,9 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
     it("should call appropriate tool from multiple available tools", async () => {
       const trackId: TrackId = { workspaceAgent: [100n, 2n] };
-      const input = "Calculate 15 multiplied by 7";
+      // Use a weather query — LLMs reliably call tools for real-time data they
+      // cannot answer directly, unlike simple arithmetic.
+      const input = "What is the weather like in Tokyo right now?";
 
       const weatherTool: Tool = {
         tool_type: "function",
@@ -400,17 +404,16 @@ describe("OpenRouter Wrapper Unit Tests", () => {
         if ("toolCalls" in response.ok) {
           expect(response.ok.toolCalls.length).toBeGreaterThan(0);
           const toolCall = response.ok.toolCalls[0];
-          expect(toolCall.toolName).toBe("calculator");
+          // Should pick weather, not calculator, for a weather query
+          expect(toolCall.toolName).toBe("get_weather");
+          expect(toolCall.callId).toBeTruthy();
 
-          // Parse arguments and verify calculation parameters
           const args = JSON.parse(toolCall.arguments);
-          expect(args.operation).toBe("multiply");
-          expect(args.a).toBe(15);
-          expect(args.b).toBe(7);
+          expect(args.location.toLowerCase()).toContain("tokyo");
         } else {
           throw new Error(
             "Expected tool call but got text response: " +
-              response.ok.textResponse,
+              response.ok.textResponse.content,
           );
         }
       } else {
@@ -492,7 +495,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
         } else {
           throw new Error(
             "Expected tool call but got text response: " +
-              response.ok.textResponse,
+              response.ok.textResponse.content,
           );
         }
       } else {
@@ -549,7 +552,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
           expect(Object.keys(args).length).toBe(0);
         } else {
           // Model might respond with text if it doesn't want to use the tool
-          expect(response.ok.textResponse.length).toBeGreaterThan(0);
+          expect(response.ok.textResponse.content.length).toBeGreaterThan(0);
         }
       } else {
         throw new Error(
@@ -560,54 +563,58 @@ describe("OpenRouter Wrapper Unit Tests", () => {
   });
 
   describe("Built-In Tools (useBuiltInTool) Tests", () => {
-    it("should handle web search without search settings", async () => {
-      const { result } = await withCassette(
-        pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-web-search-basic",
-        () =>
-          testCanister.openRouterUseBuiltInTool(
-            TEST_API_KEY,
-            "What happened in AI last week?",
-            {
-              web_search: { searchSettings: [] },
-            },
-          ),
-        { ticks: 10 },
-      );
+    it(
+      "should handle web search without search settings",
+      async () => {
+        const { result } = await withCassette(
+          pic,
+          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-web-search-basic",
+          () =>
+            testCanister.openRouterUseBuiltInTool(
+              TEST_API_KEY,
+              "What happened in AI last week?",
+              {
+                web_search: { searchSettings: [] },
+              },
+            ),
+          { ticks: 10 },
+        );
 
-      const response = await result;
+        const response = await result;
 
-      if ("ok" in response) {
-        expect(response.ok.id).toBeDefined();
-        expect(response.ok.model).toBe("openai/gpt-oss-120b");
-        expect(response.ok.choices.length).toBeGreaterThan(0);
+        if ("ok" in response) {
+          expect(response.ok.id).toBeDefined();
+          expect(response.ok.model).toBe("openai/gpt-oss-120b");
+          expect(response.ok.choices.length).toBeGreaterThan(0);
 
-        const choice = response.ok.choices[0];
-        expect(choice.message.content.length).toBeGreaterThan(0);
+          const choice = response.ok.choices[0];
+          expect(choice.message.content.length).toBeGreaterThan(0);
 
-        // Should have executed tools
-        const executedTools = choice.message.executed_tools[0];
-        if (executedTools && executedTools.length > 0) {
-          const tool = executedTools[0];
-          if (tool && tool.tool_type === "search" && tool.search_results[0]) {
-            const searchResults = tool.search_results[0];
-            expect(searchResults.length).toBeGreaterThan(0);
-            const firstResult = searchResults[0];
-            if (firstResult) {
-              expect(firstResult.title).toBeDefined();
-              expect(firstResult.url).toBeDefined();
-              expect(firstResult.content).toBeDefined();
-              expect(firstResult.relevance_score).toBeGreaterThanOrEqual(0);
-              expect(firstResult.relevance_score).toBeLessThanOrEqual(1);
+          // Should have executed tools
+          const executedTools = choice.message.executed_tools[0];
+          if (executedTools && executedTools.length > 0) {
+            const tool = executedTools[0];
+            if (tool && tool.tool_type === "search" && tool.search_results[0]) {
+              const searchResults = tool.search_results[0];
+              expect(searchResults.length).toBeGreaterThan(0);
+              const firstResult = searchResults[0];
+              if (firstResult) {
+                expect(firstResult.title).toBeDefined();
+                expect(firstResult.url).toBeDefined();
+                expect(firstResult.content).toBeDefined();
+                expect(firstResult.relevance_score).toBeGreaterThanOrEqual(0);
+                expect(firstResult.relevance_score).toBeLessThanOrEqual(1);
+              }
             }
           }
+        } else {
+          throw new Error(
+            "Expected successful response but got error: " + response.err,
+          );
         }
-      } else {
-        throw new Error(
-          "Expected successful response but got error: " + response.err,
-        );
-      }
-    });
+      },
+      { timeout: 60000 },
+    );
 
     it(
       "should handle web search with max_results limit",

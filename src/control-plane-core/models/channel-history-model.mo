@@ -135,7 +135,7 @@ module {
   // addMessage
   // ============================================
 
-  /// Persist a message into the conversation store.
+  /// Persist a message into the channel history store.
   ///
   /// - `threadTs = null` → top-level post: store as #post (no replyIndex entry).
   /// - `threadTs = ?rootTs` → reply:
