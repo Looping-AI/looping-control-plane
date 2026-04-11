@@ -39,6 +39,7 @@ import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Set "mo:core/Set";
 import Time "mo:core/Time";
 import Constants "../constants";
 import SlackUserModel "../models/slack-user-model";
@@ -190,7 +191,7 @@ module {
     // Phase 1: Collect IDs whose admin flag must be cleared
     let toRevoke = List.empty<Text>();
     for (entry in Map.values(slackUsers.cache)) {
-      if (Map.containsKey(entry.adminWorkspaces, Nat.compare, workspaceId) and Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
+      if (Set.contains(entry.adminWorkspaces, Nat.compare, workspaceId) and Map.get(freshSet, Text.compare, entry.slackUserId) == null) {
         List.add(toRevoke, entry.slackUserId);
       };
     };
@@ -340,7 +341,7 @@ module {
           let (isOrgAdmin, adminWorkspaces, needsUpdate) = switch (SlackUserModel.lookupUser(slackUsers.cache, user.id)) {
             case (null) {
               // New user — always write
-              (false, Map.empty<Nat, ()>(), true);
+              (false, Set.empty<Nat>(), true);
             };
             case (?existing) {
               let changed = existing.displayName != user.name or existing.isPrimaryOwner != user.isPrimaryOwner or existing.isBot != user.isBot;

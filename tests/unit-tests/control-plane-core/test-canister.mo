@@ -2,6 +2,7 @@ import Error "mo:core/Error";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 
 import HttpWrapper "../../../src/control-plane-core/wrappers/http-wrapper";
@@ -354,7 +355,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
       isOrgAdmin = false;
-      adminWorkspaces = Map.empty<Nat, ()>();
+      adminWorkspaces = Set.empty<Nat>();
     };
     ChannelHistoryModel.addMessage(
       ctx.channelHistory,
@@ -441,7 +442,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
       isOrgAdmin = false;
-      adminWorkspaces = Map.empty<Nat, ()>();
+      adminWorkspaces = Set.empty<Nat>();
     };
     ChannelHistoryModel.addMessage(
       ctx.channelHistory,
@@ -747,7 +748,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         isPrimaryOwner;
         isOrgAdmin;
         isBot;
-        adminWorkspaces = Map.empty<Nat, ()>();
+        adminWorkspaces = Set.empty<Nat>();
       },
       #manual,
     );
@@ -954,10 +955,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let adminWorkspaces = Map.empty<Nat, ()>();
+    let adminWorkspaces = Set.empty<Nat>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(adminWorkspaces, Nat.compare, wsId, ());
+        Set.add(adminWorkspaces, Nat.compare, wsId);
       };
       case (null) {};
     };
@@ -986,10 +987,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let adminWorkspaces = Map.empty<Nat, ()>();
+    let adminWorkspaces = Set.empty<Nat>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(adminWorkspaces, Nat.compare, wsId, ());
+        Set.add(adminWorkspaces, Nat.compare, wsId);
       };
       case (null) {};
     };
@@ -1252,7 +1253,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       slackUserId = "U_TEST_USER";
       isPrimaryOwner;
       isOrgAdmin;
-      adminWorkspaces = Map.empty<Nat, ()>();
+      adminWorkspaces = Set.empty<Nat>();
     };
   };
 
@@ -1409,10 +1410,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let adminWorkspaces = Map.empty<Nat, ()>();
+    let adminWorkspaces = Set.empty<Nat>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(adminWorkspaces, Nat.compare, wsId, ());
+        Set.add(adminWorkspaces, Nat.compare, wsId);
       };
       case (null) {};
     };
@@ -1437,10 +1438,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let adminWorkspaces = Map.empty<Nat, ()>();
+    let adminWorkspaces = Set.empty<Nat>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(adminWorkspaces, Nat.compare, wsId, ());
+        Set.add(adminWorkspaces, Nat.compare, wsId);
       };
       case (null) {};
     };
@@ -1465,10 +1466,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    let adminWorkspaces = Map.empty<Nat, ()>();
+    let adminWorkspaces = Set.empty<Nat>();
     switch (auth.workspaceAdminFor) {
       case (?wsId) {
-        Map.add(adminWorkspaces, Nat.compare, wsId, ());
+        Set.add(adminWorkspaces, Nat.compare, wsId);
       };
       case (null) {};
     };

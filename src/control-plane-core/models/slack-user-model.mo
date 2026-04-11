@@ -1,4 +1,5 @@
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
@@ -21,7 +22,7 @@ module {
     isPrimaryOwner : Bool;
     isOrgAdmin : Bool;
     isBot : Bool;
-    adminWorkspaces : Map.Map<Nat, ()>;
+    adminWorkspaces : Set.Set<Nat>;
   };
 
   /// The full Slack user cache: Slack user ID → SlackUserEntry.
@@ -107,7 +108,7 @@ module {
       isPrimaryOwner;
       isOrgAdmin;
       isBot;
-      adminWorkspaces = Map.empty<Nat, ()>();
+      adminWorkspaces = Set.empty<Nat>();
     };
   };
 
@@ -168,7 +169,7 @@ module {
   // Private Helpers
   // ============================================
 
-  // (No private helpers needed — admin workspace set uses direct Map operations.)
+  // (No private helpers needed — admin workspace set uses direct Set operations.)
 
   // ============================================
   // CRUD — Users
@@ -253,11 +254,11 @@ module {
     switch (Map.get(state.cache, Text.compare, slackUserId)) {
       case (null) { #err("User not found: " # slackUserId) };
       case (?entry) {
-        let wasAdmin = Map.containsKey(entry.adminWorkspaces, Nat.compare, workspaceId);
+        let wasAdmin = Set.contains(entry.adminWorkspaces, Nat.compare, workspaceId);
         if (not wasAdmin) {
           logChange(state.changeLog, slackUserId, #workspaceAdminGranted(workspaceId), source);
         };
-        Map.add(entry.adminWorkspaces, Nat.compare, workspaceId, ());
+        Set.add(entry.adminWorkspaces, Nat.compare, workspaceId);
         #ok(());
       };
     };
@@ -278,10 +279,10 @@ module {
     switch (Map.get(state.cache, Text.compare, slackUserId)) {
       case (null) { #err("User not found: " # slackUserId) };
       case (?entry) {
-        if (not Map.containsKey(entry.adminWorkspaces, Nat.compare, workspaceId)) {
+        if (not Set.contains(entry.adminWorkspaces, Nat.compare, workspaceId)) {
           #ok(false);
         } else {
-          Map.remove(entry.adminWorkspaces, Nat.compare, workspaceId);
+          Set.remove(entry.adminWorkspaces, Nat.compare, workspaceId);
           logChange(state.changeLog, slackUserId, #workspaceAdminRevoked(workspaceId), source);
           #ok(true);
         };
@@ -295,7 +296,7 @@ module {
 
   /// Return the IDs of workspaces where the user is an admin.
   public func getAdminWorkspaceIds(entry : SlackUserEntry) : [Nat] {
-    Iter.toArray(Map.keys(entry.adminWorkspaces));
+    Iter.toArray(Set.values(entry.adminWorkspaces));
   };
 
   /// Check whether a user is an admin of a specific workspace.
@@ -308,7 +309,7 @@ module {
     switch (Map.get(cache, Text.compare, slackUserId)) {
       case (null) { false };
       case (?entry) {
-        Map.containsKey(entry.adminWorkspaces, Nat.compare, workspaceId);
+        Set.contains(entry.adminWorkspaces, Nat.compare, workspaceId);
       };
     };
   };

@@ -1,7 +1,8 @@
 import { test; suite; expect } "mo:test";
 import Map "mo:core/Map";
-import Text "mo:core/Text";
 import Nat "mo:core/Nat";
+import Set "mo:core/Set";
+import Text "mo:core/Text";
 import ChannelHistoryModel "../../../../src/control-plane-core/models/channel-history-model";
 import SlackAuthMiddleware "../../../../src/control-plane-core/middleware/slack-auth-middleware";
 import SlackUserModel "../../../../src/control-plane-core/models/slack-user-model";
@@ -22,7 +23,7 @@ func makeRoundCtx(userId : Text, roundCount : Nat, forceTerminated : Bool) : Sla
     slackUserId = userId;
     isPrimaryOwner = false;
     isOrgAdmin = false;
-    adminWorkspaces = Map.empty<Nat, ()>();
+    adminWorkspaces = Set.empty<Nat>();
     roundCount;
     forceTerminated;
     parentRef = null;

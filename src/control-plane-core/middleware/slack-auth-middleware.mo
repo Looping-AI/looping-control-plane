@@ -5,6 +5,7 @@
 /// downstream services and orchestrators accept instead of a caller Principal.
 
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import Result "mo:core/Result";
@@ -27,7 +28,7 @@ module {
     slackUserId : Text;
     isPrimaryOwner : Bool;
     isOrgAdmin : Bool;
-    adminWorkspaces : Map.Map<Nat, ()>;
+    adminWorkspaces : Set.Set<Nat>;
   };
 
   /// Authorization step — describes a single access requirement.
@@ -122,7 +123,7 @@ module {
   };
 
   private func checkIsWorkspaceAdmin(ctx : UserAuthContext, workspaceId : Nat) : Result.Result<(), Text> {
-    if (Map.containsKey(ctx.adminWorkspaces, Nat.compare, workspaceId)) {
+    if (Set.contains(ctx.adminWorkspaces, Nat.compare, workspaceId)) {
       #ok(());
     } else {
       #err("Only workspace admins of workspace " # debug_show (workspaceId) # " can perform this action.");

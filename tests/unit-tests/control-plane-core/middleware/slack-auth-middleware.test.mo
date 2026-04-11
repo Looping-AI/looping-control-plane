@@ -1,5 +1,5 @@
 import { test; suite; expect } "mo:test";
-import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
@@ -109,7 +109,7 @@ suite(
           case (null) { expect.bool(false).equal(true) };
           case (?ctx) {
             // workspaceAdmin1 has admin membership in workspace 0
-            expect.bool(Map.containsKey(ctx.adminWorkspaces, Nat.compare, 0)).equal(true);
+            expect.bool(Set.contains(ctx.adminWorkspaces, Nat.compare, 0)).equal(true);
           };
         };
       },
