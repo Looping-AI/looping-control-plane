@@ -30,73 +30,13 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ---
 
-## Plan: v0.5 — GitHub Coding Agent Foundation
+## Plan: v0.5 — Agent Allowlist + Store
 
-**TL;DR**: Pivot the `#runtime` agent execution path from OpenClaw/Codespaces to GitHub Coding Agents, enforce per-agent channel security boundaries, and stand up the webhook ingress required to receive GitHub Actions lifecycle callbacks. These three PRs lay the foundation for the full v0.5 scope (dispatch, session correlation, Store, and Process Engine) without tackling those larger architectural pieces yet.
-
----
-
-### 5.1 — Runtime Type Migration: OpenClaw → GitHub Coding Agent
-
-**Goal**
-
-Replace the v0.3-era `#runtime(#openClaw)` execution type with `#runtime(#githubCodingAgent)` as described in ARCHITECTURE.md. After this task the agent model, parsers, tool schemas, and router error messages all reference the new GitHub Coding Agent runtime — but no actual dispatch or webhook handling is implemented yet (that comes in 5.3 and future tasks). The `#runtime` branch in `AgentRouter` remains a graceful "not yet supported" error until dispatch is wired up.
-
-**Current State**
-
-- `AgentExecutionType` has `#api : { model : Text }` and `#runtime : RuntimeAgentConfig`.
-- `RuntimeAgentConfig = { hosting : HostingConfig; framework : AgentFrameworkConfig }` with `HostingConfig = #codespace` and `AgentFrameworkConfig = #openClaw : { deployedVersion : ?Text }`.
-- Agent parser (`agent-parsers.mo`) serialises/deserialises `#runtime` as `{ type: "runtime", hosting: "codespace", framework: "openClaw" }`.
-- Tool schemas (`function-tool-registry.mo`) for `register_agent` and `update_agent` expose `"hosting": "codespace"`, `"framework": "openClaw"` in the JSON schema.
-- `AgentRouter` rejects `#runtime` with `"remote runtime not yet supported"`.
-
-**Desired State**
-
-- `RuntimeAgentConfig` replaced by a flat variant:
-
-  ```motoko
-  public type AgentExecutionType = {
-    #api : { model : Text };
-    #runtime : RuntimeType;
-  };
-  public type RuntimeType = {
-    #githubCodingAgent : GitHubCodingAgentConfig;
-  };
-  public type GitHubCodingAgentConfig = {
-    repoFullName : Text; // "owner/repo"
-    workflowFile : Text; // e.g. "agent.yml"
-    ref : Text; // branch or tag, e.g. "main"
-  };
-
-  ```
-
-- Agent parsers serialize/deserialize as `{ type: "runtime", runtime: "githubCodingAgent", repoFullName, workflowFile, ref }`.
-- Tool schemas updated accordingly (register_agent, update_agent, fork_agent).
-- `AgentRouter` still returns a graceful error for `#runtime` — text updated to reference GitHub Coding Agents.
-- Agent model migration function handles the type change for any pre-existing `#runtime` records (maps old OpenClaw config to a sensible default GitHub Coding Agent config — or marks them as needing reconfiguration).
-- All existing tests updated or adapted for the new type shape.
-
-**Source Steps**
-
-1. `models/agent-model.mo` — Replace `RuntimeAgentConfig`, `HostingConfig`, `AgentFrameworkConfig` with `RuntimeType` and `GitHubCodingAgentConfig`. Update `AgentRecord` field type. Update `register`, `updateById`, `forkAgent` to accept the new shape.
-2. `tools/handlers/parsers/agent-parsers.mo` — Update `executionTypeToJson` and `parseExecutionType` for the new variant.
-3. `tools/function-tool-registry.mo` — Update JSON schema strings for `register_agent`, `update_agent`, and `fork_agent` tool definitions.
-4. `tools/handlers/agents/register-agent-handler.mo` — Update parsing of `executionType` input.
-5. `tools/handlers/agents/update-agent-handler.mo` — Update parsing of `executionType` input.
-6. `events/agent-router.mo` — Update the `#runtime` rejection message.
-7. `agents/admin/org-admin-agent.mo`, `agents/planning/work-planning-agent.mo` — Update `executionType` switch arms (cosmetic, no logic change).
-8. Verify: `icp build control-plane-core`, `mops test`, `bun run tsc --noEmit`.
-
-**Test Steps**
-
-- Update unit tests for agent parsers: round-trip serialization of `#runtime(#githubCodingAgent { ... })`.
-- Update unit tests for register-agent-handler and update-agent-handler: valid and invalid `executionType` payloads.
-- Update integration test cassettes if the tool schema changes affect LLM request bodies (use `ignoreBodyFields` match rules where appropriate).
-- Verify all existing tests still pass with the new type shape.
+**TL;DR**: Enforce per-agent channel security boundaries, then build the Store — a file-like persistent knowledge layer that agents can read from and write to. The Store is a large feature, so it's split across two PRs: first the data model + admin tools, then the agent-facing `file_read`/`file_write` tools wired into the LLM tool loop. GitHub integration is deferred to a later version.
 
 ---
 
-### 5.2 — Agent Channel Allowlist
+### 5.1 — Agent Channel Allowlist
 
 **Goal**
 
@@ -136,68 +76,151 @@ Add a per-agent Slack channel allowlist (`allowedChannelIds`) to the agent model
 
 ---
 
-### 5.3 — GitHub Webhook Ingress + Adapter
+### 5.2 — Store: Data Model + Admin Tools
 
 **Goal**
 
-Stand up a new webhook endpoint (`/github/webhook` on `http_request_update`) that verifies GitHub HMAC-SHA256 signatures, parses GitHub Actions webhook payloads, and normalizes them into internal events. This is the receive side of the GitHub Coding Agent roundtrip — no dispatch yet, just ingress and event creation. The endpoint handles `workflow_run` and `workflow_job` events from GitHub Actions.
+Introduce the Store — a file-like key-value persistence layer for structured and unstructured agent knowledge, scoped per workspace. This phase builds the data model and wires admin-facing tools so workspace admins can create, read, list, and delete Store entries via the `::workspace-admin` agent. Agent-facing tools (`file_read`, `file_write`) come in 5.3.
 
 **Current State**
 
-- `SlackAdapter` handles `/webhook/slack` with Slack-specific HMAC-SHA256 verification.
-- `http_request_update` in `main.mo` routes only to `SlackAdapter`.
-- `#githubWebhookSecret` already exists in `SecretId` (added in v0.3).
-- No GitHub adapter, no `/github/webhook` route, no GitHub event types in `normalized-event-types.mo`.
+- No Store model exists. ARCHITECTURE.md specifies Store as a `[planned]` concept.
+- Agents have no persistent knowledge storage beyond session traces and channel history.
+- `ToolResources` in `tool-types.mo` has no Store resource.
+- Skill documents are planned as a Store subtype under `/skills/` paths but do not exist yet.
 
 **Desired State**
 
-- New `events/github-adapter.mo` module:
-  - `verifySignature(body : Blob, signatureHeader : Text, secret : Text) : Bool` — HMAC-SHA256 verification using `X-Hub-Signature-256` format (`sha256=<hex>`).
-  - `parseWebhook(body : Blob, eventTypeHeader : Text) : Result<NormalizedEvent, Text>` — Parses GitHub webhook JSON based on the `X-GitHub-Event` header value. Supported events: `workflow_run` (completed, requested, in_progress), `workflow_job` (completed).
-- New event variants in `normalized-event-types.mo`:
+- New `models/store-model.mo` module with the following data types and operations:
 
   ```motoko
-  #githubWorkflowRun : {
-    action : Text; // "completed" | "requested" | "in_progress"
-    workflowRunId : Nat;
-    workflowName : Text;
-    headBranch : Text;
-    conclusion : ?Text; // "success" | "failure" | "cancelled" | etc.
-    repoFullName : Text;
-    senderLogin : Text;
+  public type StoreEntry = {
+    path : Text; // absolute path, e.g. "/skills/create-spec/SKILL.md"
+    name : Text; // filename, e.g. "SKILL.md"
+    extension : Text; // e.g. "md", "json", "txt"
+    description : Text; // LLM guidance: purpose, update cadence, interaction rules
+    content : Text; // the file content
+    workspaceId : Nat; // owning workspace
+    createdAt : Int; // timestamp (nanoseconds)
+    updatedAt : Int; // timestamp (nanoseconds)
+    createdBy : Text; // Slack user ID or agent name
+    updatedBy : Text; // Slack user ID or agent name
   };
 
   ```
 
-- `main.mo` `http_request_update` gains a `/github/webhook` route that:
-  1. Retrieves the `#githubWebhookSecret` from org workspace (ws 0).
-  2. Calls `GitHubAdapter.verifySignature`.
-  3. Calls `GitHubAdapter.parseWebhook`.
-  4. Enqueues the resulting event in `EventStoreModel`.
-- `EventRouter` gains a stub handler for `#githubWorkflowRun` that logs the event and marks it processed (no business logic yet — session correlation comes in a future task).
+- Store state: `StoreState = Map<Text, StoreEntry>` keyed by `path`. All paths must start with `/`. The model normalizes non-absolute paths automatically (prepends `/`).
+- Model functions (state parameter first, per Motoko conventions):
+  - `put(state, entry) → Result<StoreEntry, Text>` — creates or updates an entry. Validates path format.
+  - `get(state, path) → ?StoreEntry` — retrieves a single entry by exact path.
+  - `delete(state, path) → Result<StoreEntry, Text>` — removes an entry, returns the deleted entry.
+  - `list(state, pathPrefix) → [StoreEntry]` — lists all entries whose path starts with `pathPrefix`. If prefix is `/`, returns all entries in the store. If prefix is `/skills/`, returns only skill documents.
+  - `listPaths(state, pathPrefix) → [Text]` — lightweight variant returning only paths (for directory-like browsing).
+- New `ToolResources` field:
+
+  ```motoko
+  store : ?{
+    state : StoreModel.StoreState;
+    workspaceId : Nat;
+    write : Bool;
+  };
+
+  ```
+
+- New admin tool handlers in `tools/handlers/store/`:
+  - `create-store-entry-handler.mo` — Creates a new Store entry. Fails if path already exists (use `update` for overwrites).
+  - `update-store-entry-handler.mo` — Updates content and/or description of an existing entry. Fails if path doesn't exist.
+  - `get-store-entry-handler.mo` — Reads a single entry by path.
+  - `list-store-entries-handler.mo` — Lists entries by path prefix. Returns path, name, extension, description (no content — too large for listing).
+  - `delete-store-entry-handler.mo` — Deletes an entry by path.
+- Tools wired into `org-admin-agent.mo` via `FunctionToolRegistry` (admin category, write access).
+- Persistent state: `storeState` added to `main.mo` as a `StoreModel.StoreState`, passed through `EventProcessingContext` → `AdminAgentCtx`.
+
+**Design Notes**
+
+- **Workspace-scoped**: each Store entry belongs to a workspace. Admin tools operate on the current workspace. Cross-workspace access is not supported (agents access only their workspace's store).
+- **Path uniqueness**: paths are globally unique within a workspace. `put` overwrites on same path; `create` rejects duplicates.
+- **No content-size limit enforced in v0.5**: the IC's stable memory limits apply naturally. A future task may add explicit limits.
+- **Skills are just Store entries**: no separate skill model. Skill-specific conventions (e.g., `/skills/<id>/SKILL.md`) are enforced by convention in tool descriptions, not by the model.
 
 **Source Steps**
 
-1. `events/types/normalized-event-types.mo` — Add `#githubWorkflowRun` variant to `NormalizedEvent`.
-2. New file: `events/github-adapter.mo` — Signature verification + webhook parsing.
-3. `main.mo` — Add `/github/webhook` route in `http_request_update`, wire to `GitHubAdapter`.
-4. `events/event-router.mo` — Add `#githubWorkflowRun` case that logs and marks event processed.
-5. Verify: `icp build control-plane-core`, `mops test`, `bun run tsc --noEmit`.
+1. New file: `models/store-model.mo` — `StoreEntry` type, `StoreState` type alias, `put`, `get`, `delete`, `list`, `listPaths`, path normalization utility.
+2. `tool-types.mo` — Add `store` field to `ToolResources`.
+3. New files: `tools/handlers/store/create-store-entry-handler.mo`, `update-store-entry-handler.mo`, `get-store-entry-handler.mo`, `list-store-entries-handler.mo`, `delete-store-entry-handler.mo`.
+4. `tools/function-tool-registry.mo` — Import handlers, add tool definitions with JSON schemas, wire into admin tool set (gated on `resources.store`).
+5. `main.mo` — Add `storeState : StoreModel.StoreState` to persistent state. Pass through event processing context.
+6. `events/types/event-processing-context.mo` — Add `storeState` to context.
+7. `agents/admin/org-admin-agent.mo` — Include `store` in `ToolResources` when building admin agent context.
+8. Verify: `icp build control-plane-core`, `mops test`, `bun run tsc --noEmit`.
 
 **Test Steps**
 
-- Unit test (github-adapter): valid HMAC passes, invalid HMAC fails. Parse a `workflow_run` completed payload → correct `NormalizedEvent` fields.
-- Integration test: POST to `/github/webhook` with a valid signature → 200, event appears in event store. POST with invalid signature → 401.
-- Integration test: POST with unsupported event type → graceful skip (200, event not enqueued).
-- Existing Slack webhook tests unaffected (different route).
+- Unit test (store-model): `put` → `get` round-trip. `put` with non-absolute path → path normalized. `delete` existing → returns entry. `delete` missing → error. `list` with prefix filtering. `list` with `/` returns all. Empty store returns `[]`.
+- Unit test (create-store-entry-handler): valid payload → entry created. Duplicate path → error. Missing required fields → error.
+- Unit test (update-store-entry-handler): existing path → updated. Non-existent path → error. Partial update (only content, or only description) → other fields preserved.
+- Unit test (list-store-entries-handler): entries under `/skills/` listed when prefix is `/skills/`. Content excluded from listing output.
+- Unit test (delete-store-entry-handler): existing path → deleted. Non-existent path → error.
+- Integration test: admin agent creates, lists, reads, updates, and deletes a Store entry through the full Slack → LLM → tool flow.
+
+---
+
+### 5.3 — Store: Agent-Facing Tools (`file_read` / `file_write`)
+
+**Goal**
+
+Expose the Store to non-admin agents via `file_read` and `file_write` tools, so any `#api` agent can read from and write to Store entries within its workspace during LLM tool loops. This enables agents to build persistent knowledge (notes, plans, drafts, skill documents) that survives across turns and sessions.
+
+**Current State (after 5.2)**
+
+- Store model exists with CRUD operations.
+- Admin tools (`create_store_entry`, `update_store_entry`, etc.) are available to the `#admin` agent.
+- Non-admin agents (`#planning`, `#research`, `#communication`) have no access to Store.
+- `ToolResources.store` exists but is only wired for admin agents.
+
+**Desired State**
+
+- Two new tools available to all `#api` agent categories:
+  - `file_read(path)` — Reads a Store entry's content by path. Returns `{ path, name, extension, description, content }`. Returns an error if path doesn't exist. Can also accept a `pathPrefix` parameter to list available files (returns paths + descriptions, no content) — combining read and directory listing in one tool to minimize tool count.
+  - `file_write(path, content, description?)` — Creates or updates a Store entry. If the path doesn't exist, creates it (auto-derives `name` and `extension` from the path). If it exists, updates content and optionally description. The `description` parameter is required on creation, optional on update.
+- Tools gated on `ToolResources.store` (non-null = available; `write = true` enables `file_write`).
+- All agent category services (`org-admin-agent.mo`, `work-planning-agent.mo`, and future agents) wire `store` into their `ToolResources` with appropriate access (read-only or read-write based on the agent's category/config).
+- `EventProcessingContext` passes `storeState` to all agent category services (already done in 5.2 for admin; extended here to planning and others).
+
+**Design Notes**
+
+- **`file_read` and `file_write`** are the LLM-facing names (per ARCHITECTURE.md's planned tool list). They are distinct from the admin CRUD tools in 5.2 — admin tools are for explicit management (create/delete/list with full metadata), while `file_read`/`file_write` are for agents to use Store as a working file system during reasoning.
+- **`file_read` with prefix listing**: when called with a path that ends in `/` or doesn't match an exact entry, the tool returns a directory listing instead. This avoids needing a separate `file_list` tool.
+- **Write access control**: all `#api` agents get `file_write` by default. A future phase may restrict write access per-agent via `toolsAllowed` or per-path policies.
+- **Agent attribution**: `file_write` sets `updatedBy` to the agent's name. `createdBy` is set on first creation.
+- **No embedding/search yet**: `store_search` (embedding-based retrieval) is deferred to a future phase. Agents use `file_read` with path prefix for now.
+
+**Source Steps**
+
+1. New files: `tools/handlers/store/file-read-handler.mo`, `tools/handlers/store/file-write-handler.mo`.
+2. `tools/function-tool-registry.mo` — Add `file_read` and `file_write` tool definitions with JSON schemas. Gate on `resources.store`. `file_write` additionally gated on `store.write = true`.
+3. `agents/planning/work-planning-agent.mo` — Wire `store` into `ToolResources` with `write = true`.
+4. `agents/admin/org-admin-agent.mo` — Ensure `store` is also wired (already done in 5.2, but confirm `file_read`/`file_write` appear alongside admin tools).
+5. `events/types/event-processing-context.mo` — Confirm `storeState` is available to all agent categories.
+6. `events/agent-router.mo` / `orchestrators/agent-orchestrator.mo` — Pass `store` resource through to non-admin agent categories (extend `PlanningAgentCtx` or equivalent to include `storeState`).
+7. Verify: `icp build control-plane-core`, `mops test`, `bun run tsc --noEmit`.
+
+**Test Steps**
+
+- Unit test (file-read-handler): read existing path → returns content. Read non-existent path → error. Read with path prefix (ending `/`) → returns directory listing with paths + descriptions.
+- Unit test (file-write-handler): write to new path → creates entry with correct `name`, `extension`, `createdBy`. Write to existing path → updates content + `updatedBy`. Write without `description` to existing entry → preserves existing description. Write without `description` to new path → error (description required on creation).
+- Integration test: planning agent uses `file_write` to save a plan draft → `file_read` to retrieve it → content matches. Planning agent uses `file_read` with `/` prefix → sees all workspace files.
+- Verify admin agent still has both admin Store tools (from 5.2) and `file_read`/`file_write` (from 5.3) in the same tool set.
 
 ---
 
 ## Decisions
 
-- **3 focused PRs** rather than the full v0.5 scope. The remaining v0.5 items (GitHub dispatch via `workflow_dispatch`, session correlation, Store model, Process Engine + Effect Applicator) build on this foundation and will be planned after these land.
-- **OpenClaw → GitHub Coding Agent migration first** (5.1) because it's a type-level prerequisite that touches many files — better to land it cleanly before adding new features on top.
-- **Channel allowlist second** (5.2) because it's an independent, high-value security boundary that can be reviewed and merged without waiting for GitHub integration work.
-- **GitHub webhook ingress third** (5.3) because it needs the updated runtime types from 5.1 and establishes the receive half of the GitHub roundtrip.
+- **3 focused PRs** covering the top priorities: channel security (5.1), then Store in two phases (5.2 model + admin tools, 5.3 agent-facing tools).
+- **GitHub integration deferred**: Runtime type migration, webhook ingress, and Coding Agent dispatch are valuable but not the immediate priority. They'll be planned in a later version.
+- **Agent allowlist first** (5.1) because it's the highest-priority security boundary — independent and self-contained.
+- **Store split into two PRs** because the full scope (model + admin tools + agent tools + wiring across all categories) is too large for one review. PR 5.2 delivers the foundation and admin management; PR 5.3 delivers the agent-facing tools that make the Store useful in practice.
+- **No separate skill model**: skill documents are Store entries under `/skills/` paths by convention, not a distinct data type. This keeps the persistence model unified.
+- **`file_read`/`file_write` naming** follows ARCHITECTURE.md's planned tool list. They're the agent-facing API; admin CRUD tools use more explicit names (`create_store_entry`, etc.).
 - **Empty allowlist = unrestricted**: backward-compatible default so existing agents and tests don't break.
-- **Stub handler for GitHub events**: 5.3 only wires ingress + event creation. Session correlation and dispatch are separate future tasks — keeps the PR small and reviewable.
+- **Embedding-based search deferred**: `store_search` requires an embedding pipeline which is a separate effort. Agents use `file_read` with path prefixes for discovery in v0.5.
