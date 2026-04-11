@@ -13,7 +13,7 @@
 import Map "mo:core/Map";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
-import ConversationModel "../../models/conversation-model";
+import ChannelHistoryModel "../../models/channel-history-model";
 import McpToolRegistry "../../tools/mcp-tool-registry";
 import AgentModel "../../models/agent-model";
 import ValueStreamModel "../../models/value-stream-model";
@@ -39,9 +39,10 @@ module {
     secrets : SecretModel.SecretsState;
     /// Async key-derivation cache — pass to KeyDerivationService.getOrDeriveKey
     keyCache : KeyDerivationService.KeyCache;
-    /// Channel-keyed conversation store (Phase 1.4) — handlers call ConversationModel
-    /// to add/update/delete messages; the event-driven path is the only write surface.
-    conversationStore : ConversationModel.ConversationStore;
+    /// Channel history store (channel-keyed Slack message timeline) — handlers call
+    /// ChannelHistoryModel to add/update/delete messages; the event-driven path is
+    /// the only write surface.
+    channelHistory : ChannelHistoryModel.ChannelHistoryStore;
     /// MCP tool registry (org-wide)
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState;
     /// Global agent registry — used to resolve the active agent for a given category

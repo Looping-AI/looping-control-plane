@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "tool-single-call",
-  "recordedAt": "2026-03-14T17:59:29.640Z",
+  "recordedAt": "2026-04-10T23:50:39.885Z",
   "interactions": [
     {
       "request": {
@@ -13,25 +13,27 @@
           ["HTTP-Referer", "https://loopingai.app"],
           ["X-Title", "Looping AI"]
         ],
-        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What is the weather in San Francisco?\"}],\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name, e.g. San Francisco\"}},\"required\":[\"location\"]}}],\"user\":\"100_1\"}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What is the weather in San Francisco?\"}],\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name, e.g. San Francisco\"}},\"required\":[\"location\"]}}],\"user\":\"100_1\"}",
         "bodyEncoding": "text"
       },
       "response": {
         "statusCode": 200,
         "headers": [
           ["access-control-allow-origin", "*"],
-          ["cf-ray", "9dc52c2b191a5910-LIS"],
+          ["access-control-expose-headers", "X-Generation-Id,cf-ray"],
+          ["cf-ray", "9ea5a7b4acf8691d-LIS"],
           ["content-type", "application/json"],
-          ["date", "Sat, 14 Mar 2026 17:59:30 GMT"],
+          ["date", "Fri, 10 Apr 2026 23:50:40 GMT"],
           [
             "permissions-policy",
             "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
           ],
           ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
           ["server", "cloudflare"],
-          ["x-content-type-options", "nosniff"]
+          ["x-content-type-options", "nosniff"],
+          ["x-generation-id", "gen-1775865040-NRkUGqnkQtHgC6NTwwZo"]
         ],
-        "body": "\n         \n{\"id\":\"gen-1773511169-VX98zzhjYVHs2XG3DiO3\",\"object\":\"response\",\"created_at\":1773511169,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1773511170,\"output\":[{\"id\":\"rs_tmp_0k24ze5c8rdl\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to get weather using function. Use function get_weather with location \\\"San Francisco\\\".\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"fc_tmp_4g9nvc25vsb\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"call_8d757346152c4afcbedee257\",\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\": \\\"San Francisco\\\"}\"}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name, e.g. San Francisco\"}},\"required\":[\"location\"]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":null,\"user\":\"100_1\",\"usage\":{\"input_tokens\":140,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":47,\"output_tokens_details\":{\"reasoning_tokens\":24},\"total_tokens\":187,\"cost\":0.00002952,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.00002952,\"upstream_inference_input_cost\":0.0000126,\"upstream_inference_output_cost\":0.00001692}}}",
+        "body": "\n         \n\n         \n\n         \n{\"id\":\"gen-1775865040-NRkUGqnkQtHgC6NTwwZo\",\"object\":\"response\",\"created_at\":1775865040,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1775865041,\"output\":[{\"id\":\"rs_tmp_kl0auaymf\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks: \\\"What is the weather in San Francisco?\\\" We need to retrieve the current weather using the get_weather tool which takes location string: \\\"San Francisco\\\". We'll call the function.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"fc_tmp_efyei8futu\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"chatcmpl-tool-1da2f62a9504444dba52d932746045de\",\"name\":\"get_weather\",\"arguments\":\"{\\n  \\\"location\\\": \\\"San Francisco\\\"\\n}\"}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name, e.g. San Francisco\"}},\"required\":[\"location\"]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"safety_identifier\":null,\"prompt_cache_key\":null,\"user\":\"100_1\",\"usage\":{\"input_tokens\":129,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":67,\"output_tokens_details\":{\"reasoning_tokens\":48},\"total_tokens\":196,\"cost\":0.000017761,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.000017761,\"upstream_inference_input_cost\":0.000005031,\"upstream_inference_output_cost\":0.00001273}}}",
         "bodyEncoding": "text"
       }
     }

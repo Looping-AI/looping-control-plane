@@ -2,7 +2,7 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 
 import AgentModel "../../../src/control-plane-core/models/agent-model";
-import ConversationModel "../../../src/control-plane-core/models/conversation-model";
+import ChannelHistoryModel "../../../src/control-plane-core/models/channel-history-model";
 import MetricModel "../../../src/control-plane-core/models/metric-model";
 import McpToolRegistry "../../../src/control-plane-core/tools/mcp-tool-registry";
 import ObjectiveModel "../../../src/control-plane-core/models/objective-model";
@@ -80,7 +80,7 @@ module {
     {
       secrets = SecretModel.initState();
       keyCache;
-      conversationStore = ConversationModel.empty();
+      channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = AgentModel.emptyState();
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
@@ -133,7 +133,7 @@ module {
     {
       secrets;
       keyCache;
-      conversationStore = ConversationModel.empty();
+      channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
@@ -185,7 +185,7 @@ module {
     {
       secrets;
       keyCache;
-      conversationStore = ConversationModel.empty();
+      channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
@@ -252,7 +252,7 @@ module {
     {
       secrets;
       keyCache;
-      conversationStore = ConversationModel.empty();
+      channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
@@ -316,7 +316,7 @@ module {
     {
       secrets;
       keyCache;
-      conversationStore = ConversationModel.empty();
+      channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();

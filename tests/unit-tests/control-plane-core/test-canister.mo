@@ -63,12 +63,12 @@ import WeeklyReconciliationRunner "../../../src/control-plane-core/timers/weekly
 import ClearKeyCacheRunner "../../../src/control-plane-core/timers/clear-key-cache-runner";
 import MetricRetentionRunner "../../../src/control-plane-core/timers/metric-retention-runner";
 import ProcessedEventsCleanupRunner "../../../src/control-plane-core/timers/processed-events-cleanup-runner";
-import ConversationPruneRunner "../../../src/control-plane-core/timers/conversation-prune-runner";
+import ChannelHistoryPruneRunner "../../../src/control-plane-core/timers/channel-history-prune-runner";
 import SlackEventIntakeService "../../../src/control-plane-core/services/slack-event-intake-service";
 import ValueStreamModel "../../../src/control-plane-core/models/value-stream-model";
 import ObjectiveModel "../../../src/control-plane-core/models/objective-model";
 import MetricModel "../../../src/control-plane-core/models/metric-model";
-import ConversationModel "../../../src/control-plane-core/models/conversation-model";
+import ChannelHistoryModel "../../../src/control-plane-core/models/channel-history-model";
 import SlackUserModel "../../../src/control-plane-core/models/slack-user-model";
 import SlackAuthMiddleware "../../../src/control-plane-core/middleware/slack-auth-middleware";
 import WorkspaceModel "../../../src/control-plane-core/models/workspace-model";
@@ -159,8 +159,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // canister lifetime (but each test creates a fresh PocketIC canister).
   let testEventStore = EventStoreModel.empty();
 
-  // Conversation store for conversation-prune runner tests.
-  let testConversationStore = ConversationModel.empty();
+  // Channel history store for channel-history-prune runner tests.
+  let testChannelHistoryStore = ChannelHistoryModel.empty();
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -358,8 +358,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = false;
       workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
     };
-    ConversationModel.addMessage(
-      ctx.conversationStore,
+    ChannelHistoryModel.addMessage(
+      ctx.channelHistory,
       parentChannel,
       {
         ts = parentTs;
@@ -369,8 +369,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       },
       null,
     );
-    ignore ConversationModel.updateMessageContext(
-      ctx.conversationStore,
+    ignore ChannelHistoryModel.updateMessageContext(
+      ctx.channelHistory,
       parentChannel,
       parentTs,
       parentTs,
@@ -445,8 +445,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = false;
       workspaceScopes = Map.empty<Nat, SlackUserModel.WorkspaceScope>();
     };
-    ConversationModel.addMessage(
-      ctx.conversationStore,
+    ChannelHistoryModel.addMessage(
+      ctx.channelHistory,
       parentChannel,
       {
         ts = parentTs;
@@ -456,8 +456,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       },
       null,
     );
-    ignore ConversationModel.updateMessageContext(
-      ctx.conversationStore,
+    ignore ChannelHistoryModel.updateMessageContext(
+      ctx.channelHistory,
       parentChannel,
       parentTs,
       parentTs,
@@ -850,26 +850,26 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     ProcessedEventsCleanupRunner.run(testEventStore);
   };
 
-  /// Run the conversation-prune runner against testConversationStore.
-  public shared ({ caller }) func testConversationPruneRunner() : async {
+  /// Run the channel-history-prune runner against testChannelHistoryStore.
+  public shared ({ caller }) func testChannelHistoryPruneRunner() : async {
     #ok;
     #err : Text;
   } {
     assert caller == parent;
-    ConversationPruneRunner.run(testConversationStore);
+    ChannelHistoryPruneRunner.run(testChannelHistoryStore);
   };
 
-  /// Seed a message directly into testConversationStore for prune runner tests.
+  /// Seed a message directly into testChannelHistoryStore for prune runner tests.
   /// The ts string format must be "SECONDS.MICROSECONDS" (e.g. "1700000000.000001").
   /// Pass null for threadTs to store as a top-level post.
-  public shared ({ caller }) func testSeedConversationMessage(
+  public shared ({ caller }) func testSeedChannelHistoryMessage(
     channelId : Text,
     ts : Text,
     threadTs : ?Text,
   ) : async () {
     assert caller == parent;
-    ConversationModel.addMessage(
-      testConversationStore,
+    ChannelHistoryModel.addMessage(
+      testChannelHistoryStore,
       channelId,
       {
         ts;
@@ -882,10 +882,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   /// Returns the number of top-level timeline entries for the given channel
-  /// in testConversationStore. Returns 0 if the channel does not exist.
-  public shared query ({ caller }) func testGetConversationEntryCount(channelId : Text) : async Nat {
+  /// in testChannelHistoryStore. Returns 0 if the channel does not exist.
+  public shared query ({ caller }) func testGetChannelHistoryEntryCount(channelId : Text) : async Nat {
     assert caller == parent;
-    switch (Map.get(testConversationStore, Text.compare, channelId)) {
+    switch (Map.get(testChannelHistoryStore, Text.compare, channelId)) {
       case (null) { 0 };
       case (?ch) { Map.size(ch.timeline) };
     };

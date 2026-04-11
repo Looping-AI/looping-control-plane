@@ -52,7 +52,7 @@ describe("MessageEditedHandler Unit Tests", () => {
     expect("ok" in result).toBe(true);
     if ("ok" in result) {
       expect(result.ok.length).toBeGreaterThan(0);
-      expect(result.ok[0].action).toBe("update_conversation");
+      expect(result.ok[0].action).toBe("update_channel_history");
       // result is #err("message not found") because the store is empty — expected
       expect("err" in result.ok[0].result).toBe(true);
     }

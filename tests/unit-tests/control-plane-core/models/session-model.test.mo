@@ -389,7 +389,9 @@ suite(
             durationMs = 500;
             finishReason = "stop";
             content = ?"hello";
+            truncatedContent = null;
             thinking = null;
+            truncatedThinking = null;
             toolRequests = null;
             cost = {
               promptTokens = 100;
@@ -406,7 +408,9 @@ suite(
             durationMs = 300;
             finishReason = "stop";
             content = ?"world";
+            truncatedContent = null;
             thinking = null;
+            truncatedThinking = null;
             toolRequests = null;
             cost = {
               promptTokens = 80;

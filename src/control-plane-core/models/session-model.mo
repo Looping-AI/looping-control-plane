@@ -73,7 +73,9 @@ module {
       durationMs : Nat;
       finishReason : Text;
       content : ?Text;
+      truncatedContent : ?Text;
       thinking : ?Text;
+      truncatedThinking : ?Text;
       toolRequests : ?[{ name : Text; input : Text }];
       cost : TurnCost;
     };
@@ -81,6 +83,7 @@ module {
       name : Text;
       input : Text;
       output : Text;
+      truncatedOutput : ?Text;
       success : Bool;
       durationMs : Nat;
     };

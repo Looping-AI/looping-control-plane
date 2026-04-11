@@ -1,14 +1,14 @@
 /// Message Deleted Handler
 /// Handles message deletion events (message_deleted).
 ///
-/// Removes the deleted message from the conversation store.
+/// Removes the deleted message from the channel history store.
 /// The message_deleted event does not carry thread_ts, so a scan-based
-/// search is used (see ConversationModel.findAndDeleteMessage).
+/// search is used (see ChannelHistoryModel.findAndDeleteMessage).
 
 import Time "mo:core/Time";
 import NormalizedEventTypes "../types/normalized-event-types";
 import EventProcessingContextTypes "../types/event-processing-context";
-import ConversationModel "../../models/conversation-model";
+import ChannelHistoryModel "../../models/channel-history-model";
 
 module {
 
@@ -19,8 +19,8 @@ module {
     },
     ctx : EventProcessingContextTypes.EventProcessingContext,
   ) : async NormalizedEventTypes.HandlerResult {
-    let removed = ConversationModel.findAndDeleteMessage(
-      ctx.conversationStore,
+    let removed = ChannelHistoryModel.findAndDeleteMessage(
+      ctx.channelHistory,
       deleted.channel,
       deleted.deletedTs,
     );

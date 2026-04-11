@@ -56,7 +56,7 @@ module {
   /// Defined here (rather than in events/types/) so orchestrators and other
   /// non-event modules can also emit and return steps without a cross-layer import.
   public type ProcessingStep = {
-    action : Text; // e.g. "llm_call", "post_to_slack", "update_conversation"
+    action : Text; // e.g. "llm_call", "post_to_slack", "update_channel_history"
     result : { #ok; #err : Text };
     timestamp : Int; // Time.now() when this step completed
   };
@@ -74,7 +74,7 @@ module {
 
   /// The payload carried inside every agent message metadata block.
   /// Extracted as a standalone type so callers that only need lineage data
-  /// (e.g. ConversationMessage) don't have to carry the outer Slack envelope.
+  /// (e.g. ChannelMessage) don't have to carry the outer Slack envelope.
   /// `event_payload.parent_agent`   — bare agent name that produced this reply (e.g. `"admin"`, no `::` prefix).
   /// `event_payload.parent_ts`      — ts of the message this is a reply to.
   /// `event_payload.parent_channel` — channel of that message (ts is channel-scoped;

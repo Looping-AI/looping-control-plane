@@ -1,14 +1,17 @@
-/// Conversation Model
+/// Channel History Model
 ///
-/// Channel-keyed, timeline-structured persistent conversation store.
+/// Channel-keyed, timeline-structured persistent store of Slack message history.
+/// This is the raw communication record used as source material for LLM context
+/// assembly. It does not belong to any agent — all agents invited to a channel
+/// draw from the same Channel History.
 ///
 /// Design summary:
 ///   - Outer key: Slack channelId (Text) → ChannelStore
 ///   - ChannelStore.timeline : Map<ts, TimelineEntry>   — ordered channel view
-///     - TimelineEntry = #post ConversationMessage       — standalone message (99% case)
-///                     | #thread ThreadGroup             — root + ≥1 replies
-///   - ChannelStore.replyIndex : Map<ts, rootTs>        — reply-only reverse lookup
-///   - ThreadGroup.messages : Map<ts, ConversationMessage> — O(log M) msg access
+///     - TimelineEntry = #post ChannelMessage       — standalone message (99% case)
+///                     | #thread ThreadGroup        — root + ≥1 replies
+///   - ChannelStore.replyIndex : Map<ts, rootTs>    — reply-only reverse lookup
+///   - ThreadGroup.messages : Map<ts, ChannelMessage> — O(log M) msg access
 ///
 /// All maps use Text.compare on Slack ts strings, which sort
 /// lexicographically == chronologically (10-digit seconds prefix).
@@ -20,11 +23,8 @@
 ///
 /// LLM tool messages (tool_call / tool_response) are NOT persisted here;
 /// they are ephemeral and exist only in-memory during a single service invocation.
-///
-/// TODO: when Sessions are implemented (Phase 1.7), associate in-flight tool
-/// call/response history with a SessionRecord rather than keeping it purely
-/// ephemeral. Sessions will be nextId-based and optionally linkable to a
-/// slackTs, a batch of ts values, or future concepts like Tasks and Strategies.
+/// Agent execution details (tool call traces, costs, delegation chains) are
+/// recorded in the Agent Session model instead (see session-model.mo).
 
 import Map "mo:core/Map";
 import List "mo:core/List";
@@ -40,7 +40,7 @@ module {
   // Types
   // ============================================
 
-  /// A single message stored in the conversation.
+  /// A single message stored in the channel history.
   ///
   /// - `ts`: Slack-assigned timestamp; format "UNIX_SECONDS.MICROSECONDS"
   ///   (e.g. "1740000000.123456"). Unique per channel; serves as the
@@ -51,7 +51,7 @@ module {
   /// - `text`: current message text; replaced in-place on message_changed events.
   /// - `agentMetadata`: null for user messages; the full lineage payload for bot
   ///   replies, carrying `parent_agent`, `parent_channel`, and `parent_ts`.
-  public type ConversationMessage = {
+  public type ChannelMessage = {
     ts : Text;
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
     text : Text;
@@ -65,7 +65,7 @@ module {
   ///   sorted chronologically via Text.compare.
   public type ThreadGroup = {
     rootTs : Text;
-    messages : Map.Map<Text, ConversationMessage>;
+    messages : Map.Map<Text, ChannelMessage>;
   };
 
   /// A single entry in the channel timeline.
@@ -75,7 +75,7 @@ module {
   /// - `#thread`: a root message that has accumulated at least one reply.
   ///   Promoted in-place from #post when the first reply arrives.
   public type TimelineEntry = {
-    #post : ConversationMessage;
+    #post : ChannelMessage;
     #thread : ThreadGroup;
   };
 
@@ -89,15 +89,15 @@ module {
     replyIndex : Map.Map<Text, Text>;
   };
 
-  /// The conversation store: one ChannelStore per channel.
-  public type ConversationStore = Map.Map<Text, ChannelStore>;
+  /// The channel history store: one ChannelStore per channel.
+  public type ChannelHistoryStore = Map.Map<Text, ChannelStore>;
 
   // ============================================
   // Constructor
   // ============================================
 
-  /// Return a new, empty ConversationStore.
-  public func empty() : ConversationStore {
+  /// Return a new, empty ChannelHistoryStore.
+  public func empty() : ChannelHistoryStore {
     Map.empty<Text, ChannelStore>();
   };
 
@@ -106,7 +106,7 @@ module {
   // ============================================
 
   private func getOrCreateChannelStore(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
   ) : ChannelStore {
     switch (Map.get(store, Text.compare, channelId)) {
@@ -135,7 +135,7 @@ module {
   // addMessage
   // ============================================
 
-  /// Persist a message into the conversation store.
+  /// Persist a message into the channel history store.
   ///
   /// - `threadTs = null` → top-level post: store as #post (no replyIndex entry).
   /// - `threadTs = ?rootTs` → reply:
@@ -144,9 +144,9 @@ module {
   ///     - No entry at rootTs → create sparse #thread (reply arrived before root).
   ///   A replyIndex entry (msg.ts → rootTs) is added for every reply.
   public func addMessage(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
-    msg : ConversationMessage,
+    msg : ChannelMessage,
     threadTs : ?Text,
   ) {
     let ch = getOrCreateChannelStore(store, channelId);
@@ -178,7 +178,7 @@ module {
           };
           case (?#post rootMsg) {
             // First reply: promote #post → #thread.
-            let msgs = Map.empty<Text, ConversationMessage>();
+            let msgs = Map.empty<Text, ChannelMessage>();
             Map.add(msgs, Text.compare, rootMsg.ts, rootMsg);
             Map.add(msgs, Text.compare, msg.ts, msg);
             Map.add(
@@ -190,7 +190,7 @@ module {
           };
           case (null) {
             // Reply arrived before root — create sparse #thread.
-            let msgs = Map.empty<Text, ConversationMessage>();
+            let msgs = Map.empty<Text, ChannelMessage>();
             Map.add(msgs, Text.compare, msg.ts, msg);
             Map.add(
               ch.timeline,
@@ -212,20 +212,20 @@ module {
   // getMessage
   // ============================================
 
-  /// Return the `ConversationMessage` for (channelId, ts), or null if not found.
+  /// Return the `ChannelMessage` for (channelId, ts), or null if not found.
   ///
   /// Lookup strategy (O(log N + log M)):
   ///   1. Check `replyIndex` — if `ts` is a reply, get the rootTs, then find the
-  ///      message in the `#thread`’s messages map.
+  ///      message in the `#thread`'s messages map.
   ///   2. Otherwise check `timeline` directly — `ts` is itself a root/post ts.
   ///
   /// Used by the bot-message path in MessageHandler to resolve the parent message
-  /// and derive the new `roundCount`.
+  /// and verify the delegation lineage.
   public func getMessage(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
     ts : Text,
-  ) : ?ConversationMessage {
+  ) : ?ChannelMessage {
     switch (Map.get(store, Text.compare, channelId)) {
       case (null) { null };
       case (?ch) {
@@ -263,7 +263,7 @@ module {
   /// Return the TimelineEntry for (channelId, rootTs), or null if not found.
   /// O(log N) — direct timeline lookup.
   public func getEntry(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
     rootTs : Text,
   ) : ?TimelineEntry {
@@ -281,7 +281,7 @@ module {
   /// Each summary carries `ts` (the root/post ts) and a `hasReplies` flag.
   /// Entries are ordered chronologically (Text.compare on ts = lexicographic = time order).
   public func getRecentEntries(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
     limit : Nat,
   ) : [{ ts : Text; hasReplies : Bool }] {
@@ -310,6 +310,87 @@ module {
   };
 
   // ============================================
+  // getRecentRootMessages
+  // ============================================
+
+  /// Return the root message of each of the last `limit` timeline entries.
+  /// For `#post` entries, the message itself is returned.
+  /// For `#thread` entries, the root message (at `thread.rootTs`) is returned.
+  /// Messages are ordered chronologically (oldest → newest).
+  /// If there are fewer entries than `limit`, all entries are returned.
+  public func getRecentRootMessages(
+    store : ChannelHistoryStore,
+    channelId : Text,
+    limit : Nat,
+  ) : [ChannelMessage] {
+    switch (Map.get(store, Text.compare, channelId)) {
+      case (null) { [] };
+      case (?ch) {
+        let arr = Map.toArray(ch.timeline);
+        let total = arr.size();
+        let startIndex = if (total > limit) Nat.sub(total, limit) else 0;
+        let result = List.empty<ChannelMessage>();
+        var i = startIndex;
+        while (i < total) {
+          let (_, entry) = arr[i];
+          switch (entry) {
+            case (#post msg) { List.add(result, msg) };
+            case (#thread thread) {
+              switch (Map.get(thread.messages, Text.compare, thread.rootTs)) {
+                case (?msg) { List.add(result, msg) };
+                case (null) {};
+              };
+            };
+          };
+          i += 1;
+        };
+        List.toArray(result);
+      };
+    };
+  };
+
+  // ============================================
+  // getRecentThreadMessages
+  // ============================================
+
+  /// Return the last `limit` messages from the thread rooted at `rootTs`.
+  ///
+  /// Returns `[]` when:
+  ///   - The channel or entry does not exist
+  ///   - The entry is a standalone `#post` (no replies)
+  ///
+  /// Messages are ordered chronologically (oldest → newest).
+  public func getRecentThreadMessages(
+    store : ChannelHistoryStore,
+    channelId : Text,
+    rootTs : Text,
+    limit : Nat,
+  ) : [ChannelMessage] {
+    switch (Map.get(store, Text.compare, channelId)) {
+      case (null) { [] };
+      case (?ch) {
+        switch (Map.get(ch.timeline, Text.compare, rootTs)) {
+          case (null) { [] };
+          case (?#post _) { [] };
+          case (?#thread thread) {
+            let messagesArr = Map.toArray(thread.messages);
+            let total = messagesArr.size();
+            let startIndex = if (total > limit) Nat.sub(total, limit) else 0;
+            let result = List.empty<ChannelMessage>();
+            var i = startIndex;
+            while (i < total) {
+              let (_, msg) = messagesArr[i];
+              List.add(result, msg);
+              i += 1;
+            };
+            List.toArray(result);
+          };
+        };
+      };
+    };
+  };
+
+  // ============================================
   // updateMessageText
   // ============================================
 
@@ -318,7 +399,7 @@ module {
   /// O(log N + log M) — no list traversal, no allocation for non-matching entries.
   /// Returns true if the message was found and updated.
   public func updateMessageText(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
     rootTs : Text,
     ts : Text,
@@ -377,7 +458,7 @@ module {
   /// O(log N + log M) — no list traversal.
   /// Returns true if the message was found and updated.
   public func updateMessageContext(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
     rootTs : Text,
     ts : Text,
@@ -438,7 +519,7 @@ module {
   /// O(log N + log M) — all map operations.
   /// Returns true if the message was found and removed.
   public func deleteMessage(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
     rootTs : Text,
     ts : Text,
@@ -486,7 +567,7 @@ module {
   /// O(log R) for replies; O(log N) for root/post messages.
   /// Returns true if the message was found and removed.
   public func findAndDeleteMessage(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
     ts : Text,
   ) : Bool {
@@ -522,7 +603,7 @@ module {
   /// Removes pruned reply ts values from replyIndex as well.
   /// O(N × M) — unavoidable full scan; runs at most once per week from the timer.
   public func pruneChannel(
-    store : ConversationStore,
+    store : ChannelHistoryStore,
     channelId : Text,
     cutoffSecs : Nat,
   ) {
@@ -584,8 +665,8 @@ module {
   };
 
   /// Run pruneChannel for every channel in the store.
-  /// Invoked by the Sunday cleanup timer to enforce 1-month retention.
-  public func pruneAll(store : ConversationStore, cutoffSecs : Nat) {
+  /// Invoked by the weekly cleanup timer to enforce 30-day retention.
+  public func pruneAll(store : ChannelHistoryStore, cutoffSecs : Nat) {
     for ((channelId, _) in Map.entries(store)) {
       pruneChannel(store, channelId, cutoffSecs);
     };

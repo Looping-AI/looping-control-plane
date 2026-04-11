@@ -2,11 +2,10 @@ import Array "mo:core/Array";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
-import Map "mo:core/Map";
 import Time "mo:core/Time";
-import Text "mo:core/Text";
+import TextUtils "../../utilities/text-utils";
 import Types "../../types";
-import ConversationModel "../../models/conversation-model";
+import ChannelHistoryModel "../../models/channel-history-model";
 import AgentModel "../../models/agent-model";
 import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
 import InstructionComposer "../../instructions/instruction-composer";
@@ -16,6 +15,7 @@ import McpToolRegistry "../../tools/mcp-tool-registry";
 import ToolExecutor "../../tools/tool-executor";
 import ToolTypes "../../tools/tool-types";
 import AgentHelpers "../helpers";
+import ContextAssembler "../context-assembler";
 import WorkspaceModel "../../models/workspace-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
@@ -27,9 +27,6 @@ module {
 
   // Maximum iterations for multi-turn tool execution loop
   let MAX_ITERATIONS : Nat = 10;
-
-  // Maximum number of previous conversation messages to include as context
-  let MAX_CONVERSATION_HISTORY : Nat = 30;
 
   /// All org-admin data the org-admin agent needs at execution time.
   /// Carries the full workspace state so the agent can list, create,
@@ -65,15 +62,15 @@ module {
   ///
   /// `agent` drives persona, tool filtering, and knowledge sources.
   /// `ctx` carries the org-admin data (workspace state for channel-anchor management).
-  /// `conversationEntry` carries the timeline entry for LLM context.
-  /// Pass `null` when no persistent history exists.
+  /// `channelHistory` + `channelId` + `threadTs` provide channel/thread context for LLM.
   /// Tool call / tool response messages are ephemeral and never written to the store.
   public func process(
     agent : AgentModel.AgentRecord,
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
-    conversationEntry : ?ConversationModel.TimelineEntry,
+    channelHistory : ChannelHistoryModel.ChannelHistoryStore,
+    channelId : Text,
+    threadTs : ?Text,
     ctx : AdminCtx,
-    message : Text,
     apiKey : Text,
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
@@ -157,14 +154,12 @@ module {
 
     let toolsOpt : ?[OpenRouterWrapper.Tool] = if (filteredTools.size() == 0) null else ?filteredTools;
 
-    // Build LLM context from persistent conversation history.
+    // Assemble LLM context from session memory, turn digests, and channel/thread history.
     // Tool call / tool response artifacts are appended to inputMessages during the
-    // reasoning loop below but are NOT written to the conversation store — they are
+    // reasoning loop below but are NOT written to the channel history store — they are
     // ephemeral and discarded when this function returns.
-    let inputMessages = buildContextMessages(conversationEntry);
-
-    // Add the new user message
-    List.add(inputMessages, { role = #user; content = message });
+    let assembled = ContextAssembler.assemble(sessionStores, agent.id, turnId, channelHistory, channelId, threadTs);
+    let inputMessages = List.fromArray<OpenRouterWrapper.ResponseInputMessage>(assembled.messages);
 
     var iteration = 0;
 
@@ -183,7 +178,7 @@ module {
       let llmDurationMs : Nat = Int.abs(Time.now() - llmStartNs) / 1_000_000;
 
       switch (llmResult) {
-        case (#ok(#textResponse(response))) {
+        case (#ok(#textResponse({ content = response; thinking }))) {
           List.add(
             steps,
             {
@@ -192,7 +187,12 @@ module {
               timestamp = Time.now();
             },
           );
-          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "stop"; content = ?response; thinking = null; toolRequests = null; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
+          let maxTruncChars = SessionModel.getOrCreateSession(sessionStores, agent.id).policy.maxTruncatedTokens * 4;
+          let truncatedThinkingOpt = switch (thinking) {
+            case (null) { null };
+            case (?t) { ?TextUtils.truncateMiddle(t, maxTruncChars) };
+          };
+          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "stop"; content = ?response; truncatedContent = ?TextUtils.truncateMiddle(response, maxTruncChars); thinking; truncatedThinking = truncatedThinkingOpt; toolRequests = null; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
           return #ok({ response; steps = List.toArray(steps) });
         };
 
@@ -202,9 +202,9 @@ module {
             calls,
             func(c) { { name = c.toolName; input = c.arguments } },
           );
-          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "tool_calls"; content = null; thinking = null; toolRequests = ?toolReqs; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
+          SessionModel.appendTrace(sessionStores, turnId, #llmCall({ model = modelText; durationMs = llmDurationMs; finishReason = "tool_calls"; content = null; truncatedContent = null; thinking = null; truncatedThinking = null; toolRequests = ?toolReqs; cost = { promptTokens = 0; completionTokens = 0; estimatedMicroUnits = 0 } }));
 
-          // Format tool call message (ephemeral — not written to conversation store)
+          // Format tool call message (ephemeral — not written to channel history store)
           let toolCallContent = "Using tools: " # Array.foldLeft<OpenRouterWrapper.ToolCall, Text>(
             calls,
             "",
@@ -234,7 +234,8 @@ module {
                 timestamp = Time.now();
               },
             );
-            SessionModel.appendTrace(sessionStores, turnId, #toolCall({ name = toolName; input = calls[i].arguments; output = toolOutput; success = toolSuccess; durationMs = toolResults[i].durationMs }));
+            let maxTruncChars = SessionModel.getOrCreateSession(sessionStores, agent.id).policy.maxTruncatedTokens * 4;
+            SessionModel.appendTrace(sessionStores, turnId, #toolCall({ name = toolName; input = calls[i].arguments; output = toolOutput; truncatedOutput = ?TextUtils.truncateMiddle(toolOutput, maxTruncChars); success = toolSuccess; durationMs = toolResults[i].durationMs }));
           };
 
           // Append tool results to in-memory input for the next LLM round
@@ -273,46 +274,6 @@ module {
         };
       };
     };
-  };
-
-  /// Build LLM input messages from a TimelineEntry (conversation history).
-  ///
-  /// Role mapping:
-  ///   ConversationMessage.userAuthContext = null  → #assistant  (bot/agent message)
-  ///   ConversationMessage.userAuthContext = ?_    → #user       (human message)
-  private func buildContextMessages(
-    conversationEntry : ?ConversationModel.TimelineEntry
-  ) : List.List<OpenRouterWrapper.ResponseInputMessage> {
-    let inputMessages = List.empty<OpenRouterWrapper.ResponseInputMessage>();
-    switch (conversationEntry) {
-      case (null) { /* no history — start fresh */ };
-      case (?#post msg) {
-        let role : OpenRouterWrapper.MessageRole = switch (msg.userAuthContext) {
-          case (null) { #assistant };
-          case (?_) { #user };
-        };
-        List.add(inputMessages, { role; content = msg.text });
-      };
-      case (?#thread thread) {
-        let messagesArr = Map.toArray(thread.messages);
-        let startIndex = if (messagesArr.size() > MAX_CONVERSATION_HISTORY) {
-          Nat.sub(messagesArr.size(), MAX_CONVERSATION_HISTORY);
-        } else {
-          0;
-        };
-        var i = startIndex;
-        while (i < messagesArr.size()) {
-          let (_, msg) = messagesArr[i];
-          let role : OpenRouterWrapper.MessageRole = switch (msg.userAuthContext) {
-            case (null) { #assistant };
-            case (?_) { #user };
-          };
-          List.add(inputMessages, { role; content = msg.text });
-          i += 1;
-        };
-      };
-    };
-    inputMessages;
   };
 
   /// Build instructions for the org-admin persona.

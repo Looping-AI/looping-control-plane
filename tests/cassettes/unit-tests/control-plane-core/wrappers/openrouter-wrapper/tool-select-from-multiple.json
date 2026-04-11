@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "tool-select-from-multiple",
-  "recordedAt": "2026-03-14T17:59:31.648Z",
+  "recordedAt": "2026-04-10T23:56:12.301Z",
   "interactions": [
     {
       "request": {
@@ -13,25 +13,27 @@
           ["HTTP-Referer", "https://loopingai.app"],
           ["X-Title", "Looping AI"]
         ],
-        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Calculate 15 multiplied by 7\"}],\"model\":\"openai/gpt-oss-120b\",\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name\"}},\"required\":[\"location\"]}},{\"type\":\"function\",\"name\":\"calculator\",\"description\":\"Perform mathematical calculations\",\"parameters\":{\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"string\",\"enum\":[\"add\",\"subtract\",\"multiply\",\"divide\"],\"description\":\"The mathematical operation to perform\"},\"a\":{\"type\":\"number\",\"description\":\"First operand\"},\"b\":{\"type\":\"number\",\"description\":\"Second operand\"}},\"required\":[\"operation\",\"a\",\"b\"]}}],\"user\":\"100_2\"}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"What is the weather like in Tokyo right now?\"}],\"model\":\"openai/gpt-oss-120b\",\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name\"}},\"required\":[\"location\"]}},{\"type\":\"function\",\"name\":\"calculator\",\"description\":\"Perform mathematical calculations\",\"parameters\":{\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"string\",\"enum\":[\"add\",\"subtract\",\"multiply\",\"divide\"],\"description\":\"The mathematical operation to perform\"},\"a\":{\"type\":\"number\",\"description\":\"First operand\"},\"b\":{\"type\":\"number\",\"description\":\"Second operand\"}},\"required\":[\"operation\",\"a\",\"b\"]}}],\"user\":\"100_2\"}",
         "bodyEncoding": "text"
       },
       "response": {
         "statusCode": 200,
         "headers": [
           ["access-control-allow-origin", "*"],
-          ["cf-ray", "9dc52c37bd205910-LIS"],
+          ["access-control-expose-headers", "X-Generation-Id,cf-ray"],
+          ["cf-ray", "9ea5afd26879c534-LIS"],
           ["content-type", "application/json"],
-          ["date", "Sat, 14 Mar 2026 17:59:32 GMT"],
+          ["date", "Fri, 10 Apr 2026 23:56:13 GMT"],
           [
             "permissions-policy",
             "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
           ],
           ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
           ["server", "cloudflare"],
-          ["x-content-type-options", "nosniff"]
+          ["x-content-type-options", "nosniff"],
+          ["x-generation-id", "gen-1775865372-IVLFuYiyXsLtKhsIdNRA"]
         ],
-        "body": "\n         \n{\"id\":\"gen-1773511171-rcwi2eSjSVRQACIfsZbU\",\"object\":\"response\",\"created_at\":1773511171,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1773511172,\"output\":[{\"id\":\"rs_tmp_10ulr4ipi90r\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to compute 15 * 7 = 105. Use calculator function.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"fc_tmp_j2f3ipti48\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"call_5b40f6fbf16c4e33b6f0b2b1\",\"name\":\"calculator\",\"arguments\":\"{\\\"a\\\": 15, \\\"b\\\": 7, \\\"operation\\\": \\\"multiply\\\"}\"}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name\"}},\"required\":[\"location\"]},\"strict\":null},{\"type\":\"function\",\"name\":\"calculator\",\"description\":\"Perform mathematical calculations\",\"parameters\":{\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"string\",\"enum\":[\"add\",\"subtract\",\"multiply\",\"divide\"],\"description\":\"The mathematical operation to perform\"},\"a\":{\"type\":\"number\",\"description\":\"First operand\"},\"b\":{\"type\":\"number\",\"description\":\"Second operand\"}},\"required\":[\"operation\",\"a\",\"b\"]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":null,\"user\":\"100_2\",\"usage\":{\"input_tokens\":184,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":59,\"output_tokens_details\":{\"reasoning_tokens\":15},\"total_tokens\":243,\"cost\":0.0000378,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.0000378,\"upstream_inference_input_cost\":0.00001656,\"upstream_inference_output_cost\":0.00002124}}}",
+        "body": "\n         \n\n         \n\n         \n{\"id\":\"gen-1775865372-IVLFuYiyXsLtKhsIdNRA\",\"object\":\"response\",\"created_at\":1775865372,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1775865374,\"output\":[{\"id\":\"rs_tmp_h18xe0nx6o\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks \\\"What is the weather like in Tokyo right now?\\\" We can use the get_weather function to retrieve the weather for Tokyo. So we need to call get_weather with location \\\"Tokyo\\\". Then we need to output the weather description. We'll call the function.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"fc_tmp_ssn3gncouwj\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"chatcmpl-tool-af94bf14e3c5475682e8857e50ea6f46\",\"name\":\"get_weather\",\"arguments\":\"{\\n  \\\"location\\\": \\\"Tokyo\\\"\\n}\"}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get the current weather for a given location\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city name\"}},\"required\":[\"location\"]},\"strict\":null},{\"type\":\"function\",\"name\":\"calculator\",\"description\":\"Perform mathematical calculations\",\"parameters\":{\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"string\",\"enum\":[\"add\",\"subtract\",\"multiply\",\"divide\"],\"description\":\"The mathematical operation to perform\"},\"a\":{\"type\":\"number\",\"description\":\"First operand\"},\"b\":{\"type\":\"number\",\"description\":\"Second operand\"}},\"required\":[\"operation\",\"a\",\"b\"]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":null,\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"safety_identifier\":null,\"prompt_cache_key\":null,\"user\":\"100_2\",\"usage\":{\"input_tokens\":176,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":81,\"output_tokens_details\":{\"reasoning_tokens\":65},\"total_tokens\":257,\"cost\":0.000075,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.000075,\"upstream_inference_input_cost\":0.0000264,\"upstream_inference_output_cost\":0.0000486}}}",
         "bodyEncoding": "text"
       }
     }

@@ -1,5 +1,7 @@
-import { beforeAll, afterAll } from "bun:test";
+import { beforeAll, afterAll, setDefaultTimeout } from "bun:test";
 import { PocketIcServer } from "@dfinity/pic";
+
+setDefaultTimeout(30_000);
 
 let pic: PocketIcServer | undefined;
 

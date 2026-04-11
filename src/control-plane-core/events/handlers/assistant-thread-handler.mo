@@ -4,8 +4,8 @@
 ///   - Thread closed  (assistant_thread_context_changed / thread dismissed)
 ///
 /// Responsibilities (to be implemented):
-///   - Handle thread open: initialize conversation context
-///   - Handle thread close: clean up / persist conversation state
+///   - Handle thread open: initialize session context
+///   - Handle thread close: clean up / persist session state
 
 import Time "mo:core/Time";
 import NormalizedEventTypes "../types/normalized-event-types";
@@ -38,8 +38,8 @@ module {
       " | threadTs: " # thread.threadTs,
     );
 
-    // TODO: Handle #threadStarted — initialise conversation context
-    // TODO: Handle #threadContextChanged — update conversation context with new channel
+    // TODO: Handle #threadStarted — initialise session context
+    // TODO: Handle #threadContextChanged — update session context with new channel
     // TODO: Handle #threadMetadataUpdated — update stored thread title/metadata
 
     #ok([

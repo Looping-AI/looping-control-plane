@@ -106,8 +106,6 @@ The resolved identity and permissions of the user who initiated a request. Built
 - `isPrimaryOwner`: whether this user is the Slack Primary Owner.
 - `isOrgAdmin`: whether this user is a member of `#looping-ai-org-admins`.
 - `workspaceScopes`: per-workspace admin scope — `Map<workspaceId, #admin>`. In the simplified target model there is no workspace `#member` role.
-- `roundCount`: how many agent routing rounds have occurred for this request chain.
-- `forceTerminated`: whether the router has determined this chain should stop.
 
 The `userAuthContext` is the single source of truth for authorization in all downstream operations. It is carried through agent delegations: when agent A references agent B (on a Slack Message), the `userAuthContext` of the original human user is inherited, not the agent's identity.
 
@@ -158,7 +156,7 @@ Agents have one of two execution types:
 
 The `AgentRouter` branches on execution type before dispatching. The `#runtime` variant is extensible for future runtime types beyond GitHub Coding Agents.
 
-### Agent Category
+### Agent Category (deprecated)
 
 A class of agent behavior (e.g., admin, research, communication, coding). Each category defines:
 
@@ -166,7 +164,7 @@ A class of agent behavior (e.g., admin, research, communication, coding). Each c
 - LLM model selection strategy.
 - Template Skills and source/knowledge configuration.
 
-### Policies
+### Policies (future)
 
 Text-based rules governing what is allowed or not. Applied at the workspace level to constrain tasks, tools, budgets, and permissions. From these text based documents, logic rules are captured and converted into Dynamic Logic, formal logic, rules. Then they should be upheld when accessing tools. Maybe consider using an adaptation of Cedar Policy framework https://github.com/cedar-policy/cedar-authorization.
 
@@ -179,11 +177,11 @@ All system state mutations are driven exclusively by Events (or internally sched
 Each event source has its own HMAC-SHA256 signature verification — Slack uses a signing secret and GitHub uses a webhook secret.
 Slack remains the primary user interaction layer; GitHub webhooks handle runtime session lifecycle and agent response delivery.
 
-### Tasks and Processes
+### Processes
 
 The sources of system activity are: (a) a verified inbound webhook (Slack or GitHub), (b) an event emitted by the system itself via the `EventEmit` effect — either immediately or after a delay (timer/heartbeat), and (c) controller-only operations restricted to the canister controller principal (secret setup and recovery only). There is no other entry point.
 
-Work is modelled as **Processes**: stateful, multi-step computations driven by events and returning effects. "Tasks" in legacy code are a simplified form of this model.
+Work is modelled as **Processes**: stateful, multi-step computations driven by events and returning effects.
 
 ### Process
 
@@ -206,13 +204,13 @@ A file-like key-value store where each entry has `path: Text`, `name: Text`, `ex
 
 ### Channel History
 
-A timeline of Slack messages for a single channel — who said what and when. Channel History is the raw source material; it does not belong to any agent. All agents that are invited to a channel draw from the same Channel History. It is stored in the `conversationStore` and retained with a time-based expiry.
+A timeline of Slack messages for a single channel — who said what and when. Channel History is the raw source material; it does not belong to any agent. All agents that are allowlisted to a channel draw from the same Channel History. It is stored in the `channelHistoryStore` and retained with a time-based expiry.
 
 Writes are the common case (new messages), but Slack can send `message_changed` events for edited messages at any time. The structure is optimised for writes and the common read path, with retroactive edits applied when the corresponding event arrives. No strict immutability is assumed.
 
 ### Agent Session (detailed)
 
-One per agent, persistent across all channels the agent is invited to. The Agent Session is the agent's memory container, structured as a strict hierarchy:
+One per agent, persistent across all channels the agent is allowlisted to. The Agent Session is the agent's memory container, structured as a strict hierarchy:
 
 1. **Session record** (`AgentSessionRecord`): keyed by `agentId`, tracks turn sequencing, compaction state (summary layers), and context-budget policy.
 2. **Turn log** (`List<AgentTurnRecord>`): append-only, per-session. Each turn is one execution episode triggered by a Slack event, GitHub callback, or timer.
@@ -324,7 +322,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 3. `::accounting` agent process creates a new turn in its session, executes, and determines it needs data from `::tech`.
 4. `::accounting` posts a Slack message referencing `::tech` (architectural invariant: never invoke another agent process directly). The message metadata includes `turnId` of the originating turn.
 5. That message triggers a new Slack event → event router picks it up.
-6. Router reconstructs the `userAuthContext` from the parent turn's metadata (including incremented `roundCount`). A new turn is created in `::tech`'s session with `triggerTurnId` pointing to `::accounting`'s turn.
+6. Router reconstructs the `userAuthContext` from the parent turn's metadata. Routing round progression and termination checks are loaded from `SessionsModel`. A new turn is created in `::tech`'s session with `triggerTurnId` pointing to `::accounting`'s turn.
 7. `::tech` processes with the original user's access scopes but its own tools/skills.
 8. `::tech` replies → new event → router returns control to `::accounting`.
 9. `::accounting` compiles the report and replies to the original user.
@@ -366,7 +364,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 
 - `agentRegistry`: global agent registry with dual index by ID and name (Phase 1.1, implemented).
-- `conversationStore`: channel-keyed, timeline-structured message history with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Round tracking is embedded here — each `ConversationMessage` carries a `userAuthContext` field (`roundCount`, `forceTerminated`) so no separate round-context store is needed. See [src/control-plane-core/middleware/slack-auth-middleware.mo](src/control-plane-core/middleware/slack-auth-middleware.mo) for the `UserAuthContext` type.
+- `channelHistoryStore`: channel-keyed, timeline-structured message history stored via `ChannelHistoryModel`, with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Messages carry `userAuthContext` for identity/authorization snapshot only. Routing round progression and force-termination state are tracked in `SessionsModel`, not in channel history messages.
 - `slackUsers`: Slack user cache (`SlackUserEntry` records indexed by Slack user ID); populated by event-driven membership events and weekly reconciliation.
 - `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId` / `memberChannelId`). Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor.
 - `secrets`: encrypted secrets per workspace.
@@ -388,7 +386,7 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 - **Embedding indexes**: searchable indexes for memory records, core files, and Store documents (including skill documents under `skills/`) used during prompt-time retrieval.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceAdminScopes: [workspaceId], resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace. Includes `#custom(Text)` secret types for flexible credential mapping. Per-workspace audit state: `SecretAuditState = { changeLog: List<SecretChangeEntry>, accessLog: List<SecretAccessEntry> }` tracking stores, deletes, and accesses with timestamps and sources.
-- **Conversations**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/control-plane-core/models/conversation-model.mo](src/control-plane-core/models/conversation-model.mo) for the `ConversationStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
+- **Channel History**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/control-plane-core/models/channel-history-model.mo](src/control-plane-core/models/channel-history-model.mo) for the `ChannelHistoryStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
 - **Event store**: event lifecycle with timer dispatch (existing, retained).
 - **Metrics / Value Streams / Objectives**: existing models retained.
 - **Tool registries**: function tool registry (static) and MCP tool registry (dynamic), with new per-agent `toolsAllowed` and `toolsState`.
@@ -517,7 +515,7 @@ The **Agent Router** sits between Event Dispatch and agent process handlers.
 **Pre-conditions (checked before routing begins):**
 
 - The message must contain at least one **valid `::agentname` reference** — resolved against the agent registry at dispatch time. If no valid reference is found (e.g., the reference doesn't match any registered agent), the event is **discarded/skipped**. This prevents orphaned or malformed inter-agent messages from entering the routing loop.
-- `userAuthContext.forceTerminated` must be `false`. If true, the event is **discarded/skipped** without invoking any agent process.
+- The request chain must not be force-terminated in `SessionsModel`. If the chain is marked terminated, the event is **discarded/skipped** without invoking any agent process.
 - The Slack channel must be present in the referenced agent's `allowedChannelIds`. If not, the router posts a warning with the allowed channels and skips execution.
 
 Both conditions are checked at the event router level, before the Agent Router hands off to a category service.
@@ -529,7 +527,7 @@ When a message passes pre-conditions and references an agent:
 3. Passes the `userAuthContext` and session context to the service.
 4. The service executes and posts a reply to Slack.
 
-**Round tracking** (in `userAuthContext`):
+**Round tracking** (in `SessionsModel`):
 
 - `roundCount` increments each time the router processes a new event in the same request chain.
 - **Hard upper bound**: `MAX_AGENT_ROUNDS` (10, defined in Constants). Once this limit is reached, the session is force-terminated.
