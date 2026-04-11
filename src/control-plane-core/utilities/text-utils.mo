@@ -2,6 +2,7 @@
 ///
 /// General-purpose text helper functions used across the codebase.
 
+import Array "mo:core/Array";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 
@@ -28,21 +29,12 @@ module {
     // Collect characters into an array for random access
     let chars = Text.toArray(text);
 
-    // Build prefix (first `firstHalf` chars)
-    var prefix = "";
-    var i = 0;
-    while (i < firstHalf) {
-      prefix #= Text.fromChar(chars[i]);
-      i += 1;
-    };
-
-    // Build suffix (last `lastHalf` chars)
-    var suffix = "";
-    var j = Nat.sub(size, lastHalf);
-    while (j < size) {
-      suffix #= Text.fromChar(chars[j]);
-      j += 1;
-    };
+    // Build prefix (first `firstHalf` chars) and suffix (last `lastHalf` chars)
+    // using Array.tabulate so each slice is constructed in a single O(n) pass
+    // rather than via repeated #= concatenation (which would be O(n²)).
+    let startIdx = Nat.sub(size, lastHalf);
+    let prefix = Text.fromArray(Array.tabulate<Char>(firstHalf, func(k) = chars[k]));
+    let suffix = Text.fromArray(Array.tabulate<Char>(lastHalf, func(k) = chars[startIdx + k]));
 
     prefix # "[TRUNCATED]" # suffix;
   };
