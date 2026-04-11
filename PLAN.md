@@ -69,8 +69,8 @@ Add a per-agent Slack channel allowlist (`allowedChannelIds`) to the agent model
 
 **Test Steps**
 
-- Unit test (agent-model): register an agent with `allowedChannelIds = Set.fromArray(["C123"])`, confirm field persists. Update to `Set.fromArray(["C123", "C456"])`, confirm update. Attempt to create with empty set → error. Attempt to remove last channel → error.
-- Unit test (agent-router): route a message from channel "C123" to an agent with `allowedChannelIds = Set.fromArray(["C123"])` → succeeds. Route from "C999" → blocked with error listing allowed channels. Attempt to remove the last channel → error (at least one required).
+- Unit test (agent-model): register an agent with `allowedChannelIds` built via `Set.empty` + `Set.add` (for example, adding `"C123"`), confirm field persists. Update by adding `"C456"` with `Set.add`, confirm update. Attempt to create with empty set → error. Attempt to remove last channel → error.
+- Unit test (agent-router): route a message from channel "C123" to an agent with `allowedChannelIds` built via `Set.empty` + `Set.add` containing `"C123"` → succeeds. Route from "C999" → blocked with error listing allowed channels. Attempt to remove the last channel → error (at least one required).
 - Unit test (register-agent-handler): parse payload with valid `allowedChannelIds` (non-empty) → agent created. Parse payload with missing or empty `allowedChannelIds` → error.
 - Integration tests: existing talk tests continue to pass by pre-seeding agents with appropriate `allowedChannelIds` during setup.
 
