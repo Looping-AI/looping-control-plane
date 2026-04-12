@@ -36,7 +36,7 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ---
 
-### 5.0 — Remove Agent Forking
+### ~~5.0 — Remove Agent Forking~~
 
 **Goal**
 
