@@ -4,7 +4,6 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
-import Runtime "mo:core/Runtime";
 import WorkspaceModel "../../../models/workspace-model";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
@@ -101,7 +100,11 @@ module {
                       case (#ok(_)) {};
                     };
                   };
-                  case (null) { Runtime.unreachable() };
+                  case (null) {
+                    // Roll back: remove the workspace so state stays consistent
+                    ignore WorkspaceModel.deleteWorkspace(state, wsId);
+                    return Helpers.buildErrorResponse("Failed to register admin agent: agent registry is unavailable");
+                  };
                 };
                 Json.stringify(
                   obj([

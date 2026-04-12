@@ -219,6 +219,47 @@ describe("CreateWorkspaceHandler — channel verification (cassette)", () => {
     expect(response.adminChannelId).toBe(channelId);
   });
 
+  it("should appear in ListWorkspacesHandler results after creation", async () => {
+    const cassetteKey = `${CASSETTE_BASE}/create-workspace-primary-owner`;
+    const channelId = await resolveSpecsChannelForInfo(cassetteKey);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteKey,
+      () =>
+        testCanister.testCreateWorkspaceHandler(
+          JSON.stringify({ name: "Engineering", channelId }),
+          SLACK_TEST_TOKEN,
+          PRIMARY_OWNER,
+        ),
+      { ticks: 5, maxRounds: 2 },
+    );
+
+    const createResponse = parseResponse(await result);
+    expect(createResponse.success).toBe(true);
+    const newId = createResponse.id!;
+
+    // Verify the newly created workspace is returned by ListWorkspacesHandler
+    const executeList = await testCanister.testListWorkspacesHandler("{}");
+    await pic.tick(2);
+    const listResult = await executeList();
+    const listResponse = JSON.parse(listResult) as {
+      success: boolean;
+      workspaces: Array<{
+        id: number;
+        name: string;
+        adminChannelId: string | null;
+      }>;
+    };
+
+    expect(listResponse.success).toBe(true);
+    expect(
+      listResponse.workspaces.some(
+        (w) => w.id === newId && w.name === "Engineering",
+      ),
+    ).toBe(true);
+  });
+
   it("should return error when Slack cannot verify the channel", async () => {
     const cassetteKey = `${CASSETTE_BASE}/channel-not-accessible`;
 

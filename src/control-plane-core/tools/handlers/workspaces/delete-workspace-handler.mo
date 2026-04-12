@@ -3,7 +3,6 @@ import { str; obj; int; bool } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Text "mo:core/Text";
-import Runtime "mo:core/Runtime";
 import WorkspaceModel "../../../models/workspace-model";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
@@ -56,7 +55,10 @@ module {
                 // fabricate it. If the user has not typed the exact phrase, reject.
                 switch (triggerMessageText) {
                   case (null) {
-                    Runtime.unreachable();
+                    Helpers.buildErrorResponse(
+                      "Confirmation could not be verified because the triggering message text was unavailable. " #
+                      "The user must type exactly: " # expectedPhrase
+                    );
                   };
                   case (?phrase) {
                     if (not Text.equal(phrase, expectedPhrase)) {
@@ -78,7 +80,9 @@ module {
                                 case (null) {};
                               };
                             };
-                            case (null) { Runtime.unreachable() };
+                            case (null) {
+                              // No agent registry: skip agent cleanup, workspace is still deleted
+                            };
                           };
                           Json.stringify(
                             obj([
