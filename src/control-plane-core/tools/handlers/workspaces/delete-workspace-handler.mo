@@ -55,7 +55,7 @@ module {
                 // fabricate it. If the user has not typed the exact phrase, reject.
                 switch (triggerMessageText) {
                   case (null) {
-                    Helpers.buildErrorResponse(
+                    return Helpers.buildErrorResponse(
                       "Confirmation could not be verified because the triggering message text was unavailable. " #
                       "The user must type exactly: " # expectedPhrase
                     );

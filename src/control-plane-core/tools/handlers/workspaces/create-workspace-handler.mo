@@ -102,8 +102,13 @@ module {
                   };
                   case (null) {
                     // Roll back: remove the workspace so state stays consistent
-                    ignore WorkspaceModel.deleteWorkspace(state, wsId);
-                    return Helpers.buildErrorResponse("Failed to register admin agent: agent registry is unavailable");
+                    let rollbackMsg = switch (WorkspaceModel.deleteWorkspace(state, wsId)) {
+                      case (#err(rollbackErr)) {
+                        " (rollback failed: " # rollbackErr # ")";
+                      };
+                      case (#ok(())) { "" };
+                    };
+                    return Helpers.buildErrorResponse("Failed to register admin agent: agent registry is unavailable" # rollbackMsg);
                   };
                 };
                 Json.stringify(
