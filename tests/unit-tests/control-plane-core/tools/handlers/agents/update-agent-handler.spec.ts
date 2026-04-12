@@ -60,6 +60,7 @@ describe("UpdateAgentHandler", () => {
           name: "AdminBot",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -79,6 +80,7 @@ describe("UpdateAgentHandler", () => {
           name: "AdminBot",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -97,6 +99,7 @@ describe("UpdateAgentHandler", () => {
           name: "AdminBot",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -148,6 +151,7 @@ describe("UpdateAgentHandler", () => {
           name: "original-name",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );

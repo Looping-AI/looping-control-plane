@@ -1,5 +1,6 @@
 import { test; suite; expect } "mo:test";
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import InstructionComposer "../../../../src/control-plane-core/instructions/instruction-composer";
 import AgentHelpers "../../../../src/control-plane-core/agents/helpers";
@@ -28,6 +29,7 @@ func makeAgent(
     toolsMisconfigured;
     toolsState = Map.empty<Text, AgentModel.ToolState>();
     sources;
+    allowedChannelIds = Set.singleton<Text>("C_TEST");
   };
 };
 

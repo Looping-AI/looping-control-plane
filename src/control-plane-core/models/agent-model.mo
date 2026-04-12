@@ -1,4 +1,5 @@
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
@@ -6,6 +7,14 @@ import Result "mo:core/Result";
 import Types "../types";
 
 module {
+  // Placeholder channel ID stored in an agent's allowedChannelIds when the
+  // workspace admin channel has not yet been configured. The agent-router
+  // treats this value as a real channel ID (no special-casing), so the agent
+  // will be blocked from any real channel until the admin channel is set via
+  // set_workspace_admin_channel, which automatically replaces this placeholder
+  // with the real channel ID.
+  public let PENDING_ADMIN_CHANNEL : Text = "PENDING_ADMIN_CHANNEL";
+
   // ============================================
   // Types
   // ============================================
@@ -69,10 +78,12 @@ module {
   ///                     When resolving `targetSecretId`, the model first looks up
   ///                     `#custom(customKeyName)` from this agent's workspace before
   ///                     falling back to the standard ID and the org-level fallback.
-  ///   toolsDisallowed — blocklist of tool names to exclude from LLM tool set (by function name).
-  ///   toolsMisconfigured — tools excluded due to operator errors; cleared after investigation.
-  ///   toolsState      — per-tool runtime state (usageCount + knowHow text).
-  ///   sources         — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
+  ///   toolsDisallowed     — blocklist of tool names to exclude from LLM tool set (by function name).
+  ///   toolsMisconfigured  — tools excluded due to operator errors; cleared after investigation.
+  ///   toolsState          — per-tool runtime state (usageCount + knowHow text).
+  ///   sources             — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
+  ///   allowedChannelIds   — set of Slack channel IDs where this agent may run.
+  ///                         Must be non-empty; cannot be emptied after registration.
   public type AgentRecord = {
     id : Nat;
     name : Text;
@@ -85,6 +96,7 @@ module {
     toolsMisconfigured : [Text];
     toolsState : Map.Map<Text, ToolState>;
     sources : [Text];
+    allowedChannelIds : Set.Set<Text>;
   };
 
   /// Type alias for the agent registry state.
@@ -203,6 +215,7 @@ module {
     toolsMisconfigured : [Text],
     toolsState : Map.Map<Text, ToolState>,
     sources : [Text],
+    allowedChannelIds : Set.Set<Text>,
     state : AgentRegistryState,
   ) : Result.Result<Nat, Text> {
     let normalized = switch (validateAndNormalizeName(name)) {
@@ -213,6 +226,23 @@ module {
     switch (isNameAvailable(normalized, state, null)) {
       case (#err(msg)) { return #err(msg) };
       case (#ok(())) {};
+    };
+
+    if (Set.size(allowedChannelIds) == 0) {
+      return #err("allowedChannelIds must contain at least one channel ID.");
+    };
+
+    // Enforce at most one #admin agent per workspace.
+    if (category == #admin) {
+      switch (lookupAdminAgentByWorkspace(workspaceId, state)) {
+        case (?existing) {
+          return #err(
+            "Workspace " # Nat.toText(workspaceId) # " already has an admin agent ('" # existing.name # "'). " #
+            "Only one #admin agent is allowed per workspace."
+          );
+        };
+        case (null) {};
+      };
     };
 
     let id = state.nextId;
@@ -228,6 +258,7 @@ module {
       toolsMisconfigured;
       toolsState;
       sources;
+      allowedChannelIds;
     };
     Map.add(state.agentsById, Nat.compare, id, record);
     Map.add(state.agentsByName, Text.compare, normalized, id);
@@ -266,6 +297,7 @@ module {
     newToolsMisconfigured : ?[Text],
     newToolsState : ?Map.Map<Text, ToolState>,
     newSources : ?[Text],
+    newAllowedChannelIds : ?Set.Set<Text>,
     state : AgentRegistryState,
   ) : Result.Result<Bool, Text> {
     switch (Map.get(state.agentsById, Nat.compare, id)) {
@@ -273,6 +305,16 @@ module {
         #err("Agent with ID " # Nat.toText(id) # " not found.");
       };
       case (?existing) {
+        // Validate newAllowedChannelIds if provided
+        switch (newAllowedChannelIds) {
+          case (?s) {
+            if (Set.size(s) == 0) {
+              return #err("allowedChannelIds must contain at least one channel ID; the allowlist cannot be emptied.");
+            };
+          };
+          case (null) {};
+        };
+
         // If newName is provided, validate it
         let finalName = switch (newName) {
           case (null) { existing.name };
@@ -326,6 +368,10 @@ module {
           sources = switch (newSources) {
             case (null) { existing.sources };
             case (?src) { src };
+          };
+          allowedChannelIds = switch (newAllowedChannelIds) {
+            case (null) { existing.allowedChannelIds };
+            case (?s) { s };
           };
         };
 
@@ -396,6 +442,16 @@ module {
     null;
   };
 
+  /// Return the first registered #admin agent for the given workspaceId, or null if none found.
+  public func lookupAdminAgentByWorkspace(workspaceId : Nat, state : AgentRegistryState) : ?AgentRecord {
+    for (record in Map.values(state.agentsById)) {
+      if (record.category == #admin and record.workspaceId == workspaceId) {
+        return ?record;
+      };
+    };
+    null;
+  };
+
   /// Count all registered agents with the given category.
   public func countByCategory(category : AgentCategory, state : AgentRegistryState) : Nat {
     var count = 0;
@@ -427,6 +483,7 @@ module {
       [],
       Map.empty<Text, ToolState>(),
       [],
+      Set.singleton<Text>(PENDING_ADMIN_CHANNEL), // replaced when org admin channel is set
       state,
     );
     state;

@@ -2,7 +2,10 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
+import Set "mo:core/Set";
+import Text "mo:core/Text";
 import WorkspaceModel "../../../models/workspace-model";
+import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import SlackWrapper "../../../wrappers/slack-wrapper";
 import Constants "../../../constants";
@@ -11,6 +14,7 @@ import Helpers "../handler-helpers"
 module {
   public func handle(
     state : WorkspaceModel.WorkspacesState,
+    agentRegistry : ?AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
     resolveSlackBotToken : Text -> ?Text,
     args : Text,
@@ -78,6 +82,33 @@ module {
             switch (WorkspaceModel.setAdminChannel(state, wsId, channelId)) {
               case (#err(msg)) { Helpers.buildErrorResponse(msg) };
               case (#ok(())) {
+                // Keep the workspace's admin agent allowedChannelIds in sync with
+                // the new admin channel. Replace whatever was there (including the
+                // PENDING_ADMIN_CHANNEL placeholder) with exactly {channelId}.
+                switch (agentRegistry) {
+                  case (?registry) {
+                    switch (AgentModel.lookupAdminAgentByWorkspace(wsId, registry)) {
+                      case (?adminAgent) {
+                        ignore AgentModel.updateById(
+                          adminAgent.id,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          ?Set.singleton<Text>(channelId),
+                          registry,
+                        );
+                      };
+                      case (null) {}; // no admin agent for this workspace yet
+                    };
+                  };
+                  case (null) {}; // no registry provided
+                };
                 Json.stringify(
                   obj([
                     ("success", bool(true)),

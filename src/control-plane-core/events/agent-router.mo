@@ -5,6 +5,8 @@
 /// required for execution, dispatch to the correct category service.
 
 import Time "mo:core/Time";
+import Set "mo:core/Set";
+import Text "mo:core/Text";
 import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
 import Types "../types";
@@ -60,6 +62,24 @@ module {
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
   ) : async RouteResult {
+    // Channel allowlist guard — reject before any dispatch if the incoming channel
+    // is not in the agent's allowedChannelIds set.
+    // Every agent must have at least one channel in its allowlist (enforced at
+    // registration and update time), so an empty set here is a model invariant
+    // violation and will correctly block all channels.
+    if (not Set.contains(primaryAgent.allowedChannelIds, Text.compare, channelId)) {
+      let allowedList = Text.join(Set.values(primaryAgent.allowedChannelIds), ", ");
+      let step : Types.ProcessingStep = {
+        action = "route";
+        result = #err("channel not in allowlist");
+        timestamp = Time.now();
+      };
+      return #err({
+        message = "Agent '" # primaryAgent.name # "' is not configured for channel " # channelId # ". Allowed channels: " # allowedList # ".";
+        steps = [step];
+      });
+    };
+
     // Validate that the ctx variant matches the agent's declared category.
     let ctxMatchesCategory : Bool = switch (primaryAgent.category, agentCtx) {
       case (#admin, #admin(_)) { true };

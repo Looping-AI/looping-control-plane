@@ -320,7 +320,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     openRouterApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
   /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
@@ -349,7 +349,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     delegationDepth : Nat,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey);
+    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]);
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
@@ -436,7 +436,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     delegationDepth : Nat,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = TestHelpers.ctxWithOpenRouterOnlySecrets(slackUsers, testWorkspacesState, openRouterApiKey);
+    let ctx = TestHelpers.ctxWithOpenRouterOnlySecrets(slackUsers, testWorkspacesState, openRouterApiKey, [msg.channel]);
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
@@ -521,7 +521,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     openRouterApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, openRouterApiKey));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
   /// Like `testMessageHandlerWithResearchAgent`, but uses `TestHelpers.ctxWithSecretsAndResearchNoOpenRouter`
@@ -542,7 +542,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     botToken : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoOpenRouter(slackUsers, testWorkspacesState, botToken));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoOpenRouter(slackUsers, testWorkspacesState, botToken, [msg.channel]));
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
@@ -967,18 +967,20 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
+    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, null, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
 
   /// Test the CreateWorkspaceHandler in isolation.
   ///
-  /// @param args   JSON-encoded tool arguments ({ name: string }).
-  /// @param auth   Simplified auth context.
+  /// @param args      JSON-encoded tool arguments ({ name: string, channelId: string }).
+  /// @param botToken  Slack bot token forwarded to SlackWrapper for channel verification.
+  /// @param auth      Simplified auth context.
   ///
   /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
   /// Workspaces created here persist within the same canister lifetime.
   public shared ({ caller }) func testCreateWorkspaceHandler(
     args : Text,
+    botToken : Text,
     auth : {
       isPrimaryOwner : Bool;
       isOrgAdmin : Bool;
@@ -999,7 +1001,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await CreateWorkspaceHandler.handle(testWorkspacesState, uac, args);
+    await CreateWorkspaceHandler.handle(testWorkspacesState, null, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
 
   /// Test the ListWorkspacesHandler in isolation.
@@ -1270,7 +1272,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null);
+    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null, null);
   };
 
   /// Test the ListAgentsHandler in isolation.

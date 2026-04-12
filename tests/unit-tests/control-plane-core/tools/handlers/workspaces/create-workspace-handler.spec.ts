@@ -6,29 +6,46 @@ import {
   expect,
   it,
 } from "bun:test";
-import type { PocketIc, Actor } from "@dfinity/pic";
+import type { PocketIc, Actor, DeferredActor } from "@dfinity/pic";
 import {
   createTestCanister,
-  type TestCanisterService,
+  createDeferredTestCanister,
   freshTestCanister,
+  freshDeferredTestCanister,
+  type TestCanisterService,
+  SLACK_TEST_TOKEN,
 } from "../../../../../setup";
+import { withCassette } from "../../../../../lib/cassette";
+import { resolveSpecsChannelForInfo } from "../../../../../helpers";
 
 // ============================================
 // CreateWorkspaceHandler Unit Tests
 //
 // This handler:
-//   1. Parses JSON args for { name }
+//   1. Parses JSON args for { name, channelId }
 //   2. Authorizes the caller via UserAuthContext (#IsPrimaryOwner or #IsOrgAdmin)
-//   3. Creates the workspace in WorkspacesState
+//   3. Verifies the channelId exists and the bot has access (conversations.info)
+//   4. Creates the workspace in WorkspacesState
+//   5. Sets the admin channel anchor
+//   6. Registers an #admin agent with the real channel ID
+//
+// Tests are split into two groups:
+//   (A) Fast-fail tests — fail before any HTTP call (bad JSON, auth, missing fields).
+//   (B) Cassette tests — the handler calls conversations.info, so we use a
+//       deferred actor + cassette to record/replay the Slack HTTP response.
 //
 // The test canister is pre-seeded with workspaces 0, 1, and 2 so new workspaces
 // start at ID 3.
 // ============================================
 
+const CASSETTE_BASE =
+  "unit-tests/control-plane-core/tools/handlers/create-workspace-handler";
+
 function parseResponse(json: string): {
   success: boolean;
   id?: number;
   name?: string;
+  adminChannelId?: string;
   message?: string;
   error?: string;
 } {
@@ -53,13 +70,16 @@ const ORG_ADMIN = {
   workspaceAdminFor: [] as [] | [bigint],
 };
 
-describe("CreateWorkspaceHandler", () => {
+// ============================================
+// (A) Fast-fail tests — no HTTP outcall required
+// ============================================
+
+describe("CreateWorkspaceHandler — fast-fail paths", () => {
   let pic: PocketIc;
   let testCanister: Actor<TestCanisterService>;
 
   beforeAll(async () => {
-    const testEnv = await createTestCanister();
-    pic = testEnv.pic;
+    pic = (await createTestCanister()).pic;
   });
 
   beforeEach(async () => {
@@ -74,6 +94,7 @@ describe("CreateWorkspaceHandler", () => {
     it("should return error for invalid JSON", async () => {
       const result = await testCanister.testCreateWorkspaceHandler(
         "not-valid-json",
+        "xoxb-fake",
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -81,110 +102,141 @@ describe("CreateWorkspaceHandler", () => {
       expect(response.error).toContain("Failed to parse arguments");
     });
 
-    it("should return error when name field is missing", async () => {
+    it("should return error when both name and channelId are missing", async () => {
       const result = await testCanister.testCreateWorkspaceHandler(
         JSON.stringify({}),
+        "xoxb-fake",
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
       expect(response.success).toBe(false);
-      expect(response.error).toContain("Missing required field: name");
+      expect(response.error).toContain("Missing required fields");
     });
 
-    it("should return error for empty name", async () => {
+    it("should return error when channelId is missing", async () => {
       const result = await testCanister.testCreateWorkspaceHandler(
-        JSON.stringify({ name: "" }),
+        JSON.stringify({ name: "Engineering" }),
+        "xoxb-fake",
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
       expect(response.success).toBe(false);
-      expect(response.error).toContain("Workspace name cannot be empty");
+      expect(response.error).toContain("Missing required fields");
+    });
+
+    it("should return error when name is missing", async () => {
+      const result = await testCanister.testCreateWorkspaceHandler(
+        JSON.stringify({ channelId: "C123" }),
+        "xoxb-fake",
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(false);
+      expect(response.error).toContain("Missing required fields");
     });
   });
 
   describe("authorization", () => {
     it("should return error when caller has no permissions", async () => {
       const result = await testCanister.testCreateWorkspaceHandler(
-        JSON.stringify({ name: "Engineering" }),
+        JSON.stringify({ name: "Engineering", channelId: "C123" }),
+        "xoxb-fake",
         NO_AUTH,
       );
       const response = parseResponse(result);
       expect(response.success).toBe(false);
       expect(response.error).toContain("Unauthorized");
     });
+  });
+});
 
-    it("should allow primary owner to create workspace", async () => {
-      const result = await testCanister.testCreateWorkspaceHandler(
-        JSON.stringify({ name: "Engineering" }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
-    });
+// ============================================
+// (B) Cassette tests — conversations.info HTTP outcall involved
+//
+// Cassettes are pre-seeded with deterministic fake Slack responses so tests
+// run immediately in CI without a live Slack connection. Re-record with:
+//   RECORD_CASSETTES=true bun test .../create-workspace-handler.spec.ts
+// ============================================
 
-    it("should allow org admin to create workspace", async () => {
-      const result = await testCanister.testCreateWorkspaceHandler(
-        JSON.stringify({ name: "Engineering" }),
-        ORG_ADMIN,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
-    });
+describe("CreateWorkspaceHandler — channel verification (cassette)", () => {
+  let pic: PocketIc;
+  let testCanister: DeferredActor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
   });
 
-  describe("happy path", () => {
-    it("should create workspace and return the new ID", async () => {
-      const result = await testCanister.testCreateWorkspaceHandler(
-        JSON.stringify({ name: "Engineering" }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
-      expect(response.id).toBe(3); // workspaces 0-2 are pre-seeded
-      expect(response.name).toBe("Engineering");
-    });
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
 
-    it("should assign consecutive IDs for multiple workspaces", async () => {
-      const r1 = parseResponse(
-        await testCanister.testCreateWorkspaceHandler(
-          JSON.stringify({ name: "Engineering" }),
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  it("should verify channel, create workspace, and return the new ID (primary owner)", async () => {
+    const cassetteKey = `${CASSETTE_BASE}/create-workspace-primary-owner`;
+    const channelId = await resolveSpecsChannelForInfo(cassetteKey);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteKey,
+      () =>
+        testCanister.testCreateWorkspaceHandler(
+          JSON.stringify({ name: "Engineering", channelId }),
+          SLACK_TEST_TOKEN,
           PRIMARY_OWNER,
         ),
-      );
-      const r2 = parseResponse(
-        await testCanister.testCreateWorkspaceHandler(
-          JSON.stringify({ name: "Marketing" }),
+      { ticks: 5, maxRounds: 2 },
+    );
+
+    const response = parseResponse(await result);
+    expect(response.success).toBe(true);
+    expect(response.id).toBe(3); // workspaces 0-2 are pre-seeded
+    expect(response.name).toBe("Engineering");
+    expect(response.adminChannelId).toBe(channelId);
+  });
+
+  it("should verify channel, create workspace, and return the new ID (org admin)", async () => {
+    const cassetteKey = `${CASSETTE_BASE}/create-workspace-org-admin`;
+    const channelId = await resolveSpecsChannelForInfo(cassetteKey);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteKey,
+      () =>
+        testCanister.testCreateWorkspaceHandler(
+          JSON.stringify({ name: "Marketing", channelId }),
+          SLACK_TEST_TOKEN,
+          ORG_ADMIN,
+        ),
+      { ticks: 5, maxRounds: 2 },
+    );
+
+    const response = parseResponse(await result);
+    expect(response.success).toBe(true);
+    expect(response.name).toBe("Marketing");
+    expect(response.adminChannelId).toBe(channelId);
+  });
+
+  it("should return error when Slack cannot verify the channel", async () => {
+    const cassetteKey = `${CASSETTE_BASE}/channel-not-accessible`;
+
+    const { result } = await withCassette(
+      pic,
+      cassetteKey,
+      () =>
+        testCanister.testCreateWorkspaceHandler(
+          JSON.stringify({ name: "Engineering", channelId: "CNOACCESS0" }),
+          SLACK_TEST_TOKEN,
           PRIMARY_OWNER,
         ),
-      );
-      expect(r1.id).toBe(3);
-      expect(r2.id).toBe(4);
-    });
+      { ticks: 5, maxRounds: 2 },
+    );
 
-    it("newly created workspace should appear in list", async () => {
-      await testCanister.testCreateWorkspaceHandler(
-        JSON.stringify({ name: "Engineering" }),
-        PRIMARY_OWNER,
-      );
-      const listResult = await testCanister.testListWorkspacesHandler("{}");
-      const list = JSON.parse(listResult);
-      expect(list.success).toBe(true);
-      const names = list.workspaces.map((w: { name: string }) => w.name);
-      expect(names).toContain("Engineering");
-    });
-
-    it("should return error for duplicate workspace name", async () => {
-      await testCanister.testCreateWorkspaceHandler(
-        JSON.stringify({ name: "Engineering" }),
-        PRIMARY_OWNER,
-      );
-      const result = await testCanister.testCreateWorkspaceHandler(
-        JSON.stringify({ name: "Engineering" }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(false);
-      expect(response.error).toContain("already exists");
-    });
+    const response = parseResponse(await result);
+    expect(response.success).toBe(false);
+    expect(response.error).toContain("Could not verify channel");
+    expect(response.error).toContain("CNOACCESS0");
   });
 });

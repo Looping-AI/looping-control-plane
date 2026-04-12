@@ -62,6 +62,7 @@ module {
       ("toolsDisallowed", disallowedJson),
       ("toolsMisconfigured", misconfiguredJson),
       ("sources", sourcesJson),
+      ("allowedChannelIds", AgentParsers.allowedChannelIdsToJson(record.allowedChannelIds)),
     ]);
   };
 

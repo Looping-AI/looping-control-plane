@@ -182,8 +182,12 @@ module {
         switch (resources.userAuthContext, resources.resolveSlackBotToken) {
           case (?uac, ?resolver) {
             if (ws.write) {
-              List.add(tools, createWorkspaceTool(ws.state, uac));
-              List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver));
+              let arState = switch (resources.agentRegistry) {
+                case (?ar) { ?ar.state };
+                case (null) { null };
+              };
+              List.add(tools, createWorkspaceTool(ws.state, uac, resolver, arState));
+              List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver, arState));
             };
           };
           case _ {};
@@ -204,7 +208,7 @@ module {
         switch (resources.userAuthContext) {
           case (?uac) {
             if (ar.write) {
-              List.add(tools, registerAgentTool(ar.state, uac));
+              List.add(tools, registerAgentTool(ar.state, uac, resources.resolveSlackBotToken));
               List.add(tools, updateAgentTool(ar.state, uac));
               List.add(tools, unregisterAgentTool(ar.state, uac));
             };
@@ -443,18 +447,20 @@ module {
   private func createWorkspaceTool(
     state : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
+    resolver : Text -> ?Text,
+    agentRegistry : ?AgentModel.AgentRegistryState,
   ) : FunctionTool {
     {
       definition = {
         tool_type = "function";
         function = {
           name = "create_workspace";
-          description = ?"Creates a new workspace with the given name. Workspace names must be unique. Returns the new workspace ID.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Name for the new workspace. Must be unique across all workspaces.\"}},\"required\":[\"name\"]}";
+          description = ?"Creates a new workspace with the given name and anchors a Slack channel as its admin channel. Workspace names must be unique. The channelId must exist and the bot must be invited to it. Returns the new workspace ID.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Name for the new workspace. Must be unique across all workspaces.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the admin channel for the new workspace. The bot must be invited to this channel.\"}},\"required\":[\"name\",\"channelId\"]}";
         };
       };
       handler = func(args : Text) : async Text {
-        await CreateWorkspaceHandler.handle(state, uac, args);
+        await CreateWorkspaceHandler.handle(state, agentRegistry, uac, resolver, args);
       };
     };
   };
@@ -464,6 +470,7 @@ module {
     state : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
     resolver : Text -> ?Text,
+    agentRegistry : ?AgentModel.AgentRegistryState,
   ) : FunctionTool {
     {
       definition = {
@@ -475,7 +482,7 @@ module {
         };
       };
       handler = func(args : Text) : async Text {
-        await SetWorkspaceAdminChannelHandler.handle(state, uac, resolver, args);
+        await SetWorkspaceAdminChannelHandler.handle(state, agentRegistry, uac, resolver, args);
       };
     };
   };
@@ -865,6 +872,7 @@ module {
   private func registerAgentTool(
     state : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
+    resolveSlackBotToken : ?(Text -> ?Text),
   ) : FunctionTool {
     {
       definition = {
@@ -872,11 +880,11 @@ module {
         function = {
           name = "register_agent";
           description = ?"Registers a new agent in the global registry. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens. Category must be one of: admin, planning, research, communication. Execution type must be specified (api or runtime with codespace hosting and openClaw framework).";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'work-planning').\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"Agent category.\"},\"workspaceId\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"Workspace that will own the agent. Omit to default to org workspace (0).\"},\"executionType\":{\"type\":\"object\",\"description\":\"Execution type configuration (required).\",\"oneOf\":[{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"api\"]},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b). Defaults to openai/gpt-oss-120b if omitted.\"}},\"required\":[\"type\"]},{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"runtime\"]},\"hosting\":{\"type\":\"string\",\"enum\":[\"codespace\"]},\"framework\":{\"type\":\"string\",\"enum\":[\"openClaw\"]}},\"required\":[\"type\",\"hosting\",\"framework\"]}]},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"secretOverrides\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]},\"customKeyName\":{\"type\":\"string\",\"description\":\"Name of the custom secret (without the \'custom:\' prefix).\"}},\"required\":[\"secretId\",\"customKeyName\"]},\"description\":\"Per-agent credential overrides. For each entry, resolving secretId first looks up custom:<customKeyName> in the agent\'s workspace. Omit for none.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names to block for this agent. Omit for none.\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Knowledge source URLs or references for this agent. Omit for none.\"}},\"required\":[\"name\",\"category\",\"executionType\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'work-planning').\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"Agent category.\"},\"workspaceId\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"Workspace that will own the agent. Omit to default to org workspace (0).\"},\"executionType\":{\"type\":\"object\",\"description\":\"Execution type configuration (required).\",\"oneOf\":[{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"api\"]},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b). Defaults to openai/gpt-oss-120b if omitted.\"}},\"required\":[\"type\"]},{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"runtime\"]},\"hosting\":{\"type\":\"string\",\"enum\":[\"codespace\"]},\"framework\":{\"type\":\"string\",\"enum\":[\"openClaw\"]}},\"required\":[\"type\",\"hosting\",\"framework\"]}]},\"allowedChannelIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"description\":\"Slack channel IDs where this agent is permitted to run. Required; must contain at least one channel ID.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"secretOverrides\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]},\"customKeyName\":{\"type\":\"string\",\"description\":\"Name of the custom secret (without the \'custom:\' prefix).\"}},\"required\":[\"secretId\",\"customKeyName\"]},\"description\":\"Per-agent credential overrides. For each entry, resolving secretId first looks up custom:<customKeyName> in the agent\'s workspace. Omit for none.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names to block for this agent. Omit for none.\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Knowledge source URLs or references for this agent. Omit for none.\"}},\"required\":[\"name\",\"category\",\"executionType\",\"allowedChannelIds\"]}";
         };
       };
       handler = func(args : Text) : async Text {
-        await RegisterAgentHandler.handle(state, uac, args, ?OpenRouterWrapper.validateModel);
+        await RegisterAgentHandler.handle(state, uac, args, ?OpenRouterWrapper.validateModel, resolveSlackBotToken);
       };
     };
   };
@@ -892,7 +900,7 @@ module {
         function = {
           name = "update_agent";
           description = ?"Updates an existing agent's configuration. Provide the agent 'id' and only the fields you want to change; omitted fields are left unchanged.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"New category (optional).\"},\"executionType\":{\"type\":\"object\",\"description\":\"New execution type configuration (optional).\",\"oneOf\":[{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"api\"]},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b). Defaults to openai/gpt-oss-120b if omitted.\"}},\"required\":[\"type\"]},{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"runtime\"]},\"hosting\":{\"type\":\"string\",\"enum\":[\"codespace\"]},\"framework\":{\"type\":\"string\",\"enum\":[\"openClaw\"]}},\"required\":[\"type\",\"hosting\",\"framework\"]}]},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"secretOverrides\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]},\"customKeyName\":{\"type\":\"string\"}},\"required\":[\"secretId\",\"customKeyName\"]},\"description\":\"Replace per-agent credential overrides (optional). Pass [] to clear all overrides.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New tools blocklist (optional).\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New knowledge sources (optional).\"}},\"required\":[\"id\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"category\":{\"type\":\"string\",\"enum\":[\"admin\",\"planning\",\"research\",\"communication\"],\"description\":\"New category (optional).\"},\"executionType\":{\"type\":\"object\",\"description\":\"New execution type configuration (optional).\",\"oneOf\":[{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"api\"]},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b). Defaults to openai/gpt-oss-120b if omitted.\"}},\"required\":[\"type\"]},{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"runtime\"]},\"hosting\":{\"type\":\"string\",\"enum\":[\"codespace\"]},\"framework\":{\"type\":\"string\",\"enum\":[\"openClaw\"]}},\"required\":[\"type\",\"hosting\",\"framework\"]}]},\"allowedChannelIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"description\":\"Replace the full channel allowlist (optional). Must be non-empty — the allowlist cannot be emptied.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"secretOverrides\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]},\"customKeyName\":{\"type\":\"string\"}},\"required\":[\"secretId\",\"customKeyName\"]},\"description\":\"Replace per-agent credential overrides (optional). Pass [] to clear all overrides.\"},\"toolsDisallowed\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New tools blocklist (optional).\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"New knowledge sources (optional).\"}},\"required\":[\"id\"]}";
         };
       };
       handler = func(args : Text) : async Text {

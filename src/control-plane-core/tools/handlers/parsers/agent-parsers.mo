@@ -1,6 +1,8 @@
 import Json "mo:json";
-import { str; obj } "mo:json";
+import { str; obj; arr } "mo:json";
+import Array "mo:core/Array";
 import List "mo:core/List";
+import Set "mo:core/Set";
 import Int "mo:core/Int";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
@@ -136,5 +138,23 @@ module {
       };
       case _ { null };
     };
+  };
+
+  /// Parse an array of JSON strings into a Set<Text>.
+  /// Returns null if any element is not a string.
+  public func parseAllowedChannelIds(items : [Json.Json]) : ?Set.Set<Text> {
+    let set = Set.empty<Text>();
+    for (item in items.vals()) {
+      switch (item) {
+        case (#string(s)) { Set.add(set, Text.compare, s) };
+        case _ { return null };
+      };
+    };
+    ?set;
+  };
+
+  /// Serialize a Set<Text> to a JSON array (values in ascending order).
+  public func allowedChannelIdsToJson(set : Set.Set<Text>) : Json.Json {
+    arr(Array.map<Text, Json.Json>(Set.toArray(set), str));
   };
 };

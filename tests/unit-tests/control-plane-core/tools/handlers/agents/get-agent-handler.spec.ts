@@ -70,6 +70,7 @@ describe("GetAgentHandler", () => {
           name: "admin-bot",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -84,6 +85,7 @@ describe("GetAgentHandler", () => {
           name: string;
           category: string;
           secretOverrides: unknown[];
+          allowedChannelIds: string[];
         };
       };
       expect(response.success).toBe(true);
@@ -91,6 +93,7 @@ describe("GetAgentHandler", () => {
       expect(response.agent?.name).toBe("admin-bot");
       expect(response.agent?.category).toBe("admin");
       expect(response.agent?.secretOverrides).toEqual([]);
+      expect(response.agent?.allowedChannelIds).toEqual(["C_TEST"]);
     });
 
     it("should return not-found for an id that does not exist", async () => {
@@ -113,6 +116,7 @@ describe("GetAgentHandler", () => {
           name: "plan-bot",
           category: "planning",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
