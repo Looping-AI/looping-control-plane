@@ -365,52 +365,6 @@ module {
     };
   };
 
-  /// Fork an existing agent into a new workspace.
-  ///
-  /// Creates a new agent record inheriting the strategic configuration of the
-  /// original (category, executionType, toolsDisallowed, toolsState.knowHow, sources)
-  /// while resetting workspace-specific state:
-  ///   - secretsAllowed resets to [] — secrets are workspace-scoped and not portable.
-  ///   - secretOverrides resets to [] — overrides are workspace-scoped.
-  ///   - toolsState.usageCount resets to 0 — metrics are workspace-specific.
-  ///   - toolsMisconfigured resets to [] — operator errors are workspace-specific.
-  ///
-  /// Use update_agent after forking to add secrets or change the execution type.
-  ///
-  /// Note: `state` is the first parameter — follow this convention for all new model functions.
-  public func forkAgent(
-    state : AgentRegistryState,
-    originalId : Nat,
-    newName : Text,
-    targetWorkspaceId : Nat,
-  ) : Result.Result<Nat, Text> {
-    switch (Map.get(state.agentsById, Nat.compare, originalId)) {
-      case (null) {
-        #err("Agent with ID " # Nat.toText(originalId) # " not found.");
-      };
-      case (?original) {
-        // Carry over knowHow per tool; reset usageCount (workspace-specific metrics).
-        let forkedToolsState = Map.empty<Text, ToolState>();
-        for ((toolName, ts) in Map.entries(original.toolsState)) {
-          Map.add(forkedToolsState, Text.compare, toolName, { usageCount = 0; knowHow = ts.knowHow });
-        };
-        register(
-          newName,
-          targetWorkspaceId,
-          original.category,
-          original.executionType,
-          [], // secretsAllowed resets — secrets are workspace-scoped
-          [], // secretOverrides resets — overrides are workspace-scoped
-          original.toolsDisallowed,
-          [], // toolsMisconfigured resets — these are workspace-specific operator errors
-          forkedToolsState,
-          original.sources,
-          state,
-        );
-      };
-    };
-  };
-
   /// Unregister an agent by ID.
   /// Returns `#err` if the agent is not found.
   public func unregisterById(id : Nat, state : AgentRegistryState) : Result.Result<Bool, Text> {
