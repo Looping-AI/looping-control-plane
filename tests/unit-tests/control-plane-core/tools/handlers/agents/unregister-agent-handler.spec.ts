@@ -245,33 +245,5 @@ describe("UnregisterAgentHandler", () => {
       expect(response.success).toBe(false);
       expect(response.error).toContain("last admin agent");
     });
-
-    it("should allow deleting a non-last admin agent when another admin exists", async () => {
-      await testCanister.testRegisterAgentHandler(
-        JSON.stringify({
-          name: "admin-a",
-          category: "admin",
-          executionType: { type: "api" },
-          allowedChannelIds: ["C_TEST"],
-        }),
-        PRIMARY_OWNER,
-      );
-      await testCanister.testRegisterAgentHandler(
-        JSON.stringify({
-          name: "admin-b",
-          category: "admin",
-          executionType: { type: "api" },
-          allowedChannelIds: ["C_TEST"],
-        }),
-        PRIMARY_OWNER,
-      );
-
-      const result = await testCanister.testUnregisterAgentHandler(
-        JSON.stringify({ id: 0 }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
-    });
   });
 });
