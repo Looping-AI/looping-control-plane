@@ -16,6 +16,7 @@ import GetValueStreamHandler "./handlers/value-streams/get-value-stream-handler"
 import DeleteValueStreamHandler "./handlers/value-streams/delete-value-stream-handler";
 import ListWorkspacesHandler "./handlers/workspaces/list-workspaces-handler";
 import CreateWorkspaceHandler "./handlers/workspaces/create-workspace-handler";
+import DeleteWorkspaceHandler "./handlers/workspaces/delete-workspace-handler";
 import SetWorkspaceAdminChannelHandler "./handlers/workspaces/set-workspace-admin-channel-handler";
 import WebSearchHandler "./handlers/web-search-handler";
 import CreateMetricHandler "./handlers/metrics/create-metric-handler";
@@ -187,6 +188,7 @@ module {
                 case (null) { null };
               };
               List.add(tools, createWorkspaceTool(ws.state, uac, resolver, arState));
+              List.add(tools, deleteWorkspaceTool(ws.state, uac, arState, resources.triggerMessageText));
               List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver, arState));
             };
           };
@@ -461,6 +463,28 @@ module {
       };
       handler = func(args : Text) : async Text {
         await CreateWorkspaceHandler.handle(state, agentRegistry, uac, resolver, args);
+      };
+    };
+  };
+
+  /// Delete workspace tool — requires workspaces resource with write
+  private func deleteWorkspaceTool(
+    state : WorkspaceModel.WorkspacesState,
+    uac : SlackAuthMiddleware.UserAuthContext,
+    agentRegistry : ?AgentModel.AgentRegistryState,
+    triggerMessageText : ?Text,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function = {
+          name = "delete_workspace";
+          description = ?"Permanently deletes a workspace by ID and removes its admin agent from the registry. This action is irreversible. Workspace 0 (the org workspace) is protected and cannot be deleted.\n\nThis operation requires explicit user confirmation. The user's Slack message MUST contain exactly '::admin <workspace name>' (e.g. '::admin Research') as the full message text — nothing more. The system validates the user's actual message automatically; you cannot provide the phrase yourself. Look up the workspace name first if needed, then instruct the user to type that exact phrase as their next message. Only call this tool after the user has sent that confirmation message.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to delete. Must be > 0.\"}},\"required\":[\"workspaceId\"]}";
+        };
+      };
+      handler = func(args : Text) : async Text {
+        DeleteWorkspaceHandler.handle(state, agentRegistry, uac, triggerMessageText, args);
       };
     };
   };

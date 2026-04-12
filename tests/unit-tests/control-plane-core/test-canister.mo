@@ -21,6 +21,7 @@ import SlackAdapter "../../../src/control-plane-core/events/slack-adapter";
 import SetWorkspaceAdminChannelHandler "../../../src/control-plane-core/tools/handlers/workspaces/set-workspace-admin-channel-handler";
 
 import CreateWorkspaceHandler "../../../src/control-plane-core/tools/handlers/workspaces/create-workspace-handler";
+import DeleteWorkspaceHandler "../../../src/control-plane-core/tools/handlers/workspaces/delete-workspace-handler";
 import ListWorkspacesHandler "../../../src/control-plane-core/tools/handlers/workspaces/list-workspaces-handler";
 import CreateMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/create-metric-handler";
 import UpdateMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/update-metric-handler";
@@ -1002,6 +1003,38 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       adminWorkspaces;
     };
     await CreateWorkspaceHandler.handle(testWorkspacesState, null, uac, func(_ : Text) : ?Text { ?botToken }, args);
+  };
+
+  /// Test the DeleteWorkspaceHandler in isolation.
+  ///
+  /// @param args  JSON-encoded tool arguments ({ workspaceId: number }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
+  public shared ({ caller }) func testDeleteWorkspaceHandler(
+    args : Text,
+    triggerMessageText : ?Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let adminWorkspaces = Set.empty<Nat>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Set.add(adminWorkspaces, Nat.compare, wsId);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      adminWorkspaces;
+    };
+    DeleteWorkspaceHandler.handle(testWorkspacesState, null, uac, triggerMessageText, args);
   };
 
   /// Test the ListWorkspacesHandler in isolation.

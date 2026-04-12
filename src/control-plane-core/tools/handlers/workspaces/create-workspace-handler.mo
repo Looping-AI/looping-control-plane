@@ -4,6 +4,7 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
+import Runtime "mo:core/Runtime";
 import WorkspaceModel "../../../models/workspace-model";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
@@ -63,28 +64,44 @@ module {
               case (#err(msg)) { Helpers.buildErrorResponse(msg) };
               case (#ok(wsId)) {
                 // Set the admin channel for the new workspace
-                ignore WorkspaceModel.setAdminChannel(state, wsId, channelId);
+                switch (WorkspaceModel.setAdminChannel(state, wsId, channelId)) {
+                  case (#err(msg)) {
+                    // Roll back: remove the workspace so state stays consistent
+                    ignore WorkspaceModel.deleteWorkspace(state, wsId);
+                    return Helpers.buildErrorResponse("Failed to set admin channel for workspace: " # msg);
+                  };
+                  case (#ok(_)) {};
+                };
 
                 // Register an #admin agent for the new workspace using the real channel ID
                 switch (agentRegistry) {
                   case (?registry) {
                     let agentName = "ws-" # Nat.toText(wsId) # "-admin";
-                    ignore AgentModel.register(
-                      agentName,
-                      wsId,
-                      #admin,
-                      #api({ model = "openai/gpt-oss-120b" }),
-                      [],
-                      [],
-                      [],
-                      [],
-                      Map.empty<Text, AgentModel.ToolState>(),
-                      [],
-                      Set.singleton<Text>(channelId),
-                      registry,
-                    );
+                    switch (
+                      AgentModel.register(
+                        agentName,
+                        wsId,
+                        #admin,
+                        #api({ model = "openai/gpt-oss-120b" }),
+                        [],
+                        [],
+                        [],
+                        [],
+                        Map.empty<Text, AgentModel.ToolState>(),
+                        [],
+                        Set.singleton<Text>(channelId),
+                        registry,
+                      )
+                    ) {
+                      case (#err(msg)) {
+                        // Roll back: remove the workspace so state stays consistent
+                        ignore WorkspaceModel.deleteWorkspace(state, wsId);
+                        return Helpers.buildErrorResponse("Failed to register admin agent: " # msg);
+                      };
+                      case (#ok(_)) {};
+                    };
                   };
-                  case (null) {}; // no registry provided
+                  case (null) { Runtime.unreachable() };
                 };
                 Json.stringify(
                   obj([

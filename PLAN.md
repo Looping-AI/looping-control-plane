@@ -83,7 +83,7 @@ Delete the `fork_agent` feature entirely. It was designed for a workspace-clonin
 
 ---
 
-### 5.1 — Agent Channel Allowlist
+~~### 5.1 — Agent Channel Allowlist~~
 
 **Goal**
 
@@ -121,6 +121,10 @@ Add a per-agent Slack channel allowlist (`allowedChannelIds`) to the agent model
 - Unit test (agent-router): route a message from channel "C123" to an agent with `allowedChannelIds` built via `Set.empty` + `Set.add` containing `"C123"` → succeeds. Route from "C999" → blocked with error listing allowed channels. Attempt to remove the last channel → error (at least one required).
 - Unit test (register-agent-handler): parse payload with valid `allowedChannelIds` (non-empty) → agent created. Parse payload with missing or empty `allowedChannelIds` → error.
 - Integration tests: existing talk tests continue to pass after the migration in source step 8 — all agent-creation helpers and fixtures supply a non-empty `allowedChannelIds` matching the channel used in those tests.
+
+---
+
+### 5.1.2 — Cleanup of all Models and functions to use state params at start (and not end). Aligning with Motoko Compliance.
 
 ---
 

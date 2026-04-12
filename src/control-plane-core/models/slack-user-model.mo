@@ -290,7 +290,7 @@ module {
 
   /// Return the IDs of workspaces where the user is an admin.
   public func getAdminWorkspaceIds(entry : SlackUserEntry) : [Nat] {
-    Iter.toArray(Set.values(entry.adminWorkspaces));
+    Set.toArray(entry.adminWorkspaces);
   };
 
   /// Check whether a user is an admin of a specific workspace.

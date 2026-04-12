@@ -96,6 +96,7 @@ module {
       openRouterApiKey = ?apiKey;
       resolveSlackBotToken = null;
       userAuthContext = null;
+      triggerMessageText = null; // planning agent has no destructive confirmation tools
       valueStreams = ?{
         map = ctx.valueStreamsMap;
         write = true;
