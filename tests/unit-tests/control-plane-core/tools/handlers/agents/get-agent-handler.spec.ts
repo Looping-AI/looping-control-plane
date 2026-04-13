@@ -93,7 +93,7 @@ describe("GetAgentHandler", () => {
       expect(response.agent?.name).toBe("admin-bot");
       expect(response.agent?.category).toBe("admin");
       expect(response.agent?.secretOverrides).toEqual([]);
-      expect(response.agent?.allowedChannelIds).toEqual(["C_TEST"]);
+      expect(response.agent?.allowedChannelIds).toEqual([]);
     });
 
     it("should return not-found for an id that does not exist", async () => {

@@ -185,13 +185,13 @@ module {
         switch (resources.userAuthContext, resources.resolveSlackBotToken) {
           case (?uac, ?resolver) {
             if (ws.write) {
+              List.add(tools, deleteWorkspaceTool(ws.state, uac, resources.triggerMessageText));
+              List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver));
               switch (resources.agentRegistry) {
                 case (?ar) {
                   List.add(tools, createWorkspaceTool(ws.state, uac, resolver, ar.state));
-                  List.add(tools, deleteWorkspaceTool(ws.state, uac, resources.triggerMessageText));
-                  List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver));
                 };
-                case (null) {}; // workspace write tools expected to come with agentRegistry
+                case (null) {};
               };
             };
           };

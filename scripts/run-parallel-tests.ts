@@ -12,6 +12,8 @@
  */
 
 import { PocketIcServer } from "@dfinity/pic";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 
 // ANSI colours — one per test group
 const COLORS = {
@@ -31,6 +33,11 @@ interface TestGroup {
   args: string[];
 }
 
+const UNIT_BASE = "tests/unit-tests/control-plane-core";
+const unitSubdirs = readdirSync(UNIT_BASE, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && d.name !== "tools")
+  .map((d) => join(UNIT_BASE, d.name));
+
 const TEST_GROUPS: TestGroup[] = [
   {
     name: "integration",
@@ -42,11 +49,7 @@ const TEST_GROUPS: TestGroup[] = [
   },
   {
     name: "unit:not-tools",
-    args: [
-      "test",
-      "tests/unit-tests",
-      "--ignore=tests/unit-tests/control-plane-core/tools",
-    ],
+    args: ["test", ...unitSubdirs],
   },
 ];
 

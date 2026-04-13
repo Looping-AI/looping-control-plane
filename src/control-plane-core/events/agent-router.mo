@@ -61,16 +61,16 @@ module {
     orgKey : [Nat8],
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
-    adminChannelId : ?Text,
+    agentAdminChannelId : ?Text,
   ) : async RouteResult {
     // Channel guard — split by category:
-    // - #admin agents: routing is governed by the workspace's adminChannelId
+    // - #admin agents: routing is governed by the agent's workspace's adminChannelId
     //   (single source of truth in WorkspaceModel). null means not yet configured
     //   — block unconditionally; there is no bootstrap bypass.
     // - All other categories: enforce the agent's static allowedChannelIds set.
     switch (primaryAgent.category) {
       case (#admin) {
-        let allowedId = switch (adminChannelId) {
+        let allowedId = switch (agentAdminChannelId) {
           case (null) {
             let step : Types.ProcessingStep = {
               action = "route";
