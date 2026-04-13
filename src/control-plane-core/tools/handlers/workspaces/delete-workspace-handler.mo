@@ -4,14 +4,12 @@ import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Text "mo:core/Text";
 import WorkspaceModel "../../../models/workspace-model";
-import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
 
 module {
   public func handle(
     state : WorkspaceModel.WorkspacesState,
-    agentRegistry : ?AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
     triggerMessageText : ?Text,
     args : Text,
@@ -70,20 +68,6 @@ module {
                       switch (WorkspaceModel.deleteWorkspace(state, wsId)) {
                         case (#err(msg)) { Helpers.buildErrorResponse(msg) };
                         case (#ok(())) {
-                          // Also unregister the workspace's admin agent from the registry if present
-                          switch (agentRegistry) {
-                            case (?registry) {
-                              switch (AgentModel.lookupAdminAgentByWorkspace(wsId, registry)) {
-                                case (?adminAgent) {
-                                  ignore AgentModel.unregisterById(adminAgent.id, registry);
-                                };
-                                case (null) {};
-                              };
-                            };
-                            case (null) {
-                              // No agent registry: skip agent cleanup, workspace is still deleted
-                            };
-                          };
                           Json.stringify(
                             obj([
                               ("success", bool(true)),

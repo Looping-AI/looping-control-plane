@@ -14,7 +14,7 @@ import Helpers "../handler-helpers"
 module {
   public func handle(
     state : WorkspaceModel.WorkspacesState,
-    agentRegistry : ?AgentModel.AgentRegistryState,
+    agentRegistry : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
     resolveSlackBotToken : Text -> ?Text,
     args : Text,
@@ -85,29 +85,24 @@ module {
                 // Keep the workspace's admin agent allowedChannelIds in sync with
                 // the new admin channel. Replace whatever was there (including the
                 // PENDING_ADMIN_CHANNEL placeholder) with exactly {channelId}.
-                switch (agentRegistry) {
-                  case (?registry) {
-                    switch (AgentModel.lookupAdminAgentByWorkspace(wsId, registry)) {
-                      case (?adminAgent) {
-                        ignore AgentModel.updateById(
-                          adminAgent.id,
-                          null,
-                          null,
-                          null,
-                          null,
-                          null,
-                          null,
-                          null,
-                          null,
-                          null,
-                          ?Set.singleton<Text>(channelId),
-                          registry,
-                        );
-                      };
-                      case (null) {}; // no admin agent for this workspace yet
-                    };
+                switch (AgentModel.lookupAdminAgentByWorkspace(wsId, agentRegistry)) {
+                  case (?adminAgent) {
+                    ignore AgentModel.updateById(
+                      adminAgent.id,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      ?Set.singleton<Text>(channelId),
+                      agentRegistry,
+                    );
                   };
-                  case (null) {}; // no registry provided
+                  case (null) {}; // no admin agent for this workspace yet
                 };
                 Json.stringify(
                   obj([

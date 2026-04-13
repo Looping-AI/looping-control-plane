@@ -968,7 +968,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, null, uac, func(_ : Text) : ?Text { ?botToken }, args);
+    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, testAgentRegistry, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
 
   /// Test the CreateWorkspaceHandler in isolation.
@@ -1002,7 +1002,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await CreateWorkspaceHandler.handle(testWorkspacesState, ?testAgentRegistry, uac, func(_ : Text) : ?Text { ?botToken }, args);
+    await CreateWorkspaceHandler.handle(testWorkspacesState, testAgentRegistry, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
 
   /// Test the DeleteWorkspaceHandler in isolation.
@@ -1034,7 +1034,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    DeleteWorkspaceHandler.handle(testWorkspacesState, ?testAgentRegistry, uac, triggerMessageText, args);
+    DeleteWorkspaceHandler.handle(testWorkspacesState, uac, triggerMessageText, args);
   };
 
   /// Test the ListWorkspacesHandler in isolation.

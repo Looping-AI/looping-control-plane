@@ -187,11 +187,11 @@ module {
             if (ws.write) {
               switch (resources.agentRegistry) {
                 case (?ar) {
-                  List.add(tools, createWorkspaceTool(ws.state, uac, resolver, ?ar.state));
-                  List.add(tools, deleteWorkspaceTool(ws.state, uac, ?ar.state, resources.triggerMessageText));
-                  List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver, ?ar.state));
+                  List.add(tools, createWorkspaceTool(ws.state, uac, resolver, ar.state));
+                  List.add(tools, deleteWorkspaceTool(ws.state, uac, resources.triggerMessageText));
+                  List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver, ar.state));
                 };
-                case (null) {}; // workspace write tools require agentRegistry
+                case (null) {}; // workspace write tools expected to come with agentRegistry
               };
             };
           };
@@ -453,7 +453,7 @@ module {
     state : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
     resolver : Text -> ?Text,
-    agentRegistry : ?AgentModel.AgentRegistryState,
+    agentRegistry : AgentModel.AgentRegistryState,
   ) : FunctionTool {
     {
       definition = {
@@ -474,7 +474,6 @@ module {
   private func deleteWorkspaceTool(
     state : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
-    agentRegistry : ?AgentModel.AgentRegistryState,
     triggerMessageText : ?Text,
   ) : FunctionTool {
     {
@@ -482,12 +481,12 @@ module {
         tool_type = "function";
         function = {
           name = "delete_workspace";
-          description = ?"Permanently deletes a workspace by ID and removes its admin agent from the registry. This action is irreversible. Workspace 0 (the org workspace) is protected and cannot be deleted.\n\nThis operation requires explicit user confirmation. The user's Slack message MUST contain exactly '::admin <workspace name>' (e.g. '::admin Research') as the full message text — nothing more. The system validates the user's actual message automatically; you cannot provide the phrase yourself. Look up the workspace name first if needed, then instruct the user to type that exact phrase as their next message. Only call this tool after the user has sent that confirmation message.";
+          description = ?"Permanently deletes a workspace by ID. This action is irreversible. Workspace 0 (the org workspace) is protected and cannot be deleted.\n\nThis operation requires explicit user confirmation. The user's Slack message MUST contain exactly '::admin <workspace name>' (e.g. '::admin Research') as the full message text — nothing more. The system validates the user's actual message automatically; you cannot provide the phrase yourself. Look up the workspace name first if needed, then instruct the user to type that exact phrase as their next message. Only call this tool after the user has sent that confirmation message.";
           parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to delete. Must be > 0.\"}},\"required\":[\"workspaceId\"]}";
         };
       };
       handler = func(args : Text) : async Text {
-        DeleteWorkspaceHandler.handle(state, agentRegistry, uac, triggerMessageText, args);
+        DeleteWorkspaceHandler.handle(state, uac, triggerMessageText, args);
       };
     };
   };
@@ -497,7 +496,7 @@ module {
     state : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
     resolver : Text -> ?Text,
-    agentRegistry : ?AgentModel.AgentRegistryState,
+    agentRegistry : AgentModel.AgentRegistryState,
   ) : FunctionTool {
     {
       definition = {

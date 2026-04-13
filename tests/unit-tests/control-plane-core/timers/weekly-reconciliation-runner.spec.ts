@@ -99,6 +99,21 @@ function slackChannelInfoResponse(channelId: string, channelName: string) {
   return { ok: true, channel: { id: channelId, name: channelName } };
 }
 
+/** A minimal conversations.list success response (used by listChannels / auto-discovery). */
+function slackListChannelsResponse(
+  channels: Array<{ id: string; name: string }>,
+  nextCursor = "",
+) {
+  return {
+    ok: true,
+    channels: channels.map((c) => ({ id: c.id, name: c.name })),
+    response_metadata: { next_cursor: nextCursor },
+  };
+}
+
+/** conversations.list returning no channels (used as "not found" in auto-discovery). */
+const slackListChannelsEmpty = slackListChannelsResponse([]);
+
 const slackAuthError = { ok: false, error: "invalid_auth" };
 const slackChannelNotFoundError = { ok: false, error: "channel_not_found" };
 
@@ -221,7 +236,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
   //   Workspace 1: adminChannelId = "C_ADMIN_CHANNEL"
   //   Workspace 2: adminChannelId = "C_ROUND_TRIP_ADMIN"
   //
-  // Hence a run without org admin channel triggers exactly 2 workspace channel
+  // A run without org admin channel now triggers 2 auto-discovery calls
+  // (listChannels private + listChannels public), then 2 workspace channel
   // HTTP calls (ws1-admin, ws2-admin).
   const WORKSPACE_CHANNEL_RESPONSES = [
     slackChannelMembersResponse([]), // ws1 admin channel
@@ -267,6 +283,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
 
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse(members),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ]);
 
@@ -296,6 +314,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
 
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse(members),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -323,6 +343,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
 
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse(membersFromSlack),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ]);
 
@@ -355,6 +377,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       );
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([]), // empty — no current members
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -379,6 +403,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
           { id: "U_ACTIVE", name: "active" },
           { id: "U_DELETED", name: "deleted-user", isDeleted: true },
         ]),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -406,6 +432,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
           { id: "U_BOT", name: "bot-user", isBot: true },
           { id: "U_HUMAN", name: "human-user" },
         ]),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ]);
 
@@ -442,6 +470,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
         slackUsersListResponse([
           { id: "U001", name: "alice", isPrimaryOwner: true },
         ]),
+        slackListChannelsEmpty, // auto-discovery attempt (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -546,14 +576,16 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
         some(ORG_ADMIN_CHANNEL_ID),
       );
 
-      // org admin channel → getChannelInfo fails (channel_not_found); DM to primary owner → success;
-      // then workspace channel calls.
+      // org admin channel → getChannelInfo fails (channel_not_found); auto-discovery finds nothing;
+      // DM to primary owner → success; then workspace channel calls.
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([
           { id: "U_OWNER", name: "owner", isPrimaryOwner: true },
         ]),
         slackChannelNotFoundError, // org admin channel — gone (getChannelInfo fails)
-        slackPostMessageResponse("U_OWNER"), // DM to primary owner
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackPostMessageResponse("U_OWNER"), // recovery DM to primary owner
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -581,7 +613,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
           { id: "U_OWNER", name: "owner", isPrimaryOwner: true },
         ]),
         slackChannelNotFoundError, // org admin channel — gone (getChannelInfo fails)
-        slackPostMessageResponse("U_OWNER"), // DM to primary owner
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackPostMessageResponse("U_OWNER"), // recovery DM to primary owner
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -601,7 +635,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_REG", name: "regular" }]),
         slackChannelNotFoundError, // org admin channel — gone (getChannelInfo fails)
-        // No postMessage call because there is no primary owner to DM.
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        // No recovery DM (no primary owner), but public check still runs.
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -628,14 +664,17 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
         some(ORG_ADMIN_CHANNEL_ID),
       );
 
-      // conversations.info returns wrong name → DM warning sent → conversations.members continues.
+      // conversations.info returns wrong name → auto-discovery finds nothing → DM warning sent
+      // → public check finds nothing → conversations.members continues.
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([
           { id: "U_PO", name: "primary-owner", isPrimaryOwner: true },
         ]),
         slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, "wrong-channel-name"), // wrong name!
-        slackPostMessageResponse("U_PO"), // warning DM to Primary Owner
-        slackChannelMembersResponse([]), // org admin channel — members ok
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
+        slackPostMessageResponse("U_PO"), // rename warning DM to Primary Owner
+        slackChannelMembersResponse([]), // org admin channel — members ok (original channel)
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -656,7 +695,9 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_REG", name: "regular" }]),
         slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, "wrong-channel-name"), // wrong name, no DM
-        slackChannelMembersResponse([]), // org admin channel — members ok
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
+        slackChannelMembersResponse([]), // org admin channel — members ok (original channel)
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -665,6 +706,183 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       expect(
         result.errors.some((e) => e.includes("Primary Owner not found")),
       ).toBe(true);
+    });
+
+    it("should auto-discover and anchor a private org admin channel when none is configured", async () => {
+      await resetCache();
+
+      await seedUser({
+        slackUserId: "U_ORG_ADMIN",
+        displayName: "org-admin",
+        isPrimaryOwner: false,
+        isOrgAdmin: false,
+      });
+
+      const call = await testCanister.testWeeklyReconciliationRunner(
+        SLACK_TEST_TOKEN,
+        none, // no anchor configured
+      );
+
+      const result = (await mockSequentialResponses(pic, call, [
+        slackUsersListResponse([{ id: "U_ORG_ADMIN", name: "org-admin" }]),
+        slackListChannelsResponse([
+          { id: "C_PRIV_ADMIN", name: ORG_ADMIN_CHANNEL_NAME },
+        ]), // private — found!
+        slackChannelMembersResponse(["U_ORG_ADMIN"]), // member sync on discovered channel
+        ...WORKSPACE_CHANNEL_RESPONSES,
+      ])) as ReconciliationSummary;
+
+      expect(result.orgAdminChannelOk).toBe(true);
+      expect(result.goneChannels).toHaveLength(0);
+      expect(result.errors).toHaveLength(0);
+
+      const getUserFn = await testCanister.getSlackUser("U_ORG_ADMIN");
+      const user = await getUserFn();
+      expect(user).toHaveLength(1);
+      const u = user[0];
+      if (!u) throw new Error("Expected user to be defined");
+      expect(u.isOrgAdmin).toBe(true);
+    });
+
+    it("should auto-recover when the org admin channel is gone but a new private one exists", async () => {
+      await resetCache();
+
+      await seedUser({
+        slackUserId: "U_ORG_ADMIN",
+        displayName: "org-admin",
+        isPrimaryOwner: false,
+        isOrgAdmin: false,
+      });
+
+      const call = await testCanister.testWeeklyReconciliationRunner(
+        SLACK_TEST_TOKEN,
+        some(ORG_ADMIN_CHANNEL_ID), // stale anchor — this channel is gone
+      );
+
+      const result = (await mockSequentialResponses(pic, call, [
+        slackUsersListResponse([{ id: "U_ORG_ADMIN", name: "org-admin" }]),
+        slackChannelNotFoundError, // old anchor gone
+        slackListChannelsResponse([
+          { id: "C_NEW_PRIV_ADMIN", name: ORG_ADMIN_CHANNEL_NAME },
+        ]), // private — new channel found!
+        slackChannelMembersResponse(["U_ORG_ADMIN"]), // member sync on new channel
+        ...WORKSPACE_CHANNEL_RESPONSES,
+      ])) as ReconciliationSummary;
+
+      // Auto-recovered silently: no DM, no gone channel, channel ok.
+      expect(result.orgAdminChannelOk).toBe(true);
+      expect(result.goneChannels).toHaveLength(0);
+      expect(result.errors).toHaveLength(0);
+
+      const getUserFn = await testCanister.getSlackUser("U_ORG_ADMIN");
+      const user = await getUserFn();
+      expect(user).toHaveLength(1);
+      const u = user[0];
+      if (!u) throw new Error("Expected user to be defined");
+      expect(u.isOrgAdmin).toBe(true);
+    });
+
+    it("should redirect sync to a newly discovered private channel when the anchored channel was renamed", async () => {
+      await resetCache();
+
+      await seedUser({
+        slackUserId: "U_ORG_ADMIN",
+        displayName: "org-admin",
+        isPrimaryOwner: false,
+        isOrgAdmin: false,
+      });
+
+      const call = await testCanister.testWeeklyReconciliationRunner(
+        SLACK_TEST_TOKEN,
+        some(ORG_ADMIN_CHANNEL_ID), // anchored to a channel that was renamed away
+      );
+
+      const result = (await mockSequentialResponses(pic, call, [
+        slackUsersListResponse([{ id: "U_ORG_ADMIN", name: "org-admin" }]),
+        slackChannelInfoResponse(ORG_ADMIN_CHANNEL_ID, "old-renamed-channel"), // wrong name
+        slackListChannelsResponse([
+          { id: "C_CORRECT_PRIV", name: ORG_ADMIN_CHANNEL_NAME },
+        ]), // private — correct channel found
+        slackChannelMembersResponse(["U_ORG_ADMIN"]), // member sync uses NEW channel
+        ...WORKSPACE_CHANNEL_RESPONSES,
+      ])) as ReconciliationSummary;
+
+      // Silently re-anchored; no DM, no error.
+      expect(result.orgAdminChannelOk).toBe(true);
+      expect(result.goneChannels).toHaveLength(0);
+      expect(result.errors).toHaveLength(0);
+
+      const getUserFn = await testCanister.getSlackUser("U_ORG_ADMIN");
+      const user = await getUserFn();
+      expect(user).toHaveLength(1);
+      const u = user[0];
+      if (!u) throw new Error("Expected user to be defined");
+      expect(u.isOrgAdmin).toBe(true);
+    });
+
+    it("should warn Primary Owner when a public org admin channel exists but no private one is found", async () => {
+      await resetCache();
+
+      await seedUser({
+        slackUserId: "U_PO",
+        displayName: "primary-owner",
+        isPrimaryOwner: true,
+        isOrgAdmin: false,
+      });
+
+      const call = await testCanister.testWeeklyReconciliationRunner(
+        SLACK_TEST_TOKEN,
+        none, // no anchor configured
+      );
+
+      const result = (await mockSequentialResponses(pic, call, [
+        slackUsersListResponse([
+          { id: "U_PO", name: "primary-owner", isPrimaryOwner: true },
+        ]),
+        slackListChannelsEmpty, // private search — not found
+        slackListChannelsResponse([
+          { id: "C_PUBLIC_ADMIN", name: ORG_ADMIN_CHANNEL_NAME },
+        ]), // public found — must NOT be anchored, DM warning sent
+        slackPostMessageResponse("U_PO"), // public-channel warning DM to Primary Owner
+        ...WORKSPACE_CHANNEL_RESPONSES,
+      ])) as ReconciliationSummary;
+
+      // Public channel is never anchored; orgAdminChannelOk stays true (anchor wasn't attempted).
+      expect(result.orgAdminChannelOk).toBe(true);
+      expect(result.goneChannels).toHaveLength(0);
+    });
+
+    it("should warn about a public channel when the org admin channel is gone and no private replacement is found", async () => {
+      await resetCache();
+
+      await seedUser({
+        slackUserId: "U_PO",
+        displayName: "primary-owner",
+        isPrimaryOwner: true,
+        isOrgAdmin: false,
+      });
+
+      const call = await testCanister.testWeeklyReconciliationRunner(
+        SLACK_TEST_TOKEN,
+        some(ORG_ADMIN_CHANNEL_ID),
+      );
+
+      const result = (await mockSequentialResponses(pic, call, [
+        slackUsersListResponse([
+          { id: "U_PO", name: "primary-owner", isPrimaryOwner: true },
+        ]),
+        slackChannelNotFoundError, // old anchor gone
+        slackListChannelsEmpty, // private search — not found
+        slackPostMessageResponse("U_PO"), // recovery DM (gone channel)
+        slackListChannelsResponse([
+          { id: "C_PUBLIC_ADMIN", name: ORG_ADMIN_CHANNEL_NAME },
+        ]), // public found — DM warning about visibility
+        slackPostMessageResponse("U_PO"), // public-channel warning DM to Primary Owner
+        ...WORKSPACE_CHANNEL_RESPONSES,
+      ])) as ReconciliationSummary;
+
+      expect(result.orgAdminChannelOk).toBe(false);
+      expect(result.goneChannels).toContain(ORG_ADMIN_CHANNEL_ID);
     });
   });
 
@@ -683,6 +901,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
 
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([]),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 
@@ -737,6 +957,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
           { id: "U_WS_ADMIN", name: "ws-admin" },
           { id: "U_OTHER", name: "other" },
         ]),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         slackChannelMembersResponse(["U_WS_ADMIN"]), // ws1 admin — U_WS_ADMIN is a member
         slackChannelMembersResponse([]), // ws2 admin
       ]);
@@ -771,6 +993,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       );
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_EX_WS_ADMIN", name: "ex-ws-admin" }]),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         slackChannelMembersResponse([]), // ws1 admin — now empty, user left
         slackChannelMembersResponse([]), // ws2 admin
       ]);
@@ -800,14 +1024,17 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
         some(ORG_ADMIN_CHANNEL_ID),
       );
 
-      // Sequence: users.list → org admin getChannelInfo fails (gone) → DM to PO → ws1 admin GONE
+      // Sequence: users.list → org admin getChannelInfo fails (gone) → auto-discovery finds nothing
+      //           → DM to PO → public check finds nothing → ws1 admin GONE
       //           (no postMessage to org admin channel — it's gone!) → ws2 admin ok
       const result = (await mockSequentialResponses(pic, call, [
         slackUsersListResponse([
           { id: "U_PO", name: "primary-owner", isPrimaryOwner: true },
         ]),
         slackChannelNotFoundError, // org admin channel — gone (getChannelInfo fails)
-        slackPostMessageResponse("U_PO"), // DM to primary owner
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackPostMessageResponse("U_PO"), // recovery DM to primary owner
+        slackListChannelsEmpty, // public channel check — not found
         slackChannelNotFoundError, // ws1 admin channel — also gone
         // Critically: no postMessage response here (code must NOT try to notify)
         slackChannelMembersResponse([]), // ws2 admin channel — ok
@@ -841,6 +1068,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       );
       await mockSequentialResponses(pic, call, [
         slackUsersListResponse([{ id: "U_KNOWN", name: "known" }]),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         slackChannelMembersResponse(["U_KNOWN", "U_GHOST"]), // ws1 admin
         slackChannelMembersResponse([]), // ws2 admin
       ]);
@@ -957,6 +1186,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       );
       await mockSequentialResponses(pic, call1, [
         slackUsersListResponse([{ id: "U_PURGE", name: "purge-test" }]),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ]);
 
@@ -972,6 +1203,8 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
       );
       const result = (await mockSequentialResponses(pic, call2, [
         slackUsersListResponse([{ id: "U_PURGE", name: "purge-test" }]),
+        slackListChannelsEmpty, // auto-discovery (private) — not found
+        slackListChannelsEmpty, // public channel check — not found
         ...WORKSPACE_CHANNEL_RESPONSES,
       ])) as ReconciliationSummary;
 

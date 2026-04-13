@@ -21,9 +21,6 @@
 ///
 /// Channel verification (run alongside sync):
 ///   - **Org admin channel gone**: log + notify the Primary Owner via DM.
-///       TODO: When the Task system is implemented (Phase 2+), replace the DM with a
-///             Task of type #orgAdminChannelRecovery that guides the Primary Owner
-///             through re-anchoring. The postMessage here is the interim workaround.
 ///   - **Workspace admin channel gone**: notify `#looping-ai-org-admins` (only if
 ///       the org admin channel is still accessible).
 ///   - **Workspace member channel gone**: notify the workspace's admin channel
@@ -41,6 +38,7 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Set "mo:core/Set";
 import Time "mo:core/Time";
+import Runtime "mo:core/Runtime";
 import Constants "../constants";
 import SlackUserModel "../models/slack-user-model";
 import WorkspaceModel "../models/workspace-model";
@@ -264,6 +262,87 @@ module {
     };
   };
 
+  /// Search all private channels for one named exactly `Constants.ORG_ADMIN_CHANNEL_NAME`.
+  /// Returns the channel ID if found, or `null` on API error or if no match exists.
+  /// NOTE: Only private channels are valid anchors — see `warnIfPublicOrgAdminChannelExists`
+  ///       for the fallback that covers the case where one was accidentally created as public.
+  private func findOrgAdminChannelByName(token : Text) : async ?Text {
+    switch (await SlackWrapper.listChannels(token, ?"private_channel")) {
+      case (#err(e)) {
+        Logger.log(
+          #warn,
+          ?"WeeklyReconciliation",
+          "Auto-discovery of org admin channel failed (listChannels error): " # e,
+        );
+        null;
+      };
+      case (#ok(channels)) {
+        for (ch in channels.vals()) {
+          if (ch.name == Constants.ORG_ADMIN_CHANNEL_NAME) {
+            return ?ch.id;
+          };
+        };
+        null;
+      };
+    };
+  };
+
+  /// After failing to find a *private* org-admin channel, check whether a *public* channel
+  /// with the same name exists. If found, DM the Primary Owner to convert or recreate it
+  /// as private — the channel is not anchored. Best-effort: silently skips on API errors.
+  private func warnIfPublicOrgAdminChannelExists(
+    token : Text,
+    ownerCache : SlackUserModel.SlackUserCache,
+  ) : async () {
+    switch (await SlackWrapper.listChannels(token, ?"public_channel")) {
+      case (#err(_)) {};
+      case (#ok(channels)) {
+        for (ch in channels.vals()) {
+          if (ch.name == Constants.ORG_ADMIN_CHANNEL_NAME) {
+            Logger.log(
+              #warn,
+              ?"WeeklyReconciliation",
+              "Found public org admin channel (ID: " # ch.id # ") — org admin channels must be private.",
+            );
+            switch (findPrimaryOwner(ownerCache)) {
+              case (null) {
+                Logger.log(
+                  #warn,
+                  ?"WeeklyReconciliation",
+                  "Cannot send public-channel warning DM — Primary Owner not found in cache.",
+                );
+              };
+              case (?ownerId) {
+                let warnText = ":warning: *Looping AI — Org Admin Channel Must Be Private*\n\n" #
+                "A channel named `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "` (ID: `" # ch.id # "`) was found, " #
+                "but it is *public*. For security, the org-admin channel must be *private*.\n\n" #
+                "Please convert the channel to private, or delete it and create a new private " #
+                "channel named `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "`.";
+                switch (await SlackWrapper.postMessage(token, ownerId, warnText, null, null)) {
+                  case (#err(e)) {
+                    Logger.log(
+                      #error,
+                      ?"WeeklyReconciliation",
+                      "Failed to DM Primary Owner about public org admin channel: " # e,
+                    );
+                  };
+                  case (#ok(_)) {
+                    Logger.log(
+                      #info,
+                      ?"WeeklyReconciliation",
+                      "Sent public-channel warning DM to Primary Owner (" # ownerId # ").",
+                    );
+                  };
+                };
+              };
+            };
+            return;
+          };
+        };
+      };
+    };
+  };
+
   // ============================================
   // Public — Main Entry Point
   // ============================================
@@ -294,8 +373,8 @@ module {
       case (?t) { t };
     };
     // Workspace 0 is the org workspace. Its adminChannelId IS the org-admin channel anchor.
-    let orgAdminChannelId : ?Text = switch (Map.get(workspaces.workspaces, Nat.compare, 0)) {
-      case (null) { null };
+    var orgAdminChannelId : ?Text = switch (Map.get(workspaces.workspaces, Nat.compare, 0)) {
+      case (null) { Runtime.unreachable() };
       case (?ws0) { ws0.adminChannelId };
     };
     let runStartTime = Time.now();
@@ -387,100 +466,202 @@ module {
         Logger.log(
           #info,
           ?"WeeklyReconciliation",
-          "No org admin channel anchor configured; skipping org admin sync.",
+          "No org admin channel anchor configured — attempting auto-discovery by name.",
         );
-      };
-      case (?channelId) {
-        switch (await SlackWrapper.getChannelInfo(token, channelId)) {
-          case (#err(e)) {
-            // Channel is gone or inaccessible.
-            orgAdminChannelOk := false;
-            List.add(goneChannels, channelId);
+        switch (await findOrgAdminChannelByName(token)) {
+          case (null) {
             Logger.log(
-              #error,
+              #warn,
               ?"WeeklyReconciliation",
-              "Org admin channel is gone or inaccessible (channelId: " # channelId # "): " # e,
+              "Auto-discovery found no private channel named '#" # Constants.ORG_ADMIN_CHANNEL_NAME # "' — skipping org admin sync.",
             );
-
-            // TODO: Once the Task system is implemented (Phase 2+), replace this
-            //       postMessage with a Task of type #orgAdminChannelRecovery.
-            switch (findPrimaryOwner(slackUsers.cache)) {
-              case (null) {
-                let msg = "Org admin channel gone and Primary Owner not found in cache — cannot send recovery DM.";
+            await warnIfPublicOrgAdminChannelExists(token, slackUsers.cache);
+          };
+          case (?foundId) {
+            switch (WorkspaceModel.setAdminChannel(workspaces, 0, foundId)) {
+              case (#err(setErr)) {
+                let msg = "Auto-discovery found org admin channel (ID: " # foundId # ") but failed to set anchor: " # setErr;
                 Logger.log(#warn, ?"WeeklyReconciliation", msg);
                 List.add(errors, msg);
               };
-              case (?ownerId) {
-                let dmText = ":warning: *Looping AI — Org Admin Channel Issue*\n\n" #
-                "The org-admin channel (ID: `" # channelId # "`) is no longer accessible.\n\n" #
-                "Please re-create or re-anchor it so org-level access continues to work. " #
-                "Once done, update the channel anchor via the Looping AI configuration.";
-                switch (await SlackWrapper.postMessage(token, ownerId, dmText, null, null)) {
-                  case (#err(e2)) {
-                    let msg = "Failed to DM Primary Owner about org admin channel issue: " # e2;
+              case (#ok()) {
+                orgAdminChannelId := ?foundId;
+                Logger.log(
+                  #info,
+                  ?"WeeklyReconciliation",
+                  "Auto-anchored org admin channel (ID: " # foundId # "); proceeding with member sync.",
+                );
+                switch (await SlackWrapper.getChannelMembers(token, foundId)) {
+                  case (#err(e)) {
+                    orgAdminChannelOk := false;
+                    List.add(goneChannels, foundId);
+                    let msg = "Org admin channel members fetch failed after auto-anchor (channelId: " # foundId # "): " # e;
                     Logger.log(#error, ?"WeeklyReconciliation", msg);
                     List.add(errors, msg);
                   };
-                  case (#ok(_)) {
-                    Logger.log(
-                      #info,
-                      ?"WeeklyReconciliation",
-                      "Sent recovery DM to Primary Owner (" # ownerId # ").",
-                    );
+                  case (#ok(freshMembers)) {
+                    syncOrgAdminMembership(slackUsers, freshMembers);
                   };
                 };
               };
             };
           };
+        };
+      };
+      case (?channelId) {
+        switch (await SlackWrapper.getChannelInfo(token, channelId)) {
+          case (#err(e)) {
+            // Channel is gone or inaccessible. Attempt auto-discovery before escalating.
+            Logger.log(
+              #error,
+              ?"WeeklyReconciliation",
+              "Org admin channel is gone or inaccessible (channelId: " # channelId # "): " # e,
+            );
+            switch (await findOrgAdminChannelByName(token)) {
+              case (?foundId) {
+                switch (WorkspaceModel.setAdminChannel(workspaces, 0, foundId)) {
+                  case (#err(setErr)) {
+                    orgAdminChannelOk := false;
+                    List.add(goneChannels, channelId);
+                    let msg = "Auto-discovery found org admin channel (ID: " # foundId # ") but failed to update anchor: " # setErr;
+                    Logger.log(#warn, ?"WeeklyReconciliation", msg);
+                    List.add(errors, msg);
+                  };
+                  case (#ok()) {
+                    orgAdminChannelId := ?foundId;
+                    Logger.log(
+                      #info,
+                      ?"WeeklyReconciliation",
+                      "Auto-anchored org admin channel (ID: " # foundId # ") after old anchor (ID: " # channelId # ") became inaccessible.",
+                    );
+                    switch (await SlackWrapper.getChannelMembers(token, foundId)) {
+                      case (#err(e2)) {
+                        orgAdminChannelOk := false;
+                        List.add(goneChannels, foundId);
+                        let msg = "Org admin channel members fetch failed after auto-recovery (channelId: " # foundId # "): " # e2;
+                        Logger.log(#error, ?"WeeklyReconciliation", msg);
+                        List.add(errors, msg);
+                      };
+                      case (#ok(freshMembers)) {
+                        syncOrgAdminMembership(slackUsers, freshMembers);
+                      };
+                    };
+                  };
+                };
+              };
+              case (null) {
+                // No replacement found; mark as gone and notify Primary Owner.
+                orgAdminChannelOk := false;
+                List.add(goneChannels, channelId);
+                switch (findPrimaryOwner(slackUsers.cache)) {
+                  case (null) {
+                    let msg = "Org admin channel gone and Primary Owner not found in cache — cannot send recovery DM.";
+                    Logger.log(#warn, ?"WeeklyReconciliation", msg);
+                    List.add(errors, msg);
+                  };
+                  case (?ownerId) {
+                    let dmText = ":warning: *Looping AI — Org Admin Channel Issue*\n\n" #
+                    "The org-admin channel (ID: `" # channelId # "`) is no longer accessible " #
+                    "and no channel named `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "` was found.\n\n" #
+                    "Please re-create the channel with the correct name or re-anchor it so org-level access continues to work.";
+                    switch (await SlackWrapper.postMessage(token, ownerId, dmText, null, null)) {
+                      case (#err(e2)) {
+                        let msg = "Failed to DM Primary Owner about org admin channel issue: " # e2;
+                        Logger.log(#error, ?"WeeklyReconciliation", msg);
+                        List.add(errors, msg);
+                      };
+                      case (#ok(_)) {
+                        Logger.log(
+                          #info,
+                          ?"WeeklyReconciliation",
+                          "Sent recovery DM to Primary Owner (" # ownerId # ").",
+                        );
+                      };
+                    };
+                  };
+                };
+                await warnIfPublicOrgAdminChannelExists(token, slackUsers.cache);
+              };
+            };
+          };
           case (#ok(channelInfo)) {
-            // Channel is accessible. Verify it still has the required name.
+            // Channel is accessible. Determine the effective channel to sync from.
+            // If the name is wrong, attempt auto-discovery to find (or re-anchor) the
+            // correctly-named channel before falling back to a DM warning.
+            var effectiveChannelId = channelId;
             if (channelInfo.name != Constants.ORG_ADMIN_CHANNEL_NAME) {
               Logger.log(
                 #warn,
                 ?"WeeklyReconciliation",
                 "Org admin channel (ID: " # channelId # ") has unexpected name '" #
-                channelInfo.name # "' — expected '#" # Constants.ORG_ADMIN_CHANNEL_NAME # "'.",
+                channelInfo.name # "' — expected '#" # Constants.ORG_ADMIN_CHANNEL_NAME #
+                "'; attempting auto-discovery.",
               );
-              switch (findPrimaryOwner(slackUsers.cache)) {
-                case (null) {
-                  let msg = "Org admin channel has wrong name ('" # channelInfo.name #
-                  "') and Primary Owner not found — cannot send warning DM.";
-                  Logger.log(#warn, ?"WeeklyReconciliation", msg);
-                  List.add(errors, msg);
-                };
-                case (?ownerId) {
-                  let warnText = ":warning: *Looping AI — Org Admin Channel Name Issue*\n\n" #
-                  "The org-admin channel (ID: `" # channelId # "`) is currently named " #
-                  "`#" # channelInfo.name # "`, but it must be named " #
-                  "`#" # Constants.ORG_ADMIN_CHANNEL_NAME # "` for visibility and security best practices.\n\n" #
-                  "Please rename the channel to `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "`.";
-                  switch (await SlackWrapper.postMessage(token, ownerId, warnText, null, null)) {
-                    case (#err(e2)) {
-                      let msg = "Failed to DM Primary Owner about org admin channel name issue: " # e2;
-                      Logger.log(#error, ?"WeeklyReconciliation", msg);
+              switch (await findOrgAdminChannelByName(token)) {
+                case (?foundId) {
+                  switch (WorkspaceModel.setAdminChannel(workspaces, 0, foundId)) {
+                    case (#err(setErr)) {
+                      let msg = "Auto-discovery found correctly-named org admin channel (ID: " # foundId # ") but failed to update anchor: " # setErr;
+                      Logger.log(#warn, ?"WeeklyReconciliation", msg);
                       List.add(errors, msg);
+                      // effectiveChannelId stays as the original (misnamed) channelId
                     };
-                    case (#ok(_)) {
+                    case (#ok()) {
+                      orgAdminChannelId := ?foundId;
+                      effectiveChannelId := foundId;
                       Logger.log(
                         #info,
                         ?"WeeklyReconciliation",
-                        "Sent name-warning DM to Primary Owner (" # ownerId # ").",
+                        "Auto-anchored org admin channel (ID: " # foundId # ") after detecting old anchor (ID: " # channelId # ") had been renamed.",
                       );
                     };
                   };
                 };
+                case (null) {
+                  // No correctly-named channel found; warn Primary Owner about the rename.
+                  switch (findPrimaryOwner(slackUsers.cache)) {
+                    case (null) {
+                      let msg = "Org admin channel has wrong name ('" # channelInfo.name #
+                      "') and Primary Owner not found — cannot send warning DM.";
+                      Logger.log(#warn, ?"WeeklyReconciliation", msg);
+                      List.add(errors, msg);
+                    };
+                    case (?ownerId) {
+                      let warnText = ":warning: *Looping AI — Org Admin Channel Name Issue*\n\n" #
+                      "The org-admin channel (ID: `" # channelId # "`) is currently named " #
+                      "`#" # channelInfo.name # "`, but it must be named " #
+                      "`#" # Constants.ORG_ADMIN_CHANNEL_NAME # "` for visibility and security best practices.\n\n" #
+                      "Please rename the channel to `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "`.";
+                      switch (await SlackWrapper.postMessage(token, ownerId, warnText, null, null)) {
+                        case (#err(e2)) {
+                          let msg = "Failed to DM Primary Owner about org admin channel name issue: " # e2;
+                          Logger.log(#error, ?"WeeklyReconciliation", msg);
+                          List.add(errors, msg);
+                        };
+                        case (#ok(_)) {
+                          Logger.log(
+                            #info,
+                            ?"WeeklyReconciliation",
+                            "Sent name-warning DM to Primary Owner (" # ownerId # ").",
+                          );
+                        };
+                      };
+                    };
+                  };
+                  await warnIfPublicOrgAdminChannelExists(token, slackUsers.cache);
+                };
               };
             };
 
-            // Sync org admin membership regardless of name correctness.
-            switch (await SlackWrapper.getChannelMembers(token, channelId)) {
+            // Sync org admin membership from the effective channel (original or auto-discovered).
+            switch (await SlackWrapper.getChannelMembers(token, effectiveChannelId)) {
               case (#err(e)) {
                 orgAdminChannelOk := false;
-                List.add(goneChannels, channelId);
+                List.add(goneChannels, effectiveChannelId);
                 Logger.log(
                   #error,
                   ?"WeeklyReconciliation",
-                  "Org admin channel members fetch failed (channelId: " # channelId # "): " # e,
+                  "Org admin channel members fetch failed (channelId: " # effectiveChannelId # "): " # e,
                 );
                 List.add(errors, "Org admin channel members fetch failed: " # e);
               };

@@ -26,7 +26,6 @@ import {
 //      This value is sourced from channel history — the LLM cannot fabricate it.
 //      This is the beginning of the approvals system.
 //   5. Removes the workspace record from state
-//   6. Unregisters the workspace's admin agent from the agent registry (if present)
 //
 // The test canister is pre-seeded with workspaces 0 (Default), 1 (Test Workspace 1),
 // and 2 (Test Workspace 2).

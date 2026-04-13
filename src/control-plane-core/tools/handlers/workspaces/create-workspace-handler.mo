@@ -13,7 +13,7 @@ import Helpers "../handler-helpers";
 module {
   public func handle(
     state : WorkspaceModel.WorkspacesState,
-    agentRegistry : ?AgentModel.AgentRegistryState,
+    agentRegistry : AgentModel.AgentRegistryState,
     uac : SlackAuthMiddleware.UserAuthContext,
     resolveSlackBotToken : Text -> ?Text,
     args : Text,
@@ -66,41 +66,36 @@ module {
                 switch (WorkspaceModel.setAdminChannel(state, wsId, channelId)) {
                   case (#err(msg)) {
                     // Roll back: remove the workspace so state stays consistent
-                    ignore WorkspaceModel.deleteWorkspace(state, wsId);
-                    return Helpers.buildErrorResponse("Failed to set admin channel for workspace: " # msg);
+                    let rollbackMsg = switch (WorkspaceModel.deleteWorkspace(state, wsId)) {
+                      case (#err(rollbackErr)) {
+                        " (rollback failed: " # rollbackErr # ")";
+                      };
+                      case (#ok(())) { "" };
+                    };
+                    return Helpers.buildErrorResponse("Failed to set admin channel for workspace: " # msg # rollbackMsg);
                   };
                   case (#ok(_)) {};
                 };
 
                 // Register an #admin agent for the new workspace using the real channel ID
-                switch (agentRegistry) {
-                  case (?registry) {
-                    let agentName = "ws-" # Nat.toText(wsId) # "-admin";
-                    switch (
-                      AgentModel.register(
-                        agentName,
-                        wsId,
-                        #admin,
-                        #api({ model = "openai/gpt-oss-120b" }),
-                        [],
-                        [],
-                        [],
-                        [],
-                        Map.empty<Text, AgentModel.ToolState>(),
-                        [],
-                        Set.singleton<Text>(channelId),
-                        registry,
-                      )
-                    ) {
-                      case (#err(msg)) {
-                        // Roll back: remove the workspace so state stays consistent
-                        ignore WorkspaceModel.deleteWorkspace(state, wsId);
-                        return Helpers.buildErrorResponse("Failed to register admin agent: " # msg);
-                      };
-                      case (#ok(_)) {};
-                    };
-                  };
-                  case (null) {
+                let agentName = "ws-" # Nat.toText(wsId) # "-admin";
+                switch (
+                  AgentModel.register(
+                    agentName,
+                    wsId,
+                    #admin,
+                    #api({ model = "openai/gpt-oss-120b" }),
+                    [],
+                    [],
+                    [],
+                    [],
+                    Map.empty<Text, AgentModel.ToolState>(),
+                    [],
+                    Set.singleton<Text>(channelId),
+                    agentRegistry,
+                  )
+                ) {
+                  case (#err(msg)) {
                     // Roll back: remove the workspace so state stays consistent
                     let rollbackMsg = switch (WorkspaceModel.deleteWorkspace(state, wsId)) {
                       case (#err(rollbackErr)) {
@@ -108,8 +103,9 @@ module {
                       };
                       case (#ok(())) { "" };
                     };
-                    return Helpers.buildErrorResponse("Failed to register admin agent: agent registry is unavailable" # rollbackMsg);
+                    return Helpers.buildErrorResponse("Failed to register admin agent: " # msg # rollbackMsg);
                   };
+                  case (#ok(_)) {};
                 };
                 Json.stringify(
                   obj([
