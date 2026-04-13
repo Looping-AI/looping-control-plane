@@ -968,7 +968,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, testAgentRegistry, uac, func(_ : Text) : ?Text { ?botToken }, args);
+    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
   };
 
   /// Test the CreateWorkspaceHandler in isolation.

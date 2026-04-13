@@ -189,7 +189,7 @@ module {
                 case (?ar) {
                   List.add(tools, createWorkspaceTool(ws.state, uac, resolver, ar.state));
                   List.add(tools, deleteWorkspaceTool(ws.state, uac, resources.triggerMessageText));
-                  List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver, ar.state));
+                  List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver));
                 };
                 case (null) {}; // workspace write tools expected to come with agentRegistry
               };
@@ -496,7 +496,6 @@ module {
     state : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
     resolver : Text -> ?Text,
-    agentRegistry : AgentModel.AgentRegistryState,
   ) : FunctionTool {
     {
       definition = {
@@ -508,7 +507,7 @@ module {
         };
       };
       handler = func(args : Text) : async Text {
-        await SetWorkspaceAdminChannelHandler.handle(state, agentRegistry, uac, resolver, args);
+        await SetWorkspaceAdminChannelHandler.handle(state, uac, resolver, args);
       };
     };
   };

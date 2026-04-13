@@ -386,6 +386,7 @@ module {
     workspaceKey : [Nat8],
     orgKey : [Nat8],
     turnId : Text,
+    adminChannelId : ?Text,
   ) : async ([Types.ProcessingStep], Text, Bool) {
     let result = await AgentRouter.route(
       primaryAgent,
@@ -400,6 +401,7 @@ module {
       orgKey,
       turnId,
       ctx.sessionStores,
+      adminChannelId,
     );
     switch (result) {
       case (#err({ message; steps })) {
@@ -455,6 +457,13 @@ module {
 
     let workspaceId = resolveWorkspaceId(msg.channel, ctx.workspaces);
     let rootTs = rootTimestamp(msg);
+
+    // Resolve the admin channel for this workspace — passed to the router to gate
+    // #admin category agents (dynamic lookup; WorkspaceModel is the single source of truth).
+    let adminChannelId : ?Text = switch (WorkspaceModel.getWorkspace(ctx.workspaces, workspaceId)) {
+      case (?ws) { ws.adminChannelId };
+      case (null) { null };
+    };
 
     // Fetch the org key early to allow bot token fetching before round context check
     let orgKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, 0);
@@ -571,6 +580,7 @@ module {
       encryptionKey,
       orgKey,
       turnId,
+      adminChannelId,
     );
 
     // ── Post reply to Slack ───────────────────────────────────────────────────

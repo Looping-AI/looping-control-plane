@@ -7,14 +7,6 @@ import Result "mo:core/Result";
 import Types "../types";
 
 module {
-  // Placeholder channel ID stored in an agent's allowedChannelIds when the
-  // workspace admin channel has not yet been configured. The agent-router
-  // treats this value as a real channel ID (no special-casing), so the agent
-  // will be blocked from any real channel until the admin channel is set via
-  // set_workspace_admin_channel, which automatically replaces this placeholder
-  // with the real channel ID.
-  public let PENDING_ADMIN_CHANNEL : Text = "PENDING_ADMIN_CHANNEL";
-
   // ============================================
   // Types
   // ============================================
@@ -82,8 +74,10 @@ module {
   ///   toolsMisconfigured  — tools excluded due to operator errors; cleared after investigation.
   ///   toolsState          — per-tool runtime state (usageCount + knowHow text).
   ///   sources             — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
-  ///   allowedChannelIds   — set of Slack channel IDs where this agent may run.
-  ///                         Must be non-empty; cannot be emptied after registration.
+  ///   allowedChannelIds   — set of Slack channel IDs where non-admin agents may run.
+  ///                         Must be non-empty for non-admin agents; cannot be emptied after registration.
+  ///                         For #admin agents this set is always empty; routing is governed by
+  ///                         WorkspaceModel.adminChannelId (single source of truth).
   public type AgentRecord = {
     id : Nat;
     name : Text;
@@ -228,8 +222,17 @@ module {
       case (#ok(())) {};
     };
 
-    if (Set.size(allowedChannelIds) == 0) {
-      return #err("allowedChannelIds must contain at least one channel ID.");
+    // For #admin agents, allowedChannelIds is always empty — routing is governed by
+    // WorkspaceModel.adminChannelId. Silently coerce any provided value to empty set.
+    // For all other categories, enforce non-empty.
+    let effectiveAllowedChannelIds : Set.Set<Text> = switch (category) {
+      case (#admin) { Set.empty<Text>() };
+      case (_) {
+        if (Set.size(allowedChannelIds) == 0) {
+          return #err("allowedChannelIds must contain at least one channel ID.");
+        };
+        allowedChannelIds;
+      };
     };
 
     // Enforce at most one #admin agent per workspace.
@@ -258,7 +261,7 @@ module {
       toolsMisconfigured;
       toolsState;
       sources;
-      allowedChannelIds;
+      allowedChannelIds = effectiveAllowedChannelIds;
     };
     Map.add(state.agentsById, Nat.compare, id, record);
     Map.add(state.agentsByName, Text.compare, normalized, id);
@@ -305,14 +308,22 @@ module {
         #err("Agent with ID " # Nat.toText(id) # " not found.");
       };
       case (?existing) {
-        // Validate newAllowedChannelIds if provided
-        switch (newAllowedChannelIds) {
-          case (?s) {
-            if (Set.size(s) == 0) {
-              return #err("allowedChannelIds must contain at least one channel ID; the allowlist cannot be emptied.");
+        // Validate newAllowedChannelIds if provided.
+        // For #admin agents, always keep the set empty regardless of what is passed —
+        // routing is governed by WorkspaceModel.adminChannelId.
+        // For non-admin agents, reject any attempt to empty the allowlist.
+        switch (existing.category) {
+          case (#admin) {}; // ignored — enforced below in record construction
+          case (_) {
+            switch (newAllowedChannelIds) {
+              case (?s) {
+                if (Set.size(s) == 0) {
+                  return #err("allowedChannelIds must contain at least one channel ID; the allowlist cannot be emptied.");
+                };
+              };
+              case (null) {};
             };
           };
-          case (null) {};
         };
 
         // If newName is provided, validate it
@@ -369,9 +380,14 @@ module {
             case (null) { existing.sources };
             case (?src) { src };
           };
-          allowedChannelIds = switch (newAllowedChannelIds) {
-            case (null) { existing.allowedChannelIds };
-            case (?s) { s };
+          allowedChannelIds = switch (existing.category) {
+            case (#admin) { Set.empty<Text>() }; // always empty — router uses WorkspaceModel.adminChannelId
+            case (_) {
+              switch (newAllowedChannelIds) {
+                case (null) { existing.allowedChannelIds };
+                case (?s) { s };
+              };
+            };
           };
         };
 
@@ -483,7 +499,7 @@ module {
       [],
       Map.empty<Text, ToolState>(),
       [],
-      Set.singleton<Text>(PENDING_ADMIN_CHANNEL), // replaced when org admin channel is set
+      Set.empty<Text>(), // #admin agents never use allowedChannelIds — routing is governed by WorkspaceModel.adminChannelId
       state,
     );
     state;
