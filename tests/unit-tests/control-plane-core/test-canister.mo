@@ -321,6 +321,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     openRouterApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
+    // Anchor workspace 0's admin channel to the incoming channel so the admin routing
+    // guard passes. The setAdminChannel call is silently ignored if the channel is
+    // already anchored to another workspace (e.g. C_ADMIN_CHANNEL → workspace 1 in
+    // testWorkspacesState), which is fine for tests that fire before the routing guard.
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
     await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
@@ -350,6 +355,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     delegationDepth : Nat,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
     let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]);
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
@@ -522,6 +528,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     openRouterApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
     await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
@@ -543,7 +550,41 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     botToken : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
     await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoOpenRouter(slackUsers, testWorkspacesState, botToken, [msg.channel]));
+  };
+
+  /// Variant of testMessageHandlerWithSecrets designed for admin routing guard tests.
+  ///
+  /// @param adminChannelOverride  — `[channelId]` sets workspace 0's admin channel to
+  ///                                that specific channel (for wrong-channel blocking tests).
+  ///                                `[]` leaves workspace 0 with no admin channel
+  ///                                (for null-adminChannelId blocking tests).
+  ///
+  /// Unlike testMessageHandlerWithSecrets, this function does NOT set workspace 0's
+  /// admin channel to msg.channel. Use it when you want the guard to fire.
+  public shared ({ caller }) func testMessageHandlerAdminChannelBlocked(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    openRouterApiKey : Text,
+    adminChannelOverride : ?Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    switch (adminChannelOverride) {
+      case (?chId) {
+        ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, chId);
+      };
+      case (null) {}; // leave workspace 0 with no admin channel
+    };
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(

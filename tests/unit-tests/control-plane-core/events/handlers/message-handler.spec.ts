@@ -710,3 +710,122 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
     }
   });
 });
+
+// ============================================
+// Admin channel routing guard
+//
+// Verifies that the #admin category agent is blocked when the workspace's
+// adminChannelId is not set (null) or when the message arrives from a channel
+// that is not the configured admin channel.
+//
+// The guard fires after the bot-token check, so both cases still result in a
+// Slack error post via postAgentReply — captured via cassette.
+// ============================================
+
+describe("MessageHandler — admin channel routing guard", () => {
+  let pic: PocketIc;
+  let testCanister: DeferredActor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  it("should block admin agent and surface error when adminChannelId is not configured (null)", async () => {
+    // Workspace 0 has no admin channel configured.
+    // The routing guard fires and the error is posted to Slack via postAgentReply.
+    const cassetteName =
+      "unit-tests/control-plane-core/events/handlers/message-handler/admin-guard-null-channel";
+    const channel = await resolveSpecsChannel(cassetteName);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerAdminChannelBlocked(
+          {
+            user: "U_USER",
+            text: "hello admin",
+            channel,
+            ts: "1700000010.000020",
+            threadTs: [] as [],
+            isBotMessage: false,
+            agentMetadata: [] as [],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+          [] as [], // null adminChannelOverride — workspace 0 has no admin channel
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      // A "route" step with an error must appear before the Slack post step.
+      const routeStep = response.ok.find(
+        (s: { action: string }) => s.action === "route",
+      );
+      expect(routeStep).toBeDefined();
+      if (routeStep && "err" in routeStep.result) {
+        expect(routeStep.result.err).toContain(
+          "admin channel not yet configured",
+        );
+      }
+      // The error is always surfaced via a Slack post.
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+    }
+  });
+
+  it("should block admin agent and surface error when message arrives from wrong channel", async () => {
+    // Workspace 0's admin channel is set to "C_ORG_ADMIN_CONFIGURED" but the
+    // message arrives from a different channel (the specs channel).
+    // The routing guard fires and the error is posted to Slack.
+    const cassetteName =
+      "unit-tests/control-plane-core/events/handlers/message-handler/admin-guard-wrong-channel";
+    const channel = await resolveSpecsChannel(cassetteName);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerAdminChannelBlocked(
+          {
+            user: "U_USER",
+            text: "hello admin",
+            channel,
+            ts: "1700000010.000021",
+            threadTs: [] as [],
+            isBotMessage: false,
+            agentMetadata: [] as [],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+          ["C_ORG_ADMIN_CONFIGURED"] as [string], // adminChannelId differs from msg channel
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      const routeStep = response.ok.find(
+        (s: { action: string }) => s.action === "route",
+      );
+      expect(routeStep).toBeDefined();
+      if (routeStep && "err" in routeStep.result) {
+        expect(routeStep.result.err).toContain("channel not admin channel");
+      }
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+    }
+  });
+});

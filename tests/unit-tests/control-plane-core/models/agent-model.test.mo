@@ -799,3 +799,162 @@ suite(
     );
   },
 );
+
+// ============================================
+// Suite: allowedChannelIds — #admin category coercion
+// ============================================
+
+suite(
+  "AgentModel - allowedChannelIds #admin coercion",
+  func() {
+
+    test(
+      "register: #admin agent always stores empty allowedChannelIds regardless of input",
+      func() {
+        let state = AgentModel.emptyState();
+        // Pass a non-empty set — should be coerced to empty for #admin.
+        ignore AgentModel.register(
+          "org-admin",
+          0,
+          #admin,
+          #api({ model = "openai/gpt-oss-120b" }),
+          [],
+          [],
+          [],
+          [],
+          Map.empty<Text, AgentModel.ToolState>(),
+          [],
+          Set.singleton<Text>("C_SHOULD_BE_IGNORED"),
+          state,
+        );
+        switch (AgentModel.lookupByName("org-admin", state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+          };
+        };
+      },
+    );
+
+    test(
+      "register: #admin agent succeeds with empty allowedChannelIds (no non-empty invariant error)",
+      func() {
+        let state = AgentModel.emptyState();
+        let result = AgentModel.register(
+          "org-admin",
+          0,
+          #admin,
+          #api({ model = "openai/gpt-oss-120b" }),
+          [],
+          [],
+          [],
+          [],
+          Map.empty<Text, AgentModel.ToolState>(),
+          [],
+          Set.empty<Text>(),
+          state,
+        );
+        expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).isOk();
+      },
+    );
+
+    test(
+      "register: non-admin agent still rejects empty allowedChannelIds",
+      func() {
+        let state = AgentModel.emptyState();
+        let result = AgentModel.register(
+          "planner",
+          0,
+          #planning,
+          #api({ model = "openai/gpt-oss-120b" }),
+          [],
+          [],
+          [],
+          [],
+          Map.empty<Text, AgentModel.ToolState>(),
+          [],
+          Set.empty<Text>(),
+          state,
+        );
+        expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
+          #err("allowedChannelIds must contain at least one channel ID.")
+        );
+      },
+    );
+
+    test(
+      "updateById: passing non-empty allowedChannelIds for #admin is silently coerced to empty",
+      func() {
+        let state = AgentModel.emptyState();
+        let id = switch (registerSimple(state, "org-admin", #admin)) {
+          case (#ok n) n;
+          case (#err _) { expect.bool(false).equal(true); 0 };
+        };
+
+        ignore AgentModel.updateById(
+          id,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          ?Set.singleton<Text>("C_NEW_CHANNEL"),
+          state,
+        );
+
+        switch (AgentModel.lookupById(id, state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+          };
+        };
+      },
+    );
+
+    test(
+      "updateById: passing empty allowedChannelIds for non-admin returns error",
+      func() {
+        let state = AgentModel.emptyState();
+        let id = switch (registerSimple(state, "planner", #planning)) {
+          case (#ok n) n;
+          case (#err _) { expect.bool(false).equal(true); 0 };
+        };
+
+        let result = AgentModel.updateById(
+          id,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          ?Set.empty<Text>(),
+          state,
+        );
+        expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(
+          #err("allowedChannelIds must contain at least one channel ID; the allowlist cannot be emptied.")
+        );
+      },
+    );
+
+    test(
+      "defaultState: built-in workspace-admin agent has empty allowedChannelIds",
+      func() {
+        let state = AgentModel.defaultState();
+        switch (AgentModel.lookupByName("workspace-admin", state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+          };
+        };
+      },
+    );
+  },
+);
