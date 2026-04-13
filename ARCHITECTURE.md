@@ -71,6 +71,8 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 - **Agent Runner scope boundary**: runtime agent execution (Copilot session, tool use, file operations) lives in a dedicated GitHub repository. The control plane dispatches sessions, tracks state, and receives results — it does not contain the runner implementation. No "Store" file lives in Control Plane in this type of agent, to avoid out of sync issues.
 - Read-only external access via resource-based, short-lived (1h) auth tokens generated within the canister (future).
 - Interactive Messages (block actions, view submissions) for configuration and onboarding flows (future).
+- **[DM Concierge agent](#dm-concierge-agent-planned)** [planned]: a stateless, informative-only agent permanently assigned to workspace 0 that handles all DM interactions. Because all other agents require an explicit channel allowlist, DMs are currently unserved; this agent is the sole exception. Equipped with tools to trigger the weekly reconciliation runner, query agent and workspace health, and surface recovery steps for common admin issues.
+- **[Agent channel aliases](#agent-channel-aliases-planned)** [planned]: agents can register short, human-friendly aliases scoped to a specific Slack channel (e.g., `::Admin`, `::Alice`). The Event Router alias resolver maps the alias to the canonical agent name before dispatch, so users never need to type the globally unique agent identifier inside a channel where the alias is unambiguous.
 
 ### System flow diagram
 
@@ -187,6 +189,18 @@ An immutable, append-only log of execution events within a single turn. Each `Tu
 ### Agent
 
 A named, configurable entity that uses an LLM with specific tools and skills. Agents are registered in a persistent agent registry and referenced via the `::` syntax in Slack messages.
+
+### DM Concierge Agent [planned]
+
+A special-purpose agent permanently assigned to workspace 0 (the org workspace). Because every other agent requires an explicit `allowedChannelIds` entry and DMs are not Slack channels, DMs are currently unserved. The DM Concierge is the sole exception to the channel allowlist requirement — it handles any DM directed at the bot.
+
+Key characteristics:
+
+- **No memory / no learning**: does not write to Agent Session or Channel History. Each interaction is fully stateless.
+- **Informative only**: can answer questions about the system, agent availability, and channel routing, and guide users to the right channel or agent.
+- **Admin recovery tools**: equipped with tools to trigger the weekly reconciliation runner and surface its output directly in the DM; query workspace and agent health; and walk users through common recovery flows (e.g., missing org admin channel membership, misconfigured agent allowlists).
+- **Belongs to workspace 0**: cannot be moved to a workspace-specific workspace. Secret access is limited to org-level secrets only.
+- **Single instance**: only one DM Concierge exists. It is bootstrapped automatically alongside workspace 0 and cannot be deleted.
 
 ### Agent Execution Type
 
@@ -519,6 +533,28 @@ Users (or agents) reference agents in messages with the `::` prefix notation.
 
 When an agent is referenced, the access scope remains that of the original user. The agent uses its own skills and tools, but scoped to the original user's `userAuthContext`.
 
+### Agent Channel Aliases [planned]
+
+Agents can register short, human-friendly aliases scoped to a specific Slack channel. This lets channel members write `::Admin` or `::Alice` instead of the globally unique canonical name (`::ws-1-admin`, `::alice-2`). Aliases only need to be unique within their channel — the same alias can exist in different channels pointing to different agents.
+
+**Model**: the registry maintains a secondary index `channelAliasIndex : Map<(channelId, alias), agentId>`. An alias is a kebab-case, lowercase text string following the same character rules as an agent name. Aliases are stored case-insensitively.
+
+**Registration rules**:
+
+- Two agents cannot hold the same alias in the same channel — registration is rejected if a conflict exists.
+- An alias may shadow the canonical name of a _different_ agent only if that agent is not allowlisted in the channel.
+- Aliases are configured per-agent from the agent's workspace admin channel, alongside `allowedChannelIds`.
+
+**Alias resolution in the Event Router** (runs after the existing `::agentname` extraction):
+
+1. Extract `::reference` tokens as today.
+2. Attempt exact name lookup in the agent registry (current behavior — unchanged).
+3. If no exact match, perform a channel-scoped lookup: `channelAliasIndex[(channelId, reference)]`.
+4. If found, treat the resolved agent as if its canonical name had been referenced — all downstream logic (session tracking, turn log, trace entries) uses the canonical name.
+5. If still not found, discard the event as today.
+
+Alias resolution is transparent: once resolved, nothing downstream is aware that an alias was used.
+
 ### Agent categories
 
 Each agent category defines the process logic that handles execution:
@@ -623,6 +659,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 - **Turn cleanup timer** (monthly): hard-deletes entire turns and their trace entries when `completedAtNs` is older than `TURN_CLEANUP_RETENTION_NS` (3 months).
 - **Process Engine timer**: kick the Process Engine step loop periodically.
 - **Recurring task timer**: goal-monitoring, reporting, and dashboard alerts.
+- **Workspace deletion cascading cleanup timer**: when a workspace is deleted, ensure all associated objects (agents, secrets, sessions, traces, stored documents) are cleaned up thoroughly. This will require an async cleanup queue to handle the cascade safely, retrying failed deletions and ensuring all cleanup operations succeed before removing the workspace from the registry.
 
 ## Tooling and Integrations
 

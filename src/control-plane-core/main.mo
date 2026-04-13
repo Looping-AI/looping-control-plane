@@ -302,7 +302,22 @@ persistent actor class OpenOrgBackend() {
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
     switch (SecretModel.storeSecret(secrets, encryptionKey, 0, secretId, value, { slackUserId = null; agentId = null; operation = "storeOrgCriticalSecrets" })) {
       case (#err(msg)) { #err(msg) };
-      case (#ok(())) { #ok(()) };
+      case (#ok(())) {
+        if (secretId == #slackBotToken) {
+          ignore Timer.setTimer<system>(
+            #seconds 0,
+            func() : async () {
+              switch (await WeeklyReconciliationRunner.run(keyCache, secrets, slackUsers, workspaces)) {
+                case (#ok(_)) {};
+                case (#err(e)) {
+                  Logger.log(#error, ?"StoreSecret", "WeeklyReconciliationRunner failed after slackBotToken store: " # e);
+                };
+              };
+            },
+          );
+        };
+        #ok(());
+      };
     };
   };
 

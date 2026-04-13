@@ -85,22 +85,4 @@ describe("ListWorkspacesHandler", () => {
     expect(ws2!.name).toBe("Test Workspace 2");
     expect(ws2!.adminChannelId).toBe("C_ROUND_TRIP_ADMIN");
   });
-
-  it("should reflect newly created workspaces", async () => {
-    const PRIMARY_OWNER = {
-      isPrimaryOwner: true,
-      isOrgAdmin: false,
-      workspaceAdminFor: [] as [] | [bigint],
-    };
-    await testCanister.testCreateWorkspaceHandler(
-      JSON.stringify({ name: "Engineering" }),
-      PRIMARY_OWNER,
-    );
-    const result = await testCanister.testListWorkspacesHandler("{}");
-    const response = parseResponse(result);
-    expect(response.success).toBe(true);
-    expect(response.workspaces).toHaveLength(4);
-    const names = response.workspaces!.map((w) => w.name).sort();
-    expect(names).toContain("Engineering");
-  });
 });

@@ -2,7 +2,6 @@ import Json "mo:json";
 import { str; obj; int; bool; arr } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
-import Float "mo:core/Float";
 import Array "mo:core/Array";
 import Map "mo:core/Map";
 import ObjectiveModel "../../../models/objective-model";

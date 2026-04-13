@@ -1,5 +1,6 @@
 import { test; suite; expect } "mo:test";
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import AgentRefParser "../../../../src/control-plane-core/utilities/agent-ref-parser";
 import AgentModel "../../../../src/control-plane-core/models/agent-model";
@@ -17,7 +18,7 @@ func registerSimple(
     AgentModel.register(
       name,
       0,
-      #admin,
+      #planning,
       #api({ model = "openai/gpt-oss-120b" }),
       [],
       [],
@@ -25,6 +26,7 @@ func registerSimple(
       [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
+      Set.singleton<Text>("C_TEST"),
       state,
     )
   ) {

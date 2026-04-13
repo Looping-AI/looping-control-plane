@@ -104,6 +104,27 @@ module {
     Iter.toArray(Map.values(state.workspaces));
   };
 
+  /// Delete a workspace by ID. Workspace 0 (the org workspace) is protected and cannot be deleted.
+  /// Returns `#err` if:
+  ///   - the workspace does not exist
+  ///   - the workspace ID is 0 (protected)
+  /// TODO: consider cascading deletes of agents, secrets, ... associated with the workspace.
+  /// It should add to a queue and only remove from the queue once fully succeeded.
+  /// These cleanup operations can be quite hard to ensure they are thorough, even with a constantly changing system.
+  /// It would need that ALL objects have a delete method and handle fails properly.
+  public func deleteWorkspace(state : WorkspacesState, workspaceId : Nat) : Result.Result<(), Text> {
+    if (workspaceId == 0) {
+      return #err("Workspace 0 (the org workspace) cannot be deleted.");
+    };
+    switch (Map.get(state.workspaces, Nat.compare, workspaceId)) {
+      case (null) { #err("Workspace not found.") };
+      case (?_) {
+        Map.remove(state.workspaces, Nat.compare, workspaceId);
+        #ok(());
+      };
+    };
+  };
+
   // ============================================
   // Channel Anchor Management
   // ============================================

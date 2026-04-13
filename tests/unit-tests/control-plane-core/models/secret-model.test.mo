@@ -1,6 +1,7 @@
 import { test; suite; expect } "mo:test";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
@@ -75,6 +76,7 @@ func makeAgentOnWorkspace(wsId : Nat) : AgentModel.AgentRecord {
     toolsMisconfigured = [];
     toolsState = Map.empty<Text, AgentModel.ToolState>();
     sources = [];
+    allowedChannelIds = Set.singleton<Text>("C_TEST");
   };
 };
 
@@ -400,6 +402,7 @@ func makeAgentWithOverrides(secretOverrides : [(Types.SecretId, Text)]) : AgentM
     toolsMisconfigured = [];
     toolsState = Map.empty<Text, AgentModel.ToolState>();
     sources = [];
+    allowedChannelIds = Set.singleton<Text>("C_TEST");
   };
 };
 

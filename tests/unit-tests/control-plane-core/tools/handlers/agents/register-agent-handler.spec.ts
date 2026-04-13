@@ -74,6 +74,7 @@ describe("RegisterAgentHandler", () => {
           name: "test-agent",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -87,6 +88,7 @@ describe("RegisterAgentHandler", () => {
           name: "research-agent",
           category: "research",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         ORG_ADMIN,
       );
@@ -144,6 +146,7 @@ describe("RegisterAgentHandler", () => {
           name: "admin-bot",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -160,6 +163,7 @@ describe("RegisterAgentHandler", () => {
           name: "first-agent",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -168,6 +172,7 @@ describe("RegisterAgentHandler", () => {
           name: "second-agent",
           category: "planning",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -185,6 +190,7 @@ describe("RegisterAgentHandler", () => {
           llmModel: "gpt_oss_120b",
           toolsDisallowed: ["web_search"],
           sources: ["https://example.com"],
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -200,6 +206,7 @@ describe("RegisterAgentHandler", () => {
           name: "unique-agent",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -208,6 +215,7 @@ describe("RegisterAgentHandler", () => {
           name: "unique-agent",
           category: "planning",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -228,6 +236,7 @@ describe("RegisterAgentHandler", () => {
           secretOverrides: [
             { secretId: "openRouterApiKey", customKeyName: "my-custom-key" },
           ],
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -257,6 +266,7 @@ describe("RegisterAgentHandler", () => {
           name: "no-overrides-bot",
           category: "research",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );

@@ -1,5 +1,6 @@
 import { test; suite; expect } "mo:test";
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
@@ -53,6 +54,7 @@ func registerSimple(state : AgentModel.AgentRegistryState, name : Text, category
     [],
     Map.empty<Text, AgentModel.ToolState>(),
     [],
+    Set.singleton<Text>("C_TEST"),
     state,
   );
 };
@@ -194,6 +196,7 @@ suite(
           [],
           Map.empty<Text, AgentModel.ToolState>(),
           ["https://docs.example.com"],
+          Set.singleton<Text>("C_TEST"),
           state,
         );
 
@@ -300,6 +303,7 @@ suite(
           null,
           null,
           null,
+          null,
           state,
         );
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
@@ -326,7 +330,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentModel.updateById(id, null, ?#research, null, null, null, null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, ?#research, null, null, null, null, null, null, null, null, state);
 
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
@@ -345,7 +349,7 @@ suite(
         };
 
         // Update name to new-bot
-        let result = AgentModel.updateById(id, ?"new-bot", null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"new-bot", null, null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Old name should no longer resolve
@@ -376,7 +380,7 @@ suite(
         ignore registerSimple(state, "bot-two", #research);
 
         // Try to rename bot-one to bot-two (which already exists)
-        let result = AgentModel.updateById(id1, ?"bot-two", null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id1, ?"bot-two", null, null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // bot-one should still have its original name
@@ -397,7 +401,7 @@ suite(
         };
 
         // Update with the same name (case variation)
-        let result = AgentModel.updateById(id, ?"BOT", null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"BOT", null, null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Lookup should still work
@@ -415,7 +419,7 @@ suite(
         };
 
         // Try to update with invalid name (starting with digit)
-        let result = AgentModel.updateById(id, ?"1invalid", null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, ?"1invalid", null, null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // Original name should still be intact
@@ -430,7 +434,7 @@ suite(
       "returns error for non-existent agent",
       func() {
         let state = AgentModel.emptyState();
-        let result = AgentModel.updateById(999, null, null, null, null, null, null, null, null, null, state);
+        let result = AgentModel.updateById(999, null, null, null, null, null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
       },
     );
@@ -530,6 +534,7 @@ suite(
           [],
           Map.empty<Text, AgentModel.ToolState>(),
           [],
+          Set.singleton<Text>("C_TEST"),
           state,
         );
 
@@ -551,7 +556,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        let result = AgentModel.updateById(id, null, null, null, ?[(0, #openRouterApiKey)], null, null, null, null, null, state);
+        let result = AgentModel.updateById(id, null, null, null, ?[(0, #openRouterApiKey)], null, null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         switch (AgentModel.lookupById(id, state)) {
@@ -578,11 +583,12 @@ suite(
           [],
           Map.empty<Text, AgentModel.ToolState>(),
           [],
+          Set.singleton<Text>("C_TEST"),
           state,
         );
         let id = 0;
 
-        ignore AgentModel.updateById(id, null, null, null, ?[], null, null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, null, null, ?[], null, null, null, null, null, null, state);
 
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
@@ -630,6 +636,7 @@ suite(
           [],
           Map.empty<Text, AgentModel.ToolState>(),
           [],
+          Set.singleton<Text>("C_TEST"),
           state,
         );
         switch (AgentModel.lookupByName("override-bot", state)) {
@@ -647,7 +654,7 @@ suite(
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
-        let result = AgentModel.updateById(id, null, null, null, null, ?[(#openRouterApiKey, "my-key")], null, null, null, null, state);
+        let result = AgentModel.updateById(id, null, null, null, null, ?[(#openRouterApiKey, "my-key")], null, null, null, null, null, state);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
@@ -671,10 +678,11 @@ suite(
           [],
           Map.empty<Text, AgentModel.ToolState>(),
           [],
+          Set.singleton<Text>("C_TEST"),
           state,
         );
         let id = 0;
-        ignore AgentModel.updateById(id, null, null, null, null, ?[], null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, null, null, null, ?[], null, null, null, null, null, state);
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) { expect.nat(r.secretOverrides.size()).equal(0) };
@@ -697,10 +705,11 @@ suite(
           [],
           Map.empty<Text, AgentModel.ToolState>(),
           [],
+          Set.singleton<Text>("C_TEST"),
           state,
         );
         let id = 0;
-        ignore AgentModel.updateById(id, null, null, null, null, null, null, null, null, null, state);
+        ignore AgentModel.updateById(id, null, null, null, null, null, null, null, null, null, null, state);
         switch (AgentModel.lookupById(id, state)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) { expect.nat(r.secretOverrides.size()).equal(1) };
@@ -786,6 +795,165 @@ suite(
         ignore AgentModel.unregisterById(id, state);
 
         expect.nat(AgentModel.listAgents(state).size()).equal(1);
+      },
+    );
+  },
+);
+
+// ============================================
+// Suite: allowedChannelIds — #admin category coercion
+// ============================================
+
+suite(
+  "AgentModel - allowedChannelIds #admin coercion",
+  func() {
+
+    test(
+      "register: #admin agent always stores empty allowedChannelIds regardless of input",
+      func() {
+        let state = AgentModel.emptyState();
+        // Pass a non-empty set — should be coerced to empty for #admin.
+        ignore AgentModel.register(
+          "org-admin",
+          0,
+          #admin,
+          #api({ model = "openai/gpt-oss-120b" }),
+          [],
+          [],
+          [],
+          [],
+          Map.empty<Text, AgentModel.ToolState>(),
+          [],
+          Set.singleton<Text>("C_SHOULD_BE_IGNORED"),
+          state,
+        );
+        switch (AgentModel.lookupByName("org-admin", state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+          };
+        };
+      },
+    );
+
+    test(
+      "register: #admin agent succeeds with empty allowedChannelIds (no non-empty invariant error)",
+      func() {
+        let state = AgentModel.emptyState();
+        let result = AgentModel.register(
+          "org-admin",
+          0,
+          #admin,
+          #api({ model = "openai/gpt-oss-120b" }),
+          [],
+          [],
+          [],
+          [],
+          Map.empty<Text, AgentModel.ToolState>(),
+          [],
+          Set.empty<Text>(),
+          state,
+        );
+        expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).isOk();
+      },
+    );
+
+    test(
+      "register: non-admin agent still rejects empty allowedChannelIds",
+      func() {
+        let state = AgentModel.emptyState();
+        let result = AgentModel.register(
+          "planner",
+          0,
+          #planning,
+          #api({ model = "openai/gpt-oss-120b" }),
+          [],
+          [],
+          [],
+          [],
+          Map.empty<Text, AgentModel.ToolState>(),
+          [],
+          Set.empty<Text>(),
+          state,
+        );
+        expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
+          #err("allowedChannelIds must contain at least one channel ID.")
+        );
+      },
+    );
+
+    test(
+      "updateById: passing non-empty allowedChannelIds for #admin is silently coerced to empty",
+      func() {
+        let state = AgentModel.emptyState();
+        let id = switch (registerSimple(state, "org-admin", #admin)) {
+          case (#ok n) n;
+          case (#err _) { expect.bool(false).equal(true); 0 };
+        };
+
+        ignore AgentModel.updateById(
+          id,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          ?Set.singleton<Text>("C_NEW_CHANNEL"),
+          state,
+        );
+
+        switch (AgentModel.lookupById(id, state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+          };
+        };
+      },
+    );
+
+    test(
+      "updateById: passing empty allowedChannelIds for non-admin returns error",
+      func() {
+        let state = AgentModel.emptyState();
+        let id = switch (registerSimple(state, "planner", #planning)) {
+          case (#ok n) n;
+          case (#err _) { expect.bool(false).equal(true); 0 };
+        };
+
+        let result = AgentModel.updateById(
+          id,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          ?Set.empty<Text>(),
+          state,
+        );
+        expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(
+          #err("allowedChannelIds must contain at least one channel ID; the allowlist cannot be emptied.")
+        );
+      },
+    );
+
+    test(
+      "defaultState: built-in workspace-admin agent has empty allowedChannelIds",
+      func() {
+        let state = AgentModel.defaultState();
+        switch (AgentModel.lookupByName("workspace-admin", state)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+          };
+        };
       },
     );
   },

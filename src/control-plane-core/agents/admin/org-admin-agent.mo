@@ -109,11 +109,36 @@ module {
     };
 
     // Build tool resources — workspace-management, agent registry, and MCP tool management
+    //
+    // Derive the verbatim text of the Slack message that triggered this agent turn
+    // from channel history. Used by destructive tools (e.g. delete_workspace) to verify
+    // the user actually typed a confirmation phrase — impossible for the LLM to fabricate
+    // because this value is read directly from stored channel history, never from LLM args.
+    let triggerMessageText : ?Text = do {
+      let recentMsgs = switch (threadTs) {
+        case (?rootTs) {
+          ChannelHistoryModel.getRecentThreadMessages(channelHistory, channelId, rootTs, 20);
+        };
+        case (null) {
+          ChannelHistoryModel.getRecentRootMessages(channelHistory, channelId, 20);
+        };
+      };
+      // Walk backwards to find the last user message (userAuthContext != null → user, null → agent)
+      var found : ?Text = null;
+      for (msg in recentMsgs.vals()) {
+        switch (msg.userAuthContext) {
+          case (?_) { found := ?msg.text };
+          case (null) {};
+        };
+      };
+      found;
+    };
     let toolResources : ToolTypes.ToolResources = {
       workspaceId = null; // org-admin tools operate on entire WorkspacesState, not a single workspace
       openRouterApiKey = ?apiKey;
       resolveSlackBotToken = ?slackBotTokenResolver;
       userAuthContext = ctx.userAuthContext;
+      triggerMessageText;
       valueStreams = null;
       metrics = null;
       objectives = null;

@@ -1,4 +1,5 @@
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
@@ -69,10 +70,14 @@ module {
   ///                     When resolving `targetSecretId`, the model first looks up
   ///                     `#custom(customKeyName)` from this agent's workspace before
   ///                     falling back to the standard ID and the org-level fallback.
-  ///   toolsDisallowed — blocklist of tool names to exclude from LLM tool set (by function name).
-  ///   toolsMisconfigured — tools excluded due to operator errors; cleared after investigation.
-  ///   toolsState      — per-tool runtime state (usageCount + knowHow text).
-  ///   sources         — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
+  ///   toolsDisallowed     — blocklist of tool names to exclude from LLM tool set (by function name).
+  ///   toolsMisconfigured  — tools excluded due to operator errors; cleared after investigation.
+  ///   toolsState          — per-tool runtime state (usageCount + knowHow text).
+  ///   sources             — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
+  ///   allowedChannelIds   — set of Slack channel IDs where non-admin agents may run.
+  ///                         Must be non-empty for non-admin agents; cannot be emptied after registration.
+  ///                         For #admin agents this set is always empty; routing is governed by
+  ///                         WorkspaceModel.adminChannelId (single source of truth).
   public type AgentRecord = {
     id : Nat;
     name : Text;
@@ -85,6 +90,7 @@ module {
     toolsMisconfigured : [Text];
     toolsState : Map.Map<Text, ToolState>;
     sources : [Text];
+    allowedChannelIds : Set.Set<Text>;
   };
 
   /// Type alias for the agent registry state.
@@ -203,6 +209,7 @@ module {
     toolsMisconfigured : [Text],
     toolsState : Map.Map<Text, ToolState>,
     sources : [Text],
+    allowedChannelIds : Set.Set<Text>,
     state : AgentRegistryState,
   ) : Result.Result<Nat, Text> {
     let normalized = switch (validateAndNormalizeName(name)) {
@@ -213,6 +220,32 @@ module {
     switch (isNameAvailable(normalized, state, null)) {
       case (#err(msg)) { return #err(msg) };
       case (#ok(())) {};
+    };
+
+    // For #admin agents, allowedChannelIds is always empty — routing is governed by
+    // WorkspaceModel.adminChannelId. Silently coerce any provided value to empty set.
+    // For all other categories, enforce non-empty.
+    let effectiveAllowedChannelIds : Set.Set<Text> = switch (category) {
+      case (#admin) { Set.empty<Text>() };
+      case (_) {
+        if (Set.size(allowedChannelIds) == 0) {
+          return #err("allowedChannelIds must contain at least one channel ID.");
+        };
+        allowedChannelIds;
+      };
+    };
+
+    // Enforce at most one #admin agent per workspace.
+    if (category == #admin) {
+      switch (lookupAdminAgentByWorkspace(workspaceId, state)) {
+        case (?existing) {
+          return #err(
+            "Workspace " # Nat.toText(workspaceId) # " already has an admin agent ('" # existing.name # "'). " #
+            "Only one #admin agent is allowed per workspace."
+          );
+        };
+        case (null) {};
+      };
     };
 
     let id = state.nextId;
@@ -228,6 +261,7 @@ module {
       toolsMisconfigured;
       toolsState;
       sources;
+      allowedChannelIds = effectiveAllowedChannelIds;
     };
     Map.add(state.agentsById, Nat.compare, id, record);
     Map.add(state.agentsByName, Text.compare, normalized, id);
@@ -266,6 +300,7 @@ module {
     newToolsMisconfigured : ?[Text],
     newToolsState : ?Map.Map<Text, ToolState>,
     newSources : ?[Text],
+    newAllowedChannelIds : ?Set.Set<Text>,
     state : AgentRegistryState,
   ) : Result.Result<Bool, Text> {
     switch (Map.get(state.agentsById, Nat.compare, id)) {
@@ -273,6 +308,24 @@ module {
         #err("Agent with ID " # Nat.toText(id) # " not found.");
       };
       case (?existing) {
+        // Validate newAllowedChannelIds if provided.
+        // For #admin agents, always keep the set empty regardless of what is passed —
+        // routing is governed by WorkspaceModel.adminChannelId.
+        // For non-admin agents, reject any attempt to empty the allowlist.
+        switch (existing.category) {
+          case (#admin) {}; // ignored — enforced below in record construction
+          case (_) {
+            switch (newAllowedChannelIds) {
+              case (?s) {
+                if (Set.size(s) == 0) {
+                  return #err("allowedChannelIds must contain at least one channel ID; the allowlist cannot be emptied.");
+                };
+              };
+              case (null) {};
+            };
+          };
+        };
+
         // If newName is provided, validate it
         let finalName = switch (newName) {
           case (null) { existing.name };
@@ -326,6 +379,15 @@ module {
           sources = switch (newSources) {
             case (null) { existing.sources };
             case (?src) { src };
+          };
+          allowedChannelIds = switch (existing.category) {
+            case (#admin) { Set.empty<Text>() }; // always empty — router uses WorkspaceModel.adminChannelId
+            case (_) {
+              switch (newAllowedChannelIds) {
+                case (null) { existing.allowedChannelIds };
+                case (?s) { s };
+              };
+            };
           };
         };
 
@@ -396,6 +458,16 @@ module {
     null;
   };
 
+  /// Return the first registered #admin agent for the given workspaceId, or null if none found.
+  public func lookupAdminAgentByWorkspace(workspaceId : Nat, state : AgentRegistryState) : ?AgentRecord {
+    for (record in Map.values(state.agentsById)) {
+      if (record.category == #admin and record.workspaceId == workspaceId) {
+        return ?record;
+      };
+    };
+    null;
+  };
+
   /// Count all registered agents with the given category.
   public func countByCategory(category : AgentCategory, state : AgentRegistryState) : Nat {
     var count = 0;
@@ -427,6 +499,7 @@ module {
       [],
       Map.empty<Text, ToolState>(),
       [],
+      Set.empty<Text>(), // #admin agents never use allowedChannelIds — routing is governed by WorkspaceModel.adminChannelId
       state,
     );
     state;

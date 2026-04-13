@@ -303,3 +303,74 @@ suite(
     );
   },
 );
+
+// ============================================
+// Suite: deleteWorkspace
+// ============================================
+
+suite(
+  "WorkspaceModel - deleteWorkspace",
+  func() {
+    test(
+      "rejects deletion of workspace 0",
+      func() {
+        let state = WorkspaceModel.emptyState();
+        let result = WorkspaceModel.deleteWorkspace(state, 0);
+        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
+          #err("Workspace 0 (the org workspace) cannot be deleted.")
+        );
+      },
+    );
+
+    test(
+      "rejects non-existent workspace id",
+      func() {
+        let state = WorkspaceModel.emptyState();
+        let result = WorkspaceModel.deleteWorkspace(state, 99);
+        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
+          #err("Workspace not found.")
+        );
+      },
+    );
+
+    test(
+      "deletes an existing workspace successfully",
+      func() {
+        let state = WorkspaceModel.emptyState();
+        ignore WorkspaceModel.createWorkspace(state, "Engineering");
+        let result = WorkspaceModel.deleteWorkspace(state, 1);
+        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).isOk();
+        expect.option<WorkspaceModel.WorkspaceRecord>(
+          WorkspaceModel.getWorkspace(state, 1),
+          func(w) { w.name },
+          func(a, b) { a == b },
+        ).isNull();
+      },
+    );
+
+    test(
+      "deleted workspace no longer appears in listWorkspaces",
+      func() {
+        let state = WorkspaceModel.emptyState();
+        ignore WorkspaceModel.createWorkspace(state, "Engineering");
+        ignore WorkspaceModel.createWorkspace(state, "Marketing");
+        ignore WorkspaceModel.deleteWorkspace(state, 1);
+        let list = WorkspaceModel.listWorkspaces(state);
+        expect.nat(list.size()).equal(2); // Default + Marketing
+      },
+    );
+
+    test(
+      "second deletion of same workspace returns error",
+      func() {
+        let state = WorkspaceModel.emptyState();
+        ignore WorkspaceModel.createWorkspace(state, "Engineering");
+        ignore WorkspaceModel.deleteWorkspace(state, 1);
+        let result = WorkspaceModel.deleteWorkspace(state, 1);
+        expect.result<(), Text>(result, resultUnitToText, resultUnitEqual).equal(
+          #err("Workspace not found.")
+        );
+      },
+    );
+  },
+);

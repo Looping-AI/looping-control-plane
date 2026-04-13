@@ -5,6 +5,8 @@
 /// required for execution, dispatch to the correct category service.
 
 import Time "mo:core/Time";
+import Set "mo:core/Set";
+import Text "mo:core/Text";
 import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
 import Types "../types";
@@ -59,7 +61,57 @@ module {
     orgKey : [Nat8],
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
+    agentAdminChannelId : ?Text,
   ) : async RouteResult {
+    // Channel guard — split by category:
+    // - #admin agents: routing is governed by the agent's workspace's adminChannelId
+    //   (single source of truth in WorkspaceModel). null means not yet configured
+    //   — block unconditionally; there is no bootstrap bypass.
+    // - All other categories: enforce the agent's static allowedChannelIds set.
+    switch (primaryAgent.category) {
+      case (#admin) {
+        let allowedId = switch (agentAdminChannelId) {
+          case (null) {
+            let step : Types.ProcessingStep = {
+              action = "route";
+              result = #err("admin channel not yet configured");
+              timestamp = Time.now();
+            };
+            return #err({
+              message = "The admin channel for this workspace has not yet been configured. Use set_workspace_admin_channel to anchor it.";
+              steps = [step];
+            });
+          };
+          case (?id) { id };
+        };
+        if (allowedId != channelId) {
+          let step : Types.ProcessingStep = {
+            action = "route";
+            result = #err("channel not admin channel");
+            timestamp = Time.now();
+          };
+          return #err({
+            message = "Agent '" # primaryAgent.name # "' can only be invoked from the configured admin channel (" # allowedId # ").";
+            steps = [step];
+          });
+        };
+      };
+      case (_) {
+        if (not Set.contains(primaryAgent.allowedChannelIds, Text.compare, channelId)) {
+          let allowedList = Text.join(Set.values(primaryAgent.allowedChannelIds), ", ");
+          let step : Types.ProcessingStep = {
+            action = "route";
+            result = #err("channel not in allowlist");
+            timestamp = Time.now();
+          };
+          return #err({
+            message = "Agent '" # primaryAgent.name # "' is not configured for channel " # channelId # ". Allowed channels: " # allowedList # ".";
+            steps = [step];
+          });
+        };
+      };
+    };
+
     // Validate that the ctx variant matches the agent's declared category.
     let ctxMatchesCategory : Bool = switch (primaryAgent.category, agentCtx) {
       case (#admin, #admin(_)) { true };

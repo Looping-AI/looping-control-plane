@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "name": "admin-guard-null-channel",
+  "recordedAt": "2026-04-13T17:11:02.504Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://slack.com/api/chat.postMessage",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"channel\":\"C0AG99QQAR4\",\"text\":\"[Agent error] The admin channel for this workspace has not yet been configured. Use set_workspace_admin_channel to anchor it.\",\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"unit-test-admin\",\"parent_ts\":\"1700000010.000020\",\"parent_channel\":\"C0AG99QQAR4\",\"turn_id\":\"0_0\"}}}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "access-control-allow-headers",
+            "slack-route, x-slack-version-ts, x-b3-traceid, x-b3-spanid, x-b3-parentspanid, x-b3-sampled, x-b3-flags"
+          ],
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "x-slack-req-id, retry-after"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
+          ],
+          ["cache-control", "private, no-cache, no-store, must-revalidate"],
+          ["content-length", "531"],
+          ["content-type", "application/json; charset=utf-8"],
+          ["date", "Mon, 13 Apr 2026 17:11:02 GMT"],
+          ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
+          ["pragma", "no-cache"],
+          ["referrer-policy", "no-referrer"],
+          ["server", "Apache"],
+          [
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains; preload"
+          ],
+          ["timing-allow-origin", "*"],
+          ["vary", "Accept-Encoding"],
+          [
+            "via",
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-wecifltr,envoy-edge-lhr-umeazaii"
+          ],
+          ["x-accepted-oauth-scopes", "chat:write"],
+          ["x-backend", "api_normal"],
+          ["x-content-type-options", "nosniff"],
+          ["x-edge-backend", "envoy-www"],
+          ["x-envoy-attempt-count", "1"],
+          ["x-envoy-upstream-service-time", "149"],
+          [
+            "x-oauth-scopes",
+            "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
+          ],
+          ["x-server", "slack-www-hhvm-api-iad-fc0bjzbirzt9"],
+          ["x-slack-backend", "r"],
+          ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-req-id", "fcd0e327038a7264f91fc8ad190903f7"],
+          ["x-slack-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-unique-id", "ad0jpsdiAAKttaQg5GSe4wAAAA4"],
+          ["x-xss-protection", "0"]
+        ],
+        "body": "{\"ok\":true,\"channel\":\"C0AG99QQAR4\",\"ts\":\"1776100262.891329\",\"message\":{\"user\":\"U0ADWN7P3DY\",\"type\":\"message\",\"ts\":\"1776100262.891329\",\"bot_id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"text\":\"[Agent error] The admin channel for this workspace has not yet been configured. Use set_workspace_admin_channel to anchor it.\",\"team\":\"T0ADR0P92G2\",\"bot_profile\":{\"id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"user_id\":\"U0ADWN7P3DY\",\"name\":\"Looping AI (T)\",\"icons\":{\"image_36\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg\"},\"deleted\":false,\"updated\":1772839412,\"team_id\":\"T0ADR0P92G2\"},\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"unit-test-admin\",\"parent_ts\":\"1700000010.000020\",\"parent_channel\":\"C0AG99QQAR4\",\"turn_id\":\"0_0\"}},\"blocks\":[{\"type\":\"rich_text\",\"block_id\":\"EEczz\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"text\",\"text\":\"[Agent error] The admin channel for this workspace has not yet been configured. Use set_workspace_admin_channel to anchor it.\"}]}]}]},\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

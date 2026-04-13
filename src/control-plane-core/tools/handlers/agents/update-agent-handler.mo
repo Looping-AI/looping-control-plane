@@ -1,6 +1,7 @@
 import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Int "mo:core/Int";
+import Set "mo:core/Set";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
@@ -138,6 +139,26 @@ module {
           };
         };
 
+        let newAllowedChannelIds = switch (Json.get(json, "allowedChannelIds")) {
+          case (?#array(items)) {
+            switch (AgentParsers.parseAllowedChannelIds(items)) {
+              case (?s) {
+                if (Set.size(s) == 0) {
+                  return Helpers.buildErrorResponse("allowedChannelIds must be non-empty when provided; the allowlist cannot be emptied");
+                };
+                ?s;
+              };
+              case null {
+                return Helpers.buildErrorResponse("allowedChannelIds must be an array of strings");
+              };
+            };
+          };
+          case (null) { null };
+          case _ {
+            return Helpers.buildErrorResponse("allowedChannelIds must be an array");
+          };
+        };
+
         let newExecutionType = switch (Json.get(json, "executionType")) {
           case (?etJson) {
             switch (AgentParsers.parseExecutionType(etJson)) {
@@ -178,6 +199,7 @@ module {
             newToolsMisconfigured,
             null,
             newSources,
+            newAllowedChannelIds,
             state,
           )
         ) {

@@ -10,7 +10,6 @@ import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
 import EventStoreModel "../models/event-store-model";
 import SessionModel "../models/session-model";
-import Types "../types";
 
 module {
   // ============================================
@@ -53,6 +52,13 @@ module {
     // Slack user identity of the user who triggered this agent turn.
     // Required for authorization checks in workspace-management write tools.
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
+
+    // The verbatim text of the Slack message that triggered this agent turn.
+    // Set by the agent from channel history before building ToolResources.
+    // Used by destructive operations (e.g. delete_workspace) to verify that the
+    // user explicitly typed a confirmation phrase in their own message, making it
+    // impossible for the LLM to fabricate a confirmation.
+    triggerMessageText : ?Text;
 
     // Value Streams - if provided with write=true, save_value_stream tool is available
     valueStreams : ?{

@@ -21,6 +21,7 @@ import SlackAdapter "../../../src/control-plane-core/events/slack-adapter";
 import SetWorkspaceAdminChannelHandler "../../../src/control-plane-core/tools/handlers/workspaces/set-workspace-admin-channel-handler";
 
 import CreateWorkspaceHandler "../../../src/control-plane-core/tools/handlers/workspaces/create-workspace-handler";
+import DeleteWorkspaceHandler "../../../src/control-plane-core/tools/handlers/workspaces/delete-workspace-handler";
 import ListWorkspacesHandler "../../../src/control-plane-core/tools/handlers/workspaces/list-workspaces-handler";
 import CreateMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/create-metric-handler";
 import UpdateMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/update-metric-handler";
@@ -320,7 +321,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     openRouterApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey));
+    // Anchor workspace 0's admin channel to the incoming channel so the admin routing
+    // guard passes. The setAdminChannel call is silently ignored if the channel is
+    // already anchored to another workspace (e.g. C_ADMIN_CHANNEL → workspace 1 in
+    // testWorkspacesState), which is fine for tests that fire before the routing guard.
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
   /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
@@ -349,7 +355,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     delegationDepth : Nat,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey);
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]);
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
@@ -436,7 +443,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     delegationDepth : Nat,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    let ctx = TestHelpers.ctxWithOpenRouterOnlySecrets(slackUsers, testWorkspacesState, openRouterApiKey);
+    let ctx = TestHelpers.ctxWithOpenRouterOnlySecrets(slackUsers, testWorkspacesState, openRouterApiKey, [msg.channel]);
     let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
       slackUserId = "U_SEEDED_PARENT";
       isPrimaryOwner = false;
@@ -521,7 +528,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     openRouterApiKey : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, openRouterApiKey));
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
   /// Like `testMessageHandlerWithResearchAgent`, but uses `TestHelpers.ctxWithSecretsAndResearchNoOpenRouter`
@@ -542,7 +550,41 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     botToken : Text,
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoOpenRouter(slackUsers, testWorkspacesState, botToken));
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoOpenRouter(slackUsers, testWorkspacesState, botToken, [msg.channel]));
+  };
+
+  /// Variant of testMessageHandlerWithSecrets designed for admin routing guard tests.
+  ///
+  /// @param adminChannelOverride  — `[channelId]` sets workspace 0's admin channel to
+  ///                                that specific channel (for wrong-channel blocking tests).
+  ///                                `[]` leaves workspace 0 with no admin channel
+  ///                                (for null-adminChannelId blocking tests).
+  ///
+  /// Unlike testMessageHandlerWithSecrets, this function does NOT set workspace 0's
+  /// admin channel to msg.channel. Use it when you want the guard to fire.
+  public shared ({ caller }) func testMessageHandlerAdminChannelBlocked(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    openRouterApiKey : Text,
+    adminChannelOverride : ?Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    switch (adminChannelOverride) {
+      case (?chId) {
+        ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, chId);
+      };
+      case (null) {}; // leave workspace 0 with no admin channel
+    };
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
@@ -972,13 +1014,15 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   /// Test the CreateWorkspaceHandler in isolation.
   ///
-  /// @param args   JSON-encoded tool arguments ({ name: string }).
-  /// @param auth   Simplified auth context.
+  /// @param args      JSON-encoded tool arguments ({ name: string, channelId: string }).
+  /// @param botToken  Slack bot token forwarded to SlackWrapper for channel verification.
+  /// @param auth      Simplified auth context.
   ///
   /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
   /// Workspaces created here persist within the same canister lifetime.
   public shared ({ caller }) func testCreateWorkspaceHandler(
     args : Text,
+    botToken : Text,
     auth : {
       isPrimaryOwner : Bool;
       isOrgAdmin : Bool;
@@ -999,7 +1043,39 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await CreateWorkspaceHandler.handle(testWorkspacesState, uac, args);
+    await CreateWorkspaceHandler.handle(testWorkspacesState, testAgentRegistry, uac, func(_ : Text) : ?Text { ?botToken }, args);
+  };
+
+  /// Test the DeleteWorkspaceHandler in isolation.
+  ///
+  /// @param args  JSON-encoded tool arguments ({ workspaceId: number }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
+  public shared ({ caller }) func testDeleteWorkspaceHandler(
+    args : Text,
+    triggerMessageText : ?Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let adminWorkspaces = Set.empty<Nat>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Set.add(adminWorkspaces, Nat.compare, wsId);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      adminWorkspaces;
+    };
+    DeleteWorkspaceHandler.handle(testWorkspacesState, uac, triggerMessageText, args);
   };
 
   /// Test the ListWorkspacesHandler in isolation.
@@ -1270,7 +1346,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     },
   ) : async Text {
     assert caller == parent;
-    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null);
+    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null, null);
   };
 
   /// Test the ListAgentsHandler in isolation.

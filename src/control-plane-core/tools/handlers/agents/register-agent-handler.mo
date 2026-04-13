@@ -1,11 +1,13 @@
 import Json "mo:json";
 import { str; obj; int; bool } "mo:json";
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
+import SlackWrapper "../../../wrappers/slack-wrapper";
 import Helpers "../handler-helpers";
 import AgentParsers "../parsers/agent-parsers";
 
@@ -15,6 +17,7 @@ module {
     uac : SlackAuthMiddleware.UserAuthContext,
     args : Text,
     validateModel : ?(Text -> async Bool),
+    resolveSlackBotToken : ?(Text -> ?Text),
   ) : async Text {
     switch (SlackAuthMiddleware.authorize(uac, [#IsPrimaryOwner, #IsOrgAdmin])) {
       case (#err(msg)) {
@@ -174,6 +177,56 @@ module {
           };
         };
 
+        let allowedChannelIds = switch (Json.get(json, "allowedChannelIds")) {
+          case (?#array(items)) {
+            switch (AgentParsers.parseAllowedChannelIds(items)) {
+              case (?s) {
+                if (Set.size(s) == 0) {
+                  return Helpers.buildErrorResponse("allowedChannelIds must be a non-empty array of channel ID strings");
+                };
+                s;
+              };
+              case null {
+                return Helpers.buildErrorResponse("allowedChannelIds must be an array of strings");
+              };
+            };
+          };
+          case (null) {
+            return Helpers.buildErrorResponse("Missing required field: allowedChannelIds");
+          };
+          case _ {
+            return Helpers.buildErrorResponse("allowedChannelIds must be an array");
+          };
+        };
+
+        // Validate each channel is accessible by the bot via Slack conversations.info.
+        // Skip validation when no resolver is wired (e.g. test canister without cassettes).
+        switch (resolveSlackBotToken) {
+          case (?resolver) {
+            switch (resolver("register-agent-channel-verify")) {
+              case (null) {
+                return Helpers.buildErrorResponse(
+                  "No Slack bot token configured. Store the slackBotToken secret on workspace 0 first."
+                );
+              };
+              case (?botToken) {
+                for (channelId in Set.values(allowedChannelIds)) {
+                  switch (await SlackWrapper.getChannelInfo(botToken, channelId)) {
+                    case (#err(msg)) {
+                      return Helpers.buildErrorResponse(
+                        "Could not verify channel '" # channelId # "' with Slack: " # msg #
+                        ". Ensure the channel exists and the bot has been invited to it."
+                      );
+                    };
+                    case (#ok(_)) {};
+                  };
+                };
+              };
+            };
+          };
+          case (null) {}; // no resolver provided — skip Slack validation
+        };
+
         switch (
           AgentModel.register(
             name,
@@ -186,6 +239,7 @@ module {
             toolsMisconfigured,
             Map.empty<Text, AgentModel.ToolState>(),
             sources,
+            allowedChannelIds,
             state,
           )
         ) {

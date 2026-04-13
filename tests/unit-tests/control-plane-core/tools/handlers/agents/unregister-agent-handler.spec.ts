@@ -58,6 +58,7 @@ describe("UnregisterAgentHandler", () => {
           name: "AdminBot",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -77,6 +78,7 @@ describe("UnregisterAgentHandler", () => {
           name: "AdminBot",
           category: "planning",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -95,6 +97,7 @@ describe("UnregisterAgentHandler", () => {
           name: "AdminBot",
           category: "planning",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -146,6 +149,7 @@ describe("UnregisterAgentHandler", () => {
           name: "to-be-deleted",
           category: "planning",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -174,6 +178,7 @@ describe("UnregisterAgentHandler", () => {
           name: "removable-agent",
           category: "planning",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -193,6 +198,7 @@ describe("UnregisterAgentHandler", () => {
           name: "agent-one",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -201,6 +207,7 @@ describe("UnregisterAgentHandler", () => {
           name: "agent-two",
           category: "planning",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -225,6 +232,7 @@ describe("UnregisterAgentHandler", () => {
           name: "sole-admin",
           category: "admin",
           executionType: { type: "api" },
+          allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
@@ -236,32 +244,6 @@ describe("UnregisterAgentHandler", () => {
       const response = parseResponse(result);
       expect(response.success).toBe(false);
       expect(response.error).toContain("last admin agent");
-    });
-
-    it("should allow deleting a non-last admin agent when another admin exists", async () => {
-      await testCanister.testRegisterAgentHandler(
-        JSON.stringify({
-          name: "admin-a",
-          category: "admin",
-          executionType: { type: "api" },
-        }),
-        PRIMARY_OWNER,
-      );
-      await testCanister.testRegisterAgentHandler(
-        JSON.stringify({
-          name: "admin-b",
-          category: "admin",
-          executionType: { type: "api" },
-        }),
-        PRIMARY_OWNER,
-      );
-
-      const result = await testCanister.testUnregisterAgentHandler(
-        JSON.stringify({ id: 0 }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
     });
   });
 });

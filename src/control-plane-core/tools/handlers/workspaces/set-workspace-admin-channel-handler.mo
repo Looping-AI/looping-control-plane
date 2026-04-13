@@ -2,6 +2,7 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
+import Text "mo:core/Text";
 import WorkspaceModel "../../../models/workspace-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import SlackWrapper "../../../wrappers/slack-wrapper";

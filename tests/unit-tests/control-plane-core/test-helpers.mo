@@ -1,4 +1,6 @@
 import Map "mo:core/Map";
+import Set "mo:core/Set";
+import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 
 import AgentModel "../../../src/control-plane-core/models/agent-model";
@@ -105,6 +107,7 @@ module {
     workspaces : WorkspaceModel.WorkspacesState,
     botToken : Text,
     openRouterApiKey : Text,
+    channelIds : [Text],
   ) : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
@@ -128,6 +131,7 @@ module {
       [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
+      Set.fromArray(channelIds, Text.compare),
       registry,
     );
     {
@@ -158,6 +162,7 @@ module {
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
     openRouterApiKey : Text,
+    channelIds : [Text],
   ) : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
@@ -180,6 +185,7 @@ module {
       [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
+      Set.fromArray(channelIds, Text.compare),
       registry,
     );
     {
@@ -209,6 +215,7 @@ module {
     workspaces : WorkspaceModel.WorkspacesState,
     botToken : Text,
     openRouterApiKey : Text,
+    channelIds : [Text],
   ) : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
@@ -220,6 +227,7 @@ module {
       ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #openRouterApiKey, openRouterApiKey, { slackUserId = null; agentId = null; operation = "test" });
     };
     let registry = AgentModel.emptyState();
+    let allowedChannels = Set.fromArray(channelIds, Text.compare);
     // Admin agent (same as ctxWithSecrets)
     ignore AgentModel.register(
       "unit-test-admin",
@@ -232,6 +240,7 @@ module {
       [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
+      allowedChannels,
       registry,
     );
     // Research agent — no real secret needed; route(#research) returns a stub error
@@ -247,6 +256,7 @@ module {
       [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
+      allowedChannels,
       registry,
     );
     {
@@ -276,6 +286,7 @@ module {
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
     botToken : Text,
+    channelIds : [Text],
   ) : EventProcessingContextTypes.EventProcessingContext {
     let keyCache = Map.fromArray<Nat, [Nat8]>(
       [(0, dummyKey), (1, dummyKey), (42, dummyKey)],
@@ -287,6 +298,7 @@ module {
       ignore SecretModel.storeSecret(secrets, dummyKey, wsId, #slackBotToken, botToken, { slackUserId = null; agentId = null; operation = "test" });
     };
     let registry = AgentModel.emptyState();
+    let allowedChannels = Set.fromArray(channelIds, Text.compare);
     ignore AgentModel.register(
       "unit-test-admin",
       0,
@@ -298,6 +310,7 @@ module {
       [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
+      allowedChannels,
       registry,
     );
     ignore AgentModel.register(
@@ -311,6 +324,7 @@ module {
       [],
       Map.empty<Text, AgentModel.ToolState>(),
       [],
+      allowedChannels,
       registry,
     );
     {
