@@ -73,6 +73,11 @@ module {
     // run in any channel so it can call set_workspace_admin_channel. As soon as
     // that tool is called the placeholder is replaced with the real channel ID and
     // strict enforcement resumes automatically.
+    //
+    // Security note: PENDING_ADMIN_CHANNEL is a synthetic sentinel value that is
+    // deliberately not a valid Slack channel ID format, so it can never match a real
+    // incoming channel under normal circumstances. The bypass window is therefore
+    // self-closing: once any real channel is anchored, bootstrap mode is gone.
     let isBootstrapping = Set.size(primaryAgent.allowedChannelIds) == 1 and Set.contains(primaryAgent.allowedChannelIds, Text.compare, AgentModel.PENDING_ADMIN_CHANNEL);
     if (not isBootstrapping and not Set.contains(primaryAgent.allowedChannelIds, Text.compare, channelId)) {
       let allowedList = Text.join(Set.values(primaryAgent.allowedChannelIds), ", ");
