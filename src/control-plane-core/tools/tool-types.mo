@@ -10,7 +10,6 @@ import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
 import EventStoreModel "../models/event-store-model";
 import SessionModel "../models/session-model";
-import Types "../types";
 
 module {
   // ============================================

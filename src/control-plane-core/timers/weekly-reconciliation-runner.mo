@@ -46,7 +46,6 @@ import SlackWrapper "../wrappers/slack-wrapper";
 import Logger "../utilities/logger";
 import KeyDerivationService "../services/key-derivation-service";
 import SecretModel "../models/secret-model";
-import Types "../types";
 
 module {
 
