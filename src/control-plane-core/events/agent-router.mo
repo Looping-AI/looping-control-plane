@@ -67,7 +67,14 @@ module {
     // Every agent must have at least one channel in its allowlist (enforced at
     // registration and update time), so an empty set here is a model invariant
     // violation and will correctly block all channels.
-    if (not Set.contains(primaryAgent.allowedChannelIds, Text.compare, channelId)) {
+    //
+    // Bootstrap bypass: when allowedChannelIds contains only PENDING_ADMIN_CHANNEL
+    // the agent has never had a real channel anchored (fresh install). Allow it to
+    // run in any channel so it can call set_workspace_admin_channel. As soon as
+    // that tool is called the placeholder is replaced with the real channel ID and
+    // strict enforcement resumes automatically.
+    let isBootstrapping = Set.size(primaryAgent.allowedChannelIds) == 1 and Set.contains(primaryAgent.allowedChannelIds, Text.compare, AgentModel.PENDING_ADMIN_CHANNEL);
+    if (not isBootstrapping and not Set.contains(primaryAgent.allowedChannelIds, Text.compare, channelId)) {
       let allowedList = Text.join(Set.values(primaryAgent.allowedChannelIds), ", ");
       let step : Types.ProcessingStep = {
         action = "route";
