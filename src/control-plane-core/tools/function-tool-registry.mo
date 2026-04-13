@@ -180,15 +180,15 @@ module {
         List.add(tools, listWorkspacesTool(ws.state));
         // Write tools — require write=true AND a resolved user identity AND a platform secret resolver
         // (the resolver is needed for channel verification; the identity for authorization)
-        // Workspace write tools also require agentRegistry: create/delete register and unregister an
-        // admin agent; set admin channel syncs allowedChannelIds. Skip all three when registry is absent.
         switch (resources.userAuthContext, resources.resolveSlackBotToken) {
           case (?uac, ?resolver) {
             if (ws.write) {
+              // These tools are always wired when workspace and credentials are present.
               List.add(tools, deleteWorkspaceTool(ws.state, uac, resources.triggerMessageText));
               List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver));
               switch (resources.agentRegistry) {
                 case (?ar) {
+                  // create_workspace additionally requires agentRegistry;
                   List.add(tools, createWorkspaceTool(ws.state, uac, resolver, ar.state));
                 };
                 case (null) {};
