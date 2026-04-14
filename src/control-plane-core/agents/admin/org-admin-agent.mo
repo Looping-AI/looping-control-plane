@@ -139,9 +139,6 @@ module {
       resolveSlackBotToken = ?slackBotTokenResolver;
       userAuthContext = ctx.userAuthContext;
       triggerMessageText;
-      valueStreams = null;
-      metrics = null;
-      objectives = null;
       workspaces = ?{
         state = ctx.workspaces;
         write = true;
@@ -299,8 +296,6 @@ module {
 
   /// Build instructions for the org-admin persona.
   ///
-  /// No value-stream / metrics / objectives context is included — this agent is
-  /// focused on org and workspace channel-anchor management.
   /// If `agent.sources` is non-empty, an `"agent-sources"` block is appended.
   private func buildInstructions(agent : AgentModel.AgentRecord) : Text {
     let customBlocks : [InstructionTypes.InstructionBlock] = if (agent.sources.size() > 0) {

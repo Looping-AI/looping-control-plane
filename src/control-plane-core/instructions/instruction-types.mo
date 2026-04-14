@@ -17,8 +17,5 @@ module {
   public type ContextId = {
     #hasTools;
     #errorRecovery;
-    #needsValueStreamSetup;
-    #needsPlanCreation;
-    #needsMetricsReview;
   };
 };

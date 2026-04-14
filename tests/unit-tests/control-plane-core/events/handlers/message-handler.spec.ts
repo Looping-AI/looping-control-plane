@@ -541,7 +541,7 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
     // resolves to the custom category, which returns a stub #err without an LLM
     // call.  postAgentReply then posts that error to Slack — captured via cassette.
     const cassetteName =
-      "unit-tests/control-plane-core/events/handlers/message-handler/primary-agent-research-stub";
+      "unit-tests/control-plane-core/events/handlers/message-handler/custom-category-stub";
     const channel = await resolveSpecsChannel(cassetteName);
 
     const { result } = await withCassette(
