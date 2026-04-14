@@ -45,8 +45,8 @@ module {
     eventStore : EventStoreModel.EventStoreState;
   };
 
-  /// ProcessResult mirrors the WorkPlanningAgent return type so the orchestrator
-  /// can use a shared result type across all agents.
+  /// ProcessResult is the shared return type used by the orchestrator
+  /// across all agent implementations.
   public type ProcessResult = {
     #ok : {
       response : Text;
@@ -306,7 +306,7 @@ module {
 
     InstructionComposer.compose(
       AgentHelpers.categoryToRole(agent.category, agent.name),
-      [], // no context-layer IDs — org admin has no planning pipeline state
+      [], // no context-layer IDs
       customBlocks,
     );
   };

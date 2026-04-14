@@ -40,7 +40,7 @@ Sections and items marked **[planned]** describe target architecture not yet imp
 - Slack event adapter with HMAC-SHA256 signature verification and event normalization.
 - Event store with lifecycle management (unprocessed → processed/failed) and per-event timer dispatch.
 - Event router dispatching to handlers (message handler fully implemented, others stubbed).
-- Workspace admin and work-planning orchestrators calling LLM services with function tools.
+- Workspace admin and custom orchestrators calling LLM services with function tools.
 - Tool infrastructure: static function tool registry (resource-gated) and dynamic MCP tool registry.
 - Metrics, value streams, and objectives models (org-level metrics, workspace-scoped value streams/objectives).
 - API keys and secrets encrypted at rest using workspace-scoped derived keys (ICP Threshold Schnorr).
@@ -206,7 +206,7 @@ Key characteristics:
 
 Agents have one of two execution types:
 
-- **`#api`**: Runs inside the canister. The canister calls LLM APIs directly (OpenRouter), executes tool loops in-canister, and posts replies to Slack. Uses canister-level secrets (e.g., OpenRouter API key). Examples: workspace-admin, work-planning agents.
+- **`#api`**: Runs inside the canister. The canister calls LLM APIs directly (OpenRouter), executes tool loops in-canister, and posts replies to Slack. Uses canister-level secrets (e.g., OpenRouter API key). Examples: workspace-admin, custom agents.
 - **`#runtime(#githubCodingAgent)`** [planned]: Runs remotely through GitHub Coding Agents in an agent-specific repository. The canister dispatches a workflow run (`workflow_dispatch`) with the session payload, receives a structured result via signed GitHub webhook, then composes and posts the final Slack reply.
 
 The `AgentRouter` branches on execution type before dispatching. The `#runtime` variant is extensible for future runtime types beyond GitHub Coding Agents.

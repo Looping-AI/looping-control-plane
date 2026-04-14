@@ -49,7 +49,7 @@ module {
               case (?c) { ?c };
               case null {
                 return Helpers.buildErrorResponse(
-                  "Invalid category: " # s # ". Must be admin, planning, research, or communication."
+                  "Invalid category: " # s # ". Must be admin, onboarding, or custom."
                 );
               };
             };
