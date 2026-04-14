@@ -40,9 +40,8 @@ Sections and items marked **[planned]** describe target architecture not yet imp
 - Slack event adapter with HMAC-SHA256 signature verification and event normalization.
 - Event store with lifecycle management (unprocessed → processed/failed) and per-event timer dispatch.
 - Event router dispatching to handlers (message handler fully implemented, others stubbed).
-- Workspace admin and custom orchestrators calling LLM services with function tools.
+- Workspace admin (`#admin`) agent orchestrator calling LLM services with function tools. `#onboarding` and `#custom` category agents are registered and routable but their process handlers are stubs (return a not-yet-implemented error).
 - Tool infrastructure: static function tool registry (resource-gated) and dynamic MCP tool registry.
-- Metrics, value streams, and objectives models (org-level metrics, workspace-scoped value streams/objectives).
 - API keys and secrets encrypted at rest using workspace-scoped derived keys (ICP Threshold Schnorr).
 - LLM provider integration via HTTP outcalls (OpenRouter).
 - Credential cascade implemented in secrets model (agent → workspace → org), with access audit logging. See [Credential Cascade](#credential-cascade).
@@ -408,8 +407,6 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 - `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId`). Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor.
 - `secrets`: encrypted secrets per workspace.
 - `mcpToolRegistry`: dynamic MCP tool registry.
-- `metricsRegistry` / `metricDatapoints`: org-level metrics.
-- `workspaceValueStreams` / `workspaceObjectives`: workspace-scoped value streams and objectives.
 - `eventStore`: event lifecycle (unprocessed/processed/failed).
 - `httpCertStore`: HTTP certification state.
 
@@ -427,7 +424,6 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 - **Secrets**: encrypted secrets per workspace. Includes `#custom(Text)` secret types for flexible credential mapping. Per-workspace audit state: `SecretAuditState = { changeLog: List<SecretChangeEntry>, accessLog: List<SecretAccessEntry> }` tracking stores, deletes, and accesses with timestamps and sources.
 - **Channel History**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/control-plane-core/models/channel-history-model.mo](src/control-plane-core/models/channel-history-model.mo) for the `ChannelHistoryStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
 - **Event store**: event lifecycle with timer dispatch (existing, retained).
-- **Metrics / Value Streams / Objectives**: existing models retained.
 - **Tool registries**: function tool registry (static) and MCP tool registry (dynamic), with new per-agent `toolsAllowed` and `toolsState`.
 
 ### Transient state
@@ -565,7 +561,7 @@ Each agent category defines the process logic that handles execution:
 
 **Phased implementation:**
 
-- **v0.2**: Agent registry, `::` routing, admin and planning agent process handlers, Slack-only write surface.
+- **v0.2**: Agent registry, `::` routing, admin agent process handler, `#onboarding`/`#custom` category stubs, Slack-only write surface.
 - **v0.5**: Agent execution types (`#api` / `#runtime`), GitHub Coding Agent integration via Actions + webhooks, credential cascade, secrets hardening, Process Engine + Effect Applicator, Agent Session, Channel History, Store.
 - **Future**: Full pluggable agent framework, interactive Slack messages, auth tokens, cost optimization, and richer Store document conventions.
 
