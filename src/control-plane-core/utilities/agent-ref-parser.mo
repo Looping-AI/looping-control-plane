@@ -194,7 +194,7 @@ module {
     let names = parseReferences(text);
     var matched : [AgentModel.AgentRecord] = [];
     for (name in names.vals()) {
-      switch (AgentModel.lookupByName(name, state)) {
+      switch (AgentModel.lookupByName(state, name)) {
         case (?record) { matched := Array.concat(matched, [record]) };
         case (null) {};
       };

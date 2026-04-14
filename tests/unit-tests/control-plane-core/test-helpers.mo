@@ -121,6 +121,7 @@ module {
     // Register an admin agent permitted to access openRouterApiKey for workspaces 0, 1, and 42
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
+      registry,
       "unit-test-admin",
       0,
       #admin,
@@ -132,7 +133,6 @@ module {
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       Set.fromArray(channelIds, Text.compare),
-      registry,
     );
     {
       secrets;
@@ -175,6 +175,7 @@ module {
     };
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
+      registry,
       "unit-test-admin",
       0,
       #admin,
@@ -186,7 +187,6 @@ module {
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       Set.fromArray(channelIds, Text.compare),
-      registry,
     );
     {
       secrets;
@@ -230,6 +230,7 @@ module {
     let allowedChannels = Set.fromArray(channelIds, Text.compare);
     // Admin agent (same as ctxWithSecrets)
     ignore AgentModel.register(
+      registry,
       "unit-test-admin",
       0,
       #admin,
@@ -241,11 +242,11 @@ module {
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       allowedChannels,
-      registry,
     );
     // Research agent — no real secret needed; route(#research) returns a stub error
     // without making any HTTP calls, so a dummy secret entry is sufficient.
     ignore AgentModel.register(
+      registry,
       "unit-test-research",
       0,
       #research,
@@ -257,7 +258,6 @@ module {
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       allowedChannels,
-      registry,
     );
     {
       secrets;
@@ -300,6 +300,7 @@ module {
     let registry = AgentModel.emptyState();
     let allowedChannels = Set.fromArray(channelIds, Text.compare);
     ignore AgentModel.register(
+      registry,
       "unit-test-admin",
       0,
       #admin,
@@ -311,9 +312,9 @@ module {
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       allowedChannels,
-      registry,
     );
     ignore AgentModel.register(
+      registry,
       "unit-test-research",
       0,
       #research,
@@ -325,7 +326,6 @@ module {
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       allowedChannels,
-      registry,
     );
     {
       secrets;

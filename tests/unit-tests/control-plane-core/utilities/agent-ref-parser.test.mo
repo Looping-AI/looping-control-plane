@@ -16,6 +16,7 @@ func registerSimple(
 ) : Nat {
   switch (
     AgentModel.register(
+      state,
       name,
       0,
       #planning,
@@ -27,7 +28,6 @@ func registerSimple(
       Map.empty<Text, AgentModel.ToolState>(),
       [],
       Set.singleton<Text>("C_TEST"),
-      state,
     )
   ) {
     case (#ok id) { id };
