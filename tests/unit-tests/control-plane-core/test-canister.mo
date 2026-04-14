@@ -464,12 +464,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   /// Like `testMessageHandlerWithSecrets`, but pre-seeds the context with BOTH a
-  /// `unit-test-admin` (#admin) and a `unit-test-research` (#custom) agent.
+  /// `unit-test-admin` (#admin) and a `unit-test-custom` (#custom) agent.
   ///
-  /// Use this variant for primary-agent resolution tests that reference `::unit-test-research`
+  /// Use this variant for primary-agent resolution tests that reference `::unit-test-custom`
   /// explicitly.  Because `route(#custom, …)` returns a stub error without making any HTTP
   /// calls, these tests complete quickly with no cassette required.
-  public shared ({ caller }) func testMessageHandlerWithResearchAgent(
+  public shared ({ caller }) func testMessageHandlerWithCustomAgent(
     msg : {
       user : Text;
       text : Text;
@@ -484,15 +484,15 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearch(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndCustom(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
   };
 
-  /// Like `testMessageHandlerWithResearchAgent`, but uses `TestHelpers.ctxWithSecretsAndResearchNoOpenRouter`
+  /// Like `testMessageHandlerWithCustomAgent`, but uses `TestHelpers.ctxWithSecretsAndCustomNoOpenRouter`
   /// so the admin route short-circuits at key resolution (#err) without any HTTP outcall.
   ///
   /// Use for primary-agent fallback tests on a non-deferred actor where you only need
   /// to assert that the agent WAS resolved (i.e. primary_agent_skip is NOT emitted).
-  public shared ({ caller }) func testMessageHandlerWithResearchAgentNoOpenRouter(
+  public shared ({ caller }) func testMessageHandlerWithCustomAgentNoOpenRouter(
     msg : {
       user : Text;
       text : Text;
@@ -506,7 +506,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async NormalizedEventTypes.HandlerResult {
     assert caller == parent;
     ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
-    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndResearchNoOpenRouter(slackUsers, testWorkspacesState, botToken, [msg.channel]));
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndCustomNoOpenRouter(slackUsers, testWorkspacesState, botToken, [msg.channel]));
   };
 
   /// Variant of testMessageHandlerWithSecrets designed for admin routing guard tests.

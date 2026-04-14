@@ -298,7 +298,7 @@ module {
         tool_type = "function";
         function = {
           name = "delete_workspace";
-          description = ?"Permanently deletes a workspace by ID. This action is irreversible. Workspace 0 (the org workspace) is protected and cannot be deleted.\n\nThis operation requires explicit user confirmation. The user's Slack message MUST contain exactly '::admin <workspace name>' (e.g. '::admin Research') as the full message text — nothing more. The system validates the user's actual message automatically; you cannot provide the phrase yourself. Look up the workspace name first if needed, then instruct the user to type that exact phrase as their next message. Only call this tool after the user has sent that confirmation message.";
+          description = ?"Permanently deletes a workspace by ID. This action is irreversible. Workspace 0 (the org workspace) is protected and cannot be deleted.\n\nThis operation requires explicit user confirmation. The user's Slack message MUST contain exactly '::admin <workspace name>' (e.g. '::admin Marketing') as the full message text — nothing more. The system validates the user's actual message automatically; you cannot provide the phrase yourself. Look up the workspace name first if needed, then instruct the user to type that exact phrase as their next message. Only call this tool after the user has sent that confirmation message.";
           parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to delete. Must be > 0.\"}},\"required\":[\"workspaceId\"]}";
         };
       };

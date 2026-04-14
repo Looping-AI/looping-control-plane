@@ -536,8 +536,8 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
     await pic.tearDown();
   });
 
-  it("should route ::unit-test-research to custom category stub (not primary_agent_skip)", async () => {
-    // When the user explicitly references ::unit-test-research the primary agent
+  it("should route ::unit-test-custom to custom category stub (not primary_agent_skip)", async () => {
+    // When the user explicitly references ::unit-test-custom the primary agent
     // resolves to the custom category, which returns a stub #err without an LLM
     // call.  postAgentReply then posts that error to Slack — captured via cassette.
     const cassetteName =
@@ -548,10 +548,10 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
       pic,
       cassetteName,
       () =>
-        testCanister.testMessageHandlerWithResearchAgent(
+        testCanister.testMessageHandlerWithCustomAgent(
           {
             user: "U_USER",
-            text: "::unit-test-research what is the current status",
+            text: "::unit-test-custom what is the current status",
             channel,
             ts: "1700000010.000010",
             threadTs: [] as [],
@@ -601,7 +601,7 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
       pic,
       cassetteName,
       () =>
-        testCanister.testMessageHandlerWithResearchAgentNoOpenRouter(
+        testCanister.testMessageHandlerWithCustomAgentNoOpenRouter(
           {
             user: "U_USER",
             text: "what is the current status",

@@ -190,12 +190,12 @@ module {
     };
   };
 
-  /// Like `ctxWithSecrets`, but also registers a `unit-test-research` agent with
+  /// Like `ctxWithSecrets`, but also registers a `unit-test-custom` agent with
   /// `#custom` category alongside the existing `unit-test-admin`.
   ///
   /// Use this context when a test needs to exercise primary agent resolution via
   /// an explicit `::unit-test-custom` reference.
-  public func ctxWithSecretsAndResearch(
+  public func ctxWithSecretsAndCustom(
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
     botToken : Text,
@@ -232,7 +232,7 @@ module {
     // without making any HTTP calls, so a dummy secret entry is sufficient.
     ignore AgentModel.register(
       registry,
-      "unit-test-research",
+      "unit-test-custom",
       0,
       #custom,
       #api({ model = "openai/gpt-oss-120b" }),
@@ -257,13 +257,13 @@ module {
     };
   };
 
-  /// Like `ctxWithSecretsAndResearch`, but does NOT seed an OpenRouter API key secret.
+  /// Like `ctxWithSecretsAndCustom`, but does NOT seed an OpenRouter API key secret.
   /// When the admin route tries to decrypt the openRouterApiKey it finds null and returns
   /// #err immediately, without issuing any HTTPS outcall.
   ///
   /// Use for non-deferred primary-agent resolution tests that need to verify the
   /// fallback-to-admin path without triggering a live (or cassette-dependent) LLM call.
-  public func ctxWithSecretsAndResearchNoOpenRouter(
+  public func ctxWithSecretsAndCustomNoOpenRouter(
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
     botToken : Text,
@@ -296,7 +296,7 @@ module {
     );
     ignore AgentModel.register(
       registry,
-      "unit-test-research",
+      "unit-test-custom",
       0,
       #custom,
       #api({ model = "openai/gpt-oss-120b" }),
