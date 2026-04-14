@@ -36,18 +36,18 @@ module {
         };
 
         // Guard: the last #admin agent must never be removed — at least one must always exist.
-        switch (AgentModel.lookupById(id, state)) {
+        switch (AgentModel.lookupById(state, id)) {
           case (null) {
             return Helpers.buildErrorResponse("Agent with ID " # Nat.toText(id) # " not found.");
           };
           case (?agent) {
-            if (agent.category == #admin and AgentModel.countByCategory(#admin, state) <= 1) {
+            if (agent.category == #admin and AgentModel.countByCategory(state, #admin) <= 1) {
               return Helpers.buildErrorResponse("Cannot unregister the last admin agent. At least one admin agent must remain.");
             };
           };
         };
 
-        switch (AgentModel.unregisterById(id, state)) {
+        switch (AgentModel.unregisterById(state, id)) {
           case (#err(msg)) { Helpers.buildErrorResponse(msg) };
           case (#ok(_)) {
             Json.stringify(

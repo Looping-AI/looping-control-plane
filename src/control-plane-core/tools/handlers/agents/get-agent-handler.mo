@@ -81,14 +81,14 @@ module {
         let recordOpt : ?AgentModel.AgentRecord = switch (Json.get(json, "id")) {
           case (?#number(#int n)) {
             if (n >= 0) {
-              AgentModel.lookupById(Int.abs(n), state);
+              AgentModel.lookupById(state, Int.abs(n));
             } else {
               null;
             };
           };
           case _ {
             switch (Json.get(json, "name")) {
-              case (?#string(name)) { AgentModel.lookupByName(name, state) };
+              case (?#string(name)) { AgentModel.lookupByName(state, name) };
               case _ { null };
             };
           };

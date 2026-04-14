@@ -81,6 +81,7 @@ module {
                 let agentName = "ws-" # Nat.toText(wsId) # "-admin";
                 switch (
                   AgentModel.register(
+                    agentRegistry,
                     agentName,
                     wsId,
                     #admin,
@@ -92,7 +93,6 @@ module {
                     Map.empty<Text, AgentModel.ToolState>(),
                     [],
                     Set.singleton<Text>(channelId),
-                    agentRegistry,
                   )
                 ) {
                   case (#err(msg)) {

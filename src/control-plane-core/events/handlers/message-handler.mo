@@ -276,7 +276,7 @@ module {
         case (?m) { m };
       };
       let name = agentMeta.event_payload.parent_agent;
-      switch (AgentModel.lookupByName(name, ctx.agentRegistry)) {
+      switch (AgentModel.lookupByName(ctx.agentRegistry, name)) {
         case (null) {
           Logger.log(
             #warn,
@@ -293,7 +293,7 @@ module {
       if (validAgents.size() > 0) {
         ?validAgents[0];
       } else {
-        switch (AgentModel.getFirstByCategory(#admin, ctx.agentRegistry)) {
+        switch (AgentModel.getFirstByCategory(ctx.agentRegistry, #admin)) {
           case (null) {
             Logger.log(#warn, ?"MessageHandler", "No #admin agent registered — cannot handle user message");
             null;

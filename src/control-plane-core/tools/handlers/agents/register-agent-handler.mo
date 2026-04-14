@@ -229,6 +229,7 @@ module {
 
         switch (
           AgentModel.register(
+            state,
             name,
             workspaceId,
             category,
@@ -240,7 +241,6 @@ module {
             Map.empty<Text, AgentModel.ToolState>(),
             sources,
             allowedChannelIds,
-            state,
           )
         ) {
           case (#err(msg)) { Helpers.buildErrorResponse(msg) };

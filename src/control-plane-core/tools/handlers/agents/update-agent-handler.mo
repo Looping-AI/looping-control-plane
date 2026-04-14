@@ -189,6 +189,7 @@ module {
 
         switch (
           AgentModel.updateById(
+            state,
             id,
             newName,
             newCategory,
@@ -200,7 +201,6 @@ module {
             null,
             newSources,
             newAllowedChannelIds,
-            state,
           )
         ) {
           case (#err(msg)) { Helpers.buildErrorResponse(msg) };

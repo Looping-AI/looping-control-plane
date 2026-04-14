@@ -155,8 +155,8 @@ module {
   /// Check if a name is available (not taken by another agent).
   /// If currentAgentId is provided, allows the same agent to keep its own name.
   private func isNameAvailable(
-    normalized : Text,
     state : AgentRegistryState,
+    normalized : Text,
     currentAgentId : ?Nat,
   ) : Result.Result<(), Text> {
     switch (Map.get(state.agentsByName, Text.compare, normalized)) {
@@ -199,6 +199,7 @@ module {
   /// Returns `#ok(id)` with the assigned agent ID on success.
   /// The name is lower-cased before storage so that lookups are case-insensitive.
   public func register(
+    state : AgentRegistryState,
     name : Text,
     workspaceId : Nat,
     category : AgentCategory,
@@ -210,14 +211,13 @@ module {
     toolsState : Map.Map<Text, ToolState>,
     sources : [Text],
     allowedChannelIds : Set.Set<Text>,
-    state : AgentRegistryState,
   ) : Result.Result<Nat, Text> {
     let normalized = switch (validateAndNormalizeName(name)) {
       case (#err(msg)) { return #err(msg) };
       case (#ok(n)) { n };
     };
 
-    switch (isNameAvailable(normalized, state, null)) {
+    switch (isNameAvailable(state, normalized, null)) {
       case (#err(msg)) { return #err(msg) };
       case (#ok(())) {};
     };
@@ -237,7 +237,7 @@ module {
 
     // Enforce at most one #admin agent per workspace.
     if (category == #admin) {
-      switch (lookupAdminAgentByWorkspace(workspaceId, state)) {
+      switch (lookupAdminAgentByWorkspace(state, workspaceId)) {
         case (?existing) {
           return #err(
             "Workspace " # Nat.toText(workspaceId) # " already has an admin agent ('" # existing.name # "'). " #
@@ -270,12 +270,12 @@ module {
   };
 
   /// Look up an agent by ID.
-  public func lookupById(id : Nat, state : AgentRegistryState) : ?AgentRecord {
+  public func lookupById(state : AgentRegistryState, id : Nat) : ?AgentRecord {
     Map.get(state.agentsById, Nat.compare, id);
   };
 
   /// Look up an agent by name (case-insensitive).
-  public func lookupByName(name : Text, state : AgentRegistryState) : ?AgentRecord {
+  public func lookupByName(state : AgentRegistryState, name : Text) : ?AgentRecord {
     let normalized = Text.toLower(name);
     switch (Map.get(state.agentsByName, Text.compare, normalized)) {
       case (null) { null };
@@ -290,6 +290,7 @@ module {
   /// and ensures no other agent has the same name (case-insensitive).
   /// Returns `#err` if the agent is not found or validation fails.
   public func updateById(
+    state : AgentRegistryState,
     id : Nat,
     newName : ?Text,
     newCategory : ?AgentCategory,
@@ -301,7 +302,6 @@ module {
     newToolsState : ?Map.Map<Text, ToolState>,
     newSources : ?[Text],
     newAllowedChannelIds : ?Set.Set<Text>,
-    state : AgentRegistryState,
   ) : Result.Result<Bool, Text> {
     switch (Map.get(state.agentsById, Nat.compare, id)) {
       case (null) {
@@ -335,7 +335,7 @@ module {
               case (#ok(n)) { n };
             };
 
-            switch (isNameAvailable(normalized, state, ?id)) {
+            switch (isNameAvailable(state, normalized, ?id)) {
               case (#err(msg)) { return #err(msg) };
               case (#ok(())) {};
             };
@@ -411,10 +411,10 @@ module {
   /// without rewriting the entire AgentRecord.
   /// Returns `#err` if the agent is not found.
   public func updateToolState(
+    state : AgentRegistryState,
     agentId : Nat,
     toolName : Text,
     toolState : ToolState,
-    state : AgentRegistryState,
   ) : Result.Result<Bool, Text> {
     switch (Map.get(state.agentsById, Nat.compare, agentId)) {
       case (null) {
@@ -429,7 +429,7 @@ module {
 
   /// Unregister an agent by ID.
   /// Returns `#err` if the agent is not found.
-  public func unregisterById(id : Nat, state : AgentRegistryState) : Result.Result<Bool, Text> {
+  public func unregisterById(state : AgentRegistryState, id : Nat) : Result.Result<Bool, Text> {
     switch (Map.get(state.agentsById, Nat.compare, id)) {
       case (null) {
         #err("Agent with ID " # Nat.toText(id) # " not found.");
@@ -449,7 +449,7 @@ module {
 
   /// Return the first registered agent with the given category, or null if none found.
   /// Iteration order follows insertion order of the underlying map.
-  public func getFirstByCategory(category : AgentCategory, state : AgentRegistryState) : ?AgentRecord {
+  public func getFirstByCategory(state : AgentRegistryState, category : AgentCategory) : ?AgentRecord {
     for (record in Map.values(state.agentsById)) {
       if (record.category == category) {
         return ?record;
@@ -459,7 +459,7 @@ module {
   };
 
   /// Return the first registered #admin agent for the given workspaceId, or null if none found.
-  public func lookupAdminAgentByWorkspace(workspaceId : Nat, state : AgentRegistryState) : ?AgentRecord {
+  public func lookupAdminAgentByWorkspace(state : AgentRegistryState, workspaceId : Nat) : ?AgentRecord {
     for (record in Map.values(state.agentsById)) {
       if (record.category == #admin and record.workspaceId == workspaceId) {
         return ?record;
@@ -469,7 +469,7 @@ module {
   };
 
   /// Count all registered agents with the given category.
-  public func countByCategory(category : AgentCategory, state : AgentRegistryState) : Nat {
+  public func countByCategory(state : AgentRegistryState, category : AgentCategory) : Nat {
     var count = 0;
     for (record in Map.values(state.agentsById)) {
       if (record.category == category) {
@@ -489,6 +489,7 @@ module {
   public func defaultState() : AgentRegistryState {
     let state = emptyState();
     ignore register(
+      state,
       "workspace-admin",
       0, // owned by workspace 0 — org-wide agent
       #admin,
@@ -500,7 +501,6 @@ module {
       Map.empty<Text, ToolState>(),
       [],
       Set.empty<Text>(), // #admin agents never use allowedChannelIds — routing is governed by WorkspaceModel.adminChannelId
-      state,
     );
     state;
   };

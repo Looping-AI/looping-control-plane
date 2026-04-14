@@ -26,7 +26,7 @@ suite(
       "accepts valid new admin",
       func() {
         let admins : [Principal] = [];
-        let result = AdminModel.validateNewAdmin(testPrincipal1, admins);
+        let result = AdminModel.validateNewAdmin(admins, testPrincipal1);
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
       },
     );
@@ -35,7 +35,7 @@ suite(
       "rejects anonymous principal",
       func() {
         let admins : [Principal] = [];
-        let result = AdminModel.validateNewAdmin(Principal.fromText("2vxsx-fae"), admins);
+        let result = AdminModel.validateNewAdmin(admins, Principal.fromText("2vxsx-fae"));
         // The anonymous principal "2vxsx-fae" should be rejected
         expect.result<(), Text>(result, resultToText, resultEqual).equal(
           #err("Anonymous users cannot be admins.")
@@ -47,7 +47,7 @@ suite(
       "rejects principal already in admin list",
       func() {
         let admins : [Principal] = [testPrincipal1];
-        let result = AdminModel.validateNewAdmin(testPrincipal1, admins);
+        let result = AdminModel.validateNewAdmin(admins, testPrincipal1);
         expect.result<(), Text>(result, resultToText, resultEqual).equal(
           #err("Principal is already an admin.")
         );
@@ -58,7 +58,7 @@ suite(
       "accepts principal not in existing admin list",
       func() {
         let admins : [Principal] = [testPrincipal1];
-        let result = AdminModel.validateNewAdmin(testPrincipal2, admins);
+        let result = AdminModel.validateNewAdmin(admins, testPrincipal2);
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
       },
     );
@@ -72,7 +72,7 @@ suite(
       "accepts valid new member",
       func() {
         let members : [Principal] = [];
-        let result = AdminModel.validateNewMember(testPrincipal1, members);
+        let result = AdminModel.validateNewMember(members, testPrincipal1);
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
       },
     );
@@ -81,7 +81,7 @@ suite(
       "rejects principal already in member list",
       func() {
         let members : [Principal] = [testPrincipal1];
-        let result = AdminModel.validateNewMember(testPrincipal1, members);
+        let result = AdminModel.validateNewMember(members, testPrincipal1);
         expect.result<(), Text>(result, resultToText, resultEqual).equal(
           #err("Principal is already a member.")
         );
@@ -92,7 +92,7 @@ suite(
       "accepts principal not in existing member list",
       func() {
         let members : [Principal] = [testPrincipal1];
-        let result = AdminModel.validateNewMember(testPrincipal2, members);
+        let result = AdminModel.validateNewMember(members, testPrincipal2);
         expect.result<(), Text>(result, resultToText, resultEqual).isOk();
       },
     );
@@ -106,7 +106,7 @@ suite(
       "addAdminToList appends admin to empty list",
       func() {
         let admins : [Principal] = [];
-        let newAdmins = AdminModel.addAdminToList(testPrincipal1, admins);
+        let newAdmins = AdminModel.addAdminToList(admins, testPrincipal1);
         expect.nat(newAdmins.size()).equal(1);
         expect.bool(newAdmins[0] == testPrincipal1).equal(true);
       },
@@ -116,7 +116,7 @@ suite(
       "addAdminToList appends admin to existing list",
       func() {
         let admins : [Principal] = [testPrincipal1];
-        let newAdmins = AdminModel.addAdminToList(testPrincipal2, admins);
+        let newAdmins = AdminModel.addAdminToList(admins, testPrincipal2);
         expect.nat(newAdmins.size()).equal(2);
         expect.bool(newAdmins[0] == testPrincipal1).equal(true);
         expect.bool(newAdmins[1] == testPrincipal2).equal(true);
@@ -127,7 +127,7 @@ suite(
       "addMemberToList appends member to empty list",
       func() {
         let members : [Principal] = [];
-        let newMembers = AdminModel.addMemberToList(testPrincipal1, members);
+        let newMembers = AdminModel.addMemberToList(members, testPrincipal1);
         expect.nat(newMembers.size()).equal(1);
         expect.bool(newMembers[0] == testPrincipal1).equal(true);
       },
@@ -137,7 +137,7 @@ suite(
       "addMemberToList appends member to existing list",
       func() {
         let members : [Principal] = [testPrincipal1];
-        let newMembers = AdminModel.addMemberToList(testPrincipal2, members);
+        let newMembers = AdminModel.addMemberToList(members, testPrincipal2);
         expect.nat(newMembers.size()).equal(2);
         expect.bool(newMembers[0] == testPrincipal1).equal(true);
         expect.bool(newMembers[1] == testPrincipal2).equal(true);
@@ -153,8 +153,8 @@ suite(
       "isAdmin returns true for admin in list",
       func() {
         let admins : [Principal] = [testPrincipal1, testPrincipal2];
-        expect.bool(AdminModel.isAdmin(testPrincipal1, admins)).equal(true);
-        expect.bool(AdminModel.isAdmin(testPrincipal2, admins)).equal(true);
+        expect.bool(AdminModel.isAdmin(admins, testPrincipal1)).equal(true);
+        expect.bool(AdminModel.isAdmin(admins, testPrincipal2)).equal(true);
       },
     );
 
@@ -162,7 +162,7 @@ suite(
       "isAdmin returns false for principal not in list",
       func() {
         let admins : [Principal] = [testPrincipal1];
-        expect.bool(AdminModel.isAdmin(testPrincipal2, admins)).equal(false);
+        expect.bool(AdminModel.isAdmin(admins, testPrincipal2)).equal(false);
       },
     );
 
@@ -170,7 +170,7 @@ suite(
       "isAdmin returns false for empty list",
       func() {
         let admins : [Principal] = [];
-        expect.bool(AdminModel.isAdmin(testPrincipal1, admins)).equal(false);
+        expect.bool(AdminModel.isAdmin(admins, testPrincipal1)).equal(false);
       },
     );
 
@@ -178,8 +178,8 @@ suite(
       "isMember returns true for member in list",
       func() {
         let members : [Principal] = [testPrincipal1, testPrincipal2];
-        expect.bool(AdminModel.isMember(testPrincipal1, members)).equal(true);
-        expect.bool(AdminModel.isMember(testPrincipal2, members)).equal(true);
+        expect.bool(AdminModel.isMember(members, testPrincipal1)).equal(true);
+        expect.bool(AdminModel.isMember(members, testPrincipal2)).equal(true);
       },
     );
 
@@ -187,7 +187,7 @@ suite(
       "isMember returns false for principal not in list",
       func() {
         let members : [Principal] = [testPrincipal1];
-        expect.bool(AdminModel.isMember(testPrincipal2, members)).equal(false);
+        expect.bool(AdminModel.isMember(members, testPrincipal2)).equal(false);
       },
     );
 
@@ -195,7 +195,7 @@ suite(
       "isMember returns false for empty list",
       func() {
         let members : [Principal] = [];
-        expect.bool(AdminModel.isMember(testPrincipal1, members)).equal(false);
+        expect.bool(AdminModel.isMember(members, testPrincipal1)).equal(false);
       },
     );
   },
