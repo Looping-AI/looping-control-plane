@@ -18,7 +18,7 @@
 /// Helper inventory (sync):
 ///   resolveWorkspaceId, rootTimestamp, persistIncomingMessage,
 ///   resolveRoundContext → resolveBotRoundContext / resolveUserRoundContext,
-///   scopeWorkspaceData, buildReplyMetadata, resolvePrimaryAgent
+///   buildReplyMetadata, resolvePrimaryAgent
 ///
 /// Helper inventory (async):
 ///   postTerminationIfTokenAvailable, dispatchToAgentRouter,
@@ -28,7 +28,6 @@
 /// message back as a bot event, which is stored via the normal incoming-message
 /// path (persistIncomingMessage), ensuring exactly one write per reply.
 
-import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
 import Text "mo:core/Text";
@@ -40,8 +39,6 @@ import Types "../../types";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ChannelHistoryModel "../../models/channel-history-model";
-import ValueStreamModel "../../models/value-stream-model";
-import ObjectiveModel "../../models/objective-model";
 import AgentRouter "../agent-router";
 import SlackWrapper "../../wrappers/slack-wrapper";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
@@ -209,27 +206,6 @@ module {
         #proceed({ authCtx = ?userCtx; triggerTurnId = null });
       };
     };
-  };
-
-  /// Scope all workspace-specific state from the EventProcessingContext.
-  func scopeWorkspaceData(
-    ctx : EventProcessingContextTypes.EventProcessingContext,
-    workspaceId : Nat,
-  ) : {
-    workspaceValueStreamsState : ValueStreamModel.WorkspaceValueStreamsState;
-    workspaceObjectivesMap : ObjectiveModel.WorkspaceObjectivesMap;
-  } {
-    let workspaceValueStreamsState = switch (Map.get(ctx.workspaceValueStreams, Nat.compare, workspaceId)) {
-      case (?state) { state };
-      case (null) { ValueStreamModel.emptyWorkspaceState() };
-    };
-    let workspaceObjectivesMap = switch (Map.get(ctx.workspaceObjectives, Nat.compare, workspaceId)) {
-      case (?objMap) { objMap };
-      case (null) {
-        Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>();
-      };
-    };
-    { workspaceValueStreamsState; workspaceObjectivesMap };
   };
 
   /// Build the AgentMessageMetadata attached to every outbound Slack message,
@@ -523,7 +499,6 @@ module {
 
     // ── Orchestration (shared path for user and bot messages) ─────────────────
 
-    let { workspaceValueStreamsState; workspaceObjectivesMap } = scopeWorkspaceData(ctx, workspaceId);
     let encryptionKey = await KeyDerivationService.getOrDeriveKey(ctx.keyCache, workspaceId);
 
     let slackUserId : ?Text = switch (activeCtxOpt) {
@@ -556,18 +531,8 @@ module {
           eventStore = ctx.eventStore;
         });
       };
-      case (#planning) {
-        #planning({
-          workspaceValueStreamsState;
-          valueStreamsMap = ctx.workspaceValueStreams;
-          workspaceObjectivesMap;
-          metricsRegistryState = ctx.metricsRegistry;
-          metricDatapoints = ctx.metricDatapoints;
-          workspaceId;
-        });
-      };
-      case (#research) { #research };
-      case (#communication) { #communication };
+      case (#onboarding) { #onboarding };
+      case (#custom) { #custom };
     };
 
     let (llmSteps, replyText, isAgentError) = await dispatchToAgentRouter(

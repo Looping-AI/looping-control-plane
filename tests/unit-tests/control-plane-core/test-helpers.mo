@@ -205,11 +205,11 @@ module {
     };
   };
 
-  /// Like `ctxWithSecrets`, but also registers a `unit-test-research` agent with
-  /// `#research` category alongside the existing `unit-test-admin`.
+  /// Like `ctxWithSecrets`, but also registers a `unit-test-custom` agent with
+  /// `#custom` category alongside the existing `unit-test-admin`.
   ///
   /// Use this context when a test needs to exercise primary agent resolution via
-  /// an explicit `::unit-test-research` reference.
+  /// an explicit `::unit-test-custom` reference.
   public func ctxWithSecretsAndResearch(
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
@@ -243,13 +243,13 @@ module {
       [],
       allowedChannels,
     );
-    // Research agent — no real secret needed; route(#research) returns a stub error
+    // Custom agent — no real secret needed; route(#custom) returns a stub error
     // without making any HTTP calls, so a dummy secret entry is sufficient.
     ignore AgentModel.register(
       registry,
       "unit-test-research",
       0,
-      #research,
+      #custom,
       #api({ model = "openai/gpt-oss-120b" }),
       [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
@@ -317,7 +317,7 @@ module {
       registry,
       "unit-test-research",
       0,
-      #research,
+      #custom,
       #api({ model = "openai/gpt-oss-120b" }),
       [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],

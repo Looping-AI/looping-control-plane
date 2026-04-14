@@ -15,9 +15,8 @@ module {
   /// Categories drive which tool set is available and skills the LLM is prompted with.
   public type AgentCategory = {
     #admin; // org administration: workspace & channel management
-    #planning; // work planning: value streams, metrics, objectives
-    #research; // information gathering — stub, Phase 5
-    #communication; // drafting, summarizing, messaging — stub, Phase 5
+    #onboarding; // handles direct messages to the Slack App — stub, planned
+    #custom; // user-defined agent with no built-in category toolset
   };
 
   /// The execution type of an agent — determines whether work is done inside the

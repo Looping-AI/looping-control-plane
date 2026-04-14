@@ -509,10 +509,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   /// Like `testMessageHandlerWithSecrets`, but pre-seeds the context with BOTH a
-  /// `unit-test-admin` (#admin) and a `unit-test-research` (#research) agent.
+  /// `unit-test-admin` (#admin) and a `unit-test-research` (#custom) agent.
   ///
   /// Use this variant for primary-agent resolution tests that reference `::unit-test-research`
-  /// explicitly.  Because `route(#research, …)` returns a stub error without making any HTTP
+  /// explicitly.  Because `route(#custom, …)` returns a stub error without making any HTTP
   /// calls, these tests complete quickly with no cassette required.
   public shared ({ caller }) func testMessageHandlerWithResearchAgent(
     msg : {

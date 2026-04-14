@@ -86,7 +86,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "research-agent",
-          category: "research",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -170,7 +170,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "second-agent",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -185,7 +185,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "research-bot",
-          category: "research",
+          category: "custom",
           executionType: { type: "api" },
           llmModel: "gpt_oss_120b",
           toolsDisallowed: ["web_search"],
@@ -213,7 +213,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "unique-agent",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -264,7 +264,7 @@ describe("RegisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "no-overrides-bot",
-          category: "research",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -285,7 +285,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "custom-override-bot",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           secretOverrides: [
             {

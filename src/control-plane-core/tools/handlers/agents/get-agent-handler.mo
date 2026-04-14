@@ -11,9 +11,8 @@ module {
   private func categoryToText(c : AgentModel.AgentCategory) : Text {
     switch (c) {
       case (#admin) { "admin" };
-      case (#planning) { "planning" };
-      case (#research) { "research" };
-      case (#communication) { "communication" };
+      case (#onboarding) { "onboarding" };
+      case (#custom) { "custom" };
     };
   };
 

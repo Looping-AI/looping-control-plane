@@ -76,7 +76,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "AdminBot",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -95,7 +95,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "AdminBot",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -147,7 +147,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "to-be-deleted",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -176,7 +176,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "removable-agent",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -205,14 +205,14 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "agent-two",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
 
-      // Delete the planning agent (id 1) — the admin agent must remain.
+      // Delete the custom agent (id 1) — the admin agent must remain.
       await testCanister.testUnregisterAgentHandler(
         JSON.stringify({ id: 1 }),
         PRIMARY_OWNER,

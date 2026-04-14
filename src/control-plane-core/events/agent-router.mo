@@ -24,9 +24,6 @@ module {
   /// Context for the org-admin agent (workspace lifecycle + channel anchors).
   public type AdminAgentCtx = AgentOrchestrator.AdminAgentCtx;
 
-  /// Context for the work-planning agent (value streams, metrics, objectives).
-  public type PlanningAgentCtx = AgentOrchestrator.PlanningAgentCtx;
-
   /// Per-category context union — callers construct the right variant based on
   /// `primaryAgent.category` and pass it to `route()`.
   public type AgentCtx = AgentOrchestrator.AgentCtx;
@@ -115,9 +112,8 @@ module {
     // Validate that the ctx variant matches the agent's declared category.
     let ctxMatchesCategory : Bool = switch (primaryAgent.category, agentCtx) {
       case (#admin, #admin(_)) { true };
-      case (#planning, #planning(_)) { true };
-      case (#research, #research) { true };
-      case (#communication, #communication) { true };
+      case (#onboarding, #onboarding) { true };
+      case (#custom, #custom) { true };
       case _ { false };
     };
 

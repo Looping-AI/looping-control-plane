@@ -111,8 +111,8 @@ suite(
       func() {
         let state = AgentModel.emptyState();
         let r1 = registerSimple(state, "agent-one", #admin);
-        let r2 = registerSimple(state, "agent-two", #research);
-        let r3 = registerSimple(state, "agent-three", #communication);
+        let r2 = registerSimple(state, "agent-two", #onboarding);
+        let r3 = registerSimple(state, "agent-three", #custom);
 
         expect.result<Nat, Text>(r1, resultNatToText, resultNatEqual).equal(#ok(0));
         expect.result<Nat, Text>(r2, resultNatToText, resultNatEqual).equal(#ok(1));
@@ -125,7 +125,7 @@ suite(
       "normalises name to lowercase on registration",
       func() {
         let state = AgentModel.emptyState();
-        ignore registerSimple(state, "MyAgent", #research);
+        ignore registerSimple(state, "MyAgent", #custom);
 
         // Lookup with original casing should work
         expect.bool(isSomeRecord(AgentModel.lookupByName(state, "MyAgent"))).equal(true);
@@ -174,7 +174,7 @@ suite(
         let state = AgentModel.emptyState();
         ignore registerSimple(state, "my-agent", #admin);
 
-        let result = registerSimple(state, "MY-AGENT", #research);
+        let result = registerSimple(state, "MY-AGENT", #custom);
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
           #err("An agent named \"my-agent\" is already registered.")
         );
@@ -189,7 +189,7 @@ suite(
           state,
           "info-bot",
           0,
-          #research,
+          #custom,
           #api({ model = "openai/gpt-oss-120b" }),
           [],
           [],
@@ -216,7 +216,7 @@ suite(
       "accepts name with hyphens and digits",
       func() {
         let state = AgentModel.emptyState();
-        let result = registerSimple(state, "agent-42", #communication);
+        let result = registerSimple(state, "agent-42", #custom);
 
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).isOk();
       },
@@ -330,11 +330,11 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentModel.updateById(state, id, null, ?#research, null, null, null, null, null, null, null, null);
+        ignore AgentModel.updateById(state, id, null, ?#custom, null, null, null, null, null, null, null, null);
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.bool(r.category == #research).equal(true) };
+          case (?r) { expect.bool(r.category == #custom).equal(true) };
         };
       },
     );
@@ -377,7 +377,7 @@ suite(
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
-        ignore registerSimple(state, "bot-two", #research);
+        ignore registerSimple(state, "bot-two", #custom);
 
         // Try to rename bot-one to bot-two (which already exists)
         let result = AgentModel.updateById(state, id1, ?"bot-two", null, null, null, null, null, null, null, null, null);
@@ -629,7 +629,7 @@ suite(
           state,
           "override-bot",
           0,
-          #planning,
+          #custom,
           #api({ model = "openai/gpt-oss-120b" }),
           [],
           [(#openRouterApiKey, "my-custom-key"), (#anthropicApiKey, "another-key")],
@@ -776,8 +776,8 @@ suite(
       func() {
         let state = AgentModel.emptyState();
         ignore registerSimple(state, "alpha", #admin);
-        ignore registerSimple(state, "beta", #research);
-        ignore registerSimple(state, "gamma", #communication);
+        ignore registerSimple(state, "beta", #custom);
+        ignore registerSimple(state, "gamma", #onboarding);
 
         expect.nat(AgentModel.listAgents(state).size()).equal(3);
       },
@@ -791,7 +791,7 @@ suite(
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
-        ignore registerSimple(state, "beta", #research);
+        ignore registerSimple(state, "beta", #custom);
         ignore AgentModel.unregisterById(state, id);
 
         expect.nat(AgentModel.listAgents(state).size()).equal(1);
@@ -866,7 +866,7 @@ suite(
           state,
           "planner",
           0,
-          #planning,
+          #custom,
           #api({ model = "openai/gpt-oss-120b" }),
           [],
           [],
@@ -919,7 +919,7 @@ suite(
       "updateById: passing empty allowedChannelIds for non-admin returns error",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "planner", #planning)) {
+        let id = switch (registerSimple(state, "planner", #custom)) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };

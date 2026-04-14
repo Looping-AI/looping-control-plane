@@ -19,7 +19,7 @@ func registerSimple(
       state,
       name,
       0,
-      #planning,
+      #custom,
       #api({ model = "openai/gpt-oss-120b" }),
       [],
       [],

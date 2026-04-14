@@ -516,7 +516,7 @@ describe("MessageHandler — primary agent resolution", () => {
 //
 // The message handler always calls postAgentReply at the end of the happy path,
 // which posts to Slack via an HTTPS outcall.  Tests that exercise paths reaching
-// postAgentReply (research stub error, admin key-resolution error) therefore
+// postAgentReply (custom stub error, admin key-resolution error) therefore
 // require a deferred actor and a cassette to intercept the Slack call.
 // ============================================
 
@@ -536,9 +536,9 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
     await pic.tearDown();
   });
 
-  it("should route ::unit-test-research to research category stub (not primary_agent_skip)", async () => {
+  it("should route ::unit-test-research to custom category stub (not primary_agent_skip)", async () => {
     // When the user explicitly references ::unit-test-research the primary agent
-    // resolves to the research category, which returns a stub #err without an LLM
+    // resolves to the custom category, which returns a stub #err without an LLM
     // call.  postAgentReply then posts that error to Slack — captured via cassette.
     const cassetteName =
       "unit-tests/control-plane-core/events/handlers/message-handler/primary-agent-research-stub";
@@ -567,13 +567,13 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
     const response = await result;
     expect("ok" in response).toBe(true);
     if ("ok" in response) {
-      // Must NOT return primary_agent_skip — the research agent WAS successfully resolved.
+      // Must NOT return primary_agent_skip — the custom agent WAS successfully resolved.
       expect(
         response.ok.some(
           (s: { action: string }) => s.action === "primary_agent_skip",
         ),
       ).toBe(false);
-      // The orchestrate stub for #research returns an error step with the expected message.
+      // The orchestrate stub for #custom returns an error step with the expected message.
       const orchestrateStep = response.ok.find(
         (s: { action: string; result: { ok: null } | { err: string } }) =>
           s.action === "orchestrate",
@@ -588,7 +588,7 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
   });
 
   it("should fall back to #admin agent for bare user message with no ::ref", async () => {
-    // With both admin and research agents registered, a bare message (no ::ref)
+    // With both admin and custom agents registered, a bare message (no ::ref)
     // falls back to getFirstByCategory(#admin).  The NoOpenRouter variant seeds no
     // openRouterApiKey so the admin route returns #err at key resolution without an
     // LLM call.  postAgentReply then posts that error to Slack — captured via cassette.

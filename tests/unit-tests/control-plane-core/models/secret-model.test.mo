@@ -68,7 +68,7 @@ func makeAgentOnWorkspace(wsId : Nat) : AgentModel.AgentRecord {
     id = 99;
     name = "test-agent";
     workspaceId = wsId;
-    category = #planning;
+    category = #custom;
     executionType = #api({ model = "openai/gpt-oss-120b" });
     secretsAllowed = [(wsId, #openRouterApiKey)];
     secretOverrides = [];
@@ -394,7 +394,7 @@ func makeAgentWithOverrides(secretOverrides : [(Types.SecretId, Text)]) : AgentM
     id = 1;
     name = "test-agent";
     workspaceId = 1;
-    category = #planning;
+    category = #custom;
     executionType = #api({ model = "openai/gpt-oss-120b" });
     secretsAllowed = [(1, #openRouterApiKey)];
     secretOverrides;
@@ -559,21 +559,21 @@ suite(
     );
 
     test(
-      "returns null for planning-category agent",
+      "returns null for onboarding-category agent",
       func() {
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-blocked", testRequester);
-        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#planning, #slackBotToken, agentRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#onboarding, #slackBotToken, agentRequester);
         expect.option(result, Text.toText, Text.equal).isNull();
       },
     );
 
     test(
-      "returns null for research-category agent",
+      "returns null for custom-category agent",
       func() {
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-blocked", testRequester);
-        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#research, #slackBotToken, agentRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#custom, #slackBotToken, agentRequester);
         expect.option(result, Text.toText, Text.equal).isNull();
       },
     );

@@ -211,9 +211,9 @@ Agents have one of two execution types:
 
 The `AgentRouter` branches on execution type before dispatching. The `#runtime` variant is extensible for future runtime types beyond GitHub Coding Agents.
 
-### Agent Category (deprecated)
+### Agent Category
 
-A class of agent behavior (e.g., admin, research, communication, coding). Each category defines:
+A class of agent behavior (`#admin`, `#onboarding`, `#custom`). Each category defines:
 
 - `category_tools`: the set of tool enum variants available to agents in this category.
 - LLM model selection strategy.
@@ -505,7 +505,7 @@ Agents are stored in a persistent registry with dual indexes (`agentsById: Map<N
 
 - `id`: stable unique numeric identifier, assigned by the registry on registration.
 - `name`: kebab-case identifier, must be unique and match the `::name` syntax. Stored lower-cased; lookups are case-insensitive.
-- `category`: which agent category/service handles this agent (e.g., `#admin`, `#planning`, `#research`, `#communication`).
+- `category`: which agent category/service handles this agent (e.g., `#admin`, `#onboarding`, `#custom`).
 - `executionType`: determines how the agent runs — `#api` (in-canister, calls LLM directly) or `#runtime(#githubCodingAgent({ repoFullName, workflowId, ref }))` (remote, via GitHub Actions workflow dispatch). See "Agent Execution Type" in Core Concepts.
 - `workspaceId`: which workspace this agent belongs to. Scopes ownership and secret access.
 - `llmModel`: the LLM provider and model to use (e.g., `#openRouter(#gpt_oss_120b)`).
