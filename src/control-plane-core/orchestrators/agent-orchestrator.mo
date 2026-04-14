@@ -6,7 +6,6 @@ import SecretModel "../models/secret-model";
 import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
 import OrgAdminAgent "../agents/admin/org-admin-agent";
-import WorkPlanningAgent "../agents/planning/work-planning-agent";
 import McpToolRegistry "../tools/mcp-tool-registry";
 import SessionModel "../models/session-model";
 
@@ -25,19 +24,14 @@ module {
   /// Context for the org-admin agent — workspace lifecycle and channel-anchor management.
   public type AdminAgentCtx = OrgAdminAgent.AdminCtx;
 
-  /// Context for the work-planning agent — value streams, metrics, and objectives.
-  public type PlanningAgentCtx = WorkPlanningAgent.PlanningCtx;
-
   /// Typed per-category context union.
-  /// - `#admin`         → AdminAgentCtx (workspace management)
-  /// - `#planning`      → PlanningAgentCtx (value streams / metrics / objectives)
-  /// - `#research`      → stub, Phase 5
-  /// - `#communication` → stub, Phase 5
+  /// - `#admin`      → AdminAgentCtx (workspace management)
+  /// - `#onboarding` → stub, handles DMs to the Slack App (planned)
+  /// - `#custom`     → stub, user-defined agent
   public type AgentCtx = {
     #admin : AdminAgentCtx;
-    #planning : PlanningAgentCtx;
-    #research;
-    #communication;
+    #onboarding;
+    #custom;
   };
 
   // ─── Orchestration ───────────────────────────────────────────────────────────
@@ -80,7 +74,7 @@ module {
   } {
     // Stub categories return early before touching secrets
     switch (agentCtx) {
-      case (#research) {
+      case (#onboarding) {
         let step : Types.ProcessingStep = {
           action = "orchestrate";
           result = #err("category service not yet implemented");
@@ -91,7 +85,7 @@ module {
           steps = [step];
         });
       };
-      case (#communication) {
+      case (#custom) {
         let step : Types.ProcessingStep = {
           action = "orchestrate";
           result = #err("category service not yet implemented");
@@ -107,11 +101,9 @@ module {
 
     // Extract the workspace ID relevant to the secret guard:
     //   admin agents operate at workspace-0 (org level)
-    //   planning agents are scoped to their workspace
     let guardWorkspaceId : Nat = switch (agentCtx) {
       case (#admin(_)) { 0 };
-      case (#planning(ctx)) { ctx.workspaceId };
-      case (#research or #communication) { 0 }; // unreachable — handled above
+      case (#onboarding or #custom) { 0 }; // unreachable — handled above
     };
 
     // Resolve the LLM API key with 3-level cascade:
@@ -148,20 +140,7 @@ module {
                   sessionStores,
                 );
               };
-              case (#planning(ctx)) {
-                await WorkPlanningAgent.process(
-                  agent,
-                  mcpToolRegistry,
-                  channelHistory,
-                  channelId,
-                  threadTs,
-                  ctx,
-                  key,
-                  turnId,
-                  sessionStores,
-                );
-              };
-              case (#research or #communication) {
+              case (#onboarding or #custom) {
                 // unreachable — handled before secret guard
                 #err({
                   message = "category service not yet implemented";

@@ -105,7 +105,7 @@ describe("UpdateAgentHandler", () => {
       );
 
       const result = await testCanister.testUpdateAgentHandler(
-        JSON.stringify({ id: 0, category: "planning" }),
+        JSON.stringify({ id: 0, category: "custom" }),
         ORG_ADMIN,
       );
       const response = parseResponse(result);
@@ -174,7 +174,7 @@ describe("UpdateAgentHandler", () => {
 
     it("should update the agent category and confirm via get", async () => {
       const updateResult = await testCanister.testUpdateAgentHandler(
-        JSON.stringify({ id: 0, category: "research" }),
+        JSON.stringify({ id: 0, category: "custom" }),
         PRIMARY_OWNER,
       );
       expect(parseResponse(updateResult).success).toBe(true);
@@ -184,7 +184,7 @@ describe("UpdateAgentHandler", () => {
       );
       const agent = (JSON.parse(getResult) as { agent: { category: string } })
         .agent;
-      expect(agent.category).toBe("research");
+      expect(agent.category).toBe("custom");
     });
 
     it("should return success message on successful update", async () => {

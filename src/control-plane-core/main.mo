@@ -17,16 +17,12 @@ import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
 import McpToolRegistry "./tools/mcp-tool-registry";
 import Constants "./constants";
-import MetricModel "./models/metric-model";
-import ValueStreamModel "./models/value-stream-model";
-import ObjectiveModel "./models/objective-model";
 import HttpCertification "./utilities/http-certification";
 import EventStoreModel "./models/event-store-model";
 import EventRouter "./events/event-router";
 import SlackAdapter "./events/slack-adapter";
 import Logger "./utilities/logger";
 import ClearKeyCacheRunner "./timers/clear-key-cache-runner";
-import MetricRetentionRunner "./timers/metric-retention-runner";
 import ProcessedEventsCleanupRunner "./timers/processed-events-cleanup-runner";
 import WeeklyReconciliationRunner "./timers/weekly-reconciliation-runner";
 import ChannelHistoryPruneRunner "./timers/channel-history-prune-runner";
@@ -44,7 +40,6 @@ persistent actor class OpenOrgBackend() {
   let secrets = SecretModel.initState(); // Encrypted secrets and audit logs per workspace
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
-  var lastRetentionCleanupTimestamp : Int = Time.now(); // Track last time retention cleanup ran
   let agentRegistry = AgentModel.defaultState(); // Global agent registry state, pre-seeded with the default workspace-admin agent
   let mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
 
@@ -54,12 +49,6 @@ persistent actor class OpenOrgBackend() {
   // Workspace channel anchors (workspace ID → WorkspaceRecord with admin/member Slack channel IDs)
   // Workspace 0 is the org workspace; its adminChannelId IS the org-admin channel anchor.
   let workspaces = WorkspaceModel.emptyState();
-
-  // Metrics and Value Streams state (org-level metrics, workspace-scoped value streams and objectives)
-  let metricsRegistry = MetricModel.emptyRegistry(); // Org-level metric definitions (nextMetricId, registry)
-  let metricDatapoints = MetricModel.emptyDatapoints(); // Datapoints for each metric
-  let workspaceValueStreams = Map.fromArray<Nat, ValueStreamModel.WorkspaceValueStreamsState>([(0, ValueStreamModel.emptyWorkspaceState())], Nat.compare);
-  let workspaceObjectives = Map.fromArray<Nat, ObjectiveModel.WorkspaceObjectivesMap>([(0, Map.empty<Nat, ObjectiveModel.ValueStreamObjectivesState>())], Nat.compare);
 
   // HTTP certification state (skip-certification for query responses)
   var httpCertStore = HttpCertification.initStore();
@@ -106,18 +95,6 @@ persistent actor class OpenOrgBackend() {
         wrappedRun = func() : async { #ok; #err : Text } {
           switch (ClearKeyCacheRunner.run()) {
             case (#ok(cache)) { keyCache := cache; #ok };
-            case (#err(e)) { #err(e) };
-          };
-        };
-      },
-      {
-        name = "metric-retention";
-        interval = Constants.THIRTY_DAYS_NS;
-        getLastRun = func() : Int { lastRetentionCleanupTimestamp };
-        setLastRun = func(t : Int) { lastRetentionCleanupTimestamp := t };
-        wrappedRun = func() : async { #ok; #err : Text } {
-          switch (MetricRetentionRunner.run(metricDatapoints, metricsRegistry)) {
-            case (#ok(_)) { #ok };
             case (#err(e)) { #err(e) };
           };
         };
@@ -231,10 +208,6 @@ persistent actor class OpenOrgBackend() {
       channelHistory = channelHistoryStore;
       mcpToolRegistry;
       agentRegistry;
-      workspaceValueStreams;
-      workspaceObjectives;
-      metricsRegistry;
-      metricDatapoints;
       slackUsers;
       workspaces;
       eventStore;

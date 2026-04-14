@@ -10,15 +10,11 @@
 /// so callers (like main.mo) that already import EventRouter don't need an
 /// extra import.
 
-import Map "mo:core/Map";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ChannelHistoryModel "../../models/channel-history-model";
 import McpToolRegistry "../../tools/mcp-tool-registry";
 import AgentModel "../../models/agent-model";
-import ValueStreamModel "../../models/value-stream-model";
-import ObjectiveModel "../../models/objective-model";
-import MetricModel "../../models/metric-model";
 import SlackUserModel "../../models/slack-user-model";
 import WorkspaceModel "../../models/workspace-model";
 import EventStoreModel "../../models/event-store-model";
@@ -47,14 +43,6 @@ module {
     mcpToolRegistry : McpToolRegistry.McpToolRegistryState;
     /// Global agent registry — used to resolve the active agent for a given category
     agentRegistry : AgentModel.AgentRegistryState;
-    /// Value stream state per workspace — scope to workspaceId before use
-    workspaceValueStreams : Map.Map<Nat, ValueStreamModel.WorkspaceValueStreamsState>;
-    /// Objectives per workspace — scope to workspaceId before use
-    workspaceObjectives : Map.Map<Nat, ObjectiveModel.WorkspaceObjectivesMap>;
-    /// Org-level metric registry
-    metricsRegistry : MetricModel.MetricsRegistryState;
-    /// Org-level metric datapoints store
-    metricDatapoints : MetricModel.MetricDatapointsStore;
     /// Slack user state (cache + access change log) — handlers for membership events mutate this directly
     slackUsers : SlackUserModel.SlackUserState;
     /// Workspace channel anchors — used to resolve channel IDs to workspace scopes

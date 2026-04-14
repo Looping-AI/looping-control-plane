@@ -23,29 +23,6 @@ import SetWorkspaceAdminChannelHandler "../../../src/control-plane-core/tools/ha
 import CreateWorkspaceHandler "../../../src/control-plane-core/tools/handlers/workspaces/create-workspace-handler";
 import DeleteWorkspaceHandler "../../../src/control-plane-core/tools/handlers/workspaces/delete-workspace-handler";
 import ListWorkspacesHandler "../../../src/control-plane-core/tools/handlers/workspaces/list-workspaces-handler";
-import CreateMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/create-metric-handler";
-import UpdateMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/update-metric-handler";
-import GetMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/get-metric-handler";
-import ListMetricsHandler "../../../src/control-plane-core/tools/handlers/metrics/list-metrics-handler";
-import DeleteMetricHandler "../../../src/control-plane-core/tools/handlers/metrics/delete-metric-handler";
-import RecordMetricDatapointHandler "../../../src/control-plane-core/tools/handlers/metrics/record-metric-datapoint-handler";
-import GetMetricDatapointsHandler "../../../src/control-plane-core/tools/handlers/metrics/get-metric-datapoints-handler";
-import GetLatestMetricDatapointHandler "../../../src/control-plane-core/tools/handlers/metrics/get-latest-metric-datapoint-handler";
-import SaveValueStreamHandler "../../../src/control-plane-core/tools/handlers/value-streams/save-value-stream-handler";
-import SavePlanHandler "../../../src/control-plane-core/tools/handlers/save-plan-handler";
-import ListValueStreamsHandler "../../../src/control-plane-core/tools/handlers/value-streams/list-value-streams-handler";
-import GetValueStreamHandler "../../../src/control-plane-core/tools/handlers/value-streams/get-value-stream-handler";
-import DeleteValueStreamHandler "../../../src/control-plane-core/tools/handlers/value-streams/delete-value-stream-handler";
-import CreateObjectiveHandler "../../../src/control-plane-core/tools/handlers/objectives/create-objective-handler";
-import UpdateObjectiveHandler "../../../src/control-plane-core/tools/handlers/objectives/update-objective-handler";
-import ArchiveObjectiveHandler "../../../src/control-plane-core/tools/handlers/objectives/archive-objective-handler";
-import RecordObjectiveDatapointHandler "../../../src/control-plane-core/tools/handlers/objectives/record-objective-datapoint-handler";
-import AddImpactReviewHandler "../../../src/control-plane-core/tools/handlers/objectives/add-impact-review-handler";
-import ListObjectivesHandler "../../../src/control-plane-core/tools/handlers/objectives/list-objectives-handler";
-import GetObjectiveHandler "../../../src/control-plane-core/tools/handlers/objectives/get-objective-handler";
-import GetObjectiveHistoryHandler "../../../src/control-plane-core/tools/handlers/objectives/get-objective-history-handler";
-import AddObjectiveDatapointCommentHandler "../../../src/control-plane-core/tools/handlers/objectives/add-objective-datapoint-comment-handler";
-import GetImpactReviewsHandler "../../../src/control-plane-core/tools/handlers/objectives/get-impact-reviews-handler";
 import RegisterAgentHandler "../../../src/control-plane-core/tools/handlers/agents/register-agent-handler";
 import ListAgentsHandler "../../../src/control-plane-core/tools/handlers/agents/list-agents-handler";
 import GetAgentHandler "../../../src/control-plane-core/tools/handlers/agents/get-agent-handler";
@@ -62,13 +39,9 @@ import GetFailedEventsHandler "../../../src/control-plane-core/tools/handlers/ev
 import DeleteFailedEventsHandler "../../../src/control-plane-core/tools/handlers/events/delete-failed-events-handler";
 import WeeklyReconciliationRunner "../../../src/control-plane-core/timers/weekly-reconciliation-runner";
 import ClearKeyCacheRunner "../../../src/control-plane-core/timers/clear-key-cache-runner";
-import MetricRetentionRunner "../../../src/control-plane-core/timers/metric-retention-runner";
 import ProcessedEventsCleanupRunner "../../../src/control-plane-core/timers/processed-events-cleanup-runner";
 import ChannelHistoryPruneRunner "../../../src/control-plane-core/timers/channel-history-prune-runner";
 import SlackEventIntakeService "../../../src/control-plane-core/services/slack-event-intake-service";
-import ValueStreamModel "../../../src/control-plane-core/models/value-stream-model";
-import ObjectiveModel "../../../src/control-plane-core/models/objective-model";
-import MetricModel "../../../src/control-plane-core/models/metric-model";
 import ChannelHistoryModel "../../../src/control-plane-core/models/channel-history-model";
 import SlackUserModel "../../../src/control-plane-core/models/slack-user-model";
 import SlackAuthMiddleware "../../../src/control-plane-core/middleware/slack-auth-middleware";
@@ -113,24 +86,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     ignore WorkspaceModel.setAdminChannel(s, 2, "C_ROUND_TRIP_ADMIN");
     s;
   };
-
-  // Persistent metric state for handler tests. Starts empty; tests
-  // create metrics through handler calls and state persists within a single
-  // canister lifetime (but each test creates a fresh PocketIC canister).
-  let testMetricsRegistry = MetricModel.emptyRegistry();
-  let testMetricDatapoints = MetricModel.emptyDatapoints();
-
-  // Persistent value stream state for handler tests. Workspace 0 is pre-initialised
-  // so create/list/get/delete tests can run directly against it.
-  let testValueStreamsMap = do {
-    let m = ValueStreamModel.emptyValueStreamsMap();
-    Map.add(m, Nat.compare, 0, ValueStreamModel.emptyWorkspaceState());
-    m;
-  };
-  let testValueStreamWorkspaceId : Nat = 0;
-
-  // Per-workspace objectives map for delete handler cleanup tests.
-  let testWorkspaceObjectivesMap = ObjectiveModel.emptyWorkspaceObjectivesMap();
 
   // Agent registry state for agent handler tests. Starts empty; tests
   // register agents through handler calls and state persists within a single
@@ -509,10 +464,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   /// Like `testMessageHandlerWithSecrets`, but pre-seeds the context with BOTH a
-  /// `unit-test-admin` (#admin) and a `unit-test-research` (#research) agent.
+  /// `unit-test-admin` (#admin) and a `unit-test-research` (#custom) agent.
   ///
   /// Use this variant for primary-agent resolution tests that reference `::unit-test-research`
-  /// explicitly.  Because `route(#research, …)` returns a stub error without making any HTTP
+  /// explicitly.  Because `route(#custom, …)` returns a stub error without making any HTTP
   /// calls, these tests complete quickly with no cassette required.
   public shared ({ caller }) func testMessageHandlerWithResearchAgent(
     msg : {
@@ -856,19 +811,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     };
   };
 
-  /// Run the metric-retention runner against testMetricDatapoints/testMetricsRegistry.
-  /// Returns the number of remaining datapoint entries.
-  public shared ({ caller }) func testMetricRetentionRunner() : async {
-    #ok;
-    #err : Text;
-  } {
-    assert caller == parent;
-    switch (MetricRetentionRunner.run(testMetricDatapoints, testMetricsRegistry)) {
-      case (#ok(_)) { #ok };
-      case (#err(e)) { #err(e) };
-    };
-  };
-
   /// Run the processed-events-cleanup runner against testEventStore.
   public shared ({ caller }) func testProcessedEventsCleanupRunner() : async {
     #ok;
@@ -1088,230 +1030,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await ListWorkspacesHandler.handle(testWorkspacesState, args);
-  };
-
-  // ============================================
-  // Metric Handler Test Methods
-  // ============================================
-
-  /// Test the CreateMetricHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ name, description, unit, retentionDays }).
-  public shared ({ caller }) func testCreateMetricHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await CreateMetricHandler.handle(testMetricsRegistry, args);
-  };
-
-  /// Test the UpdateMetricHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ metricId, name?, description?, unit?, retentionDays? }).
-  public shared ({ caller }) func testUpdateMetricHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await UpdateMetricHandler.handle(testMetricsRegistry, args);
-  };
-
-  /// Test the GetMetricHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ metricId }).
-  public shared ({ caller }) func testGetMetricHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await GetMetricHandler.handle(testMetricsRegistry, args);
-  };
-
-  /// Test the ListMetricsHandler in isolation.
-  /// @param args JSON-encoded tool arguments (unused by this handler).
-  public shared ({ caller }) func testListMetricsHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await ListMetricsHandler.handle(testMetricsRegistry, args);
-  };
-
-  /// Test the DeleteMetricHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ metricId }).
-  public shared ({ caller }) func testDeleteMetricHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await DeleteMetricHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
-  };
-
-  /// Test the RecordMetricDatapointHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ metricId, value, sourceType?, sourceLabel? }).
-  public shared ({ caller }) func testRecordMetricDatapointHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await RecordMetricDatapointHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
-  };
-
-  /// Test the GetMetricDatapointsHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ metricId, since?, limit? }).
-  public shared ({ caller }) func testGetMetricDatapointsHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await GetMetricDatapointsHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
-  };
-
-  /// Test the GetLatestMetricDatapointHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ metricId }).
-  public shared ({ caller }) func testGetLatestMetricDatapointHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await GetLatestMetricDatapointHandler.handle(testMetricsRegistry, testMetricDatapoints, args);
-  };
-
-  // ============================================
-  // Value Stream Handler Test Methods
-  // ============================================
-
-  /// Test the SaveValueStreamHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ id?, name, problem, goal, activate? }).
-  public shared ({ caller }) func testSaveValueStreamHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await SaveValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
-  };
-
-  /// Test the SavePlanHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, summary, currentState, targetState, steps, risks, resources }).
-  public shared ({ caller }) func testSavePlanHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await SavePlanHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
-  };
-
-  /// Test the ListValueStreamsHandler in isolation.
-  /// @param args JSON-encoded tool arguments (unused by this handler).
-  public shared ({ caller }) func testListValueStreamsHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await ListValueStreamsHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
-  };
-
-  /// Test the GetValueStreamHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
-  public shared ({ caller }) func testGetValueStreamHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await GetValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, args);
-  };
-
-  /// Test the DeleteValueStreamHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
-  public shared ({ caller }) func testDeleteValueStreamHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await DeleteValueStreamHandler.handle(testValueStreamWorkspaceId, testValueStreamsMap, testWorkspaceObjectivesMap, args);
-  };
-
-  // ============================================
-  // Objective Handler Test Methods
-  //
-  // All objective handlers run against testWorkspaceObjectivesMap
-  // (workspace ID 0, shared with value-stream cleanup tests).
-  // Each test creates a fresh PocketIC canister so there is no
-  // cross-test state leakage.
-  // ============================================
-
-  /// Test the CreateObjectiveHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, name, objectiveType, metricIds, computation, targetType, ... }).
-  public shared ({ caller }) func testCreateObjectiveHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await CreateObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the ListObjectivesHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId }).
-  public shared ({ caller }) func testListObjectivesHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await ListObjectivesHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the GetObjectiveHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
-  public shared ({ caller }) func testGetObjectiveHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await GetObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the UpdateObjectiveHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, name?, description?, ... }).
-  public shared ({ caller }) func testUpdateObjectiveHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await UpdateObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the ArchiveObjectiveHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
-  public shared ({ caller }) func testArchiveObjectiveHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await ArchiveObjectiveHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the RecordObjectiveDatapointHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, value, ... }).
-  public shared ({ caller }) func testRecordObjectiveDatapointHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await RecordObjectiveDatapointHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the GetObjectiveHistoryHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
-  public shared ({ caller }) func testGetObjectiveHistoryHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await GetObjectiveHistoryHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the AddObjectiveDatapointCommentHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, historyIndex, message, author? }).
-  public shared ({ caller }) func testAddObjectiveDatapointCommentHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await AddObjectiveDatapointCommentHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the AddImpactReviewHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId, perceivedImpact, comment?, author? }).
-  public shared ({ caller }) func testAddImpactReviewHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await AddImpactReviewHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
-  };
-
-  /// Test the GetImpactReviewsHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ valueStreamId, objectiveId }).
-  public shared ({ caller }) func testGetImpactReviewsHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await GetImpactReviewsHandler.handle(testValueStreamWorkspaceId, testWorkspaceObjectivesMap, args);
   };
 
   // ============================================

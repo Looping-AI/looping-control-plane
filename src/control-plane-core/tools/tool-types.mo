@@ -1,8 +1,5 @@
 import Map "mo:core/Map";
 import OpenRouterWrapper "../wrappers/openrouter-wrapper";
-import ValueStreamModel "../models/value-stream-model";
-import MetricModel "../models/metric-model";
-import ObjectiveModel "../models/objective-model";
 import WorkspaceModel "../models/workspace-model";
 import AgentModel "../models/agent-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
@@ -59,25 +56,6 @@ module {
     // user explicitly typed a confirmation phrase in their own message, making it
     // impossible for the LLM to fabricate a confirmation.
     triggerMessageText : ?Text;
-
-    // Value Streams - if provided with write=true, save_value_stream tool is available
-    valueStreams : ?{
-      map : ValueStreamModel.ValueStreamsMap;
-      write : Bool; // false = read-only (future: could enable a "get_value_streams" tool)
-    };
-
-    // Metrics - if provided with write=true, metric management tools are available
-    metrics : ?{
-      registryState : MetricModel.MetricsRegistryState;
-      datapoints : MetricModel.MetricDatapointsStore;
-      write : Bool; // false = read-only (future: could enable read-only metric tools)
-    };
-
-    // Objectives - if provided with write=true, objective management tools are available
-    objectives : ?{
-      map : ObjectiveModel.WorkspaceObjectivesMap;
-      write : Bool; // false = read-only (future: could enable read-only objective tools)
-    };
 
     // Workspaces - if provided, workspace-management tools are available.
     // write=true enables create_workspace, set_workspace_admin_channel.

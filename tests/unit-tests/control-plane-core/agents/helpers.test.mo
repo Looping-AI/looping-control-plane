@@ -75,40 +75,32 @@ suite(
     );
 
     test(
-      "#research maps to #customAgent with 'research specialist' persona",
+      "#onboarding maps to #customAgent with no persona",
       func() {
-        let role = AgentHelpers.categoryToRole(#research, "my-research");
-        let persona = switch (role) {
-          case (#customAgent(a)) { a.persona };
-          case (_) { null };
-        };
-        let isResearch = switch (persona) {
-          case (?"research specialist") { true };
+        let role = AgentHelpers.categoryToRole(#onboarding, "my-onboarding");
+        let isCustom = switch (role) {
+          case (#customAgent(_)) { true };
           case (_) { false };
         };
-        expect.bool(isResearch).isTrue();
+        expect.bool(isCustom).isTrue();
 
         let instructions = InstructionComposer.compose(role, [], []);
-        expect.bool(Text.contains(instructions, #text("research specialist"))).isTrue();
+        expect.bool(Text.contains(instructions, #text("my-onboarding"))).isTrue();
       },
     );
 
     test(
-      "#communication maps to #customAgent with 'communication specialist' persona",
+      "#custom maps to #customAgent with no persona",
       func() {
-        let role = AgentHelpers.categoryToRole(#communication, "my-comm");
-        let persona = switch (role) {
-          case (#customAgent(a)) { a.persona };
-          case (_) { null };
-        };
-        let isComm = switch (persona) {
-          case (?"communication specialist") { true };
+        let role = AgentHelpers.categoryToRole(#custom, "my-custom");
+        let isCustom = switch (role) {
+          case (#customAgent(_)) { true };
           case (_) { false };
         };
-        expect.bool(isComm).isTrue();
+        expect.bool(isCustom).isTrue();
 
         let instructions = InstructionComposer.compose(role, [], []);
-        expect.bool(Text.contains(instructions, #text("communication specialist"))).isTrue();
+        expect.bool(Text.contains(instructions, #text("my-custom"))).isTrue();
       },
     );
   },

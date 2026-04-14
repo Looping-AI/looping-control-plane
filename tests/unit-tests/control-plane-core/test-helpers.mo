@@ -5,12 +5,9 @@ import Nat "mo:core/Nat";
 
 import AgentModel "../../../src/control-plane-core/models/agent-model";
 import ChannelHistoryModel "../../../src/control-plane-core/models/channel-history-model";
-import MetricModel "../../../src/control-plane-core/models/metric-model";
 import McpToolRegistry "../../../src/control-plane-core/tools/mcp-tool-registry";
-import ObjectiveModel "../../../src/control-plane-core/models/objective-model";
 import SecretModel "../../../src/control-plane-core/models/secret-model";
 import SlackUserModel "../../../src/control-plane-core/models/slack-user-model";
-import ValueStreamModel "../../../src/control-plane-core/models/value-stream-model";
 import WorkspaceModel "../../../src/control-plane-core/models/workspace-model";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import EventStoreModel "../../../src/control-plane-core/models/event-store-model";
@@ -85,10 +82,6 @@ module {
       channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = AgentModel.emptyState();
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
@@ -140,10 +133,6 @@ module {
       channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
@@ -194,10 +183,6 @@ module {
       channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
@@ -206,10 +191,10 @@ module {
   };
 
   /// Like `ctxWithSecrets`, but also registers a `unit-test-research` agent with
-  /// `#research` category alongside the existing `unit-test-admin`.
+  /// `#custom` category alongside the existing `unit-test-admin`.
   ///
   /// Use this context when a test needs to exercise primary agent resolution via
-  /// an explicit `::unit-test-research` reference.
+  /// an explicit `::unit-test-custom` reference.
   public func ctxWithSecretsAndResearch(
     slackUsers : SlackUserModel.SlackUserState,
     workspaces : WorkspaceModel.WorkspacesState,
@@ -243,13 +228,13 @@ module {
       [],
       allowedChannels,
     );
-    // Research agent — no real secret needed; route(#research) returns a stub error
+    // Custom agent — no real secret needed; route(#custom) returns a stub error
     // without making any HTTP calls, so a dummy secret entry is sufficient.
     ignore AgentModel.register(
       registry,
       "unit-test-research",
       0,
-      #research,
+      #custom,
       #api({ model = "openai/gpt-oss-120b" }),
       [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
@@ -265,10 +250,6 @@ module {
       channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
@@ -317,7 +298,7 @@ module {
       registry,
       "unit-test-research",
       0,
-      #research,
+      #custom,
       #api({ model = "openai/gpt-oss-120b" }),
       [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
       [],
@@ -333,10 +314,6 @@ module {
       channelHistory = ChannelHistoryModel.empty();
       mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
-      workspaceValueStreams = Map.empty<Nat, ValueStreamModel.WorkspaceValueStreamsState>();
-      workspaceObjectives = Map.empty<Nat, ObjectiveModel.WorkspaceObjectivesMap>();
-      metricsRegistry = MetricModel.emptyRegistry();
-      metricDatapoints = MetricModel.emptyDatapoints();
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();

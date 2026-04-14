@@ -114,7 +114,7 @@ describe("GetAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "plan-bot",
-          category: "planning",
+          category: "custom",
           executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
@@ -130,7 +130,7 @@ describe("GetAgentHandler", () => {
       };
       expect(response.success).toBe(true);
       expect(response.agent?.name).toBe("plan-bot");
-      expect(response.agent?.category).toBe("planning");
+      expect(response.agent?.category).toBe("custom");
     });
 
     it("should return not-found for a name that does not exist", async () => {

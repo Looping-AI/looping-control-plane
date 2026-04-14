@@ -28,9 +28,8 @@ module {
   public func parseCategory(s : Text) : ?AgentModel.AgentCategory {
     switch (s) {
       case ("admin") { ?#admin };
-      case ("planning") { ?#planning };
-      case ("research") { ?#research };
-      case ("communication") { ?#communication };
+      case ("onboarding") { ?#onboarding };
+      case ("custom") { ?#custom };
       case _ { null };
     };
   };

@@ -8,23 +8,20 @@ module {
 
   /// Map an AgentCategory to the appropriate AgentRole for instruction composition.
   ///
-  ///   #admin         →  #orgAdmin
-  ///   #research      →  #customAgent({ name; persona = ?"research specialist" })
-  ///   #communication →  #customAgent({ name; persona = ?"communication specialist" })
+  ///   #admin      →  #orgAdmin
+  ///   #onboarding →  #customAgent({ name; persona = null })
+  ///   #custom     →  #customAgent({ name; persona = null })
   public func categoryToRole(
     category : AgentModel.AgentCategory,
     name : Text,
   ) : InstructionTypes.AgentRole {
     switch (category) {
       case (#admin) { #orgAdmin };
-      case (#planning) {
-        #customAgent({ name; persona = ?"work planning specialist" });
+      case (#onboarding) {
+        #customAgent({ name; persona = null });
       };
-      case (#research) {
-        #customAgent({ name; persona = ?"research specialist" });
-      };
-      case (#communication) {
-        #customAgent({ name; persona = ?"communication specialist" });
+      case (#custom) {
+        #customAgent({ name; persona = null });
       };
     };
   };
