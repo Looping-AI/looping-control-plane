@@ -96,7 +96,7 @@ describe("ListAgentsHandler — with seeded agents (cassette)", () => {
         testCanister.testRegisterAgentHandler(
           JSON.stringify({
             name: "admin-bot",
-            category: "admin",
+            executionEngines: ["api"],
             allowedChannelIds: ["C_TEST"],
           }),
           PRIMARY_OWNER,
@@ -110,7 +110,7 @@ describe("ListAgentsHandler — with seeded agents (cassette)", () => {
         testCanister.testRegisterAgentHandler(
           JSON.stringify({
             name: "plan-bot",
-            category: "custom",
+            executionEngines: ["canister"],
             allowedChannelIds: ["C_TEST"],
           }),
           PRIMARY_OWNER,
@@ -140,7 +140,7 @@ describe("ListAgentsHandler — with seeded agents (cassette)", () => {
         testCanister.testRegisterAgentHandler(
           JSON.stringify({
             name: "full-agent",
-            category: "custom",
+            executionEngines: ["canister"],
             model: "openai/gpt-oss-120b",
             allowedChannelIds: ["C_TEST"],
           }),

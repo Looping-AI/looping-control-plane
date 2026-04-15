@@ -1067,6 +1067,30 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null, null);
   };
 
+  /// Directly seed a #_system(#admin) agent into testAgentRegistry without going through
+  /// the create_workspace HTTP flow. Useful for unit tests that need a system admin agent.
+  /// Returns the assigned agent ID.
+  public shared ({ caller }) func testDirectSeedAdminAgent() : async Nat {
+    assert caller == parent;
+    switch (
+      AgentModel.register(
+        testAgentRegistry,
+        0,
+        #_system(#admin),
+        {
+          name = "test-admin";
+          model = "openai/gpt-oss-120b";
+          executionEngines = [#api];
+          allowedChannelIds = Set.empty<Text>();
+          secrets = { allowed = []; overrides = [] };
+        },
+      )
+    ) {
+      case (#ok id) { id };
+      case (#err _) { 999 };
+    };
+  };
+
   /// Test the ListAgentsHandler in isolation.
   /// @param args JSON-encoded tool arguments (unused by this handler).
   public shared ({ caller }) func testListAgentsHandler(

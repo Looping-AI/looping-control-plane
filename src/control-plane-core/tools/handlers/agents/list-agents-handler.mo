@@ -14,6 +14,14 @@ module {
     };
   };
 
+  private func executionEngineToText(e : AgentModel.ExecutionEngine) : Text {
+    switch (e) {
+      case (#api) { "api" };
+      case (#canister) { "canister" };
+      case (#github) { "github" };
+    };
+  };
+
   private func secretIdToText(s : Types.SecretId) : Text {
     switch (s) {
       case (#openRouterApiKey) { "openRouterApiKey" };
@@ -60,6 +68,7 @@ module {
         obj([
           ("name", str(record.config.name)),
           ("model", str(record.config.model)),
+          ("executionEngines", arr(Array.map<AgentModel.ExecutionEngine, Json.Json>(record.config.executionEngines, func(e) { str(executionEngineToText(e)) }))),
           ("allowedChannelIds", allowedChannelIdsJson),
           (
             "secrets",

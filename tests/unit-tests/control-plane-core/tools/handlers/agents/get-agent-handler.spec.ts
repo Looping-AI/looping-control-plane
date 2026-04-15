@@ -68,7 +68,7 @@ describe("GetAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "admin-bot",
-          category: "admin",
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -94,9 +94,9 @@ describe("GetAgentHandler", () => {
       expect(response.success).toBe(true);
       expect(response.agent?.id).toBe(0);
       expect(response.agent?.config?.name).toBe("admin-bot");
-      expect(response.agent?.category).toBe("admin");
+      expect(response.agent?.category).toBe("custom");
       expect(response.agent?.config?.secrets?.overrides).toEqual([]);
-      expect(response.agent?.config?.allowedChannelIds).toEqual([]);
+      expect(response.agent?.config?.allowedChannelIds).toEqual(["C_TEST"]);
     });
 
     it("should return not-found for an id that does not exist", async () => {
@@ -117,7 +117,7 @@ describe("GetAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "plan-bot",
-          category: "custom",
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,

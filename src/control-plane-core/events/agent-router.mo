@@ -129,9 +129,6 @@ module {
       });
     };
 
-    // Branch on execution type: only #api agents are supported.
-    // (All agents are now implicitly #api since executionType was removed.)
-
     // Forward to the orchestrator with the typed context
     await AgentOrchestrator.orchestrateAgentTalk(
       primaryAgent,
