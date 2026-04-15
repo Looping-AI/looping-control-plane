@@ -41,7 +41,7 @@ module {
             return Helpers.buildErrorResponse("Agent with ID " # Nat.toText(id) # " not found.");
           };
           case (?agent) {
-            if (agent.category == #admin and AgentModel.countByCategory(state, #admin) <= 1) {
+            if (agent.category == #_system(#admin) and AgentModel.countByCategory(state, #_system(#admin)) <= 1) {
               return Helpers.buildErrorResponse("Cannot unregister the last admin agent. At least one admin agent must remain.");
             };
           };

@@ -69,7 +69,6 @@ describe("GetAgentHandler", () => {
         JSON.stringify({
           name: "admin-bot",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -82,18 +81,22 @@ describe("GetAgentHandler", () => {
         success: boolean;
         agent?: {
           id: number;
-          name: string;
+          ownedBy: number;
           category: string;
-          secretOverrides: unknown[];
-          allowedChannelIds: string[];
+          config: {
+            name: string;
+            model: string;
+            allowedChannelIds: string[];
+            secrets: { allowed: unknown[]; overrides: unknown[] };
+          };
         };
       };
       expect(response.success).toBe(true);
       expect(response.agent?.id).toBe(0);
-      expect(response.agent?.name).toBe("admin-bot");
+      expect(response.agent?.config?.name).toBe("admin-bot");
       expect(response.agent?.category).toBe("admin");
-      expect(response.agent?.secretOverrides).toEqual([]);
-      expect(response.agent?.allowedChannelIds).toEqual([]);
+      expect(response.agent?.config?.secrets?.overrides).toEqual([]);
+      expect(response.agent?.config?.allowedChannelIds).toEqual([]);
     });
 
     it("should return not-found for an id that does not exist", async () => {
@@ -115,7 +118,6 @@ describe("GetAgentHandler", () => {
         JSON.stringify({
           name: "plan-bot",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -126,10 +128,10 @@ describe("GetAgentHandler", () => {
       );
       const response = JSON.parse(result) as {
         success: boolean;
-        agent?: { id: number; name: string; category: string };
+        agent?: { id: number; category: string; config: { name: string } };
       };
       expect(response.success).toBe(true);
-      expect(response.agent?.name).toBe("plan-bot");
+      expect(response.agent?.config?.name).toBe("plan-bot");
       expect(response.agent?.category).toBe("custom");
     });
 

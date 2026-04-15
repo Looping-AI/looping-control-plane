@@ -276,6 +276,17 @@ At each LLM call, the control plane assembles a turn-specific context from multi
 
 This retrieval step is dynamic and per-call; it enriches context beyond Agent Session without mutating the session. Token budgets for each layer are deterministic, governed by `summaryTokenBudget` in the session policy (halving distribution — see [Agent Session](#agent-session)).
 
+#### Two-Pass Focused Context Assembly [planned]
+
+The current approach assembles context in a single pass. A known limitation of this approach is that naively including all available sources wastes tokens on irrelevant content **and** buries important material in the attention dead-zone (model performance degrades for content in the middle of a long prompt).
+
+The planned improvement is a two-pass approach:
+
+1. **Relevance pass**: a lightweight scan over available sources (Channel History snippets, Store documents, skill documents) to identify which sections are relevant to the current prompt — without loading full content.
+2. **Assembly pass**: construct the final focused prompt using only the relevant sections, placing the most critical context at the prompt boundaries (beginning or end) per position-sensitivity best practices.
+
+Tool-use lookups (rather than pre-loading) are the preferred mechanism for one-off document retrieval within the agent's tool set, keeping the assembled context lean.
+
 ### Skill Documents (Store Subtype) [planned]
 
 Skills are not a separate first-class state model; they are a structured subtype of Store documents. A skill is represented by files under a skill path (for example, `/skills/create-spec/SKILL.md` plus optional companion files), using Store metadata and content.
@@ -414,7 +425,7 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
 
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceAdminScopes: [workspaceId] }`. Backed by `SlackUserModel`.
-- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, name, category, executionType: #api | #runtime(#githubCodingAgent({ repoFullName, workflowId, ref })), workspaceId, llmModel, allowedChannelIds: [Text], secretsAllowed: [(workspaceId, SecretId)], secretOverrides: [(SecretId, Text)], toolsAllowed, toolsState: Map<Text, ToolState>, usageStats, sources }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
+- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, ownedBy, category: AgentCategory, config: AgentConfig, state: AgentState }`. `AgentCategory = { #_system: SystemAgentKind | #custom }`, `SystemAgentKind = { #admin | #onboarding }`. `AgentConfig = { name, model, executionEngines: [ExecutionEngine], allowedChannelIds: Set<Text>, secrets: AgentSecretsConfig }`, `ExecutionEngine = { #api | #canister | #github }`. `AgentState = { toolsState: Map<Text, ToolState> }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
 - **Agent session store**: `Map<agentId, AgentSessionRecord>` — one persistent session per agent, with compaction state (summary layers, cursor) and context-budget policy. No separate session ID; the agent ID is the key. File: [src/control-plane-core/models/session-model.mo](src/control-plane-core/models/session-model.mo).
 - **Agent turn store**: `Map<agentId, List<AgentTurnRecord>>` — append-only turn log per agent. Each turn has a deterministic `turnId` (`"{agentId}_{turnNumber}"`), execution status, source ref, delegation lineage (`triggerTurnId`), user auth context snapshot, cost, and Slack reply ts list.
 - **Turn trace store**: `Map<turnId, List<TurnTraceEntry>>` — immutable, append-only trace per turn. Each entry is a self-contained `TraceDetail` variant (`#llmCall`, `#toolCall`, `#slackPost`, etc.) with per-entry cost on LLM calls. Truncated fields (`truncatedContent`, `truncatedOutput`) are pre-computed at write time; raw originals always retained. Context assembly uses raw fields for turns < 1h old, truncated fields for older turns. Hard deletion after 3 months.
@@ -500,20 +511,17 @@ The access level is always determined by the **user** who wrote the original mes
 Agents are stored in a persistent registry with dual indexes (`agentsById: Map<Nat, AgentRecord>`, `agentsByName: Map<Text, Nat>`) for O(1) lookup by ID or name. Each agent record (`AgentRecord`) has:
 
 - `id`: stable unique numeric identifier, assigned by the registry on registration.
-- `name`: kebab-case identifier, must be unique and match the `::name` syntax. Stored lower-cased; lookups are case-insensitive.
-- `category`: which agent category/service handles this agent (e.g., `#admin`, `#onboarding`, `#custom`).
-- `executionType`: determines how the agent runs — `#api` (in-canister, calls LLM directly) or `#runtime(#githubCodingAgent({ repoFullName, workflowId, ref }))` (remote, via GitHub Actions workflow dispatch). See "Agent Execution Type" in Core Concepts.
-- `workspaceId`: which workspace this agent belongs to. Scopes ownership and secret access.
-- `llmModel`: the LLM provider and model to use (e.g., `#openRouter(#gpt_oss_120b)`).
-- `allowedChannelIds`: explicit Slack channel allowlist for agent execution. If a message references the agent outside this list, execution is blocked with an automatic warning.
-- `secretsAllowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent is permitted to access. The agent process must check this list before decrypting any secret.
-- `secretOverrides`: `[(targetSecretId: SecretId, customSecretName: Text)]` — agent-level credential override; see [Credential Cascade](#credential-cascade).
-- `toolsAllowed`: subset of the category's `category_tools` that this agent is permitted to use.
-- `toolsState`: per-tool runtime state (`Map<Text, ToolState>`):
+- `ownedBy`: workspace ID that owns this agent. Immutable after creation. Workspace 0 means org-wide (e.g. the org-admin agent).
+- `category`: `AgentCategory = { #_system : SystemAgentKind | #custom }` where `SystemAgentKind = { #admin | #onboarding }`. Determines the available tool catalogue and prompt strategy. Immutable after creation.
+- `config.name`: kebab-case identifier, must be unique and match the `::name` syntax. Stored lower-cased; lookups are case-insensitive.
+- `config.model`: OpenRouter model string (e.g. `"openai/gpt-oss-120b"`).
+- `config.executionEngines`: `[ExecutionEngine]` where `ExecutionEngine = { #api | #canister | #github }`. Non-empty list of execution engines this agent is permitted to use. `#api` = in-canister LLM loop; `#canister` = external canister via webhook; `#github` = GitHub Actions workflow dispatch.
+- `config.allowedChannelIds`: `Set<Text>` — Slack channel allowlist. Must be non-empty for `#custom` agents; always empty for `#_system(#admin)` (routing governed by `WorkspaceModel.adminChannelId`).
+- `config.secrets.allowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent may access.
+- `config.secrets.overrides`: `[(targetSecretId, customKeyName)]` — agent-level credential override; see [Credential Cascade](#credential-cascade).
+- `state.toolsState`: per-tool runtime state (`Map<Text, ToolState>`):
   - `usageCount`: how many times this tool has been invoked by this agent.
-  - `knowHow`: a Text field containing tool-specific operational knowledge — configuration state, secret key references (how to find them in Secrets), good/bad practices, documentation links, and other relevant context. This field is also used when duplicating an agent as a template: the know-how can be copied and adapted.
-- `usageStats`: `{ totalPromptTokens, totalCompletionTokens, totalRequests, lastResetAt }` — accumulated from LLM responses for cost tracking.
-- `sources`: knowledge sources and context configuration.
+  - `knowHow`: a Text field containing tool-specific operational knowledge — configuration state, secret key references, good/bad practices, documentation links, and other relevant context.
 
 ### `::` reference syntax
 

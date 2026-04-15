@@ -1,15 +1,15 @@
 import Json "mo:json";
 import { str; obj; int; bool; arr } "mo:json";
 import Array "mo:core/Array";
+import Set "mo:core/Set";
 import AgentModel "../../../models/agent-model";
 import Types "../../../types";
-import AgentParsers "../parsers/agent-parsers";
 
 module {
   private func categoryToText(c : AgentModel.AgentCategory) : Text {
     switch (c) {
-      case (#admin) { "admin" };
-      case (#onboarding) { "onboarding" };
+      case (#_system(#admin)) { "system:admin" };
+      case (#_system(#onboarding)) { "system:onboarding" };
       case (#custom) { "custom" };
     };
   };
@@ -26,9 +26,9 @@ module {
   };
 
   private func agentToJson(record : AgentModel.AgentRecord) : Json.Json {
-    let secretsJson = arr(
+    let secretsAllowedJson = arr(
       Array.map<(Nat, Types.SecretId), Json.Json>(
-        record.secretsAllowed,
+        record.config.secrets.allowed,
         func((wsId, sid)) {
           obj([
             ("workspaceId", int(wsId)),
@@ -39,7 +39,7 @@ module {
     );
     let overridesJson = arr(
       Array.map<(Types.SecretId, Text), Json.Json>(
-        record.secretOverrides,
+        record.config.secrets.overrides,
         func((sid, customName)) {
           obj([
             ("secretId", str(secretIdToText(sid))),
@@ -48,20 +48,28 @@ module {
         },
       )
     );
-    let disallowedJson = arr(Array.map<Text, Json.Json>(record.toolsDisallowed, str));
-    let misconfiguredJson = arr(Array.map<Text, Json.Json>(record.toolsMisconfigured, str));
-    let sourcesJson = arr(Array.map<Text, Json.Json>(record.sources, str));
+    let allowedChannelIdsJson = arr(
+      Array.map<Text, Json.Json>(Set.toArray(record.config.allowedChannelIds), str)
+    );
     obj([
       ("id", int(record.id)),
-      ("name", str(record.name)),
+      ("ownedBy", int(record.ownedBy)),
       ("category", str(categoryToText(record.category))),
-      ("executionType", AgentParsers.executionTypeToJson(record.executionType)),
-      ("secretsAllowed", secretsJson),
-      ("secretOverrides", overridesJson),
-      ("toolsDisallowed", disallowedJson),
-      ("toolsMisconfigured", misconfiguredJson),
-      ("sources", sourcesJson),
-      ("allowedChannelIds", AgentParsers.allowedChannelIdsToJson(record.allowedChannelIds)),
+      (
+        "config",
+        obj([
+          ("name", str(record.config.name)),
+          ("model", str(record.config.model)),
+          ("allowedChannelIds", allowedChannelIdsJson),
+          (
+            "secrets",
+            obj([
+              ("allowed", secretsAllowedJson),
+              ("overrides", overridesJson),
+            ]),
+          ),
+        ]),
+      ),
     ]);
   };
 

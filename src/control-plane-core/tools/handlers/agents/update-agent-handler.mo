@@ -2,6 +2,7 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Int "mo:core/Int";
 import Set "mo:core/Set";
+import Text "mo:core/Text";
 import AgentModel "../../../models/agent-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
@@ -43,20 +44,25 @@ module {
           case _ { return Helpers.buildErrorResponse("name must be a string") };
         };
 
-        let newCategory = switch (Json.get(json, "category")) {
-          case (?#string(s)) {
-            switch (AgentParsers.parseCategory(s)) {
-              case (?c) { ?c };
+        let newExecutionEngines = switch (Json.get(json, "executionEngines")) {
+          case (?#array(items)) {
+            switch (AgentParsers.parseExecutionEngines(items)) {
+              case (?e) {
+                if (e.size() == 0) {
+                  return Helpers.buildErrorResponse("executionEngines must be non-empty when provided");
+                };
+                ?e;
+              };
               case null {
                 return Helpers.buildErrorResponse(
-                  "Invalid category: " # s # ". Must be admin, onboarding, or custom."
+                  "Invalid executionEngines: each entry must be one of: api, canister, github."
                 );
               };
             };
           };
           case (null) { null };
           case _ {
-            return Helpers.buildErrorResponse("category must be a string");
+            return Helpers.buildErrorResponse("executionEngines must be an array");
           };
         };
 
@@ -94,49 +100,29 @@ module {
           };
         };
 
-        let newToolsDisallowed = switch (Json.get(json, "toolsDisallowed")) {
-          case (?#array(items)) {
-            switch (Helpers.parseStringArray(items)) {
-              case (?a) { ?a };
-              case null {
-                return Helpers.buildErrorResponse("toolsDisallowed must be an array of strings");
-              };
+        let newModel = switch (Json.get(json, "model")) {
+          case (?#string(s)) {
+            if (Text.trim(s, #char ' ') == "") {
+              return Helpers.buildErrorResponse("model must be a non-empty string");
             };
+            ?s;
           };
           case (null) { null };
-          case _ {
-            return Helpers.buildErrorResponse("toolsDisallowed must be an array");
-          };
+          case _ { return Helpers.buildErrorResponse("model must be a string") };
         };
 
-        let newToolsMisconfigured = switch (Json.get(json, "toolsMisconfigured")) {
-          case (?#array(items)) {
-            switch (Helpers.parseStringArray(items)) {
-              case (?a) { ?a };
-              case null {
-                return Helpers.buildErrorResponse("toolsMisconfigured must be an array of strings");
+        switch (newModel) {
+          case (?m) {
+            switch (validateModel) {
+              case (?validator) {
+                if (not (await validator(m))) {
+                  return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # m # ". Please use a valid model string.");
+                };
               };
+              case (null) {};
             };
           };
-          case (null) { null };
-          case _ {
-            return Helpers.buildErrorResponse("toolsMisconfigured must be an array");
-          };
-        };
-
-        let newSources = switch (Json.get(json, "sources")) {
-          case (?#array(items)) {
-            switch (Helpers.parseStringArray(items)) {
-              case (?a) { ?a };
-              case null {
-                return Helpers.buildErrorResponse("sources must be an array of strings");
-              };
-            };
-          };
-          case (null) { null };
-          case _ {
-            return Helpers.buildErrorResponse("sources must be an array");
-          };
+          case (null) {};
         };
 
         let newAllowedChannelIds = switch (Json.get(json, "allowedChannelIds")) {
@@ -159,47 +145,15 @@ module {
           };
         };
 
-        let newExecutionType = switch (Json.get(json, "executionType")) {
-          case (?etJson) {
-            switch (AgentParsers.parseExecutionType(etJson)) {
-              case (?et) { ?et };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
-                );
-              };
-            };
-          };
-          case (null) { null };
-        };
-
-        switch (newExecutionType) {
-          case (?#api({ model })) {
-            switch (validateModel) {
-              case (?validator) {
-                if (not (await validator(model))) {
-                  return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
-                };
-              };
-              case (null) {};
-            };
-          };
-          case (_) {};
-        };
-
         switch (
           AgentModel.updateById(
             state,
             id,
             newName,
-            newCategory,
-            newExecutionType,
+            newModel,
+            newExecutionEngines,
             newSecretsAllowed,
             newSecretOverrides,
-            newToolsDisallowed,
-            newToolsMisconfigured,
-            null,
-            newSources,
             newAllowedChannelIds,
           )
         ) {

@@ -18,8 +18,8 @@ import {
 //
 // This handler:
 //   1. Authorizes the caller via UserAuthContext (#IsPrimaryOwner or #IsOrgAdmin)
-//   2. Parses JSON args for { id, name?, category?, llmModel?, secretsAllowed?,
-//      toolsDisallowed?, toolsMisconfigured?, sources? }
+//   2. Parses JSON args for { id, name?, category?, model?,
+//      secretsAllowed?, secretOverrides?, allowedChannelIds? }
 //   3. Applies the patch to the agent record in AgentRegistryState
 // ============================================
 
@@ -59,7 +59,6 @@ describe("UpdateAgentHandler", () => {
         JSON.stringify({
           name: "AdminBot",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -79,7 +78,6 @@ describe("UpdateAgentHandler", () => {
         JSON.stringify({
           name: "AdminBot",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -98,7 +96,6 @@ describe("UpdateAgentHandler", () => {
         JSON.stringify({
           name: "AdminBot",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -150,7 +147,6 @@ describe("UpdateAgentHandler", () => {
         JSON.stringify({
           name: "original-name",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -167,9 +163,10 @@ describe("UpdateAgentHandler", () => {
       const getResult = await testCanister.testGetAgentHandler(
         JSON.stringify({ id: 0 }),
       );
-      const agent = (JSON.parse(getResult) as { agent: { name: string } })
-        .agent;
-      expect(agent.name).toBe("renamed-agent");
+      const agent = (
+        JSON.parse(getResult) as { agent: { config: { name: string } } }
+      ).agent;
+      expect(agent.config.name).toBe("renamed-agent");
     });
 
     it("should update the agent category and confirm via get", async () => {
@@ -215,16 +212,22 @@ describe("UpdateAgentHandler", () => {
       const agent = (
         JSON.parse(getResult) as {
           agent: {
-            secretOverrides: Array<{
-              secretId: string;
-              customKeyName: string;
-            }>;
+            config: {
+              secrets: {
+                overrides: Array<{
+                  secretId: string;
+                  customKeyName: string;
+                }>;
+              };
+            };
           };
         }
       ).agent;
-      expect(agent.secretOverrides).toHaveLength(1);
-      expect(agent.secretOverrides[0].secretId).toBe("openRouterApiKey");
-      expect(agent.secretOverrides[0].customKeyName).toBe("ws-key");
+      expect(agent.config.secrets.overrides).toHaveLength(1);
+      expect(agent.config.secrets.overrides[0].secretId).toBe(
+        "openRouterApiKey",
+      );
+      expect(agent.config.secrets.overrides[0].customKeyName).toBe("ws-key");
     });
 
     it("should clear secretOverrides when updated to empty array", async () => {
@@ -250,9 +253,11 @@ describe("UpdateAgentHandler", () => {
         JSON.stringify({ id: 0 }),
       );
       const agent = (
-        JSON.parse(getResult) as { agent: { secretOverrides: unknown[] } }
+        JSON.parse(getResult) as {
+          agent: { config: { secrets: { overrides: unknown[] } } };
+        }
       ).agent;
-      expect(agent.secretOverrides).toEqual([]);
+      expect(agent.config.secrets.overrides).toEqual([]);
     });
   });
 });

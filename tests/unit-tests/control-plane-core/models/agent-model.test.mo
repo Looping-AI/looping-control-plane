@@ -45,17 +45,15 @@ func isNoneRecord(x : ?AgentModel.AgentRecord) : Bool {
 func registerSimple(state : AgentModel.AgentRegistryState, name : Text, category : AgentModel.AgentCategory) : Result.Result<Nat, Text> {
   AgentModel.register(
     state,
-    name,
     0,
     category,
-    #api({ model = "openai/gpt-oss-120b" }),
-    [],
-    [],
-    [],
-    [],
-    Map.empty<Text, AgentModel.ToolState>(),
-    [],
-    Set.singleton<Text>("C_TEST"),
+    {
+      name;
+      model = "openai/gpt-oss-120b";
+      allowedChannelIds = Set.singleton<Text>("C_TEST");
+      executionEngines = [#api];
+      secrets = { allowed = []; overrides = [] };
+    },
   );
 };
 
@@ -98,7 +96,7 @@ suite(
       "registers a valid agent and assigns incrementing ID",
       func() {
         let state = AgentModel.emptyState();
-        let result = registerSimple(state, "my-agent", #admin);
+        let result = registerSimple(state, "my-agent", #_system(#admin));
 
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(#ok(0));
         expect.nat(state.nextId).equal(1);
@@ -110,8 +108,8 @@ suite(
       "increments ID for each registered agent",
       func() {
         let state = AgentModel.emptyState();
-        let r1 = registerSimple(state, "agent-one", #admin);
-        let r2 = registerSimple(state, "agent-two", #onboarding);
+        let r1 = registerSimple(state, "agent-one", #_system(#admin));
+        let r2 = registerSimple(state, "agent-two", #_system(#onboarding));
         let r3 = registerSimple(state, "agent-three", #custom);
 
         expect.result<Nat, Text>(r1, resultNatToText, resultNatEqual).equal(#ok(0));
@@ -136,7 +134,7 @@ suite(
       "rejects empty name",
       func() {
         let state = AgentModel.emptyState();
-        let result = registerSimple(state, "", #admin);
+        let result = registerSimple(state, "", #_system(#admin));
 
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
           #err("Agent name cannot be empty.")
@@ -148,7 +146,7 @@ suite(
       "rejects name starting with a digit",
       func() {
         let state = AgentModel.emptyState();
-        let result = registerSimple(state, "1agent", #admin);
+        let result = registerSimple(state, "1agent", #_system(#admin));
 
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
           #err("Agent name must start with a lowercase letter.")
@@ -160,7 +158,7 @@ suite(
       "rejects name with invalid characters",
       func() {
         let state = AgentModel.emptyState();
-        let result = registerSimple(state, "my agent", #admin);
+        let result = registerSimple(state, "my agent", #_system(#admin));
 
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
           #err("Agent name may only contain lowercase letters, digits, and hyphens.")
@@ -172,7 +170,7 @@ suite(
       "rejects duplicate name (case-insensitive)",
       func() {
         let state = AgentModel.emptyState();
-        ignore registerSimple(state, "my-agent", #admin);
+        ignore registerSimple(state, "my-agent", #_system(#admin));
 
         let result = registerSimple(state, "MY-AGENT", #custom);
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
@@ -182,31 +180,27 @@ suite(
     );
 
     test(
-      "stores provided executionType and sources",
+      "stores provided model and name in config",
       func() {
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           state,
-          "info-bot",
           0,
           #custom,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [],
-          [],
-          ["web_search"],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          ["https://docs.example.com"],
-          Set.singleton<Text>("C_TEST"),
+          {
+            name = "info-bot";
+            model = "openai/gpt-o3";
+            allowedChannelIds = Set.singleton<Text>("C_TEST");
+            executionEngines = [#api];
+            secrets = { allowed = []; overrides = [] };
+          },
         );
 
         switch (AgentModel.lookupByName(state, "info-bot")) {
           case (null) { expect.bool(false).equal(true) };
           case (?record) {
-            expect.nat(record.toolsDisallowed.size()).equal(1);
-            expect.text(record.toolsDisallowed[0]).equal("web_search");
-            expect.nat(record.sources.size()).equal(1);
-            expect.text(record.sources[0]).equal("https://docs.example.com");
+            expect.text(record.config.model).equal("openai/gpt-o3");
+            expect.text(record.config.name).equal("info-bot");
           };
         };
       },
@@ -252,7 +246,7 @@ suite(
       "lookupById returns registered agent",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "planner", #admin)) {
+        let id = switch (registerSimple(state, "planner", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
@@ -265,7 +259,7 @@ suite(
       "lookupByName is case-insensitive",
       func() {
         let state = AgentModel.emptyState();
-        ignore registerSimple(state, "planner", #admin);
+        ignore registerSimple(state, "planner", #_system(#admin));
 
         expect.bool(isSomeRecord(AgentModel.lookupByName(state, "PLANNER"))).equal(true);
         expect.bool(isSomeRecord(AgentModel.lookupByName(state, "Planner"))).equal(true);
@@ -284,10 +278,10 @@ suite(
   func() {
 
     test(
-      "updates executionType model",
+      "updates model",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "bot", #admin)) {
+        let id = switch (registerSimple(state, "bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
@@ -296,11 +290,7 @@ suite(
           state,
           id,
           null,
-          null,
-          ?#api({ model = "openai/gpt-4o" }),
-          null,
-          null,
-          null,
+          ?"openai/gpt-4o",
           null,
           null,
           null,
@@ -311,30 +301,28 @@ suite(
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            let model = switch (r.executionType) {
-              case (#api({ model })) { model };
-              case (#runtime(_)) { "" };
-            };
-            expect.text(model).equal("openai/gpt-4o");
+            expect.text(r.config.model).equal("openai/gpt-4o");
           };
         };
       },
     );
 
     test(
-      "updates category",
+      "updates executionEngines",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "bot", #admin)) {
+        let id = switch (registerSimple(state, "bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentModel.updateById(state, id, null, ?#custom, null, null, null, null, null, null, null, null);
+        ignore AgentModel.updateById(state, id, null, null, ?[#api, #canister], null, null, null);
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.bool(r.category == #custom).equal(true) };
+          case (?r) {
+            expect.bool(r.config.executionEngines == [#api, #canister]).equal(true);
+          };
         };
       },
     );
@@ -343,13 +331,13 @@ suite(
       "updates name and maintains index consistency",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "old-bot", #admin)) {
+        let id = switch (registerSimple(state, "old-bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
         // Update name to new-bot
-        let result = AgentModel.updateById(state, id, ?"new-bot", null, null, null, null, null, null, null, null, null);
+        let result = AgentModel.updateById(state, id, ?"new-bot", null, null, null, null, null);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Old name should no longer resolve
@@ -364,7 +352,7 @@ suite(
         // Lookup by ID should show updated name
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.text(r.name).equal("new-bot") };
+          case (?r) { expect.text(r.config.name).equal("new-bot") };
         };
       },
     );
@@ -373,20 +361,20 @@ suite(
       "rejects duplicate name when updating",
       func() {
         let state = AgentModel.emptyState();
-        let id1 = switch (registerSimple(state, "bot-one", #admin)) {
+        let id1 = switch (registerSimple(state, "bot-one", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
         ignore registerSimple(state, "bot-two", #custom);
 
         // Try to rename bot-one to bot-two (which already exists)
-        let result = AgentModel.updateById(state, id1, ?"bot-two", null, null, null, null, null, null, null, null, null);
+        let result = AgentModel.updateById(state, id1, ?"bot-two", null, null, null, null, null);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // bot-one should still have its original name
         switch (AgentModel.lookupById(state, id1)) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.text(r.name).equal("bot-one") };
+          case (?r) { expect.text(r.config.name).equal("bot-one") };
         };
       },
     );
@@ -395,13 +383,13 @@ suite(
       "allows same agent to keep its name (no-op)",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "bot", #admin)) {
+        let id = switch (registerSimple(state, "bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
         // Update with the same name (case variation)
-        let result = AgentModel.updateById(state, id, ?"BOT", null, null, null, null, null, null, null, null, null);
+        let result = AgentModel.updateById(state, id, ?"BOT", null, null, null, null, null);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Lookup should still work
@@ -413,19 +401,19 @@ suite(
       "rejects invalid name format when updating",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "valid-bot", #admin)) {
+        let id = switch (registerSimple(state, "valid-bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
         // Try to update with invalid name (starting with digit)
-        let result = AgentModel.updateById(state, id, ?"1invalid", null, null, null, null, null, null, null, null, null);
+        let result = AgentModel.updateById(state, id, ?"1invalid", null, null, null, null, null);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // Original name should still be intact
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.text(r.name).equal("valid-bot") };
+          case (?r) { expect.text(r.config.name).equal("valid-bot") };
         };
       },
     );
@@ -434,7 +422,7 @@ suite(
       "returns error for non-existent agent",
       func() {
         let state = AgentModel.emptyState();
-        let result = AgentModel.updateById(state, 999, null, null, null, null, null, null, null, null, null, null);
+        let result = AgentModel.updateById(state, 999, null, null, null, null, null, null);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
       },
     );
@@ -453,7 +441,7 @@ suite(
       "adds a new tool state entry",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "bot", #admin)) {
+        let id = switch (registerSimple(state, "bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
@@ -468,7 +456,7 @@ suite(
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            switch (Map.get(r.toolsState, Text.compare, "web_search")) {
+            switch (Map.get(r.state.toolsState, Text.compare, "web_search")) {
               case (null) { expect.bool(false).equal(true) };
               case (?found) {
                 expect.nat(found.usageCount).equal(3);
@@ -508,12 +496,12 @@ suite(
       "registers with empty secretsAllowed by default",
       func() {
         let state = AgentModel.emptyState();
-        ignore registerSimple(state, "bot", #admin);
+        ignore registerSimple(state, "bot", #_system(#admin));
 
         switch (AgentModel.lookupByName(state, "bot")) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.nat(r.secretsAllowed.size()).equal(0);
+            expect.nat(r.config.secrets.allowed.size()).equal(0);
           };
         };
       },
@@ -525,23 +513,24 @@ suite(
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           state,
-          "secure-bot",
           0,
-          #admin,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [(1, #openRouterApiKey), (2, #anthropicApiKey)],
-          [],
-          [],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          [],
-          Set.singleton<Text>("C_TEST"),
+          #_system(#admin),
+          {
+            name = "secure-bot";
+            model = "openai/gpt-oss-120b";
+            allowedChannelIds = Set.empty<Text>();
+            executionEngines = [#api];
+            secrets = {
+              allowed = [(1, #openRouterApiKey), (2, #anthropicApiKey)];
+              overrides = [];
+            };
+          },
         );
 
         switch (AgentModel.lookupByName(state, "secure-bot")) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.nat(r.secretsAllowed.size()).equal(2);
+            expect.nat(r.config.secrets.allowed.size()).equal(2);
           };
         };
       },
@@ -551,18 +540,18 @@ suite(
       "updateById replaces secretsAllowed",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "bot", #admin)) {
+        let id = switch (registerSimple(state, "bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        let result = AgentModel.updateById(state, id, null, null, null, ?[(0, #openRouterApiKey)], null, null, null, null, null, null);
+        let result = AgentModel.updateById(state, id, null, null, null, ?[(0, #openRouterApiKey)], null, null);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.nat(r.secretsAllowed.size()).equal(1);
+            expect.nat(r.config.secrets.allowed.size()).equal(1);
           };
         };
       },
@@ -574,26 +563,24 @@ suite(
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           state,
-          "bot",
           0,
-          #admin,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [(1, #openRouterApiKey)],
-          [],
-          [],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          [],
-          Set.singleton<Text>("C_TEST"),
+          #_system(#admin),
+          {
+            name = "bot";
+            model = "openai/gpt-oss-120b";
+            allowedChannelIds = Set.empty<Text>();
+            executionEngines = [#api];
+            secrets = { allowed = [(1, #openRouterApiKey)]; overrides = [] };
+          },
         );
         let id = 0;
 
-        ignore AgentModel.updateById(state, id, null, null, null, ?[], null, null, null, null, null, null);
+        ignore AgentModel.updateById(state, id, null, null, null, ?[], null, null);
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.nat(r.secretsAllowed.size()).equal(0);
+            expect.nat(r.config.secrets.allowed.size()).equal(0);
           };
         };
       },
@@ -613,10 +600,10 @@ suite(
       "registers with empty secretOverrides by default",
       func() {
         let state = AgentModel.emptyState();
-        ignore registerSimple(state, "bot", #admin);
+        ignore registerSimple(state, "bot", #_system(#admin));
         switch (AgentModel.lookupByName(state, "bot")) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.nat(r.secretOverrides.size()).equal(0) };
+          case (?r) { expect.nat(r.config.secrets.overrides.size()).equal(0) };
         };
       },
     );
@@ -627,21 +614,22 @@ suite(
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           state,
-          "override-bot",
           0,
           #custom,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [],
-          [(#openRouterApiKey, "my-custom-key"), (#anthropicApiKey, "another-key")],
-          [],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          [],
-          Set.singleton<Text>("C_TEST"),
+          {
+            name = "override-bot";
+            model = "openai/gpt-oss-120b";
+            allowedChannelIds = Set.singleton<Text>("C_TEST");
+            executionEngines = [#api];
+            secrets = {
+              allowed = [];
+              overrides = [(#openRouterApiKey, "my-custom-key"), (#anthropicApiKey, "another-key")];
+            };
+          },
         );
         switch (AgentModel.lookupByName(state, "override-bot")) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.nat(r.secretOverrides.size()).equal(2) };
+          case (?r) { expect.nat(r.config.secrets.overrides.size()).equal(2) };
         };
       },
     );
@@ -650,15 +638,15 @@ suite(
       "updateById replaces secretOverrides",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "bot", #admin)) {
+        let id = switch (registerSimple(state, "bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
-        let result = AgentModel.updateById(state, id, null, null, null, null, ?[(#openRouterApiKey, "my-key")], null, null, null, null, null);
+        let result = AgentModel.updateById(state, id, null, null, null, null, ?[(#openRouterApiKey, "my-key")], null);
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.nat(r.secretOverrides.size()).equal(1) };
+          case (?r) { expect.nat(r.config.secrets.overrides.size()).equal(1) };
         };
       },
     );
@@ -669,23 +657,24 @@ suite(
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           state,
-          "bot",
           0,
-          #admin,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [],
-          [(#openRouterApiKey, "my-key")],
-          [],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          [],
-          Set.singleton<Text>("C_TEST"),
+          #_system(#admin),
+          {
+            name = "bot";
+            model = "openai/gpt-oss-120b";
+            allowedChannelIds = Set.empty<Text>();
+            executionEngines = [#api];
+            secrets = {
+              allowed = [];
+              overrides = [(#openRouterApiKey, "my-key")];
+            };
+          },
         );
         let id = 0;
-        ignore AgentModel.updateById(state, id, null, null, null, null, ?[], null, null, null, null, null);
+        ignore AgentModel.updateById(state, id, null, null, null, null, ?[], null);
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.nat(r.secretOverrides.size()).equal(0) };
+          case (?r) { expect.nat(r.config.secrets.overrides.size()).equal(0) };
         };
       },
     );
@@ -696,23 +685,24 @@ suite(
         let state = AgentModel.emptyState();
         ignore AgentModel.register(
           state,
-          "bot",
           0,
-          #admin,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [],
-          [(#openRouterApiKey, "keep-this")],
-          [],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          [],
-          Set.singleton<Text>("C_TEST"),
+          #_system(#admin),
+          {
+            name = "bot";
+            model = "openai/gpt-oss-120b";
+            allowedChannelIds = Set.empty<Text>();
+            executionEngines = [#api];
+            secrets = {
+              allowed = [];
+              overrides = [(#openRouterApiKey, "keep-this")];
+            };
+          },
         );
         let id = 0;
-        ignore AgentModel.updateById(state, id, null, null, null, null, null, null, null, null, null, null);
+        ignore AgentModel.updateById(state, id, null, null, null, null, null, null);
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
-          case (?r) { expect.nat(r.secretOverrides.size()).equal(1) };
+          case (?r) { expect.nat(r.config.secrets.overrides.size()).equal(1) };
         };
       },
     );
@@ -731,7 +721,7 @@ suite(
       "removes a registered agent",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "bot", #admin)) {
+        let id = switch (registerSimple(state, "bot", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
@@ -775,9 +765,9 @@ suite(
       "returns all registered agents",
       func() {
         let state = AgentModel.emptyState();
-        ignore registerSimple(state, "alpha", #admin);
+        ignore registerSimple(state, "alpha", #_system(#admin));
         ignore registerSimple(state, "beta", #custom);
-        ignore registerSimple(state, "gamma", #onboarding);
+        ignore registerSimple(state, "gamma", #_system(#onboarding));
 
         expect.nat(AgentModel.listAgents(state).size()).equal(3);
       },
@@ -787,7 +777,7 @@ suite(
       "does not include unregistered agents",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "alpha", #admin)) {
+        let id = switch (registerSimple(state, "alpha", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
@@ -801,58 +791,54 @@ suite(
 );
 
 // ============================================
-// Suite: allowedChannelIds — #admin category coercion
+// Suite: allowedChannelIds — #_system(#admin) category coercion
 // ============================================
 
 suite(
-  "AgentModel - allowedChannelIds #admin coercion",
+  "AgentModel - allowedChannelIds #_system(#admin) coercion",
   func() {
 
     test(
-      "register: #admin agent always stores empty allowedChannelIds regardless of input",
+      "register: #_system(#admin) agent always stores empty allowedChannelIds regardless of input",
       func() {
         let state = AgentModel.emptyState();
-        // Pass a non-empty set — should be coerced to empty for #admin.
+        // Pass a non-empty set — should be coerced to empty for #_system(#admin).
         ignore AgentModel.register(
           state,
-          "org-admin",
           0,
-          #admin,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [],
-          [],
-          [],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          [],
-          Set.singleton<Text>("C_SHOULD_BE_IGNORED"),
+          #_system(#admin),
+          {
+            name = "org-admin";
+            model = "openai/gpt-oss-120b";
+            allowedChannelIds = Set.singleton<Text>("C_SHOULD_BE_IGNORED");
+            executionEngines = [#api];
+            secrets = { allowed = []; overrides = [] };
+          },
         );
         switch (AgentModel.lookupByName(state, "org-admin")) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+            expect.nat(Set.size(r.config.allowedChannelIds)).equal(0);
           };
         };
       },
     );
 
     test(
-      "register: #admin agent succeeds with empty allowedChannelIds (no non-empty invariant error)",
+      "register: #_system(#admin) agent succeeds with empty allowedChannelIds (no non-empty invariant error)",
       func() {
         let state = AgentModel.emptyState();
         let result = AgentModel.register(
           state,
-          "org-admin",
           0,
-          #admin,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [],
-          [],
-          [],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          [],
-          Set.empty<Text>(),
+          #_system(#admin),
+          {
+            name = "org-admin";
+            model = "openai/gpt-oss-120b";
+            allowedChannelIds = Set.empty<Text>();
+            executionEngines = [#api];
+            secrets = { allowed = []; overrides = [] };
+          },
         );
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).isOk();
       },
@@ -864,17 +850,15 @@ suite(
         let state = AgentModel.emptyState();
         let result = AgentModel.register(
           state,
-          "planner",
           0,
           #custom,
-          #api({ model = "openai/gpt-oss-120b" }),
-          [],
-          [],
-          [],
-          [],
-          Map.empty<Text, AgentModel.ToolState>(),
-          [],
-          Set.empty<Text>(),
+          {
+            name = "planner";
+            model = "openai/gpt-oss-120b";
+            allowedChannelIds = Set.empty<Text>();
+            executionEngines = [#api];
+            secrets = { allowed = []; overrides = [] };
+          },
         );
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).equal(
           #err("allowedChannelIds must contain at least one channel ID.")
@@ -883,10 +867,10 @@ suite(
     );
 
     test(
-      "updateById: passing non-empty allowedChannelIds for #admin is silently coerced to empty",
+      "updateById: passing non-empty allowedChannelIds for #_system(#admin) is silently coerced to empty",
       func() {
         let state = AgentModel.emptyState();
-        let id = switch (registerSimple(state, "org-admin", #admin)) {
+        let id = switch (registerSimple(state, "org-admin", #_system(#admin))) {
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
@@ -899,17 +883,13 @@ suite(
           null,
           null,
           null,
-          null,
-          null,
-          null,
-          null,
           ?Set.singleton<Text>("C_NEW_CHANNEL"),
         );
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+            expect.nat(Set.size(r.config.allowedChannelIds)).equal(0);
           };
         };
       },
@@ -932,10 +912,6 @@ suite(
           null,
           null,
           null,
-          null,
-          null,
-          null,
-          null,
           ?Set.empty<Text>(),
         );
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(
@@ -951,7 +927,7 @@ suite(
         switch (AgentModel.lookupByName(state, "workspace-admin")) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.nat(Set.size(r.allowedChannelIds)).equal(0);
+            expect.nat(Set.size(r.config.allowedChannelIds)).equal(0);
           };
         };
       },

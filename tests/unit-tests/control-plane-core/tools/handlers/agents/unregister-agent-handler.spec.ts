@@ -57,7 +57,6 @@ describe("UnregisterAgentHandler", () => {
         JSON.stringify({
           name: "AdminBot",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -77,7 +76,6 @@ describe("UnregisterAgentHandler", () => {
         JSON.stringify({
           name: "AdminBot",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -96,7 +94,6 @@ describe("UnregisterAgentHandler", () => {
         JSON.stringify({
           name: "AdminBot",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -148,7 +145,6 @@ describe("UnregisterAgentHandler", () => {
         JSON.stringify({
           name: "to-be-deleted",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -177,7 +173,6 @@ describe("UnregisterAgentHandler", () => {
         JSON.stringify({
           name: "removable-agent",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -197,7 +192,6 @@ describe("UnregisterAgentHandler", () => {
         JSON.stringify({
           name: "agent-one",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -206,7 +200,6 @@ describe("UnregisterAgentHandler", () => {
         JSON.stringify({
           name: "agent-two",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -231,7 +224,6 @@ describe("UnregisterAgentHandler", () => {
         JSON.stringify({
           name: "sole-admin",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,

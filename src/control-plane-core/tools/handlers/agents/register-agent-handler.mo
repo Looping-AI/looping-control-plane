@@ -1,6 +1,5 @@
 import Json "mo:json";
 import { str; obj; int; bool } "mo:json";
-import Map "mo:core/Map";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Int "mo:core/Int";
@@ -38,64 +37,59 @@ module {
           };
         };
 
-        let category = switch (Json.get(json, "category")) {
-          case (?#string(s)) {
-            switch (AgentParsers.parseCategory(s)) {
-              case (?c) { c };
+        let executionEngines = switch (Json.get(json, "executionEngines")) {
+          case (?#array(items)) {
+            switch (AgentParsers.parseExecutionEngines(items)) {
+              case (?e) {
+                if (e.size() == 0) {
+                  return Helpers.buildErrorResponse("executionEngines must be a non-empty array");
+                };
+                e;
+              };
               case null {
                 return Helpers.buildErrorResponse(
-                  "Invalid category: " # s # ". Must be admin, onboarding, or custom."
+                  "Invalid executionEngines: each entry must be one of: api, canister, github."
                 );
               };
             };
           };
           case _ {
-            return Helpers.buildErrorResponse("Missing required field: category");
+            return Helpers.buildErrorResponse("Missing required field: executionEngines");
           };
         };
 
-        let workspaceId = switch (Json.get(json, "workspaceId")) {
+        let ownedBy = switch (Json.get(json, "ownedBy")) {
           case (?#number(#int n)) {
             if (n >= 0) { Int.abs(n) } else {
-              return Helpers.buildErrorResponse("workspaceId must be a non-negative integer");
+              return Helpers.buildErrorResponse("ownedBy must be a non-negative integer");
             };
           };
           case (null) { 0 }; // default to org workspace (0)
           case _ {
-            return Helpers.buildErrorResponse("workspaceId must be a number");
+            return Helpers.buildErrorResponse("ownedBy must be a number");
           };
         };
 
-        let executionType = switch (Json.get(json, "executionType")) {
-          case (?etJson) {
-            switch (AgentParsers.parseExecutionType(etJson)) {
-              case (?et) { et };
-              case null {
-                return Helpers.buildErrorResponse(
-                  "Invalid executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
-                );
-              };
+        let model = switch (Json.get(json, "model")) {
+          case (?#string(s)) {
+            if (Text.trim(s, #char ' ') == "") {
+              return Helpers.buildErrorResponse("model must be a non-empty string");
             };
+            s;
           };
-          case (null) {
-            return Helpers.buildErrorResponse(
-              "Missing required field: executionType. Use {\"type\":\"api\"} or {\"type\":\"runtime\",\"hosting\":\"codespace\",\"framework\":\"openClaw\"}."
-            );
+          case (null) { "openai/gpt-oss-120b" }; // default model
+          case _ {
+            return Helpers.buildErrorResponse("model must be a string");
           };
         };
 
-        switch (executionType) {
-          case (#api({ model })) {
-            switch (validateModel) {
-              case (?validator) {
-                if (not (await validator(model))) {
-                  return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
-                };
-              };
-              case (null) {};
+        switch (validateModel) {
+          case (?validator) {
+            if (not (await validator(model))) {
+              return Helpers.buildErrorResponse("Invalid or unavailable OpenRouter model: " # model # ". Please use a valid model string.");
             };
           };
-          case (_) {};
+          case (null) {};
         };
 
         let secretsAllowed = switch (Json.get(json, "secretsAllowed")) {
@@ -129,51 +123,6 @@ module {
           case (null) { [] };
           case _ {
             return Helpers.buildErrorResponse("secretOverrides must be an array");
-          };
-        };
-
-        let toolsDisallowed = switch (Json.get(json, "toolsDisallowed")) {
-          case (?#array(items)) {
-            switch (Helpers.parseStringArray(items)) {
-              case (?a) { a };
-              case null {
-                return Helpers.buildErrorResponse("toolsDisallowed must be an array of strings");
-              };
-            };
-          };
-          case (null) { [] };
-          case _ {
-            return Helpers.buildErrorResponse("toolsDisallowed must be an array");
-          };
-        };
-
-        let toolsMisconfigured = switch (Json.get(json, "toolsMisconfigured")) {
-          case (?#array(items)) {
-            switch (Helpers.parseStringArray(items)) {
-              case (?a) { a };
-              case null {
-                return Helpers.buildErrorResponse("toolsMisconfigured must be an array of strings");
-              };
-            };
-          };
-          case (null) { [] };
-          case _ {
-            return Helpers.buildErrorResponse("toolsMisconfigured must be an array");
-          };
-        };
-
-        let sources = switch (Json.get(json, "sources")) {
-          case (?#array(items)) {
-            switch (Helpers.parseStringArray(items)) {
-              case (?a) { a };
-              case null {
-                return Helpers.buildErrorResponse("sources must be an array of strings");
-              };
-            };
-          };
-          case (null) { [] };
-          case _ {
-            return Helpers.buildErrorResponse("sources must be an array");
           };
         };
 
@@ -230,17 +179,18 @@ module {
         switch (
           AgentModel.register(
             state,
-            name,
-            workspaceId,
-            category,
-            executionType,
-            secretsAllowed,
-            secretOverrides,
-            toolsDisallowed,
-            toolsMisconfigured,
-            Map.empty<Text, AgentModel.ToolState>(),
-            sources,
-            allowedChannelIds,
+            ownedBy,
+            #custom,
+            {
+              name;
+              model;
+              executionEngines;
+              allowedChannelIds;
+              secrets = {
+                allowed = secretsAllowed;
+                overrides = secretOverrides;
+              };
+            },
           )
         ) {
           case (#err(msg)) { Helpers.buildErrorResponse(msg) };

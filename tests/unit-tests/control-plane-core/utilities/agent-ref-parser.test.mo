@@ -1,5 +1,4 @@
 import { test; suite; expect } "mo:test";
-import Map "mo:core/Map";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
 import AgentRefParser "../../../../src/control-plane-core/utilities/agent-ref-parser";
@@ -17,17 +16,15 @@ func registerSimple(
   switch (
     AgentModel.register(
       state,
-      name,
       0,
       #custom,
-      #api({ model = "openai/gpt-oss-120b" }),
-      [],
-      [],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      Set.singleton<Text>("C_TEST"),
+      {
+        name;
+        model = "openai/gpt-oss-120b";
+        allowedChannelIds = Set.singleton<Text>("C_TEST");
+        executionEngines = [#api];
+        secrets = { allowed = []; overrides = [] };
+      },
     )
   ) {
     case (#ok id) { id };
@@ -519,7 +516,7 @@ suite(
         ignore registerSimple(state, "scout");
         let agents = AgentRefParser.extractValidAgents("::scout please search", state);
         expect.nat(agents.size()).equal(1);
-        expect.text(agents[0].name).equal("scout");
+        expect.text(agents[0].config.name).equal("scout");
       },
     );
 
@@ -541,8 +538,8 @@ suite(
         ignore registerSimple(state, "gamma");
         let agents = AgentRefParser.extractValidAgents("::alpha ::beta ::gamma", state);
         expect.nat(agents.size()).equal(2);
-        expect.text(agents[0].name).equal("alpha");
-        expect.text(agents[1].name).equal("gamma");
+        expect.text(agents[0].config.name).equal("alpha");
+        expect.text(agents[1].config.name).equal("gamma");
       },
     );
 
@@ -553,7 +550,7 @@ suite(
         ignore registerSimple(state, "bot");
         let agents = AgentRefParser.extractValidAgents("::bot and ::bot again", state);
         expect.nat(agents.size()).equal(1);
-        expect.text(agents[0].name).equal("bot");
+        expect.text(agents[0].config.name).equal("bot");
       },
     );
 
@@ -565,7 +562,7 @@ suite(
         // Agent names are stored and parsed as lowercase; this confirms the round-trip
         let agents = AgentRefParser.extractValidAgents("::mybot", state);
         expect.nat(agents.size()).equal(1);
-        expect.text(agents[0].name).equal("mybot");
+        expect.text(agents[0].config.name).equal("mybot");
       },
     );
 

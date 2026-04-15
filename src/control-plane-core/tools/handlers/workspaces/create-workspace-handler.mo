@@ -1,6 +1,5 @@
 import Json "mo:json";
 import { str; obj; int; bool } "mo:json";
-import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
@@ -82,17 +81,15 @@ module {
                 switch (
                   AgentModel.register(
                     agentRegistry,
-                    agentName,
                     wsId,
-                    #admin,
-                    #api({ model = "openai/gpt-oss-120b" }),
-                    [],
-                    [],
-                    [],
-                    [],
-                    Map.empty<Text, AgentModel.ToolState>(),
-                    [],
-                    Set.singleton<Text>(channelId),
+                    #_system(#admin),
+                    {
+                      name = agentName;
+                      model = "openai/gpt-oss-120b";
+                      executionEngines = [#api];
+                      allowedChannelIds = Set.singleton<Text>(channelId);
+                      secrets = { allowed = []; overrides = [] };
+                    },
                   )
                 ) {
                   case (#err(msg)) {

@@ -360,7 +360,7 @@ module {
     ) { return null };
 
     // Step 1 — agent-level custom override
-    for ((overrideId, customName) in agent.secretOverrides.vals()) {
+    for ((overrideId, customName) in agent.config.secrets.overrides.vals()) {
       if (overrideId == targetSecretId) {
         let result = getSecret(state, workspaceKey, workspaceId, #custom(customName), requester);
         if (result != null) { return result };
@@ -403,7 +403,7 @@ module {
     // Guard: only infrastructure (null) and admin agents are allowed
     switch (agentCategory) {
       case (null) {}; // infrastructure — always allowed
-      case (?#admin) {}; // admin agents — allowed
+      case (?#_system(#admin)) {}; // admin agents — allowed
       case (_) { return null }; // all other agent categories — blocked
     };
 

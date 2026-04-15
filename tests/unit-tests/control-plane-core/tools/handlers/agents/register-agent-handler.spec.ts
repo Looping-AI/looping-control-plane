@@ -18,8 +18,8 @@ import {
 //
 // This handler:
 //   1. Authorizes the caller via UserAuthContext (#IsPrimaryOwner or #IsOrgAdmin)
-//   2. Parses JSON args for { name, category, llmModel?, secretsAllowed?,
-//      toolsDisallowed?, toolsMisconfigured?, sources? }
+//   2. Parses JSON args for { name, category, model?, ownedBy?,
+//      allowedChannelIds, secretsAllowed?, secretOverrides? }
 //   3. Registers the agent in AgentRegistryState
 //
 // The test canister starts with an empty agent registry so the first
@@ -73,7 +73,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "test-agent",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -87,7 +86,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "research-agent",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         ORG_ADMIN,
@@ -145,7 +143,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "admin-bot",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -162,7 +159,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "first-agent",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -171,7 +167,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "second-agent",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -186,10 +181,7 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "research-bot",
           category: "custom",
-          executionType: { type: "api" },
-          llmModel: "gpt_oss_120b",
-          toolsDisallowed: ["web_search"],
-          sources: ["https://example.com"],
+          model: "openai/gpt-oss-120b",
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -205,7 +197,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "unique-agent",
           category: "admin",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -214,7 +205,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "unique-agent",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -231,7 +221,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "override-bot",
           category: "admin",
-          executionType: { type: "api" },
           secretsAllowed: [{ workspaceId: 0, secretId: "openRouterApiKey" }],
           secretOverrides: [
             { secretId: "openRouterApiKey", customKeyName: "my-custom-key" },
@@ -248,16 +237,24 @@ describe("RegisterAgentHandler", () => {
       const agent = (
         JSON.parse(getResult) as {
           agent: {
-            secretOverrides: Array<{
-              secretId: string;
-              customKeyName: string;
-            }>;
+            config: {
+              secrets: {
+                overrides: Array<{
+                  secretId: string;
+                  customKeyName: string;
+                }>;
+              };
+            };
           };
         }
       ).agent;
-      expect(agent.secretOverrides).toHaveLength(1);
-      expect(agent.secretOverrides[0].secretId).toBe("openRouterApiKey");
-      expect(agent.secretOverrides[0].customKeyName).toBe("my-custom-key");
+      expect(agent.config.secrets.overrides).toHaveLength(1);
+      expect(agent.config.secrets.overrides[0].secretId).toBe(
+        "openRouterApiKey",
+      );
+      expect(agent.config.secrets.overrides[0].customKeyName).toBe(
+        "my-custom-key",
+      );
     });
 
     it("should default secretOverrides to empty array when omitted", async () => {
@@ -265,7 +262,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "no-overrides-bot",
           category: "custom",
-          executionType: { type: "api" },
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -275,10 +271,10 @@ describe("RegisterAgentHandler", () => {
       );
       const agent = (
         JSON.parse(getResult) as {
-          agent: { secretOverrides: unknown[] };
+          agent: { config: { secrets: { overrides: unknown[] } } };
         }
       ).agent;
-      expect(agent.secretOverrides).toEqual([]);
+      expect(agent.config.secrets.overrides).toEqual([]);
     });
 
     it("should NOT accept custom:<name> secretId in secretOverrides", async () => {
@@ -286,7 +282,6 @@ describe("RegisterAgentHandler", () => {
         JSON.stringify({
           name: "custom-override-bot",
           category: "custom",
-          executionType: { type: "api" },
           secretOverrides: [
             {
               secretId: "custom:anthropicApiKey",

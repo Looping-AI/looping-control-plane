@@ -11,41 +11,30 @@ module {
   // Types
   // ============================================
 
-  /// The broad category an agent belongs to.
-  /// Categories drive which tool set is available and skills the LLM is prompted with.
-  public type AgentCategory = {
+  /// The sub-kind for system-managed agents.
+  public type SystemAgentKind = {
     #admin; // org administration: workspace & channel management
     #onboarding; // handles direct messages to the Slack App — stub, planned
-    #custom; // user-defined agent with no built-in category toolset
   };
 
-  /// The execution type of an agent — determines whether work is done inside the
-  /// canister or delegated to a remote runtime.
-  public type AgentExecutionType = {
-    #api : { model : Text }; // In-canister LLM loop; calls OpenRouter with the given model string
-    #runtime : RuntimeAgentConfig; // Delegated to a remote runtime environment
+  /// The execution engines an agent is allowed to use.
+  /// Stored as an array on AgentConfig so an agent can support multiple modes.
+  ///   #api      — in-canister LLM loop calling OpenRouter
+  ///   #canister — external canister called via envelope/package webhook
+  ///   #github   — GitHub Actions workflow triggered via webhook; reply delivered back signed
+  public type ExecutionEngine = {
+    #api;
+    #canister;
+    #github;
   };
 
-  /// Configuration for an agent that runs in a remote runtime.
-  /// Combines a hosting choice (where the runtime runs) with a framework
-  /// choice (which agent framework drives execution).
-  public type RuntimeAgentConfig = {
-    hosting : HostingConfig;
-    framework : AgentFrameworkConfig;
-  };
-
-  /// Where the runtime environment is hosted.
-  /// Only #codespace is supported in v0.3; the workspace's linked codespace
-  /// (from codespace-model.mo) is resolved via the agent's workspaceId.
-  public type HostingConfig = {
-    #codespace; // extensible: future hosting solutions added here
-  };
-
-  /// Which agent framework drives execution inside the runtime.
-  /// deployedVersion is null until the sidecar health check runs at deploy time
-  /// (Phase C.1). Pinned after that until an explicit admin upgrade.
-  public type AgentFrameworkConfig = {
-    #openClaw : { deployedVersion : ?Text }; // extensible: future frameworks added here
+  /// The broad category an agent belongs to.
+  /// Categories drive which tool set is available and skills the LLM is prompted with.
+  ///   #_system — built-in managed agent (admin, onboarding); only created by the system.
+  ///   #custom — user-defined agent registered via the register_agent tool.
+  public type AgentCategory = {
+    #_system : SystemAgentKind;
+    #custom;
   };
 
   /// Per-tool runtime state: how many times the tool has been invoked and
@@ -55,41 +44,57 @@ module {
     knowHow : Text;
   };
 
+  /// Secret access configuration for an agent.
+  ///   allowed   — explicit whitelist of (workspaceId, SecretId) pairs this agent may access.
+  ///   overrides — per-agent credential overrides: [(targetSecretId, customKeyName)].
+  ///               When resolving `targetSecretId`, the model first looks up
+  ///               `#custom(customKeyName)` from this agent's workspace before
+  ///               falling back to the standard ID and the org-level fallback.
+  public type AgentSecretsConfig = {
+    allowed : [(Nat, Types.SecretId)];
+    overrides : [(Types.SecretId, Text)];
+  };
+
+  /// Static configuration for an agent.
+  ///   name              — kebab-case identifier, must be unique and match the `::name` syntax.
+  ///   model             — OpenRouter model string used for LLM calls (e.g. "openai/gpt-oss-120b").
+  ///   executionEngines  — list of engines this agent is permitted to use (non-empty).
+  ///   allowedChannelIds — set of Slack channel IDs where non-admin agents may run.
+  ///                       Must be non-empty for non-admin agents; cannot be emptied after registration.
+  ///                       For #_system(#admin) agents this set is always empty; routing is governed by
+  ///                       WorkspaceModel.adminChannelId (single source of truth).
+  ///   secrets           — secret access configuration.
+  public type AgentConfig = {
+    name : Text;
+    model : Text;
+    executionEngines : [ExecutionEngine];
+    allowedChannelIds : Set.Set<Text>;
+    secrets : AgentSecretsConfig;
+  };
+
+  /// Mutable runtime state for an agent.
+  ///   toolsState — per-tool runtime state (usageCount + knowHow text).
+  public type AgentState = {
+    toolsState : Map.Map<Text, ToolState>;
+  };
+
   /// A registered agent and all configuration required to execute it.
   ///
   /// Fields:
-  ///   id              — stable unique identifier (assigned by the registry).
-  ///   name            — kebab-case identifier, must be unique and match the `::name` syntax.
-  ///   workspaceId     — the workspace that owns this agent. Immutable after creation.
-  ///                     Agents owned by workspace 0 are org-wide (e.g. workspace-admin).
-  ///   category        — determines the available tool catalogue and prompt strategy.
-  ///   executionType   — #api({model}) runs in-canister calling OpenRouter; #runtime delegates to a remote environment.
-  ///   secretsAllowed  — explicit whitelist of (workspaceId, SecretId) pairs this agent may access.
-  ///   secretOverrides — per-agent credential overrides: [(targetSecretId, customKeyName)].
-  ///                     When resolving `targetSecretId`, the model first looks up
-  ///                     `#custom(customKeyName)` from this agent's workspace before
-  ///                     falling back to the standard ID and the org-level fallback.
-  ///   toolsDisallowed     — blocklist of tool names to exclude from LLM tool set (by function name).
-  ///   toolsMisconfigured  — tools excluded due to operator errors; cleared after investigation.
-  ///   toolsState          — per-tool runtime state (usageCount + knowHow text).
-  ///   sources             — knowledge-source identifiers (URLs, doc refs, etc.) available to the agent.
-  ///   allowedChannelIds   — set of Slack channel IDs where non-admin agents may run.
-  ///                         Must be non-empty for non-admin agents; cannot be emptied after registration.
-  ///                         For #admin agents this set is always empty; routing is governed by
-  ///                         WorkspaceModel.adminChannelId (single source of truth).
+  ///   id       — stable unique identifier (assigned by the registry).
+  ///   ownedBy  — the workspace that owns this agent. Immutable after creation.
+  ///              Agents owned by workspace 0 are org-wide (e.g. workspace-admin).
+  ///   category — determines the available tool catalogue and prompt strategy.
+  ///              #_system(#admin) and #_system(#onboarding) are managed by the system.
+  ///              #custom is user-defined, registered via register_agent tool.
+  ///   config   — static agent configuration (name, model, executionEngines, channels, secrets).
+  ///   state    — mutable runtime state (tool usage counters and knowHow).
   public type AgentRecord = {
     id : Nat;
-    name : Text;
-    workspaceId : Nat;
+    ownedBy : Nat;
     category : AgentCategory;
-    executionType : AgentExecutionType;
-    secretsAllowed : [(Nat, Types.SecretId)];
-    secretOverrides : [(Types.SecretId, Text)];
-    toolsDisallowed : [Text];
-    toolsMisconfigured : [Text];
-    toolsState : Map.Map<Text, ToolState>;
-    sources : [Text];
-    allowedChannelIds : Set.Set<Text>;
+    config : AgentConfig;
+    state : AgentState;
   };
 
   /// Type alias for the agent registry state.
@@ -199,19 +204,11 @@ module {
   /// The name is lower-cased before storage so that lookups are case-insensitive.
   public func register(
     state : AgentRegistryState,
-    name : Text,
-    workspaceId : Nat,
+    ownedBy : Nat,
     category : AgentCategory,
-    executionType : AgentExecutionType,
-    secretsAllowed : [(Nat, Types.SecretId)],
-    secretOverrides : [(Types.SecretId, Text)],
-    toolsDisallowed : [Text],
-    toolsMisconfigured : [Text],
-    toolsState : Map.Map<Text, ToolState>,
-    sources : [Text],
-    allowedChannelIds : Set.Set<Text>,
+    config : AgentConfig,
   ) : Result.Result<Nat, Text> {
-    let normalized = switch (validateAndNormalizeName(name)) {
+    let normalized = switch (validateAndNormalizeName(config.name)) {
       case (#err(msg)) { return #err(msg) };
       case (#ok(n)) { n };
     };
@@ -221,26 +218,26 @@ module {
       case (#ok(())) {};
     };
 
-    // For #admin agents, allowedChannelIds is always empty — routing is governed by
+    // For #_system(#admin) agents, allowedChannelIds is always empty — routing is governed by
     // WorkspaceModel.adminChannelId. Silently coerce any provided value to empty set.
     // For all other categories, enforce non-empty.
     let effectiveAllowedChannelIds : Set.Set<Text> = switch (category) {
-      case (#admin) { Set.empty<Text>() };
+      case (#_system(#admin)) { Set.empty<Text>() };
       case (_) {
-        if (Set.size(allowedChannelIds) == 0) {
+        if (Set.size(config.allowedChannelIds) == 0) {
           return #err("allowedChannelIds must contain at least one channel ID.");
         };
-        allowedChannelIds;
+        config.allowedChannelIds;
       };
     };
 
-    // Enforce at most one #admin agent per workspace.
-    if (category == #admin) {
-      switch (lookupAdminAgentByWorkspace(state, workspaceId)) {
+    // Enforce at most one #_system(#admin) agent per workspace.
+    if (category == #_system(#admin)) {
+      switch (lookupAdminAgentByWorkspace(state, ownedBy)) {
         case (?existing) {
           return #err(
-            "Workspace " # Nat.toText(workspaceId) # " already has an admin agent ('" # existing.name # "'). " #
-            "Only one #admin agent is allowed per workspace."
+            "Workspace " # Nat.toText(ownedBy) # " already has an admin agent ('" # existing.config.name # "'). " #
+            "Only one #_system(#admin) agent is allowed per workspace."
           );
         };
         case (null) {};
@@ -250,17 +247,18 @@ module {
     let id = state.nextId;
     let record : AgentRecord = {
       id;
-      name = normalized;
-      workspaceId;
+      ownedBy;
       category;
-      executionType;
-      secretsAllowed;
-      secretOverrides;
-      toolsDisallowed;
-      toolsMisconfigured;
-      toolsState;
-      sources;
-      allowedChannelIds = effectiveAllowedChannelIds;
+      config = {
+        name = normalized;
+        model = config.model;
+        executionEngines = config.executionEngines;
+        allowedChannelIds = effectiveAllowedChannelIds;
+        secrets = config.secrets;
+      };
+      state = {
+        toolsState = Map.empty<Text, ToolState>();
+      };
     };
     Map.add(state.agentsById, Nat.compare, id, record);
     Map.add(state.agentsByName, Text.compare, normalized, id);
@@ -292,14 +290,10 @@ module {
     state : AgentRegistryState,
     id : Nat,
     newName : ?Text,
-    newCategory : ?AgentCategory,
-    newExecutionType : ?AgentExecutionType,
+    newModel : ?Text,
+    newExecutionEngines : ?[ExecutionEngine],
     newSecretsAllowed : ?[(Nat, Types.SecretId)],
     newSecretOverrides : ?[(Types.SecretId, Text)],
-    newToolsDisallowed : ?[Text],
-    newToolsMisconfigured : ?[Text],
-    newToolsState : ?Map.Map<Text, ToolState>,
-    newSources : ?[Text],
     newAllowedChannelIds : ?Set.Set<Text>,
   ) : Result.Result<Bool, Text> {
     switch (Map.get(state.agentsById, Nat.compare, id)) {
@@ -308,11 +302,11 @@ module {
       };
       case (?existing) {
         // Validate newAllowedChannelIds if provided.
-        // For #admin agents, always keep the set empty regardless of what is passed —
+        // For #_system(#admin) agents, always keep the set empty regardless of what is passed —
         // routing is governed by WorkspaceModel.adminChannelId.
-        // For non-admin agents, reject any attempt to empty the allowlist.
+        // For non-system agents, reject any attempt to empty the allowlist.
         switch (existing.category) {
-          case (#admin) {}; // ignored — enforced below in record construction
+          case (#_system(#admin)) {}; // ignored — enforced below in record construction
           case (_) {
             switch (newAllowedChannelIds) {
               case (?s) {
@@ -327,7 +321,7 @@ module {
 
         // If newName is provided, validate it
         let finalName = switch (newName) {
-          case (null) { existing.name };
+          case (null) { existing.config.name };
           case (?name) {
             let normalized = switch (validateAndNormalizeName(name)) {
               case (#err(msg)) { return #err(msg) };
@@ -345,57 +339,47 @@ module {
 
         let updated : AgentRecord = {
           id = existing.id;
-          name = finalName;
-          workspaceId = existing.workspaceId; // immutable — ownership cannot be transferred
-          category = switch (newCategory) {
-            case (null) { existing.category };
-            case (?c) { c };
-          };
-          executionType = switch (newExecutionType) {
-            case (null) { existing.executionType };
-            case (?et) { et };
-          };
-          secretsAllowed = switch (newSecretsAllowed) {
-            case (null) { existing.secretsAllowed };
-            case (?s) { s };
-          };
-          secretOverrides = switch (newSecretOverrides) {
-            case (null) { existing.secretOverrides };
-            case (?o) { o };
-          };
-          toolsDisallowed = switch (newToolsDisallowed) {
-            case (null) { existing.toolsDisallowed };
-            case (?t) { t };
-          };
-          toolsMisconfigured = switch (newToolsMisconfigured) {
-            case (null) { existing.toolsMisconfigured };
-            case (?t) { t };
-          };
-          toolsState = switch (newToolsState) {
-            case (null) { existing.toolsState };
-            case (?s) { s };
-          };
-          sources = switch (newSources) {
-            case (null) { existing.sources };
-            case (?src) { src };
-          };
-          allowedChannelIds = switch (existing.category) {
-            case (#admin) { Set.empty<Text>() }; // always empty — router uses WorkspaceModel.adminChannelId
-            case (_) {
-              switch (newAllowedChannelIds) {
-                case (null) { existing.allowedChannelIds };
+          ownedBy = existing.ownedBy; // immutable — ownership cannot be transferred
+          category = existing.category; // immutable — category cannot be changed after creation
+          config = {
+            name = finalName;
+            model = switch (newModel) {
+              case (null) { existing.config.model };
+              case (?m) { m };
+            };
+            executionEngines = switch (newExecutionEngines) {
+              case (null) { existing.config.executionEngines };
+              case (?e) { e };
+            };
+            secrets = {
+              allowed = switch (newSecretsAllowed) {
+                case (null) { existing.config.secrets.allowed };
                 case (?s) { s };
+              };
+              overrides = switch (newSecretOverrides) {
+                case (null) { existing.config.secrets.overrides };
+                case (?o) { o };
+              };
+            };
+            allowedChannelIds = switch (existing.category) {
+              case (#_system(#admin)) { Set.empty<Text>() }; // always empty — router uses WorkspaceModel.adminChannelId
+              case (_) {
+                switch (newAllowedChannelIds) {
+                  case (null) { existing.config.allowedChannelIds };
+                  case (?s) { s };
+                };
               };
             };
           };
+          state = existing.state; // runtime state is not updated via this function
         };
 
         // Update the agent record
         Map.add(state.agentsById, Nat.compare, id, updated);
 
         // If name changed, update the name index
-        if (finalName != existing.name) {
-          Map.remove(state.agentsByName, Text.compare, existing.name);
+        if (finalName != existing.config.name) {
+          Map.remove(state.agentsByName, Text.compare, existing.config.name);
           Map.add(state.agentsByName, Text.compare, finalName, id);
         };
 
@@ -420,7 +404,7 @@ module {
         #err("Agent with ID " # Nat.toText(agentId) # " not found.");
       };
       case (?existing) {
-        Map.add(existing.toolsState, Text.compare, toolName, toolState);
+        Map.add(existing.state.toolsState, Text.compare, toolName, toolState);
         #ok(true);
       };
     };
@@ -435,7 +419,7 @@ module {
       };
       case (?record) {
         Map.remove(state.agentsById, Nat.compare, id);
-        Map.remove(state.agentsByName, Text.compare, record.name);
+        Map.remove(state.agentsByName, Text.compare, record.config.name);
         #ok(true);
       };
     };
@@ -457,10 +441,10 @@ module {
     null;
   };
 
-  /// Return the first registered #admin agent for the given workspaceId, or null if none found.
+  /// Return the first registered #_system(#admin) agent for the given workspaceId, or null if none found.
   public func lookupAdminAgentByWorkspace(state : AgentRegistryState, workspaceId : Nat) : ?AgentRecord {
     for (record in Map.values(state.agentsById)) {
-      if (record.category == #admin and record.workspaceId == workspaceId) {
+      if (record.category == #_system(#admin) and record.ownedBy == workspaceId) {
         return ?record;
       };
     };
@@ -489,24 +473,25 @@ module {
     let state = emptyState();
     ignore register(
       state,
-      "workspace-admin",
       0, // owned by workspace 0 — org-wide agent
-      #admin,
-      #api({ model = "openai/gpt-oss-120b" }), // in-canister LLM loop
-      [(0, #openRouterApiKey)],
-      [], // secretOverrides — none for the built-in admin agent
-      [],
-      [],
-      Map.empty<Text, ToolState>(),
-      [],
-      Set.empty<Text>(), // #admin agents never use allowedChannelIds — routing is governed by WorkspaceModel.adminChannelId
+      #_system(#admin),
+      {
+        name = "workspace-admin";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#api];
+        allowedChannelIds = Set.empty<Text>(); // #_system(#admin) agents never use allowedChannelIds
+        secrets = {
+          allowed = [(0, #openRouterApiKey)];
+          overrides = []; // no overrides for the built-in admin agent
+        };
+      },
     );
     state;
   };
 
-  /// Return true if the agent has a secretsAllowed entry for (workspaceId, secretId).
+  /// Return true if the agent has a secrets.allowed entry for (workspaceId, secretId).
   public func isSecretAllowed(agent : AgentRecord, workspaceId : Nat, secretId : Types.SecretId) : Bool {
-    for ((wsId, sId) in agent.secretsAllowed.vals()) {
+    for ((wsId, sId) in agent.config.secrets.allowed.vals()) {
       if (wsId == workspaceId and sId == secretId) {
         return true;
       };
@@ -518,37 +503,56 @@ module {
   // Shareable view (crossing the shared boundary)
   // ============================================
 
+  /// Serializable view of AgentSecretsConfig (arrays; no conversion needed).
+  public type AgentSecretsConfigView = {
+    allowed : [(Nat, Types.SecretId)];
+    overrides : [(Types.SecretId, Text)];
+  };
+
+  /// Serializable view of AgentConfig: Set<Text> flattened to [Text].
+  public type AgentConfigView = {
+    name : Text;
+    model : Text;
+    executionEngines : [ExecutionEngine];
+    allowedChannelIds : [Text];
+    secrets : AgentSecretsConfigView;
+  };
+
+  /// Serializable view of AgentState: Map<Text,ToolState> flattened to array.
+  public type AgentStateView = {
+    toolsState : [(Text, ToolState)];
+  };
+
   /// A serializable snapshot of an AgentRecord suitable for returning from
   /// shared (public) canister methods.  The mutable Map inside toolsState
-  /// is flattened to an array of key-value pairs.
+  /// and the Set inside allowedChannelIds are flattened to arrays.
   public type AgentRecordView = {
     id : Nat;
-    name : Text;
-    workspaceId : Nat;
+    ownedBy : Nat;
     category : AgentCategory;
-    executionType : AgentExecutionType;
-    secretsAllowed : [(Nat, Types.SecretId)];
-    secretOverrides : [(Types.SecretId, Text)];
-    toolsDisallowed : [Text];
-    toolsMisconfigured : [Text];
-    toolsState : [(Text, ToolState)];
-    sources : [Text];
+    config : AgentConfigView;
+    state : AgentStateView;
   };
 
   /// Convert an AgentRecord to a shareable AgentRecordView.
   public func toView(record : AgentRecord) : AgentRecordView {
     {
       id = record.id;
-      name = record.name;
-      workspaceId = record.workspaceId;
+      ownedBy = record.ownedBy;
       category = record.category;
-      executionType = record.executionType;
-      secretsAllowed = record.secretsAllowed;
-      secretOverrides = record.secretOverrides;
-      toolsDisallowed = record.toolsDisallowed;
-      toolsMisconfigured = record.toolsMisconfigured;
-      toolsState = Iter.toArray(Map.entries(record.toolsState));
-      sources = record.sources;
+      config = {
+        name = record.config.name;
+        model = record.config.model;
+        executionEngines = record.config.executionEngines;
+        allowedChannelIds = Set.toArray(record.config.allowedChannelIds);
+        secrets = {
+          allowed = record.config.secrets.allowed;
+          overrides = record.config.secrets.overrides;
+        };
+      };
+      state = {
+        toolsState = Iter.toArray(Map.entries(record.state.toolsState));
+      };
     };
   };
 };

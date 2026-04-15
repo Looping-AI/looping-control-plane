@@ -1,5 +1,5 @@
 import Json "mo:json";
-import { str; obj; arr } "mo:json";
+import { str; arr } "mo:json";
 import Array "mo:core/Array";
 import List "mo:core/List";
 import Set "mo:core/Set";
@@ -10,28 +10,19 @@ import AgentModel "../../../models/agent-model";
 import Types "../../../types";
 
 module {
-  public func executionTypeToJson(et : AgentModel.AgentExecutionType) : Json.Json {
-    switch (et) {
-      case (#api({ model })) {
-        obj([("type", str("api")), ("model", str(model))]);
-      };
-      case (#runtime({ hosting; framework })) {
-        let hostingStr = switch (hosting) { case (#codespace) { "codespace" } };
-        let frameworkStr = switch (framework) {
-          case (#openClaw(_)) { "openClaw" };
-        };
-        obj([("type", str("runtime")), ("hosting", str(hostingStr)), ("framework", str(frameworkStr))]);
+  /// Parse an [ExecutionEngine] array from a JSON array of strings.
+  /// Accepts "api", "canister", and "github"; returns null on any unknown value.
+  public func parseExecutionEngines(items : [Json.Json]) : ?[AgentModel.ExecutionEngine] {
+    let buffer = List.empty<AgentModel.ExecutionEngine>();
+    for (item in items.vals()) {
+      switch (item) {
+        case (#string("api")) { List.add(buffer, #api) };
+        case (#string("canister")) { List.add(buffer, #canister) };
+        case (#string("github")) { List.add(buffer, #github) };
+        case _ { return null };
       };
     };
-  };
-
-  public func parseCategory(s : Text) : ?AgentModel.AgentCategory {
-    switch (s) {
-      case ("admin") { ?#admin };
-      case ("onboarding") { ?#onboarding };
-      case ("custom") { ?#custom };
-      case _ { null };
-    };
+    ?List.toArray(buffer);
   };
 
   /// Parse a SecretId for agent use. Excludes platform secrets
@@ -97,46 +88,6 @@ module {
       };
     };
     ?List.toArray(buffer);
-  };
-
-  public func parseExecutionType(json : Json.Json) : ?AgentModel.AgentExecutionType {
-    let typeStr = switch (Json.get(json, "type")) {
-      case (?#string(s)) { s };
-      case _ { return null };
-    };
-    switch (typeStr) {
-      case ("api") {
-        // model defaults to the standard OpenRouter model if omitted
-        let model = switch (Json.get(json, "model")) {
-          case (?#string(s)) {
-            if (Text.trim(s, #char ' ') == "") { return null } else { s };
-          };
-          case (null) { "openai/gpt-oss-120b" };
-          case _ { return null };
-        };
-        ?#api({ model });
-      };
-      case ("runtime") {
-        let hostingStr = switch (Json.get(json, "hosting")) {
-          case (?#string(s)) { s };
-          case _ { return null };
-        };
-        let frameworkStr = switch (Json.get(json, "framework")) {
-          case (?#string(s)) { s };
-          case _ { return null };
-        };
-        switch (hostingStr, frameworkStr) {
-          case ("codespace", "openClaw") {
-            ?#runtime {
-              hosting = #codespace;
-              framework = #openClaw { deployedVersion = null };
-            };
-          };
-          case _ { null };
-        };
-      };
-      case _ { null };
-    };
   };
 
   /// Parse an array of JSON strings into a Set<Text>.

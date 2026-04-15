@@ -115,17 +115,18 @@ module {
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
       registry,
-      "unit-test-admin",
       0,
-      #admin,
-      #api({ model = "openai/gpt-oss-120b" }),
-      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
-      [],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      Set.fromArray(channelIds, Text.compare),
+      #_system(#admin),
+      {
+        name = "unit-test-admin";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#api];
+        allowedChannelIds = Set.fromArray(channelIds, Text.compare);
+        secrets = {
+          allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
+          overrides = [];
+        };
+      },
     );
     {
       secrets;
@@ -165,17 +166,18 @@ module {
     let registry = AgentModel.emptyState();
     ignore AgentModel.register(
       registry,
-      "unit-test-admin",
       0,
-      #admin,
-      #api({ model = "openai/gpt-oss-120b" }),
-      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
-      [],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      Set.fromArray(channelIds, Text.compare),
+      #_system(#admin),
+      {
+        name = "unit-test-admin";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#api];
+        allowedChannelIds = Set.fromArray(channelIds, Text.compare);
+        secrets = {
+          allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
+          overrides = [];
+        };
+      },
     );
     {
       secrets;
@@ -216,33 +218,35 @@ module {
     // Admin agent (same as ctxWithSecrets)
     ignore AgentModel.register(
       registry,
-      "unit-test-admin",
       0,
-      #admin,
-      #api({ model = "openai/gpt-oss-120b" }),
-      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
-      [],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      allowedChannels,
+      #_system(#admin),
+      {
+        name = "unit-test-admin";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#api];
+        allowedChannelIds = allowedChannels;
+        secrets = {
+          allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
+          overrides = [];
+        };
+      },
     );
     // Custom agent — no real secret needed; route(#custom) returns a stub error
     // without making any HTTP calls, so a dummy secret entry is sufficient.
     ignore AgentModel.register(
       registry,
-      "unit-test-custom",
       0,
       #custom,
-      #api({ model = "openai/gpt-oss-120b" }),
-      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
-      [],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      allowedChannels,
+      {
+        name = "unit-test-custom";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#api];
+        allowedChannelIds = allowedChannels;
+        secrets = {
+          allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
+          overrides = [];
+        };
+      },
     );
     {
       secrets;
@@ -282,31 +286,33 @@ module {
     let allowedChannels = Set.fromArray(channelIds, Text.compare);
     ignore AgentModel.register(
       registry,
-      "unit-test-admin",
       0,
-      #admin,
-      #api({ model = "openai/gpt-oss-120b" }),
-      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
-      [],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      allowedChannels,
+      #_system(#admin),
+      {
+        name = "unit-test-admin";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#api];
+        allowedChannelIds = allowedChannels;
+        secrets = {
+          allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
+          overrides = [];
+        };
+      },
     );
     ignore AgentModel.register(
       registry,
-      "unit-test-custom",
       0,
       #custom,
-      #api({ model = "openai/gpt-oss-120b" }),
-      [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)],
-      [],
-      [],
-      [],
-      Map.empty<Text, AgentModel.ToolState>(),
-      [],
-      allowedChannels,
+      {
+        name = "unit-test-custom";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#api];
+        allowedChannelIds = allowedChannels;
+        secrets = {
+          allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
+          overrides = [];
+        };
+      },
     );
     {
       secrets;
