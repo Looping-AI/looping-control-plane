@@ -198,6 +198,18 @@ describe("UpdateAgentHandler", () => {
       expect(response.message).toContain("updated");
     });
 
+    it("should return error when executionEngines array is empty", async () => {
+      const result = await testCanister.testUpdateAgentHandler(
+        JSON.stringify({ id: 0, executionEngines: [] }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(false);
+      expect(response.error).toContain(
+        "executionEngines must be non-empty when provided",
+      );
+    });
+
     it("should update secretOverrides and confirm via get", async () => {
       const updateResult = await testCanister.testUpdateAgentHandler(
         JSON.stringify({

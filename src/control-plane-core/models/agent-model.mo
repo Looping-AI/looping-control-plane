@@ -218,6 +218,11 @@ module {
       case (#ok(())) {};
     };
 
+    // Validate that executionEngines is non-empty.
+    if (config.executionEngines.size() == 0) {
+      return #err("executionEngines must contain at least one engine.");
+    };
+
     // For #_system(#admin) agents, allowedChannelIds is always empty — routing is governed by
     // WorkspaceModel.adminChannelId. Silently coerce any provided value to empty set.
     // For all other categories, enforce non-empty.
@@ -301,6 +306,16 @@ module {
         #err("Agent with ID " # Nat.toText(id) # " not found.");
       };
       case (?existing) {
+        // Validate newExecutionEngines if provided — must be non-empty.
+        switch (newExecutionEngines) {
+          case (?engines) {
+            if (engines.size() == 0) {
+              return #err("executionEngines must contain at least one engine.");
+            };
+          };
+          case (null) {};
+        };
+
         // Validate newAllowedChannelIds if provided.
         // For #_system(#admin) agents, always keep the set empty regardless of what is passed —
         // routing is governed by WorkspaceModel.adminChannelId.

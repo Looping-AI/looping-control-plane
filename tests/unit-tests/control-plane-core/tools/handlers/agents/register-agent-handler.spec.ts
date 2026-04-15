@@ -137,6 +137,22 @@ describe("RegisterAgentHandler", () => {
       expect(response.success).toBe(false);
       expect(response.error).toContain("Invalid executionEngines");
     });
+
+    it("should return error when executionEngines array is empty", async () => {
+      const result = await testCanister.testRegisterAgentHandler(
+        JSON.stringify({
+          name: "TestAgent",
+          executionEngines: [],
+          allowedChannelIds: ["C_TEST"],
+        }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(false);
+      expect(response.error).toContain(
+        "executionEngines must be a non-empty array",
+      );
+    });
   });
 
   describe("happy path", () => {
