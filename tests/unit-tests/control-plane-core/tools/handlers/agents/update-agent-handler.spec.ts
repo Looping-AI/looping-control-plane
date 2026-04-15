@@ -18,9 +18,10 @@ import {
 //
 // This handler:
 //   1. Authorizes the caller via UserAuthContext (#IsPrimaryOwner or #IsOrgAdmin)
-//   2. Parses JSON args for { id, name?, category?, model?,
+//   2. Parses JSON args for { id, name?, executionEngines?, model?,
 //      secretsAllowed?, secretOverrides?, allowedChannelIds? }
 //   3. Applies the patch to the agent record in AgentRegistryState
+//      (Note: category is immutable after creation)
 // ============================================
 
 function parseResponse(json: string): {
