@@ -9,7 +9,6 @@ import ChannelHistoryModel "../../models/channel-history-model";
 import AgentModel "../../models/agent-model";
 import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
 import InstructionComposer "../../instructions/instruction-composer";
-import InstructionTypes "../../instructions/instruction-types";
 import FunctionToolRegistry "../../tools/function-tool-registry";
 import McpToolRegistry "../../tools/mcp-tool-registry";
 import ToolExecutor "../../tools/tool-executor";
@@ -77,11 +76,8 @@ module {
   ) : async ProcessResult {
     let steps : List.List<Types.ProcessingStep> = List.empty();
 
-    // Extract model string from the agent's executionType
-    let modelText = switch (agent.executionType) {
-      case (#api({ model })) { model };
-      case (#runtime(_)) { "" }; // unreachable for #api agents
-    };
+    // Extract model string from the agent's config
+    let modelText = agent.config.model;
 
     // Build instructions driven by agent configuration
     let instructions = buildInstructions(agent);
@@ -98,7 +94,7 @@ module {
       SecretModel.resolvePlatformSecret(
         ctx.secrets,
         orgKey,
-        ?#admin,
+        ?#_system(#admin),
         #slackBotToken,
         {
           slackUserId;
@@ -171,10 +167,7 @@ module {
     let mcpToolDefs = McpToolRegistry.getAllDefinitions(mcpToolRegistry);
     let allTools = Array.concat(functionToolDefs, mcpToolDefs);
 
-    // Apply blocklist filtering via the public helper
-    let filteredTools = AgentHelpers.applyToolBlocklist(agent, allTools);
-
-    let toolsOpt : ?[OpenRouterWrapper.Tool] = if (filteredTools.size() == 0) null else ?filteredTools;
+    let toolsOpt : ?[OpenRouterWrapper.Tool] = if (allTools.size() == 0) null else ?allTools;
 
     // Assemble LLM context from session memory, turn digests, and channel/thread history.
     // Tool call / tool response artifacts are appended to inputMessages during the
@@ -295,19 +288,11 @@ module {
   };
 
   /// Build instructions for the org-admin persona.
-  ///
-  /// If `agent.sources` is non-empty, an `"agent-sources"` block is appended.
   private func buildInstructions(agent : AgentModel.AgentRecord) : Text {
-    let customBlocks : [InstructionTypes.InstructionBlock] = if (agent.sources.size() > 0) {
-      AgentHelpers.sourceBlocks(agent);
-    } else {
-      [];
-    };
-
     InstructionComposer.compose(
-      AgentHelpers.categoryToRole(agent.category, agent.name),
+      AgentHelpers.categoryToRole(agent.category, agent.config.name),
       [], // no context-layer IDs
-      customBlocks,
+      [], // no custom blocks
     );
   };
 

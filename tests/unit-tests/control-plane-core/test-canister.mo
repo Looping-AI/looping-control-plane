@@ -464,7 +464,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   /// Like `testMessageHandlerWithSecrets`, but pre-seeds the context with BOTH a
-  /// `unit-test-admin` (#admin) and a `unit-test-custom` (#custom) agent.
+  /// `unit-test-admin` (#_system(#admin)) and a `unit-test-custom` (#custom) agent.
   ///
   /// Use this variant for primary-agent resolution tests that reference `::unit-test-custom`
   /// explicitly.  Because `route(#custom, …)` returns a stub error without making any HTTP
@@ -1065,6 +1065,30 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null, null);
+  };
+
+  /// Directly seed a #_system(#admin) agent into testAgentRegistry without going through
+  /// the create_workspace HTTP flow. Useful for unit tests that need a system admin agent.
+  /// Returns the assigned agent ID.
+  public shared ({ caller }) func testDirectSeedAdminAgent() : async Nat {
+    assert caller == parent;
+    switch (
+      AgentModel.register(
+        testAgentRegistry,
+        0,
+        #_system(#admin),
+        {
+          name = "test-admin";
+          model = "openai/gpt-oss-120b";
+          executionEngines = [#api];
+          allowedChannelIds = Set.empty<Text>();
+          secrets = { allowed = []; overrides = [] };
+        },
+      )
+    ) {
+      case (#ok id) { id };
+      case (#err _) { 999 };
+    };
   };
 
   /// Test the ListAgentsHandler in isolation.

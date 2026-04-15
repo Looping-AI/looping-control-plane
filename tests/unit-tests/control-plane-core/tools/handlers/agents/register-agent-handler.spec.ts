@@ -18,8 +18,8 @@ import {
 //
 // This handler:
 //   1. Authorizes the caller via UserAuthContext (#IsPrimaryOwner or #IsOrgAdmin)
-//   2. Parses JSON args for { name, category, llmModel?, secretsAllowed?,
-//      toolsDisallowed?, toolsMisconfigured?, sources? }
+//   2. Parses JSON args for { name, category, model?, ownedBy?,
+//      allowedChannelIds, secretsAllowed?, secretOverrides? }
 //   3. Registers the agent in AgentRegistryState
 //
 // The test canister starts with an empty agent registry so the first
@@ -60,7 +60,7 @@ describe("RegisterAgentHandler", () => {
   describe("authorization", () => {
     it("should return error when caller has no permissions", async () => {
       const result = await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "test-agent", category: "admin" }),
+        JSON.stringify({ name: "test-agent", executionEngines: ["api"] }),
         NO_AUTH,
       );
       const response = parseResponse(result);
@@ -72,8 +72,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "test-agent",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -86,8 +85,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "research-agent",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         ORG_ADMIN,
@@ -110,7 +108,7 @@ describe("RegisterAgentHandler", () => {
 
     it("should return error when name field is missing", async () => {
       const result = await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ category: "admin" }),
+        JSON.stringify({ executionEngines: ["api"] }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
@@ -118,24 +116,42 @@ describe("RegisterAgentHandler", () => {
       expect(response.error).toContain("Missing required field: name");
     });
 
-    it("should return error when category field is missing", async () => {
+    it("should return error when executionEngines field is missing", async () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({ name: "TestAgent" }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
       expect(response.success).toBe(false);
-      expect(response.error).toContain("Missing required field: category");
+      expect(response.error).toContain(
+        "Missing required field: executionEngines",
+      );
     });
 
-    it("should return error for an invalid category value", async () => {
+    it("should return error for an invalid executionEngines value", async () => {
       const result = await testCanister.testRegisterAgentHandler(
-        JSON.stringify({ name: "TestAgent", category: "unknown" }),
+        JSON.stringify({ name: "TestAgent", executionEngines: ["invalid"] }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
       expect(response.success).toBe(false);
-      expect(response.error).toContain("Invalid category");
+      expect(response.error).toContain("Invalid executionEngines");
+    });
+
+    it("should return error when executionEngines array is empty", async () => {
+      const result = await testCanister.testRegisterAgentHandler(
+        JSON.stringify({
+          name: "TestAgent",
+          executionEngines: [],
+          allowedChannelIds: ["C_TEST"],
+        }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(false);
+      expect(response.error).toContain(
+        "executionEngines must be a non-empty array",
+      );
     });
   });
 
@@ -144,8 +160,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "admin-bot",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -161,8 +176,7 @@ describe("RegisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "first-agent",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -170,8 +184,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "second-agent",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -185,11 +198,8 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "research-bot",
-          category: "custom",
-          executionType: { type: "api" },
-          llmModel: "gpt_oss_120b",
-          toolsDisallowed: ["web_search"],
-          sources: ["https://example.com"],
+          executionEngines: ["canister"],
+          model: "openai/gpt-oss-120b",
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -204,8 +214,7 @@ describe("RegisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "unique-agent",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -213,8 +222,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "unique-agent",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -230,8 +238,7 @@ describe("RegisterAgentHandler", () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "override-bot",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           secretsAllowed: [{ workspaceId: 0, secretId: "openRouterApiKey" }],
           secretOverrides: [
             { secretId: "openRouterApiKey", customKeyName: "my-custom-key" },
@@ -248,24 +255,31 @@ describe("RegisterAgentHandler", () => {
       const agent = (
         JSON.parse(getResult) as {
           agent: {
-            secretOverrides: Array<{
-              secretId: string;
-              customKeyName: string;
-            }>;
+            config: {
+              secrets: {
+                overrides: Array<{
+                  secretId: string;
+                  customKeyName: string;
+                }>;
+              };
+            };
           };
         }
       ).agent;
-      expect(agent.secretOverrides).toHaveLength(1);
-      expect(agent.secretOverrides[0].secretId).toBe("openRouterApiKey");
-      expect(agent.secretOverrides[0].customKeyName).toBe("my-custom-key");
+      expect(agent.config.secrets.overrides).toHaveLength(1);
+      expect(agent.config.secrets.overrides[0].secretId).toBe(
+        "openRouterApiKey",
+      );
+      expect(agent.config.secrets.overrides[0].customKeyName).toBe(
+        "my-custom-key",
+      );
     });
 
     it("should default secretOverrides to empty array when omitted", async () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "no-overrides-bot",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -275,18 +289,18 @@ describe("RegisterAgentHandler", () => {
       );
       const agent = (
         JSON.parse(getResult) as {
-          agent: { secretOverrides: unknown[] };
+          agent: { config: { secrets: { overrides: unknown[] } } };
         }
       ).agent;
-      expect(agent.secretOverrides).toEqual([]);
+      expect(agent.config.secrets.overrides).toEqual([]);
     });
 
     it("should NOT accept custom:<name> secretId in secretOverrides", async () => {
       const result = await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "custom-override-bot",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
+          allowedChannelIds: ["C_TEST"],
           secretOverrides: [
             {
               secretId: "custom:anthropicApiKey",

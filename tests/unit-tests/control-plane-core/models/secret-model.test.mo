@@ -66,17 +66,21 @@ let agentRequester : SecretModel.SecretRequester = {
 func makeAgentOnWorkspace(wsId : Nat) : AgentModel.AgentRecord {
   {
     id = 99;
-    name = "test-agent";
-    workspaceId = wsId;
+    ownedBy = wsId;
     category = #custom;
-    executionType = #api({ model = "openai/gpt-oss-120b" });
-    secretsAllowed = [(wsId, #openRouterApiKey)];
-    secretOverrides = [];
-    toolsDisallowed = [];
-    toolsMisconfigured = [];
-    toolsState = Map.empty<Text, AgentModel.ToolState>();
-    sources = [];
-    allowedChannelIds = Set.singleton<Text>("C_TEST");
+    config = {
+      name = "test-agent";
+      model = "openai/gpt-oss-120b";
+      allowedChannelIds = Set.singleton<Text>("C_TEST");
+      executionEngines = [#canister];
+      secrets = {
+        allowed = [(wsId, #openRouterApiKey)];
+        overrides = [];
+      };
+    };
+    state = {
+      toolsState = Map.empty<Text, AgentModel.ToolState>();
+    };
   };
 };
 
@@ -392,17 +396,21 @@ let orgKey : [Nat8] = [
 func makeAgentWithOverrides(secretOverrides : [(Types.SecretId, Text)]) : AgentModel.AgentRecord {
   {
     id = 1;
-    name = "test-agent";
-    workspaceId = 1;
+    ownedBy = 1;
     category = #custom;
-    executionType = #api({ model = "openai/gpt-oss-120b" });
-    secretsAllowed = [(1, #openRouterApiKey)];
-    secretOverrides;
-    toolsDisallowed = [];
-    toolsMisconfigured = [];
-    toolsState = Map.empty<Text, AgentModel.ToolState>();
-    sources = [];
-    allowedChannelIds = Set.singleton<Text>("C_TEST");
+    config = {
+      name = "test-agent";
+      model = "openai/gpt-oss-120b";
+      allowedChannelIds = Set.singleton<Text>("C_TEST");
+      executionEngines = [#canister];
+      secrets = {
+        allowed = [(1, #openRouterApiKey)];
+        overrides = secretOverrides;
+      };
+    };
+    state = {
+      toolsState = Map.empty<Text, AgentModel.ToolState>();
+    };
   };
 };
 
@@ -553,7 +561,7 @@ suite(
       func() {
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-admin", testRequester);
-        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #slackBotToken, agentRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#_system(#admin), #slackBotToken, agentRequester);
         expect.option(result, Text.toText, Text.equal).equal(?"xoxb-admin");
       },
     );
@@ -563,7 +571,7 @@ suite(
       func() {
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-blocked", testRequester);
-        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#onboarding, #slackBotToken, agentRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#_system(#onboarding), #slackBotToken, agentRequester);
         expect.option(result, Text.toText, Text.equal).isNull();
       },
     );
@@ -583,7 +591,7 @@ suite(
       func() {
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, orgKey, 0, #openRouterApiKey, "or-key", testRequester);
-        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #openRouterApiKey, agentRequester);
+        let result = SecretModel.resolvePlatformSecret(state, orgKey, ?#_system(#admin), #openRouterApiKey, agentRequester);
         expect.option(result, Text.toText, Text.equal).isNull();
       },
     );
@@ -595,7 +603,7 @@ suite(
         ignore SecretModel.storeSecret(state, orgKey, 0, #slackBotToken, "xoxb-audit", testRequester);
         let before = Time.now();
         // Admin agent reads platform secret — agentId != null triggers logging
-        ignore SecretModel.resolvePlatformSecret(state, orgKey, ?#admin, #slackBotToken, agentRequester);
+        ignore SecretModel.resolvePlatformSecret(state, orgKey, ?#_system(#admin), #slackBotToken, agentRequester);
         let log = SecretModel.getAccessLogSince(state, 0, before);
         expect.nat(log.size()).equal(1);
         expect.bool(log[0].secretId == #slackBotToken).isTrue();

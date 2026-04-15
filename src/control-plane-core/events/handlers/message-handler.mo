@@ -177,7 +177,7 @@ module {
       "Bot message delegation depth " # Nat.toText(depth) #
       " | parent: " # agentMeta.event_payload.parent_ts #
       " | user: " # parentCtx.slackUserId #
-      " | agent(s): " # debug_show (Array.map<AgentModel.AgentRecord, Text>(validAgents, func(a) { a.name })),
+      " | agent(s): " # debug_show (Array.map<AgentModel.AgentRecord, Text>(validAgents, func(a) { a.config.name })),
     );
     #proceed({ authCtx = ?parentCtx; triggerTurnId });
   };
@@ -223,7 +223,7 @@ module {
     ?{
       event_type = "looping_agent_message";
       event_payload = {
-        parent_agent = primaryAgent.name;
+        parent_agent = primaryAgent.config.name;
         parent_ts = ts;
         parent_channel = channel;
         turn_id = turnId;
@@ -264,14 +264,14 @@ module {
         case (?agent) { ?agent };
       };
     } else {
-      // User path: prefer an explicit ::agentname reference; fall back to first #admin.
+      // User path: prefer an explicit ::agentname reference; fall back to first #_system(#admin).
       let validAgents = AgentRefParser.extractValidAgents(msg.text, ctx.agentRegistry);
       if (validAgents.size() > 0) {
         ?validAgents[0];
       } else {
-        switch (AgentModel.getFirstByCategory(ctx.agentRegistry, #admin)) {
+        switch (AgentModel.getFirstByCategory(ctx.agentRegistry, #_system(#admin))) {
           case (null) {
-            Logger.log(#warn, ?"MessageHandler", "No #admin agent registered — cannot handle user message");
+            Logger.log(#warn, ?"MessageHandler", "No #_system(#admin) agent registered — cannot handle user message");
             null;
           };
           case (?agent) { ?agent };
@@ -478,7 +478,7 @@ module {
 
     // Resolve the admin channel for the agent's workspace — passed to the router to gate
     // #admin category agents (dynamic lookup; WorkspaceModel is the single source of truth).
-    let agentAdminChannelId : ?Text = switch (WorkspaceModel.getWorkspace(ctx.workspaces, primaryAgent.workspaceId)) {
+    let agentAdminChannelId : ?Text = switch (WorkspaceModel.getWorkspace(ctx.workspaces, primaryAgent.ownedBy)) {
       case (?ws) { ws.adminChannelId };
       case (null) { null };
     };
@@ -521,17 +521,10 @@ module {
 
     // Build the per-category context variant — passes only the data each agent needs.
     let agentCtx : AgentRouter.AgentCtx = switch (primaryAgent.category) {
-      case (#admin) {
-        #admin({
-          workspaces = ctx.workspaces;
-          agentRegistry = ctx.agentRegistry;
-          userAuthContext = activeCtxOpt;
-          secrets = ctx.secrets;
-          keyCache = ctx.keyCache;
-          eventStore = ctx.eventStore;
-        });
+      case (#_system(#admin)) {
+        #_system(#admin({ workspaces = ctx.workspaces; agentRegistry = ctx.agentRegistry; userAuthContext = activeCtxOpt; secrets = ctx.secrets; keyCache = ctx.keyCache; eventStore = ctx.eventStore }));
       };
-      case (#onboarding) { #onboarding };
+      case (#_system(#onboarding)) { #_system(#onboarding) };
       case (#custom) { #custom };
     };
 

@@ -24,13 +24,12 @@ module {
   /// Context for the org-admin agent — workspace lifecycle and channel-anchor management.
   public type AdminAgentCtx = OrgAdminAgent.AdminCtx;
 
-  /// Typed per-category context union.
-  /// - `#admin`      → AdminAgentCtx (workspace management)
-  /// - `#onboarding` → stub, handles DMs to the Slack App (planned)
-  /// - `#custom`     → stub, user-defined agent
+  /// Typed per-category context union — mirrors AgentCategory nesting.
+  /// - `#_system(#admin)`      → AdminAgentCtx (workspace management)
+  /// - `#_system(#onboarding)` → stub, handles DMs to the Slack App (planned)
+  /// - `#custom`              → stub, user-defined agent
   public type AgentCtx = {
-    #admin : AdminAgentCtx;
-    #onboarding;
+    #_system : { #admin : AdminAgentCtx; #onboarding };
     #custom;
   };
 
@@ -74,7 +73,7 @@ module {
   } {
     // Stub categories return early before touching secrets
     switch (agentCtx) {
-      case (#onboarding) {
+      case (#_system(#onboarding)) {
         let step : Types.ProcessingStep = {
           action = "orchestrate";
           result = #err("category service not yet implemented");
@@ -102,8 +101,8 @@ module {
     // Extract the workspace ID relevant to the secret guard:
     //   admin agents operate at workspace-0 (org level)
     let guardWorkspaceId : Nat = switch (agentCtx) {
-      case (#admin(_)) { 0 };
-      case (#onboarding or #custom) { 0 }; // unreachable — handled above
+      case (#_system(#admin(_))) { 0 };
+      case (#_system(#onboarding) or #custom) { 0 }; // unreachable — handled above
     };
 
     // Resolve the LLM API key with 3-level cascade:
@@ -112,70 +111,60 @@ module {
     //   3. fall back to org workspace (workspaceId 0)
     let apiKey = SecretModel.resolveSecret(secrets, agent, guardWorkspaceId, #openRouterApiKey, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
 
-    // Dispatch based on the agent's execution type
-    switch (agent.executionType) {
-      case (#api(_)) {
-        switch (apiKey) {
-          case (null) {
+    // Dispatch to the category orchestrator.
+    switch (apiKey) {
+      case (null) {
+        #err({
+          message = "No OpenRouter API key found for agent talk. Please store the API key first.";
+          steps = [];
+        });
+      };
+      case (?key) {
+        let serviceResult : {
+          #ok : { response : Text; steps : [Types.ProcessingStep] };
+          #err : { message : Text; steps : [Types.ProcessingStep] };
+        } = switch (agentCtx) {
+          case (#_system(#admin(ctx))) {
+            await OrgAdminAgent.process(
+              agent,
+              mcpToolRegistry,
+              channelHistory,
+              channelId,
+              threadTs,
+              ctx,
+              key,
+              turnId,
+              sessionStores,
+            );
+          };
+          case (#_system(#onboarding) or #custom) {
+            // unreachable — handled before secret guard
             #err({
-              message = "No OpenRouter API key found for agent talk. Please store the API key first.";
+              message = "category service not yet implemented";
               steps = [];
             });
           };
-          case (?key) {
-            let serviceResult : {
-              #ok : { response : Text; steps : [Types.ProcessingStep] };
-              #err : { message : Text; steps : [Types.ProcessingStep] };
-            } = switch (agentCtx) {
-              case (#admin(ctx)) {
-                await OrgAdminAgent.process(
-                  agent,
-                  mcpToolRegistry,
-                  channelHistory,
-                  channelId,
-                  threadTs,
-                  ctx,
-                  key,
-                  turnId,
-                  sessionStores,
-                );
-              };
-              case (#onboarding or #custom) {
-                // unreachable — handled before secret guard
-                #err({
-                  message = "category service not yet implemented";
-                  steps = [];
-                });
-              };
+        };
+        switch (serviceResult) {
+          case (#ok({ response; steps = serviceSteps })) {
+            let llmStep : Types.ProcessingStep = {
+              action = "llm_call";
+              result = #ok;
+              timestamp = Time.now();
             };
-            switch (serviceResult) {
-              case (#ok({ response; steps = serviceSteps })) {
-                let llmStep : Types.ProcessingStep = {
-                  action = "llm_call";
-                  result = #ok;
-                  timestamp = Time.now();
-                };
-                let allSteps = Array.concat(serviceSteps, [llmStep]);
-                #ok({ response; steps = allSteps });
-              };
-              case (#err({ message = errMsg; steps = serviceSteps })) {
-                let llmStep : Types.ProcessingStep = {
-                  action = "llm_call";
-                  result = #err(errMsg);
-                  timestamp = Time.now();
-                };
-                let allSteps = Array.concat(serviceSteps, [llmStep]);
-                #err({ message = errMsg; steps = allSteps });
-              };
+            let allSteps = Array.concat(serviceSteps, [llmStep]);
+            #ok({ response; steps = allSteps });
+          };
+          case (#err({ message = errMsg; steps = serviceSteps })) {
+            let llmStep : Types.ProcessingStep = {
+              action = "llm_call";
+              result = #err(errMsg);
+              timestamp = Time.now();
             };
+            let allSteps = Array.concat(serviceSteps, [llmStep]);
+            #err({ message = errMsg; steps = allSteps });
           };
         };
-      };
-      case (#runtime(_)) {
-        #err({
-          message = "Runtime agent execution is not supported by this orchestrator.";
-          steps = [];
-        });
       };
     };
   };

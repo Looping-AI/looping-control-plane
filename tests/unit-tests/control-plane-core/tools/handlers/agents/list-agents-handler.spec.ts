@@ -96,8 +96,7 @@ describe("ListAgentsHandler — with seeded agents (cassette)", () => {
         testCanister.testRegisterAgentHandler(
           JSON.stringify({
             name: "admin-bot",
-            category: "admin",
-            executionType: { type: "api" },
+            executionEngines: ["api"],
             allowedChannelIds: ["C_TEST"],
           }),
           PRIMARY_OWNER,
@@ -111,8 +110,7 @@ describe("ListAgentsHandler — with seeded agents (cassette)", () => {
         testCanister.testRegisterAgentHandler(
           JSON.stringify({
             name: "plan-bot",
-            category: "custom",
-            executionType: { type: "api" },
+            executionEngines: ["canister"],
             allowedChannelIds: ["C_TEST"],
           }),
           PRIMARY_OWNER,
@@ -124,12 +122,12 @@ describe("ListAgentsHandler — with seeded agents (cassette)", () => {
     await pic.tick(2);
     const response = JSON.parse(await execute()) as {
       success: boolean;
-      agents: Array<{ id: number; name: string; category: string }>;
+      agents: Array<{ id: number; category: string; config: { name: string } }>;
     };
     expect(response.success).toBe(true);
     expect(response.agents).toHaveLength(2);
 
-    const names = response.agents.map((a) => a.name);
+    const names = response.agents.map((a) => a.config.name);
     expect(names).toContain("admin-bot");
     expect(names).toContain("plan-bot");
   });
@@ -142,10 +140,8 @@ describe("ListAgentsHandler — with seeded agents (cassette)", () => {
         testCanister.testRegisterAgentHandler(
           JSON.stringify({
             name: "full-agent",
-            category: "custom",
-            executionType: { type: "api", model: "openai/gpt-oss-120b" },
-            toolsDisallowed: ["web_search"],
-            sources: ["https://example.com"],
+            executionEngines: ["canister"],
+            model: "openai/gpt-oss-120b",
             allowedChannelIds: ["C_TEST"],
           }),
           PRIMARY_OWNER,
@@ -159,25 +155,22 @@ describe("ListAgentsHandler — with seeded agents (cassette)", () => {
       success: boolean;
       agents: Array<{
         id: number;
-        name: string;
+        ownedBy: number;
         category: string;
-        executionType: { type: string; model: string };
-        toolsDisallowed: string[];
-        sources: string[];
-        secretOverrides: unknown[];
+        config: {
+          name: string;
+          model: string;
+          allowedChannelIds: string[];
+          secrets: { allowed: unknown[]; overrides: unknown[] };
+        };
       }>;
     };
     const agent = response.agents[0];
     expect(agent).toBeDefined();
     expect(agent.id).toBe(0);
-    expect(agent.name).toBe("full-agent");
+    expect(agent.config.name).toBe("full-agent");
     expect(agent.category).toBe("custom");
-    expect(agent.executionType).toEqual({
-      type: "api",
-      model: "openai/gpt-oss-120b",
-    });
-    expect(agent.toolsDisallowed).toEqual(["web_search"]);
-    expect(agent.sources).toEqual(["https://example.com"]);
-    expect(agent.secretOverrides).toEqual([]);
+    expect(agent.config.model).toBe("openai/gpt-oss-120b");
+    expect(agent.config.secrets.overrides).toEqual([]);
   });
 });

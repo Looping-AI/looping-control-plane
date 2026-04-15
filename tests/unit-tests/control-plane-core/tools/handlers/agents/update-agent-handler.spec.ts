@@ -18,9 +18,10 @@ import {
 //
 // This handler:
 //   1. Authorizes the caller via UserAuthContext (#IsPrimaryOwner or #IsOrgAdmin)
-//   2. Parses JSON args for { id, name?, category?, llmModel?, secretsAllowed?,
-//      toolsDisallowed?, toolsMisconfigured?, sources? }
+//   2. Parses JSON args for { id, name?, executionEngines?, model?,
+//      secretsAllowed?, secretOverrides?, allowedChannelIds? }
 //   3. Applies the patch to the agent record in AgentRegistryState
+//      (Note: category is immutable after creation)
 // ============================================
 
 function parseResponse(json: string): {
@@ -58,8 +59,7 @@ describe("UpdateAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "AdminBot",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -78,8 +78,7 @@ describe("UpdateAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "AdminBot",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -97,15 +96,14 @@ describe("UpdateAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "AdminBot",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
 
       const result = await testCanister.testUpdateAgentHandler(
-        JSON.stringify({ id: 0, category: "custom" }),
+        JSON.stringify({ id: 0, executionEngines: ["canister"] }),
         ORG_ADMIN,
       );
       const response = parseResponse(result);
@@ -149,8 +147,7 @@ describe("UpdateAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "original-name",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -167,14 +164,15 @@ describe("UpdateAgentHandler", () => {
       const getResult = await testCanister.testGetAgentHandler(
         JSON.stringify({ id: 0 }),
       );
-      const agent = (JSON.parse(getResult) as { agent: { name: string } })
-        .agent;
-      expect(agent.name).toBe("renamed-agent");
+      const agent = (
+        JSON.parse(getResult) as { agent: { config: { name: string } } }
+      ).agent;
+      expect(agent.config.name).toBe("renamed-agent");
     });
 
-    it("should update the agent category and confirm via get", async () => {
+    it("should update executionEngines and confirm via get", async () => {
       const updateResult = await testCanister.testUpdateAgentHandler(
-        JSON.stringify({ id: 0, category: "custom" }),
+        JSON.stringify({ id: 0, executionEngines: ["canister"] }),
         PRIMARY_OWNER,
       );
       expect(parseResponse(updateResult).success).toBe(true);
@@ -182,9 +180,12 @@ describe("UpdateAgentHandler", () => {
       const getResult = await testCanister.testGetAgentHandler(
         JSON.stringify({ id: 0 }),
       );
-      const agent = (JSON.parse(getResult) as { agent: { category: string } })
-        .agent;
-      expect(agent.category).toBe("custom");
+      const agent = (
+        JSON.parse(getResult) as {
+          agent: { config: { executionEngines: string[] } };
+        }
+      ).agent;
+      expect(agent.config.executionEngines).toEqual(["canister"]);
     });
 
     it("should return success message on successful update", async () => {
@@ -195,6 +196,18 @@ describe("UpdateAgentHandler", () => {
       const response = parseResponse(result);
       expect(response.success).toBe(true);
       expect(response.message).toContain("updated");
+    });
+
+    it("should return error when executionEngines array is empty", async () => {
+      const result = await testCanister.testUpdateAgentHandler(
+        JSON.stringify({ id: 0, executionEngines: [] }),
+        PRIMARY_OWNER,
+      );
+      const response = parseResponse(result);
+      expect(response.success).toBe(false);
+      expect(response.error).toContain(
+        "executionEngines must be non-empty when provided",
+      );
     });
 
     it("should update secretOverrides and confirm via get", async () => {
@@ -215,16 +228,22 @@ describe("UpdateAgentHandler", () => {
       const agent = (
         JSON.parse(getResult) as {
           agent: {
-            secretOverrides: Array<{
-              secretId: string;
-              customKeyName: string;
-            }>;
+            config: {
+              secrets: {
+                overrides: Array<{
+                  secretId: string;
+                  customKeyName: string;
+                }>;
+              };
+            };
           };
         }
       ).agent;
-      expect(agent.secretOverrides).toHaveLength(1);
-      expect(agent.secretOverrides[0].secretId).toBe("openRouterApiKey");
-      expect(agent.secretOverrides[0].customKeyName).toBe("ws-key");
+      expect(agent.config.secrets.overrides).toHaveLength(1);
+      expect(agent.config.secrets.overrides[0].secretId).toBe(
+        "openRouterApiKey",
+      );
+      expect(agent.config.secrets.overrides[0].customKeyName).toBe("ws-key");
     });
 
     it("should clear secretOverrides when updated to empty array", async () => {
@@ -250,9 +269,11 @@ describe("UpdateAgentHandler", () => {
         JSON.stringify({ id: 0 }),
       );
       const agent = (
-        JSON.parse(getResult) as { agent: { secretOverrides: unknown[] } }
+        JSON.parse(getResult) as {
+          agent: { config: { secrets: { overrides: unknown[] } } };
+        }
       ).agent;
-      expect(agent.secretOverrides).toEqual([]);
+      expect(agent.config.secrets.overrides).toEqual([]);
     });
   });
 });

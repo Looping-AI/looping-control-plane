@@ -66,7 +66,7 @@ module {
     //   — block unconditionally; there is no bootstrap bypass.
     // - All other categories: enforce the agent's static allowedChannelIds set.
     switch (primaryAgent.category) {
-      case (#admin) {
+      case (#_system(#admin)) {
         let allowedId = switch (agentAdminChannelId) {
           case (null) {
             let step : Types.ProcessingStep = {
@@ -88,21 +88,21 @@ module {
             timestamp = Time.now();
           };
           return #err({
-            message = "Agent '" # primaryAgent.name # "' can only be invoked from the configured admin channel (" # allowedId # ").";
+            message = "Agent '" # primaryAgent.config.name # "' can only be invoked from the configured admin channel (" # allowedId # ").";
             steps = [step];
           });
         };
       };
       case (_) {
-        if (not Set.contains(primaryAgent.allowedChannelIds, Text.compare, channelId)) {
-          let allowedList = Text.join(Set.values(primaryAgent.allowedChannelIds), ", ");
+        if (not Set.contains(primaryAgent.config.allowedChannelIds, Text.compare, channelId)) {
+          let allowedList = Text.join(Set.values(primaryAgent.config.allowedChannelIds), ", ");
           let step : Types.ProcessingStep = {
             action = "route";
             result = #err("channel not in allowlist");
             timestamp = Time.now();
           };
           return #err({
-            message = "Agent '" # primaryAgent.name # "' is not configured for channel " # channelId # ". Allowed channels: " # allowedList # ".";
+            message = "Agent '" # primaryAgent.config.name # "' is not configured for channel " # channelId # ". Allowed channels: " # allowedList # ".";
             steps = [step];
           });
         };
@@ -111,8 +111,8 @@ module {
 
     // Validate that the ctx variant matches the agent's declared category.
     let ctxMatchesCategory : Bool = switch (primaryAgent.category, agentCtx) {
-      case (#admin, #admin(_)) { true };
-      case (#onboarding, #onboarding) { true };
+      case (#_system(#admin), #_system(#admin(_))) { true };
+      case (#_system(#onboarding), #_system(#onboarding)) { true };
       case (#custom, #custom) { true };
       case _ { false };
     };
@@ -127,23 +127,6 @@ module {
         message = "agent context mismatch: category=" # debug_show (primaryAgent.category) # " does not match the provided agentCtx variant";
         steps = [step];
       });
-    };
-
-    // Branch on execution type before dispatching to the category orchestrator.
-    // #api agents run in-canister. #runtime agents are not yet supported.
-    switch (primaryAgent.executionType) {
-      case (#runtime(_)) {
-        let step : Types.ProcessingStep = {
-          action = "route";
-          result = #err("remote runtime not yet supported");
-          timestamp = Time.now();
-        };
-        return #err({
-          message = "Agent uses a remote runtime that is not yet supported in this version.";
-          steps = [step];
-        });
-      };
-      case (#api(_)) {};
     };
 
     // Forward to the orchestrator with the typed context

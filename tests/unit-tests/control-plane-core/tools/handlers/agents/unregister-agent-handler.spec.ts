@@ -56,8 +56,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "AdminBot",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -76,8 +75,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "AdminBot",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -95,8 +93,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "AdminBot",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -147,8 +144,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "to-be-deleted",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -176,8 +172,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "removable-agent",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -196,8 +191,7 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "agent-one",
-          category: "admin",
-          executionType: { type: "api" },
+          executionEngines: ["api"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
@@ -205,14 +199,13 @@ describe("UnregisterAgentHandler", () => {
       await testCanister.testRegisterAgentHandler(
         JSON.stringify({
           name: "agent-two",
-          category: "custom",
-          executionType: { type: "api" },
+          executionEngines: ["canister"],
           allowedChannelIds: ["C_TEST"],
         }),
         PRIMARY_OWNER,
       );
 
-      // Delete the custom agent (id 1) — the admin agent must remain.
+      // Delete the second agent (id 1); both are #custom so there is no admin-protection guard.
       await testCanister.testUnregisterAgentHandler(
         JSON.stringify({ id: 1 }),
         PRIMARY_OWNER,
@@ -227,18 +220,12 @@ describe("UnregisterAgentHandler", () => {
     });
 
     it("should prevent deleting the last admin agent", async () => {
-      await testCanister.testRegisterAgentHandler(
-        JSON.stringify({
-          name: "sole-admin",
-          category: "admin",
-          executionType: { type: "api" },
-          allowedChannelIds: ["C_TEST"],
-        }),
-        PRIMARY_OWNER,
-      );
+      // #_system(#admin) agents can only be created via create_workspace.
+      // Use testDirectSeedAdminAgent to bypass the Slack HTTP call in unit tests.
+      const adminId = Number(await testCanister.testDirectSeedAdminAgent());
 
       const result = await testCanister.testUnregisterAgentHandler(
-        JSON.stringify({ id: 0 }),
+        JSON.stringify({ id: adminId }),
         PRIMARY_OWNER,
       );
       const response = parseResponse(result);
