@@ -13,7 +13,6 @@
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ChannelHistoryModel "../../models/channel-history-model";
-import McpToolRegistry "../../tools/mcp-tool-registry";
 import AgentModel "../../models/agent-model";
 import SlackUserModel "../../models/slack-user-model";
 import WorkspaceModel "../../models/workspace-model";
@@ -39,8 +38,6 @@ module {
     /// ChannelHistoryModel to add/update/delete messages; the event-driven path is
     /// the only write surface.
     channelHistory : ChannelHistoryModel.ChannelHistoryStore;
-    /// MCP tool registry (org-wide)
-    mcpToolRegistry : McpToolRegistry.McpToolRegistryState;
     /// Global agent registry — used to resolve the active agent for a given category
     agentRegistry : AgentModel.AgentRegistryState;
     /// Slack user state (cache + access change log) — handlers for membership events mutate this directly

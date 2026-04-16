@@ -5,7 +5,6 @@ import Time "mo:core/Time";
 import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
 import FunctionToolRegistry "./function-tool-registry";
-import McpToolRegistry "./mcp-tool-registry";
 
 module {
   // ============================================
@@ -13,9 +12,6 @@ module {
   // ============================================
   //
   // Executes tool calls returned by the LLM.
-  // Routes to the appropriate registry based on tool type:
-  // - Function tools: calls handler directly
-  // - MCP tools: calls MCP server (not yet implemented)
   //
   // ============================================
 
@@ -23,13 +19,12 @@ module {
   /// Returns results for each call in the same order
   public func execute(
     resources : ToolTypes.ToolResources,
-    mcpRegistry : McpToolRegistry.McpToolRegistryState,
     toolCalls : [OpenRouterWrapper.ToolCall],
   ) : async [ToolTypes.ToolResult] {
     let results = List.empty<ToolTypes.ToolResult>();
 
     for (call in toolCalls.vals()) {
-      let result = await executeOne(resources, mcpRegistry, call);
+      let result = await executeOne(resources, call);
       List.add(results, result);
     };
 
@@ -39,7 +34,6 @@ module {
   /// Execute a single tool call
   private func executeOne(
     resources : ToolTypes.ToolResources,
-    mcpRegistry : McpToolRegistry.McpToolRegistryState,
     call : OpenRouterWrapper.ToolCall,
   ) : async ToolTypes.ToolResult {
     let startNs = Time.now();
@@ -54,17 +48,8 @@ module {
         };
       };
       case (null) {
-        // Check MCP tools (dynamic registry)
-        switch (McpToolRegistry.get(mcpRegistry, call.toolName)) {
-          case (?mcpTool) {
-            // MCP execution not yet implemented
-            #error("MCP tool execution not yet implemented. Server: " # mcpTool.serverId);
-          };
-          case (null) {
-            // Unknown tool
-            #error("Unknown tool: " # call.toolName);
-          };
-        };
+        // Unknown tool
+        #error("Unknown tool: " # call.toolName);
       };
     };
     let durationMs : Nat = Int.abs(Time.now() - startNs) / 1_000_000;

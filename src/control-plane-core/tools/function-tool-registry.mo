@@ -16,9 +16,6 @@ import ListAgentsHandler "./handlers/agents/list-agents-handler";
 import GetAgentHandler "./handlers/agents/get-agent-handler";
 import UpdateAgentHandler "./handlers/agents/update-agent-handler";
 import UnregisterAgentHandler "./handlers/agents/unregister-agent-handler";
-import RegisterMcpToolHandler "./handlers/mcp/register-mcp-tool-handler";
-import UnregisterMcpToolHandler "./handlers/mcp/unregister-mcp-tool-handler";
-import ListMcpToolsHandler "./handlers/mcp/list-mcp-tools-handler";
 import StoreSecretHandler "./handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "./handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
@@ -28,7 +25,6 @@ import DeleteFailedEventsHandler "./handlers/events/delete-failed-events-handler
 import SessionModel "../models/session-model";
 import UpdateSessionPolicyHandler "./handlers/sessions/update-session-policy-handler";
 import AgentModel "../models/agent-model";
-import McpToolRegistry "./mcp-tool-registry";
 import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
 import EventStoreModel "../models/event-store-model";
@@ -125,27 +121,6 @@ module {
             };
           };
           case (null) {};
-        };
-      };
-      case (null) {};
-    };
-
-    // ==========================================
-    // MCP TOOL MANAGEMENT TOOLS - require mcpToolRegistry resource
-    // ==========================================
-    switch (resources.mcpToolRegistry) {
-      case (?mcp) {
-        // Read tools — always available when resource is present
-        List.add(tools, listMcpToolsTool(mcp.state));
-        // Write tools — require write=true AND a resolved user identity
-        if (mcp.write) {
-          switch (resources.userAuthContext) {
-            case (?uac) {
-              List.add(tools, registerMcpToolTool(mcp.state, uac));
-              List.add(tools, unregisterMcpToolTool(mcp.state, uac));
-            };
-            case (null) {};
-          };
         };
       };
       case (null) {};
@@ -441,67 +416,6 @@ module {
       };
       handler = func(args : Text) : async Text {
         await UnregisterAgentHandler.handle(state, uac, args);
-      };
-    };
-  };
-
-  // ============================================
-  // MCP TOOL MANAGEMENT IMPLEMENTATIONS
-  // ============================================
-
-  /// List MCP tools tool — always available when mcpToolRegistry resource is present
-  private func listMcpToolsTool(state : McpToolRegistry.McpToolRegistryState) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "list_mcp_tools";
-          description = ?"Lists all registered MCP tools including their names, descriptions, server IDs, and parameter schemas.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await ListMcpToolsHandler.handle(state, args);
-      };
-    };
-  };
-
-  /// Register MCP tool tool — requires mcpToolRegistry resource with write + user identity
-  private func registerMcpToolTool(
-    state : McpToolRegistry.McpToolRegistryState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "register_mcp_tool";
-          description = ?"Registers a new MCP tool in the registry. The tool will be available for use in agent conversations. Tool names must be unique.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Unique tool name (used as the function name in tool calls)\"},\"description\":{\"type\":\"string\",\"description\":\"What this tool does\"},\"parameters\":{\"type\":\"string\",\"description\":\"JSON schema string for the tool's parameters (optional)\"},\"serverId\":{\"type\":\"string\",\"description\":\"ID of the MCP server that hosts this tool\"},\"remoteName\":{\"type\":\"string\",\"description\":\"Tool name on the remote server if different from the registered name (optional)\"}},\"required\":[\"name\",\"serverId\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await RegisterMcpToolHandler.handle(state, uac, args);
-      };
-    };
-  };
-
-  /// Unregister MCP tool tool — requires mcpToolRegistry resource with write + user identity
-  private func unregisterMcpToolTool(
-    state : McpToolRegistry.McpToolRegistryState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "unregister_mcp_tool";
-          description = ?"Removes an MCP tool from the registry by name. Returns whether the tool was found and removed.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Name of the MCP tool to remove\"}},\"required\":[\"name\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await UnregisterMcpToolHandler.handle(state, uac, args);
       };
     };
   };

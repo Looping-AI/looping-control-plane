@@ -366,7 +366,6 @@ module {
   ) : async ([Types.ProcessingStep], Text, Bool) {
     let result = await AgentRouter.route(
       primaryAgent,
-      ctx.mcpToolRegistry,
       ctx.secrets,
       slackUserId,
       ctx.channelHistory,

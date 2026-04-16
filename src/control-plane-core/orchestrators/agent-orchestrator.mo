@@ -6,7 +6,6 @@ import SecretModel "../models/secret-model";
 import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
 import OrgAdminAgent "../agents/admin/org-admin-agent";
-import McpToolRegistry "../tools/mcp-tool-registry";
 import SessionModel "../models/session-model";
 
 module {
@@ -50,7 +49,6 @@ module {
   // persisting the user message and agent response to the channel history store.
   public func orchestrateAgentTalk(
     agent : AgentModel.AgentRecord,
-    mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     secrets : SecretModel.SecretsState,
     slackUserId : ?Text,
     channelHistory : ChannelHistoryModel.ChannelHistoryStore,
@@ -127,7 +125,6 @@ module {
           case (#_system(#admin(ctx))) {
             await OrgAdminAgent.process(
               agent,
-              mcpToolRegistry,
               channelHistory,
               channelId,
               threadTs,

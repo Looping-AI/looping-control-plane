@@ -10,7 +10,6 @@ import AgentModel "../../models/agent-model";
 import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
 import InstructionComposer "../../instructions/instruction-composer";
 import FunctionToolRegistry "../../tools/function-tool-registry";
-import McpToolRegistry "../../tools/mcp-tool-registry";
 import ToolExecutor "../../tools/tool-executor";
 import ToolTypes "../../tools/tool-types";
 import AgentHelpers "../helpers";
@@ -65,7 +64,6 @@ module {
   /// Tool call / tool response messages are ephemeral and never written to the store.
   public func process(
     agent : AgentModel.AgentRecord,
-    mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     channelHistory : ChannelHistoryModel.ChannelHistoryStore,
     channelId : Text,
     threadTs : ?Text,
@@ -143,10 +141,6 @@ module {
         state = ctx.agentRegistry;
         write = true;
       };
-      mcpToolRegistry = ?{
-        state = mcpToolRegistry;
-        write = true;
-      };
       secrets = ?{
         state = ctx.secrets;
         keyCache = ctx.keyCache;
@@ -164,10 +158,7 @@ module {
 
     // Combine tool definitions from both registries
     let functionToolDefs = FunctionToolRegistry.getAllDefinitions(toolResources);
-    let mcpToolDefs = McpToolRegistry.getAllDefinitions(mcpToolRegistry);
-    let allTools = Array.concat(functionToolDefs, mcpToolDefs);
-
-    let toolsOpt : ?[OpenRouterWrapper.Tool] = if (allTools.size() == 0) null else ?allTools;
+    let toolsOpt : ?[OpenRouterWrapper.Tool] = if (functionToolDefs.size() == 0) null else ?functionToolDefs;
 
     // Assemble LLM context from session memory, turn digests, and channel/thread history.
     // Tool call / tool response artifacts are appended to inputMessages during the
@@ -228,7 +219,7 @@ module {
           List.add(inputMessages, { role = #assistant; content = toolCallContent });
 
           // Execute tool calls
-          let toolResults = await ToolExecutor.execute(toolResources, mcpToolRegistry, calls);
+          let toolResults = await ToolExecutor.execute(toolResources, calls);
 
           // Add individual execution steps and emit traces for each tool
           for (i in Array.keys(toolResults)) {

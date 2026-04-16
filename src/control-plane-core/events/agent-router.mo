@@ -12,7 +12,6 @@ import AgentModel "../models/agent-model";
 import Types "../types";
 import AgentOrchestrator "../orchestrators/agent-orchestrator";
 import SecretModel "../models/secret-model";
-import McpToolRegistry "../tools/mcp-tool-registry";
 import SessionModel "../models/session-model";
 
 module {
@@ -47,7 +46,6 @@ module {
   /// descriptive for easier debugging.
   public func route(
     primaryAgent : AgentModel.AgentRecord,
-    mcpToolRegistry : McpToolRegistry.McpToolRegistryState,
     secrets : SecretModel.SecretsState,
     slackUserId : ?Text,
     channelHistory : ChannelHistoryModel.ChannelHistoryStore,
@@ -132,7 +130,6 @@ module {
     // Forward to the orchestrator with the typed context
     await AgentOrchestrator.orchestrateAgentTalk(
       primaryAgent,
-      mcpToolRegistry,
       secrets,
       slackUserId,
       channelHistory,

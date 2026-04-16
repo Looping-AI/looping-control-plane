@@ -1,5 +1,3 @@
-import Map "mo:core/Map";
-import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import WorkspaceModel "../models/workspace-model";
 import AgentModel "../models/agent-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
@@ -71,13 +69,6 @@ module {
       write : Bool;
     };
 
-    // MCP Tool Registry - if provided, MCP tool management tools are available.
-    // write=true enables register_mcp_tool, unregister_mcp_tool.
-    mcpToolRegistry : ?{
-      state : Map.Map<Text, McpToolRegistration>;
-      write : Bool;
-    };
-
     // Secrets store - if provided, secrets-management tools are available.
     // write=true enables store_secret and delete_secret.
     // store_secret additionally requires the workspaces resource to validate workspace existence.
@@ -100,23 +91,5 @@ module {
       stores : SessionModel.SessionStores;
       write : Bool;
     };
-  };
-
-  // ============================================
-  // MCP Tool Types
-  // ============================================
-
-  /// MCP tool registration - stored in state, runtime configurable
-  public type McpToolRegistration = {
-    definition : OpenRouterWrapper.Tool;
-    serverId : Text; // Reference to MCP server config
-    remoteName : ?Text; // Tool name on server (if different from definition.function.name)
-  };
-
-  /// MCP server configuration
-  public type McpServerConfig = {
-    id : Text;
-    endpoint : Text;
-    // Future: auth config, headers, etc.
   };
 };

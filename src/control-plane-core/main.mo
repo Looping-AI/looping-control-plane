@@ -15,7 +15,6 @@ import SlackUserModel "./models/slack-user-model";
 import WorkspaceModel "./models/workspace-model";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
-import McpToolRegistry "./tools/mcp-tool-registry";
 import Constants "./constants";
 import HttpCertification "./utilities/http-certification";
 import EventStoreModel "./models/event-store-model";
@@ -41,8 +40,6 @@ persistent actor class OpenOrgBackend() {
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   let agentRegistry = AgentModel.defaultState(); // Global agent registry state, pre-seeded with the default workspace-admin agent
-  let mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
-
   // Slack user state (cache: Slack user ID → SlackUserEntry; changeLog: audit trail)
   let slackUsers = SlackUserModel.emptyState();
 
@@ -206,7 +203,6 @@ persistent actor class OpenOrgBackend() {
       secrets;
       keyCache;
       channelHistory = channelHistoryStore;
-      mcpToolRegistry;
       agentRegistry;
       slackUsers;
       workspaces;
