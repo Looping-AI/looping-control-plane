@@ -1,6 +1,24 @@
-import SessionModel "session-model";
-
 module {
+
+  // ── Scope types (authorization) ────────────────────────────────────
+
+  public type ScopeResource = {
+    #workspaces;
+    #agents;
+    #secrets;
+    #eventStore;
+    #sessionPolicy;
+  };
+
+  public type ScopeAccess = {
+    #read;
+    #write; // write implies read
+  };
+
+  public type ScopeGrant = {
+    resource : ScopeResource;
+    access : ScopeAccess;
+  };
 
   // ── Chat message types (engine-agnostic) ───────────────────────────
 
@@ -32,6 +50,7 @@ module {
   // ── Execution Envelope ─────────────────────────────────────────────
 
   public type ExecutionEnvelope = {
+    envelopeId : Text;
     envelopeVersion : Nat;
     requestId : Text;
     agentId : Nat;
@@ -42,12 +61,9 @@ module {
     instructions : Text;
     constraints : ExecutionConstraints;
     secrets : ExecutionSecrets;
+    scopeGrants : [ScopeGrant];
+    tokenNonce : Text;
   };
-
-  // ── Trace (reuse session model types for zero-transform applicator) ─
-
-  public type TraceDetail = SessionModel.TraceDetail;
-  public type TraceEntry = SessionModel.TurnTraceEntry;
 
   // ── Execution Stats ────────────────────────────────────────────────
 
@@ -61,24 +77,42 @@ module {
     rounds : Nat;
   };
 
-  // ── Package Status ─────────────────────────────────────────────────
+  // ── Execution Status ───────────────────────────────────────────────
 
-  public type PackageStatus = {
+  public type ExecutionStatus = {
     #completed;
     #failed : Text;
     #roundLimitReached;
   };
 
-  // ── Execution Package ──────────────────────────────────────────────
+  // ── Execution Result (engine → Core return value) ──────────────────
 
-  public type ExecutionPackage = {
-    packageVersion : Nat;
-    requestId : Text;
-    status : PackageStatus;
-    response : ?Text;
-    trace : [TraceEntry];
+  public type ExecutionResult = {
+    status : ExecutionStatus;
     stats : ExecutionStats;
-    availableWorkflows : [Text];
+  };
+
+  // ── Summarized Step (lightweight per-step detail for events) ───────
+
+  public type SummarizedStep = {
+    tool : Text;
+    summary : Text;
+    success : Bool;
+  };
+
+  // ── Execution Events (engine → Core via execution API) ─────────────
+
+  public type ExecutionEvent = {
+    #executionMilestone : {
+      humanSummary : Text;
+      stepsDetail : [SummarizedStep];
+    };
+    #executionComplete : {
+      humanSummary : Text;
+      stepsDetail : [SummarizedStep];
+      status : ExecutionStatus;
+      stats : ExecutionStats;
+    };
   };
 
 };

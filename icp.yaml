@@ -8,6 +8,9 @@ canisters:
         main: src/control-plane-core/main.mo
         args: ""
 
+# Note: internal-engine is a Motoko actor class compiled into control-plane-core's Wasm.
+# Core spawns it dynamically at runtime as a separate canister instance, so no icp.yaml entry needed.
+
 networks:
   - name: local
     mode: managed

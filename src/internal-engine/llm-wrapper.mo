@@ -6,8 +6,8 @@ import Float "mo:core/Float";
 import List "mo:core/List";
 import Json "mo:json";
 import { str; float; bool; obj; arr } "mo:json";
-import HttpWrapper "../../wrappers/http-wrapper";
-import ExecutionTypes "../../models/execution-types";
+import HttpWrapper "../control-plane-core/wrappers/http-wrapper";
+import ExecutionTypes "../control-plane-core/models/execution-types";
 
 module {
 
@@ -34,6 +34,15 @@ module {
     arguments : Text; // JSON string
   };
 
+  /// A single item in the Responses API `input` array.
+  /// Covers regular messages, echoed function calls from previous
+  /// LLM responses, and tool execution results.
+  public type InputItem = {
+    #message : { role : ExecutionTypes.ChatRole; content : Text };
+    #functionCall : { callId : Text; name : Text; arguments : Text };
+    #functionCallOutput : { callId : Text; output : Text };
+  };
+
   public type ReasonResult = {
     #ok : {
       #textResponse : { content : Text; thinking : ?Text };
@@ -53,6 +62,29 @@ module {
     model : Text;
   };
 
+  // ── Conversion helpers ─────────────────────────────────────────────
+
+  /// Convert initial ChatMessages from the envelope into InputItems.
+  public func chatMessagesToInput(messages : [ExecutionTypes.ChatMessage]) : [InputItem] {
+    Array.map<ExecutionTypes.ChatMessage, InputItem>(messages, func(msg) { #message(msg) });
+  };
+
+  /// Build InputItems for a completed tool round: the echoed function calls
+  /// from the LLM response followed by the execution results.
+  public func toolRoundToInput(calls : [ToolCall], results : [{ callId : Text; output : Text; success : Bool }]) : [InputItem] {
+    let items = List.empty<InputItem>();
+
+    for (call in calls.vals()) {
+      List.add(items, #functionCall({ callId = call.callId; name = call.toolName; arguments = call.arguments }));
+    };
+
+    for (r in results.vals()) {
+      List.add(items, #functionCallOutput({ callId = r.callId; output = r.output }));
+    };
+
+    List.toArray(items);
+  };
+
   // ── Serialization helpers ──────────────────────────────────────────
 
   private func chatRoleToString(role : ExecutionTypes.ChatRole) : Text {
@@ -64,11 +96,30 @@ module {
     };
   };
 
-  private func chatMessageToJson(msg : ExecutionTypes.ChatMessage) : Json.Json {
-    obj([
-      ("role", str(chatRoleToString(msg.role))),
-      ("content", str(msg.content)),
-    ]);
+  private func inputItemToJson(item : InputItem) : Json.Json {
+    switch (item) {
+      case (#message({ role; content })) {
+        obj([
+          ("role", str(chatRoleToString(role))),
+          ("content", str(content)),
+        ]);
+      };
+      case (#functionCall({ callId; name; arguments })) {
+        obj([
+          ("type", str("function_call")),
+          ("call_id", str(callId)),
+          ("name", str(name)),
+          ("arguments", str(arguments)),
+        ]);
+      };
+      case (#functionCallOutput({ callId; output })) {
+        obj([
+          ("type", str("function_call_output")),
+          ("call_id", str(callId)),
+          ("output", str(output)),
+        ]);
+      };
+    };
   };
 
   private func toolToJson(tool : Tool) : Json.Json {
@@ -97,20 +148,17 @@ module {
   };
 
   private func serializeRequest(
-    input : [ExecutionTypes.ChatMessage],
+    input : [InputItem],
     model : Text,
     instructions : ?Text,
     temperature : ?Float,
     tools : ?[Tool],
-    user : ?Text,
   ) : Text {
     let fields = List.empty<(Text, Json.Json)>();
 
-    // Required fields
-    List.add(fields, ("input", arr(Array.map<ExecutionTypes.ChatMessage, Json.Json>(input, chatMessageToJson))));
+    List.add(fields, ("input", arr(Array.map<InputItem, Json.Json>(input, inputItemToJson))));
     List.add(fields, ("model", str(model)));
 
-    // Optional fields
     switch (instructions) {
       case (?inst) { List.add(fields, ("instructions", str(inst))) };
       case (null) {};
@@ -128,12 +176,6 @@ module {
       case (null) {};
     };
 
-    switch (user) {
-      case (?u) { List.add(fields, ("user", str(u))) };
-      case (null) {};
-    };
-
-    // Engine defaults
     List.add(fields, ("store", bool(false)));
     List.add(fields, ("stream", bool(false)));
     List.add(fields, ("reasoning", obj([("effort", str("high")), ("summary", str("auto"))])));
@@ -209,7 +251,6 @@ module {
   };
 
   private func parseOutputArray(outputs : [Json.Json]) : ReasonResult {
-    // First pass: collect function_call outputs (tool calls)
     let toolCallsList = List.empty<ToolCall>();
 
     for (outputJson in outputs.vals()) {
@@ -244,7 +285,6 @@ module {
       return #ok(#toolCalls(toolCallsArray));
     };
 
-    // Second pass: collect thinking from reasoning output
     var thinkingOpt : ?Text = null;
     for (outputJson in outputs.vals()) {
       switch (Json.get(outputJson, "type")) {
@@ -258,7 +298,6 @@ module {
       };
     };
 
-    // Third pass: look for message output with text content
     for (outputJson in outputs.vals()) {
       switch (Json.get(outputJson, "type")) {
         case (?#string("message")) {
@@ -280,23 +319,22 @@ module {
 
   public func reason(
     apiKey : Text,
-    messages : [ExecutionTypes.ChatMessage],
+    input : [InputItem],
     model : Text,
     instructions : ?Text,
     temperature : ?Float,
     tools : ?[Tool],
   ) : async ReasonResponse {
     assert Text.trim(apiKey, #char ' ') != "";
-    assert messages.size() > 0;
+    assert input.size() > 0;
     assert Text.trim(model, #char ' ') != "";
 
     let requestBody = serializeRequest(
-      messages,
+      input,
       model,
       instructions,
       temperature,
       tools,
-      null,
     );
 
     let url = OPENROUTER_API_BASE_URL # "/responses";
