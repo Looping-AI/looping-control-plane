@@ -3,7 +3,7 @@ import { str; obj } "mo:json";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import List "mo:core/List";
-import ToolTypes "../tool-types";
+import ToolTypes "../tools/tool-types";
 
 module {
 

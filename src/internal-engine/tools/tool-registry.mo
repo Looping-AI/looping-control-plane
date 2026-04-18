@@ -1,10 +1,10 @@
 import Array "mo:core/Array";
 import List "mo:core/List";
-import LlmWrapper "./llm-wrapper";
+import LlmWrapper "../wrappers/llm-wrapper";
 import ToolTypes "./tool-types";
-import ExecutionTypes "../control-plane-core/types/execution";
-import WorkspaceHandlers "./handlers/workspace-handlers";
-import AgentHandlers "./handlers/agent-handlers";
+import ExecutionTypes "../execution-types";
+import WorkspaceHandlers "../handlers/workspace-handlers";
+import AgentHandlers "../handlers/agent-handlers";
 
 module {
 

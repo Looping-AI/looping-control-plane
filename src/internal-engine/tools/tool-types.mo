@@ -1,4 +1,4 @@
-import ExecutionTypes "../control-plane-core/types/execution";
+import ExecutionTypes "../execution-types";
 
 module {
 

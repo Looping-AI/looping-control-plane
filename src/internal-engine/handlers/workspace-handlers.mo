@@ -2,7 +2,7 @@ import Json "mo:json";
 import { str; obj } "mo:json";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
-import ToolTypes "../tool-types";
+import ToolTypes "../tools/tool-types";
 
 module {
 

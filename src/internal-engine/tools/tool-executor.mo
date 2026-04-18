@@ -6,9 +6,9 @@ import Json "mo:json";
 import { str } "mo:json";
 import ToolTypes "./tool-types";
 import ToolRegistry "./tool-registry";
-import LlmWrapper "./llm-wrapper";
-import CoreApi "./core-api";
-import ExecutionTypes "../control-plane-core/types/execution";
+import LlmWrapper "../wrappers/llm-wrapper";
+import CoreApi "../wrappers/core-api";
+import ExecutionTypes "../execution-types";
 
 module {
 

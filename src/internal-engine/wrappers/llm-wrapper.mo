@@ -6,8 +6,8 @@ import Float "mo:core/Float";
 import List "mo:core/List";
 import Json "mo:json";
 import { str; float; bool; obj; arr } "mo:json";
-import HttpWrapper "../control-plane-core/wrappers/http-wrapper";
-import ExecutionTypes "../control-plane-core/types/execution";
+import HttpWrapper "./http-wrapper";
+import ExecutionTypes "../execution-types";
 
 module {
 
