@@ -159,6 +159,37 @@ module {
     Map.get(state.workspaces, Nat.compare, workspaceId);
   };
 
+  /// Rename an existing workspace.
+  /// Returns `#err` if the workspace does not exist, the new name is empty,
+  /// or another workspace already has that name.
+  public func renameWorkspace(state : WorkspacesState, workspaceId : Nat, newName : Text) : Result.Result<(), Text> {
+    if (Text.size(newName) == 0) {
+      return #err("Workspace name cannot be empty.");
+    };
+    switch (Map.get(state.workspaces, Nat.compare, workspaceId)) {
+      case (null) { #err("Workspace not found.") };
+      case (?record) {
+        // Reject if another workspace already has this name
+        for ((_, w) in Map.entries(state.workspaces)) {
+          if (w.id != workspaceId and Text.equal(w.name, newName)) {
+            return #err("A workspace named '" # newName # "' already exists.");
+          };
+        };
+        Map.add(
+          state.workspaces,
+          Nat.compare,
+          workspaceId,
+          {
+            id = record.id;
+            name = newName;
+            adminChannelId = record.adminChannelId;
+          },
+        );
+        #ok(());
+      };
+    };
+  };
+
   /// Set the admin channel anchor for a workspace.
   /// The members of this Slack channel will be treated as workspace admins.
   /// Returns `#err` if the workspace does not exist or the channel ID is already

@@ -51,7 +51,7 @@ func registerSimple(state : AgentModel.AgentRegistryState, name : Text, category
       name;
       model = "openai/gpt-oss-120b";
       allowedChannelIds = Set.singleton<Text>("C_TEST");
-      executionEngines = [#api];
+      executionEngines = [#canister];
       secrets = { allowed = []; overrides = [] };
     },
   );
@@ -191,7 +191,7 @@ suite(
             name = "info-bot";
             model = "openai/gpt-o3";
             allowedChannelIds = Set.singleton<Text>("C_TEST");
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = { allowed = []; overrides = [] };
           },
         );
@@ -316,12 +316,12 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentModel.updateById(state, id, null, null, ?[#api, #canister], null, null, null);
+        ignore AgentModel.updateById(state, id, null, null, ?[#canister, #github], null, null, null);
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.bool(r.config.executionEngines == [#api, #canister]).equal(true);
+            expect.bool(r.config.executionEngines == [#canister, #github]).equal(true);
           };
         };
       },
@@ -519,7 +519,7 @@ suite(
             name = "secure-bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = {
               allowed = [(1, #openRouterApiKey), (2, #anthropicApiKey)];
               overrides = [];
@@ -569,7 +569,7 @@ suite(
             name = "bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = { allowed = [(1, #openRouterApiKey)]; overrides = [] };
           },
         );
@@ -620,7 +620,7 @@ suite(
             name = "override-bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.singleton<Text>("C_TEST");
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = {
               allowed = [];
               overrides = [(#openRouterApiKey, "my-custom-key"), (#anthropicApiKey, "another-key")];
@@ -663,7 +663,7 @@ suite(
             name = "bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = {
               allowed = [];
               overrides = [(#openRouterApiKey, "my-key")];
@@ -691,7 +691,7 @@ suite(
             name = "bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = {
               allowed = [];
               overrides = [(#openRouterApiKey, "keep-this")];
@@ -811,7 +811,7 @@ suite(
             name = "org-admin";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.singleton<Text>("C_SHOULD_BE_IGNORED");
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = { allowed = []; overrides = [] };
           },
         );
@@ -836,7 +836,7 @@ suite(
             name = "org-admin";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = { allowed = []; overrides = [] };
           },
         );
@@ -856,7 +856,7 @@ suite(
             name = "planner";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#api];
+            executionEngines = [#canister];
             secrets = { allowed = []; overrides = [] };
           },
         );

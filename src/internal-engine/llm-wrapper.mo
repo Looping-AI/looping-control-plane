@@ -7,7 +7,7 @@ import List "mo:core/List";
 import Json "mo:json";
 import { str; float; bool; obj; arr } "mo:json";
 import HttpWrapper "../control-plane-core/wrappers/http-wrapper";
-import ExecutionTypes "../control-plane-core/models/execution-types";
+import ExecutionTypes "../control-plane-core/types/execution";
 
 module {
 

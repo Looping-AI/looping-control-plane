@@ -1,14 +1,14 @@
 module {
 
-  // ── Scope types (authorization) ────────────────────────────────────
+  // ── HTTP method (Candid-native, no string parsing) ─────────────────
 
-  public type ScopeResource = {
-    #workspaces;
-    #agents;
-    #secrets;
-    #eventStore;
-    #sessionPolicy;
+  public type HttpMethod = {
+    #get;
+    #post;
+    #delete;
   };
+
+  // ── Scope types (authorization) ────────────────────────────────────
 
   public type ScopeAccess = {
     #read;
@@ -16,8 +16,8 @@ module {
   };
 
   public type ScopeGrant = {
-    resource : ScopeResource;
-    access : ScopeAccess;
+    #workspace : { id : ?Nat; access : ScopeAccess };
+    #agent : { id : ?Nat; access : ScopeAccess };
   };
 
   // ── Chat message types (engine-agnostic) ───────────────────────────
@@ -113,6 +113,30 @@ module {
       status : ExecutionStatus;
       stats : ExecutionStats;
     };
+  };
+
+  // ── Async effects (returned by handleRequest for main.mo to schedule) ──
+
+  public type AsyncEffect = {
+    #milestone : {
+      envelopeId : Text;
+      turnId : Text;
+      humanSummary : Text;
+      stepsDetail : [SummarizedStep];
+    };
+    #complete : {
+      envelopeId : Text;
+      turnId : Text;
+      humanSummary : Text;
+      stepsDetail : [SummarizedStep];
+      status : ExecutionStatus;
+      stats : ExecutionStats;
+    };
+  };
+
+  public type HandleResult = {
+    response : { #ok : Text; #err : Text };
+    asyncEffects : [AsyncEffect];
   };
 
 };

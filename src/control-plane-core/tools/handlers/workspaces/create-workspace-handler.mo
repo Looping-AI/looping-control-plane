@@ -86,7 +86,7 @@ module {
                     {
                       name = agentName;
                       model = "openai/gpt-oss-120b";
-                      executionEngines = [#api];
+                      executionEngines = [#canister];
                       allowedChannelIds = Set.singleton<Text>(channelId);
                       secrets = { allowed = []; overrides = [] };
                     },

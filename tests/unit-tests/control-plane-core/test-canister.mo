@@ -1080,7 +1080,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         {
           name = "test-admin";
           model = "openai/gpt-oss-120b";
-          executionEngines = [#api];
+          executionEngines = [#canister];
           allowedChannelIds = Set.empty<Text>();
           secrets = { allowed = []; overrides = [] };
         },

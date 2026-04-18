@@ -28,6 +28,9 @@ import ChannelHistoryPruneRunner "./timers/channel-history-prune-runner";
 import TurnCleanupRunner "./timers/turn-cleanup-runner";
 import SlackEventIntakeService "./services/slack-event-intake-service";
 import SessionModel "./models/session-model";
+import ExecutionTokenService "./services/execution-token-service";
+import ExecutionApiService "./services/execution-api-service";
+import ExecutionTypes "./types/execution";
 
 persistent actor class OpenOrgBackend() {
   // ============================================
@@ -59,6 +62,12 @@ persistent actor class OpenOrgBackend() {
 
   // Agent session stores (sessions, turns, traces)
   let sessionStores = SessionModel.emptyStores();
+
+  // Execution token store (engine ↔ Core authorization)
+  let executionTokenStore = ExecutionTokenService.emptyStore();
+
+  // Internal engine canister principal — set when engine is spawned (Phase 6)
+  var internalEnginePrincipal : ?Principal = null;
 
   // Scheduled timer tracking — transient so it resets on upgrade (matching IC timer wipe).
   // Populated by scheduleAll() during init and postupgrade.
@@ -314,6 +323,62 @@ persistent actor class OpenOrgBackend() {
         },
       )
     );
+  };
+
+  // ============================================
+  // Execution API (engine → Core)
+  // ============================================
+
+  /// Single endpoint for engine-to-Core communication.
+  /// The engine sends method + path + JSON body; path encodes the resource and optional ID.
+  /// Transport-level guard: only the internal engine canister principal may call this.
+  public shared ({ caller }) func executionApi(
+    method : { #get; #post; #delete },
+    path : Text,
+    body : Text,
+  ) : async { #ok : Text; #err : Text } {
+    switch (internalEnginePrincipal) {
+      case (null) {};
+      case (?expected) {
+        if (caller != expected) {
+          return #err("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister");
+        };
+      };
+    };
+    let { response; asyncEffects } = ExecutionApiService.handleRequest(
+      method,
+      path,
+      body,
+      {
+        tokenStore = executionTokenStore;
+        workspaces;
+        agentRegistry;
+      },
+    );
+
+    // Schedule async processing for any async effects produced by the request
+    for (effect in asyncEffects.vals()) {
+      ignore Timer.setTimer<system>(
+        #seconds 0,
+        func() : async () {
+          processExecutionAsyncEffect(effect);
+        },
+      );
+    };
+
+    response;
+  };
+
+  /// Process a single execution async effect (stub — Phase 6 wires real processing).
+  private func processExecutionAsyncEffect(effect : ExecutionTypes.AsyncEffect) {
+    switch (effect) {
+      case (#milestone(m)) {
+        Logger.log(#info, ?"ExecutionAsyncEffect", "milestone for envelope=" # m.envelopeId # " turn=" # m.turnId # ": " # m.humanSummary);
+      };
+      case (#complete(c)) {
+        Logger.log(#info, ?"ExecutionAsyncEffect", "complete for envelope=" # c.envelopeId # " turn=" # c.turnId # ": " # c.humanSummary);
+      };
+    };
   };
 
   // ============================================

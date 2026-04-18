@@ -16,7 +16,6 @@ module {
 
   private func executionEngineToText(e : AgentModel.ExecutionEngine) : Text {
     switch (e) {
-      case (#api) { "api" };
       case (#canister) { "canister" };
       case (#github) { "github" };
     };

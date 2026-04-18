@@ -19,11 +19,9 @@ module {
 
   /// The execution engines an agent is allowed to use.
   /// Stored as an array on AgentConfig so an agent can support multiple modes.
-  ///   #api      — in-canister LLM loop calling OpenRouter
   ///   #canister — external canister called via envelope/package webhook
   ///   #github   — GitHub Actions workflow triggered via webhook; reply delivered back signed
   public type ExecutionEngine = {
-    #api;
     #canister;
     #github;
   };
@@ -493,7 +491,7 @@ module {
       {
         name = "workspace-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#api];
+        executionEngines = [#canister];
         allowedChannelIds = Set.empty<Text>(); // #_system(#admin) agents never use allowedChannelIds
         secrets = {
           allowed = [(0, #openRouterApiKey)];

@@ -57,6 +57,10 @@ module {
   // Turns with `startedAtNs` older than this are hard-deleted by the turn-cleanup timer.
   public let TURN_CLEANUP_RETENTION_NS : Nat = 7_776_000_000_000_000;
 
+  // Execution token time-to-live — 60 minutes in nanoseconds (60 * 60 * 1_000_000_000)
+  // Tokens are issued by Core when spawning an engine run and auto-expire after this window.
+  public let EXECUTION_TOKEN_TTL_NS : Int = 3_600_000_000_000;
+
   // Default session policy — token budgets for context-window management.
   // The admin agent can override these per-agent via the update_session_policy tool.
   public let DEFAULT_SUMMARY_TOKEN_BUDGET : Nat = 32768; // 32k

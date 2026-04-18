@@ -11,12 +11,11 @@ import Types "../../../types";
 
 module {
   /// Parse an [ExecutionEngine] array from a JSON array of strings.
-  /// Accepts "api", "canister", and "github"; returns null on any unknown value.
+  /// Accepts "canister" and "github"; returns null on any unknown value.
   public func parseExecutionEngines(items : [Json.Json]) : ?[AgentModel.ExecutionEngine] {
     let buffer = List.empty<AgentModel.ExecutionEngine>();
     for (item in items.vals()) {
       switch (item) {
-        case (#string("api")) { List.add(buffer, #api) };
         case (#string("canister")) { List.add(buffer, #canister) };
         case (#string("github")) { List.add(buffer, #github) };
         case _ { return null };
