@@ -8,6 +8,7 @@ import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
+import Error "mo:core/Error";
 import Types "./types";
 import AgentModel "./models/agent-model";
 import ChannelHistoryModel "./models/channel-history-model";
@@ -26,11 +27,14 @@ import ProcessedEventsCleanupRunner "./timers/processed-events-cleanup-runner";
 import WeeklyReconciliationRunner "./timers/weekly-reconciliation-runner";
 import ChannelHistoryPruneRunner "./timers/channel-history-prune-runner";
 import TurnCleanupRunner "./timers/turn-cleanup-runner";
+import EngineTopUpRunner "./timers/engine-topup-runner";
 import SlackEventIntakeService "./services/slack-event-intake-service";
 import SessionModel "./models/session-model";
 import ExecutionTokenService "./services/execution-token-service";
 import ExecutionApiService "./services/execution-api-service";
 import ExecutionTypes "./types/execution";
+import SlackWrapper "./wrappers/slack-wrapper";
+import InternalEngine "../internal-engine/main";
 
 persistent actor class OpenOrgBackend() {
   // ============================================
@@ -66,13 +70,61 @@ persistent actor class OpenOrgBackend() {
   // Execution token store (engine ↔ Core authorization)
   let executionTokenStore = ExecutionTokenService.emptyStore();
 
+  // Execution API service (instantiated once with all deps captured in class scope)
+  transient let executionApiService = ExecutionApiService.Service({
+    tokenStore = executionTokenStore;
+    workspaces;
+    agentRegistry;
+    eventStore;
+    sessionStores;
+  });
+
   // Internal engine canister principal — set when engine is spawned (Phase 6)
   var internalEnginePrincipal : ?Principal = null;
+
+  // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
+  var internalEngine : ?InternalEngine.InternalEngine = null;
+
+  // Track last engine top-up for the timer runner
+  var lastEngineTopUpTimestamp : Int = Time.now();
+
+  // Monotonic counter for generating unique envelope IDs
+  var nextEnvelopeId : Nat = 0;
 
   // Scheduled timer tracking — transient so it resets on upgrade (matching IC timer wipe).
   // Populated by scheduleAll() during init and postupgrade.
   // Key = Timer.TimerId (unique), value = entry metadata.
   transient let timerSchedule = Map.empty<Nat, { name : Text; expectedRunNs : Int }>();
+
+  // ============================================
+  // Engine Lifecycle
+  // ============================================
+
+  /// Spawn a new engine canister with initial cycles.
+  private func deployEngine() : async InternalEngine.InternalEngine {
+    await (with cycles = Constants.ENGINE_SPAWN_CYCLES) InternalEngine.InternalEngine();
+  };
+
+  /// Ensure the engine canister exists, spawning it lazily on first need.
+  private func ensureEngine() : async InternalEngine.InternalEngine {
+    switch (internalEngine) {
+      case (?e) { e };
+      case null {
+        let e = await deployEngine();
+        internalEngine := ?e;
+        internalEnginePrincipal := ?Principal.fromActor(e);
+        Logger.log(#info, ?"EngineLifecycle", "Engine canister spawned: " # Principal.toText(Principal.fromActor(e)));
+        e;
+      };
+    };
+  };
+
+  /// Generate a unique envelope ID for engine dispatch.
+  private func generateEnvelopeId() : Text {
+    let id = nextEnvelopeId;
+    nextEnvelopeId += 1;
+    "env_" # Nat.toText(id);
+  };
 
   // ============================================
   // Timer Management
@@ -147,6 +199,15 @@ persistent actor class OpenOrgBackend() {
           };
         };
       },
+      {
+        name = "engine-topup";
+        interval = Constants.SEVEN_DAYS_NS;
+        getLastRun = func() : Int { lastEngineTopUpTimestamp };
+        setLastRun = func(t : Int) { lastEngineTopUpTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          await EngineTopUpRunner.run(internalEnginePrincipal);
+        };
+      },
     ];
   };
 
@@ -217,6 +278,15 @@ persistent actor class OpenOrgBackend() {
       workspaces;
       eventStore;
       sessionStores;
+      executionTokenStore;
+      generateEnvelopeId;
+      dispatchToEngine = func(envelope : ExecutionTypes.ExecutionEnvelope) : async {
+        #ok;
+        #err : Text;
+      } {
+        let e = await ensureEngine();
+        await e.execute(envelope);
+      };
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
@@ -250,6 +320,25 @@ persistent actor class OpenOrgBackend() {
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
     httpCertStore := HttpCertification.initStore();
     certifyHttpEndpoints();
+
+    // Propagate upgrade to engine canister (if spawned).
+    switch (internalEngine) {
+      case (?e) {
+        ignore Timer.setTimer<system>(
+          #seconds 0,
+          func() : async () {
+            try {
+              let upgraded = await (system InternalEngine.InternalEngine)(#upgrade e)();
+              internalEngine := ?upgraded;
+              Logger.log(#info, ?"EngineLifecycle", "Engine canister upgrade propagated");
+            } catch (err) {
+              Logger.log(#error, ?"EngineLifecycle", "Engine upgrade failed: " # Error.message(err));
+            };
+          },
+        );
+      };
+      case null {};
+    };
   };
 
   // ============================================
@@ -345,23 +434,14 @@ persistent actor class OpenOrgBackend() {
         };
       };
     };
-    let { response; asyncEffects } = ExecutionApiService.handleRequest(
-      method,
-      path,
-      body,
-      {
-        tokenStore = executionTokenStore;
-        workspaces;
-        agentRegistry;
-      },
-    );
+    let { response; asyncEffects } = executionApiService.handleRequest(method, path, body);
 
     // Schedule async processing for any async effects produced by the request
     for (effect in asyncEffects.vals()) {
       ignore Timer.setTimer<system>(
         #seconds 0,
         func() : async () {
-          processExecutionAsyncEffect(effect);
+          await processExecutionAsyncEffect(effect);
         },
       );
     };
@@ -369,14 +449,129 @@ persistent actor class OpenOrgBackend() {
     response;
   };
 
-  /// Process a single execution async effect (stub — Phase 6 wires real processing).
-  private func processExecutionAsyncEffect(effect : ExecutionTypes.AsyncEffect) {
+  /// Process a single execution async effect — posts results to Slack and completes turns.
+  private func processExecutionAsyncEffect(effect : ExecutionTypes.AsyncEffect) : async () {
+    let (envelopeId, turnId, humanSummary) = switch (effect) {
+      case (#milestone(m)) { (m.envelopeId, m.turnId, m.humanSummary) };
+      case (#complete(c)) { (c.envelopeId, c.turnId, c.humanSummary) };
+    };
+
+    // Look up the turn to get source context
+    let turn = switch (SessionModel.findTurn(sessionStores, turnId)) {
+      case (?t) { t };
+      case null {
+        Logger.log(#error, ?"ExecutionAsyncEffect", "Turn not found: " # turnId # " (envelope=" # envelopeId # ")");
+        return;
+      };
+    };
+
+    // Look up agent for metadata and workspace context
+    let agent = switch (AgentModel.lookupById(agentRegistry, turn.agentId)) {
+      case (?a) { a };
+      case null {
+        Logger.log(#error, ?"ExecutionAsyncEffect", "Agent not found: " # Nat.toText(turn.agentId));
+        return;
+      };
+    };
+
+    // For non-Slack sources (timer, GitHub, etc.), fall back to the agent's workspace
+    // admin channel so execution is observable rather than silently lost.
+    // ts and threadTs are null since there is no parent message to thread under.
+    let (channelId, ts, threadTs) = switch (turn.sourceRef) {
+      case (?#slack(s)) { (s.channelId, s.ts, s.threadTs) };
+      case (_) {
+        let adminChannel = switch (WorkspaceModel.getWorkspace(workspaces, agent.ownedBy)) {
+          case (?ws) { ws.adminChannelId };
+          case null { null };
+        };
+        switch (adminChannel) {
+          case (?ch) { (ch, "", null) };
+          case null {
+            Logger.log(#error, ?"ExecutionAsyncEffect", "No admin channel for non-Slack turn " # turnId # " — cannot post result");
+            return;
+          };
+        };
+      };
+    };
+
+    // Derive bot token
+    let orgKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let botToken = switch (
+      SecretModel.resolvePlatformSecret(
+        secrets,
+        orgKey,
+        null,
+        #slackBotToken,
+        {
+          slackUserId = null;
+          agentId = null;
+          operation = "async-effect:bot-token";
+        },
+      )
+    ) {
+      case (?t) { t };
+      case null {
+        Logger.log(#error, ?"ExecutionAsyncEffect", "Bot token not available for turn " # turnId);
+        return;
+      };
+    };
+
+    // Build metadata matching the message-handler pattern
+    let metadata : ?Types.AgentMessageMetadata = ?{
+      event_type = "looping_agent_message";
+      event_payload = {
+        parent_agent = agent.config.name;
+        parent_ts = ts;
+        parent_channel = channelId;
+        turn_id = turnId;
+      };
+    };
+
     switch (effect) {
-      case (#milestone(m)) {
-        Logger.log(#info, ?"ExecutionAsyncEffect", "milestone for envelope=" # m.envelopeId # " turn=" # m.turnId # ": " # m.humanSummary);
+      case (#milestone(_m)) {
+        // Post milestone update to Slack thread
+        let milestoneText = humanSummary;
+        switch (await SlackWrapper.postMessage(botToken, channelId, milestoneText, threadTs, metadata)) {
+          case (#ok(_)) {};
+          case (#err(e)) {
+            Logger.log(#error, ?"ExecutionAsyncEffect", "Milestone post failed for turn " # turnId # ": " # e);
+          };
+        };
       };
       case (#complete(c)) {
-        Logger.log(#info, ?"ExecutionAsyncEffect", "complete for envelope=" # c.envelopeId # " turn=" # c.turnId # ": " # c.humanSummary);
+        // Post final response
+        let replyText = humanSummary;
+        switch (await SlackWrapper.postMessage(botToken, channelId, replyText, threadTs, metadata)) {
+          case (#ok({ ts = replyTs; channel = _ })) {
+            SessionModel.appendTrace(
+              sessionStores,
+              turnId,
+              #slackPost({
+                channelId;
+                threadTs;
+                ts = replyTs;
+              }),
+            );
+          };
+          case (#err(e)) {
+            Logger.log(#error, ?"ExecutionAsyncEffect", "Reply post failed for turn " # turnId # ": " # e);
+          };
+        };
+
+        // Map engine execution status to turn status and cost
+        let (turnStatus, errorSummary) = switch (c.status) {
+          case (#completed) { (#succeeded, null) };
+          case (#failed(reason)) { (#failed, ?reason) };
+          case (#roundLimitReached) { (#failed, ?"Round limit reached") };
+        };
+
+        let turnCost : ?SessionModel.TurnCost = ?{
+          promptTokens = c.stats.inputTokens;
+          completionTokens = c.stats.outputTokens;
+          estimatedMicroUnits = 0; // TODO: compute from model pricing
+        };
+
+        SessionModel.completeTurn(sessionStores, turnId, turnStatus, turnCost, errorSummary);
       };
     };
   };

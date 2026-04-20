@@ -1,8 +1,6 @@
 import Json "mo:json";
 import { obj; bool; arr } "mo:json";
 import Array "mo:core/Array";
-import Int "mo:core/Int";
-import Nat "mo:core/Nat";
 import SecretModel "../../../models/secret-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Types "../../../types";
@@ -11,51 +9,32 @@ import Helpers "../handler-helpers";
 module {
   /// List the secret identifiers stored for a workspace (values are never returned).
   ///
-  /// JSON args: { workspaceId: number }
+  /// `workspaceId` is caller-provided (not from JSON args) to enforce workspace
+  /// scoping — the LLM cannot target a different workspace.
   ///
   /// Authorization: requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
   public func handle(
     secrets : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
-    args : Text,
+    workspaceId : Nat,
+    _args : Text,
   ) : async Text {
-    switch (Json.parse(args)) {
-      case (#err(error)) {
-        Helpers.buildErrorResponse("Failed to parse arguments: " # debug_show error);
+    switch (SlackAuthMiddleware.authorize(uac, [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(workspaceId)])) {
+      case (#err(msg)) {
+        Helpers.buildErrorResponse("Unauthorized: " # msg);
       };
-      case (#ok(json)) {
-        let wsIdOpt : ?Nat = switch (Json.get(json, "workspaceId")) {
-          case (?#number(#int n)) {
-            if (n >= 0) { ?Int.abs(n) } else { null };
-          };
-          case _ { null };
-        };
-
-        switch (wsIdOpt) {
-          case (null) {
-            Helpers.buildErrorResponse("Missing required field: workspaceId");
-          };
-          case (?wsId) {
-            switch (SlackAuthMiddleware.authorize(uac, [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)])) {
-              case (#err(msg)) {
-                Helpers.buildErrorResponse("Unauthorized: " # msg);
-              };
-              case (#ok(())) {
-                switch (SecretModel.getWorkspaceSecrets(secrets, wsId)) {
-                  case (#err(msg)) { Helpers.buildErrorResponse(msg) };
-                  case (#ok(secretIds)) {
-                    let idStrings = secretIdArrayToJson(secretIds);
-                    Json.stringify(
-                      obj([
-                        ("success", bool(true)),
-                        ("secretIds", arr(idStrings)),
-                      ]),
-                      null,
-                    );
-                  };
-                };
-              };
-            };
+      case (#ok(())) {
+        switch (SecretModel.getWorkspaceSecrets(secrets, workspaceId)) {
+          case (#err(msg)) { Helpers.buildErrorResponse(msg) };
+          case (#ok(secretIds)) {
+            let idStrings = secretIdArrayToJson(secretIds);
+            Json.stringify(
+              obj([
+                ("success", bool(true)),
+                ("secretIds", arr(idStrings)),
+              ]),
+              null,
+            );
           };
         };
       };

@@ -30,16 +30,9 @@ module {
     };
   };
 
-  /// Set the admin channel for a workspace. → POST /workspace/{id}
-  /// NOTE: Simplified — forwards channelId in body. Core route currently
-  /// only supports name updates; this will be extended in a follow-up.
+  /// Set the admin channel for the token's workspace. → POST /workspace/admin-channel
   public func setWorkspaceAdminChannel(callCore : CallCore, args : Text) : async Text {
-    switch (parseNatField(args, "workspaceId")) {
-      case (#err(e)) { errorJson(e) };
-      case (#ok(id)) {
-        handleResult(await callCore(#post, "/workspace/" # Nat.toText(id), args));
-      };
-    };
+    handleResult(await callCore(#post, "/workspace/admin-channel", args));
   };
 
   // ── Helpers ────────────────────────────────────────────────────────

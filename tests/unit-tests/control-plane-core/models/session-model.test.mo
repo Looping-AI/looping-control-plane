@@ -119,6 +119,7 @@ suite(
         let src : SessionModel.SourceRef = #slack({
           channelId = "C1";
           ts = "123.456";
+          threadTs = null;
         });
         let turn = SessionModel.createTurn(stores, 1, ?src, ?"0_5", null);
         expect.bool(turn.sourceRef == ?src).isTrue();

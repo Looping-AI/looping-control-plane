@@ -464,6 +464,12 @@ module {
     null;
   };
 
+  /// Returns true if the agent is the org-level admin:
+  /// category #_system(#admin) AND owned by workspace 0.
+  public func isOrgAdmin(agent : AgentRecord) : Bool {
+    agent.category == #_system(#admin) and agent.ownedBy == 0;
+  };
+
   /// Count all registered agents with the given category.
   public func countByCategory(state : AgentRegistryState, category : AgentCategory) : Nat {
     var count = 0;

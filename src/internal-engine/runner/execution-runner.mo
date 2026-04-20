@@ -274,7 +274,7 @@ module {
       null,
     );
     try {
-      await core.executionApi(#post, "/event/complete", body);
+      await core.executionApi(#post, "/execution/complete", body);
     } catch (e : Error) {
       #err("Failed to emit complete: " # Error.message(e));
     };
@@ -295,7 +295,7 @@ module {
       null,
     );
     try {
-      await core.executionApi(#post, "/event/milestone", body);
+      await core.executionApi(#post, "/execution/milestone", body);
     } catch (e : Error) {
       #err("Failed to emit milestone: " # Error.message(e));
     };

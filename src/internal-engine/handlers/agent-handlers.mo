@@ -45,6 +45,16 @@ module {
     };
   };
 
+  /// Unregister (delete) an agent by ID. → DELETE /agent/{id}
+  public func unregisterAgent(callCore : CallCore, args : Text) : async Text {
+    switch (parseNatField(args, "id")) {
+      case (#err(e)) { errorJson(e) };
+      case (#ok(id)) {
+        handleResult(await callCore(#delete, "/agent/" # Nat.toText(id), "{}"));
+      };
+    };
+  };
+
   // ── Helpers ────────────────────────────────────────────────────────
 
   private func handleResult(result : { #ok : Text; #err : Text }) : Text {

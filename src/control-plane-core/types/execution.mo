@@ -16,8 +16,22 @@ module {
   };
 
   public type ScopeGrant = {
-    #workspace : { id : ?Nat; access : ScopeAccess };
-    #agent : { id : ?Nat; access : ScopeAccess };
+    #workspace : { access : ScopeAccess };
+    #agents : { access : ScopeAccess }; // collection-level agent access (list/create/update/delete)
+    #agent : { id : Nat; access : ScopeAccess }; // per-agent self-read for non-admin agents
+    #slackQueue : { access : ScopeAccess }; // Slack incoming-event queue management (org admin only)
+    #session : { access : ScopeAccess };
+  };
+
+  // ── Operation permits (pre-validated sensitive operations) ──────────
+
+  /// Pre-validated authorization for sensitive operations.
+  /// Validated at Core dispatch time (user confirmation, Slack API checks),
+  /// then stored in TokenRecord + ExecutionEnvelope.
+  /// Checked at engine tool level AND execution API level (defense-in-depth).
+  public type OperationPermit = {
+    #deleteWorkspace : { workspaceId : Nat };
+    #setAdminChannel : { channelId : Text };
   };
 
   // ── Chat message types (engine-agnostic) ───────────────────────────
@@ -62,6 +76,7 @@ module {
     constraints : ExecutionConstraints;
     secrets : ExecutionSecrets;
     scopeGrants : [ScopeGrant];
+    permits : [OperationPermit];
     tokenNonce : Text;
   };
 

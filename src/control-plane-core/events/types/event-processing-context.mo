@@ -18,6 +18,8 @@ import SlackUserModel "../../models/slack-user-model";
 import WorkspaceModel "../../models/workspace-model";
 import EventStoreModel "../../models/event-store-model";
 import SessionModel "../../models/session-model";
+import ExecutionTokenService "../../services/execution-token-service";
+import ExecutionTypes "../../types/execution";
 
 module {
 
@@ -48,5 +50,21 @@ module {
     eventStore : EventStoreModel.EventStoreState;
     /// Agent session stores (sessions, turns, traces)
     sessionStores : SessionModel.SessionStores;
+
+    // ── Engine dispatch ────────────────────────────────────────────────
+
+    /// Execution token store — for issuing tokens when dispatching to the engine
+    executionTokenStore : ExecutionTokenService.TokenStore;
+
+    /// Generate a unique envelope ID for engine dispatch
+    generateEnvelopeId : () -> Text;
+
+    /// Dispatch an envelope to the internal engine canister.
+    /// Returns #ok on successful fire-and-forget dispatch, #err on failure.
+    /// Handles engine spawning (ensureEngine) internally.
+    dispatchToEngine : (ExecutionTypes.ExecutionEnvelope) -> async {
+      #ok;
+      #err : Text;
+    };
   };
 };

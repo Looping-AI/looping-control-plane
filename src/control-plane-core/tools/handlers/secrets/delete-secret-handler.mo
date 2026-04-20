@@ -1,7 +1,5 @@
 import Json "mo:json";
 import { str; obj; bool } "mo:json";
-import Int "mo:core/Int";
-import Nat "mo:core/Nat";
 import SecretModel "../../../models/secret-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
@@ -10,7 +8,10 @@ import SecretParsers "../parsers/secret-parsers";
 module {
   /// Delete a specific secret from a workspace.
   ///
-  /// JSON args: { workspaceId: number, secretId: string }
+  /// `workspaceId` is caller-provided (not from JSON args) to enforce workspace
+  /// scoping — the LLM cannot target a different workspace.
+  ///
+  /// JSON args: { secretId: string }
   ///
   /// Authorization:
   ///   - Slack secrets (slackBotToken, slackSigningSecret): requires #IsPrimaryOwner or #IsOrgAdmin
@@ -18,6 +19,7 @@ module {
   public func handle(
     secrets : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
+    workspaceId : Nat,
     args : Text,
   ) : async Text {
     switch (Json.parse(args)) {
@@ -25,31 +27,25 @@ module {
         Helpers.buildErrorResponse("Failed to parse arguments: " # debug_show error);
       };
       case (#ok(json)) {
-        let wsIdOpt : ?Nat = switch (Json.get(json, "workspaceId")) {
-          case (?#number(#int n)) {
-            if (n >= 0) { ?Int.abs(n) } else { null };
-          };
-          case _ { null };
-        };
         let secretIdOpt = switch (Json.get(json, "secretId")) {
           case (?#string(s)) { SecretParsers.parseSecretId(s) };
           case _ { null };
         };
 
-        switch (wsIdOpt, secretIdOpt) {
-          case (?wsId, ?secretId) {
+        switch (secretIdOpt) {
+          case (?secretId) {
             // Auth: Platform secrets require org-level; LLM keys allow workspace admin
             let requiredRoles : [SlackAuthMiddleware.AuthStep] = if (SecretModel.isPlatformSecret(secretId)) {
               [#IsPrimaryOwner, #IsOrgAdmin];
             } else {
-              [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(wsId)];
+              [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(workspaceId)];
             };
             switch (SlackAuthMiddleware.authorize(uac, requiredRoles)) {
               case (#err(msg)) {
                 Helpers.buildErrorResponse("Unauthorized: " # msg);
               };
               case (#ok(())) {
-                switch (SecretModel.deleteSecret(secrets, wsId, secretId, { slackUserId = ?uac.slackUserId; agentId = null; operation = "delete-secret" })) {
+                switch (SecretModel.deleteSecret(secrets, workspaceId, secretId, { slackUserId = ?uac.slackUserId; agentId = null; operation = "delete-secret" })) {
                   case (#err(msg)) { Helpers.buildErrorResponse(msg) };
                   case (#ok(())) {
                     Json.stringify(
@@ -64,10 +60,7 @@ module {
               };
             };
           };
-          case (null, _) {
-            Helpers.buildErrorResponse("Missing required field: workspaceId");
-          };
-          case (_, _) {
+          case (_) {
             Helpers.buildErrorResponse("Invalid secretId. Must be one of: openRouterApiKey, slackSigningSecret, slackBotToken");
           };
         };

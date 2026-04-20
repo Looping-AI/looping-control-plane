@@ -46,12 +46,13 @@ module {
 
   public type TurnStatus = {
     #running;
+    #pending;
     #succeeded;
     #failed;
   };
 
   public type SourceRef = {
-    #slack : { channelId : Text; ts : Text };
+    #slack : { channelId : Text; ts : Text; threadTs : ?Text };
     #github : { runId : Text; workflowId : Text };
     #timer : { timerLabel : Text };
   };
@@ -214,9 +215,20 @@ module {
     turn;
   };
 
+  /// Mark a turn as pending (dispatched to engine, awaiting completion).
+  public func markPending(
+    stores : SessionStores,
+    turnId : Text,
+  ) : () {
+    switch (findTurn(stores, turnId)) {
+      case (null) {};
+      case (?turn) { turn.status := #pending };
+    };
+  };
+
   /// Finalize a turn with terminal status, cost, and optional error summary.
-  /// The status must be terminal (#succeeded or #failed), never #running.
-  /// Traps if status is #running (developer error).
+  /// The status must be terminal (#succeeded or #failed), never #running or #pending.
+  /// Traps if status is non-terminal (developer error).
   public func completeTurn(
     stores : SessionStores,
     turnId : Text,
@@ -224,7 +236,7 @@ module {
     cost : ?TurnCost,
     errorSummary : ?Text,
   ) : () {
-    assert status != #running;
+    assert status == #succeeded or status == #failed;
     switch (findTurn(stores, turnId)) {
       case (null) {};
       case (?turn) {

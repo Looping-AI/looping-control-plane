@@ -13,37 +13,27 @@ import Types "../types";
 import AgentOrchestrator "../orchestrators/agent-orchestrator";
 import SecretModel "../models/secret-model";
 import SessionModel "../models/session-model";
+import SlackAuthMiddleware "../middleware/slack-auth-middleware";
+import KeyDerivationService "../services/key-derivation-service";
 
 module {
 
   // ─── Context type aliases ─────────────────────────────────────────────────────
-  //
-  // Defined in AgentOrchestrator; re-exported here so callers only need one import.
-
-  /// Context for the org-admin agent (workspace lifecycle + channel anchors).
-  public type AdminAgentCtx = AgentOrchestrator.AdminAgentCtx;
 
   /// Per-category context union — callers construct the right variant based on
   /// `primaryAgent.category` and pass it to `route()`.
   public type AgentCtx = AgentOrchestrator.AgentCtx;
 
+  /// Engine dispatch dependencies — threaded from EventProcessingContext.
+  public type EngineDeps = AgentOrchestrator.EngineDeps;
+
   // ─── Result type ─────────────────────────────────────────────────────────────
 
   /// Shared result type returned by `route()`.
-  public type RouteResult = {
-    #ok : { response : Text; steps : [Types.ProcessingStep] };
-    #err : { message : Text; steps : [Types.ProcessingStep] };
-  };
+  public type RouteResult = AgentOrchestrator.OrchestrateResult;
 
   // ─── Dispatch ────────────────────────────────────────────────────────────────
 
-  /// Validate the `(agent.category, agentCtx)` pairing and dispatch to the
-  /// orchestrator.
-  ///
-  /// Returns `#err` if the category tag in `agentCtx` does not match
-  /// `primaryAgent.category` — this is an internal invariant violation and
-  /// should never happen in production; the error message is intentionally
-  /// descriptive for easier debugging.
   public func route(
     primaryAgent : AgentModel.AgentRecord,
     secrets : SecretModel.SecretsState,
@@ -57,6 +47,11 @@ module {
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
     agentAdminChannelId : ?Text,
+    engineDeps : EngineDeps,
+    triggerMessageText : ?Text,
+    botToken : ?Text,
+    userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
+    keyCache : KeyDerivationService.KeyCache,
   ) : async RouteResult {
     // Channel guard — split by category:
     // - #admin agents: routing is governed by the agent's workspace's adminChannelId
@@ -109,7 +104,7 @@ module {
 
     // Validate that the ctx variant matches the agent's declared category.
     let ctxMatchesCategory : Bool = switch (primaryAgent.category, agentCtx) {
-      case (#_system(#admin), #_system(#admin(_))) { true };
+      case (#_system(#admin), #_system(#admin)) { true };
       case (#_system(#onboarding), #_system(#onboarding)) { true };
       case (#custom, #custom) { true };
       case _ { false };
@@ -140,6 +135,11 @@ module {
       orgKey,
       turnId,
       sessionStores,
+      engineDeps,
+      triggerMessageText,
+      botToken,
+      userAuthContext,
+      keyCache,
     );
   };
 };

@@ -14,7 +14,9 @@ module {
     nonce : Text;
     envelopeId : Text;
     turnId : Text;
+    workspaceId : Nat;
     grants : [ExecutionTypes.ScopeGrant];
+    permits : [ExecutionTypes.OperationPermit];
     createdAtNs : Int;
     expiresAtNs : Int;
     var revoked : Bool;
@@ -40,7 +42,9 @@ module {
     store : TokenStore,
     envelopeId : Text,
     turnId : Text,
+    workspaceId : Nat,
     grants : [ExecutionTypes.ScopeGrant],
+    permits : [ExecutionTypes.OperationPermit],
   ) : Text {
     cleanup(store);
 
@@ -52,7 +56,9 @@ module {
       nonce;
       envelopeId;
       turnId;
+      workspaceId;
       grants;
+      permits;
       createdAtNs = now;
       expiresAtNs = now + Constants.EXECUTION_TOKEN_TTL_NS;
       var revoked = false;
@@ -126,11 +132,16 @@ module {
     for (grant in grants.vals()) {
       let matched = switch (grant, required) {
         case (#workspace(g), #workspace(r)) {
-          g.id == r.id and coversAccess(g.access, r.access);
+          coversAccess(g.access, r.access);
         };
+        case (#agents(g), #agents(r)) { coversAccess(g.access, r.access) };
         case (#agent(g), #agent(r)) {
           g.id == r.id and coversAccess(g.access, r.access);
         };
+        case (#slackQueue(g), #slackQueue(r)) {
+          coversAccess(g.access, r.access);
+        };
+        case (#session(g), #session(r)) { coversAccess(g.access, r.access) };
         case (_, _) { false };
       };
       if (matched) { return true };
@@ -146,6 +157,39 @@ module {
       case (#read) { true }; // any access level covers read
       case (#write) { held == #write };
     };
+  };
+
+  // ── Permit checking ────────────────────────────────────────────────
+
+  /// Check if the token identified by `nonce` carries a matching OperationPermit.
+  public func hasPermit(
+    store : TokenStore,
+    nonce : Text,
+    required : ExecutionTypes.OperationPermit,
+  ) : Bool {
+    switch (getRecord(store, nonce)) {
+      case (null) { false };
+      case (?record) { permitMatches(record.permits, required) };
+    };
+  };
+
+  private func permitMatches(
+    permits : [ExecutionTypes.OperationPermit],
+    required : ExecutionTypes.OperationPermit,
+  ) : Bool {
+    for (permit in permits.vals()) {
+      let matched = switch (permit, required) {
+        case (#deleteWorkspace(p), #deleteWorkspace(r)) {
+          p.workspaceId == r.workspaceId;
+        };
+        case (#setAdminChannel(p), #setAdminChannel(r)) {
+          p.channelId == r.channelId;
+        };
+        case (_, _) { false };
+      };
+      if (matched) { return true };
+    };
+    false;
   };
 
 };

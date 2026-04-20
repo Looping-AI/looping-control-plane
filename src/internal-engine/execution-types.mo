@@ -8,6 +8,7 @@ module {
   public type HttpMethod = E.HttpMethod;
   public type ScopeAccess = E.ScopeAccess;
   public type ScopeGrant = E.ScopeGrant;
+  public type OperationPermit = E.OperationPermit;
   public type ChatRole = E.ChatRole;
   public type ChatMessage = E.ChatMessage;
   public type ExecutionConstraints = E.ExecutionConstraints;

@@ -5,6 +5,8 @@ import ToolTypes "./tool-types";
 import ExecutionTypes "../execution-types";
 import WorkspaceHandlers "../handlers/workspace-handlers";
 import AgentHandlers "../handlers/agent-handlers";
+import SlackQueueHandlers "../handlers/slack-queue-handlers";
+import SessionHandlers "../handlers/session-handlers";
 
 module {
 
@@ -59,26 +61,36 @@ module {
   ) : [FunctionTool] {
     let tools = List.empty<FunctionTool>();
 
-    // Echo — always available
-    List.add(tools, echoTool());
-
     // Workspace tools — require workspace scope
     if (hasScope(grants, "workspace", #read)) {
       List.add(tools, listWorkspacesTool());
       if (hasScope(grants, "workspace", #write)) {
         List.add(tools, createWorkspaceTool());
         List.add(tools, deleteWorkspaceTool());
+        List.add(tools, setAdminChannelTool());
       };
     };
 
-    // Agent tools — require agent scope
-    if (hasScope(grants, "agent", #read)) {
+    // Agent tools — require workspace scope (agents are owned by workspaces)
+    if (hasScope(grants, "workspace", #read)) {
       List.add(tools, listAgentsTool());
       List.add(tools, getAgentTool());
-      if (hasScope(grants, "agent", #write)) {
+      if (hasScope(grants, "workspace", #write)) {
         List.add(tools, registerAgentTool());
         List.add(tools, updateAgentTool());
+        List.add(tools, unregisterAgentTool());
       };
+    };
+
+    // Slack queue tools — require slackQueue scope
+    if (hasScope(grants, "slackQueue", #read)) {
+      List.add(tools, getSlackQueueStatsTool());
+      List.add(tools, getFailedSlackQueueEventsTool());
+    };
+
+    // Session tools — require session scope
+    if (hasScope(grants, "session", #write)) {
+      List.add(tools, updateSessionPolicyTool());
     };
 
     List.toArray(tools);
@@ -100,6 +112,12 @@ module {
             accessSatisfies(w.access, minAccess);
           };
           case (#agent(a), "agent") { accessSatisfies(a.access, minAccess) };
+          case (#slackQueue(s), "slackQueue") {
+            accessSatisfies(s.access, minAccess);
+          };
+          case (#session(s), "session") {
+            accessSatisfies(s.access, minAccess);
+          };
           case _ { false };
         };
       },
@@ -125,22 +143,6 @@ module {
 
   // ── Tool definitions ───────────────────────────────────────────────
 
-  private func echoTool() : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function_ = {
-          name = "echo";
-          description = ?"Echoes back the input message. Useful for testing.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}";
-        };
-      };
-      handler = func(_callCore : ToolTypes.CallCore, args : Text) : async Text {
-        args;
-      };
-    };
-  };
-
   // ── Workspace tool definitions ─────────────────────────────────────
 
   private func listWorkspacesTool() : FunctionTool {
@@ -148,8 +150,8 @@ module {
       definition = {
         tool_type = "function";
         function_ = {
-          name = "list_workspaces";
-          description = ?"Lists all workspace records including their IDs, names, and Slack admin channel anchors. Workspace 0 is the org workspace; its admin channel is also the org-admin channel.";
+          name = "get_workspace";
+          description = ?"Returns the current workspace record including its ID, name, and Slack admin channel anchor.";
           parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
         };
       };
@@ -221,8 +223,8 @@ module {
         tool_type = "function";
         function_ = {
           name = "register_agent";
-          description = ?"Registers a new custom agent. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'workspace-helper').\"},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b).\"},\"workspaceId\":{\"type\":\"number\",\"description\":\"Workspace that will own the agent.\"},\"allowedChannelIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"description\":\"Slack channel IDs where this agent is permitted to run.\"}},\"required\":[\"name\",\"model\",\"workspaceId\",\"allowedChannelIds\"]}";
+          description = ?"Registers a new custom agent in the current workspace. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'workspace-helper').\"},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b).\"},\"allowedChannelIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"description\":\"Slack channel IDs where this agent is permitted to run.\"}},\"required\":[\"name\",\"model\",\"allowedChannelIds\"]}";
         };
       };
       handler = AgentHandlers.registerAgent;
@@ -240,6 +242,82 @@ module {
         };
       };
       handler = AgentHandlers.updateAgent;
+    };
+  };
+
+  private func unregisterAgentTool() : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function_ = {
+          name = "unregister_agent";
+          description = ?"Permanently removes an agent by ID. The agent must belong to the current workspace.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to unregister.\"}},\"required\":[\"id\"]}";
+        };
+      };
+      handler = AgentHandlers.unregisterAgent;
+    };
+  };
+
+  // ── Workspace admin channel tool ───────────────────────────────────
+
+  private func setAdminChannelTool() : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function_ = {
+          name = "set_admin_channel";
+          description = ?"Sets the Slack admin channel for the current workspace. Requires a pre-validated #setAdminChannel permit. The channelId must be a valid Slack channel ID (e.g. C012345).";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID to set as the admin channel.\"}},\"required\":[\"channelId\"]}";
+        };
+      };
+      handler = WorkspaceHandlers.setWorkspaceAdminChannel;
+    };
+  };
+
+  // ── Slack queue tool definitions ─────────────────────────────────────────────
+
+  private func getSlackQueueStatsTool() : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function_ = {
+          name = "get_slack_queue_stats";
+          description = ?"Returns Slack queue statistics: counts of unprocessed, processed, and failed events.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = SlackQueueHandlers.getSlackQueueStats;
+    };
+  };
+
+  private func getFailedSlackQueueEventsTool() : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function_ = {
+          name = "get_failed_slack_queue_events";
+          description = ?"Lists all failed Slack queue events with their event IDs and error messages.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
+        };
+      };
+      handler = SlackQueueHandlers.getFailedSlackQueueEvents;
+    };
+  };
+
+  // ── Session tool definitions ───────────────────────────────────────
+
+  private func updateSessionPolicyTool() : FunctionTool {
+    {
+      definition = {
+        tool_type = "function";
+        function_ = {
+          name = "update_session_policy";
+          description = ?"Updates the session context policy for an agent. Controls how much conversation history is kept and summarized.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"agentId\":{\"type\":\"number\",\"description\":\"ID of the agent whose session policy to update.\"},\"summaryTokenBudget\":{\"type\":\"number\",\"description\":\"Maximum tokens for conversation summary.\"},\"maxTruncatedTokens\":{\"type\":\"number\",\"description\":\"Maximum tokens for truncated recent messages.\"}},\"required\":[\"agentId\",\"summaryTokenBudget\",\"maxTruncatedTokens\"]}";
+        };
+      };
+      handler = SessionHandlers.updateSessionPolicy;
     };
   };
 };

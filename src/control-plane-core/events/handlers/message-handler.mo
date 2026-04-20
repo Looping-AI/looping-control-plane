@@ -349,9 +349,9 @@ module {
     };
   };
 
-  /// Dispatch to AgentRouter and unpack the result into (llmSteps, replyText, isError).
-  /// Agent errors are surfaced as reply text prefixed with "[Agent error]" so they
-  /// always get posted to Slack — the user is never left without a visible response.
+  /// Dispatch to AgentRouter and unpack the result.
+  /// Returns OrchestrateResult directly — the caller decides what to do based
+  /// on #dispatched / #ok / #err.
   func dispatchToAgentRouter(
     primaryAgent : AgentModel.AgentRecord,
     ctx : EventProcessingContextTypes.EventProcessingContext,
@@ -363,8 +363,16 @@ module {
     orgKey : [Nat8],
     turnId : Text,
     agentAdminChannelId : ?Text,
-  ) : async ([Types.ProcessingStep], Text, Bool) {
-    let result = await AgentRouter.route(
+    triggerMessageText : ?Text,
+    botToken : ?Text,
+    userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
+  ) : async AgentRouter.RouteResult {
+    let engineDeps : AgentRouter.EngineDeps = {
+      executionTokenStore = ctx.executionTokenStore;
+      generateEnvelopeId = ctx.generateEnvelopeId;
+      dispatchToEngine = ctx.dispatchToEngine;
+    };
+    await AgentRouter.route(
       primaryAgent,
       ctx.secrets,
       slackUserId,
@@ -377,13 +385,12 @@ module {
       turnId,
       ctx.sessionStores,
       agentAdminChannelId,
+      engineDeps,
+      triggerMessageText,
+      botToken,
+      userAuthContext,
+      ctx.keyCache,
     );
-    switch (result) {
-      case (#err({ message; steps })) {
-        (steps, "[Agent error] " # message, true);
-      };
-      case (#ok({ response; steps })) { (steps, response, false) };
-    };
   };
 
   /// Post the agent reply to Slack and assemble the final HandlerResult.
@@ -486,6 +493,7 @@ module {
     let sourceRef : ?SessionModel.SourceRef = ?#slack({
       channelId = msg.channel;
       ts = msg.ts;
+      threadTs = msg.threadTs;
     });
     let turn = SessionModel.createTurn(
       ctx.sessionStores,
@@ -518,16 +526,14 @@ module {
       case (?token) { token };
     };
 
-    // Build the per-category context variant — passes only the data each agent needs.
+    // Build the per-category context variant — just a tag, no payload.
     let agentCtx : AgentRouter.AgentCtx = switch (primaryAgent.category) {
-      case (#_system(#admin)) {
-        #_system(#admin({ workspaces = ctx.workspaces; agentRegistry = ctx.agentRegistry; userAuthContext = activeCtxOpt; secrets = ctx.secrets; keyCache = ctx.keyCache; eventStore = ctx.eventStore }));
-      };
+      case (#_system(#admin)) { #_system(#admin) };
       case (#_system(#onboarding)) { #_system(#onboarding) };
       case (#custom) { #custom };
     };
 
-    let (llmSteps, replyText, isAgentError) = await dispatchToAgentRouter(
+    let routeResult = await dispatchToAgentRouter(
       primaryAgent,
       ctx,
       slackUserId,
@@ -538,24 +544,37 @@ module {
       orgKey,
       turnId,
       agentAdminChannelId,
+      ?msg.text,
+      ?botToken,
+      activeCtxOpt,
     );
 
-    // ── Post reply to Slack ───────────────────────────────────────────────────
-    // Always post: both successful LLM content and surfaced agent errors.
-    let (result, slackOk) = await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps, turnId, ctx.sessionStores);
-
-    // Finalize the turn with aggregated cost.
-    // A failed Slack post means the user never received a reply — mark #failed
-    // even when the LLM step itself succeeded.
-    let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
-    if (isAgentError) {
-      SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?replyText);
-    } else if (not slackOk) {
-      SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?"Slack post failed");
-    } else {
-      SessionModel.completeTurn(ctx.sessionStores, turnId, #succeeded, cost, null);
+    switch (routeResult) {
+      case (#dispatched({ steps })) {
+        // Engine accepted the envelope — mark turn pending.
+        // Response will arrive async via processExecutionAsyncEffect.
+        SessionModel.markPending(ctx.sessionStores, turnId);
+        #ok(steps);
+      };
+      case (#ok({ response; steps })) {
+        // Synchronous response (future non-engine agents)
+        let (result, slackOk) = await postAgentReply(botToken, msg, response, primaryAgent, steps, turnId, ctx.sessionStores);
+        let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
+        if (not slackOk) {
+          SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?"Slack post failed");
+        } else {
+          SessionModel.completeTurn(ctx.sessionStores, turnId, #succeeded, cost, null);
+        };
+        result;
+      };
+      case (#err({ message; steps })) {
+        // Dispatch failure — post error to Slack so user sees something
+        let errorText = "[Agent error] " # message;
+        let (result, _slackOk) = await postAgentReply(botToken, msg, errorText, primaryAgent, steps, turnId, ctx.sessionStores);
+        let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
+        SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?message);
+        result;
+      };
     };
-
-    result;
   };
 };

@@ -71,7 +71,7 @@ module {
 
     // Secrets store - if provided, secrets-management tools are available.
     // write=true enables store_secret and delete_secret.
-    // store_secret additionally requires the workspaces resource to validate workspace existence.
+    // All secrets tools also require workspaceId and userAuthContext.
     secrets : ?{
       state : SecretModel.SecretsState;
       keyCache : KeyDerivationService.KeyCache;

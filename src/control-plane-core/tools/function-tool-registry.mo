@@ -4,8 +4,8 @@ import Nat "mo:core/Nat";
 import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
 import Constants "../constants";
-import WorkspaceModel "../models/workspace-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
+import WorkspaceModel "../models/workspace-model";
 import ListWorkspacesHandler "./handlers/workspaces/list-workspaces-handler";
 import CreateWorkspaceHandler "./handlers/workspaces/create-workspace-handler";
 import DeleteWorkspaceHandler "./handlers/workspaces/delete-workspace-handler";
@@ -127,22 +127,16 @@ module {
     };
 
     // ==========================================
-    // SECRETS MANAGEMENT TOOLS - require secrets resource + userAuthContext
+    // SECRETS MANAGEMENT TOOLS - require secrets resource + userAuthContext + workspaceId
     // ==========================================
-    switch (resources.secrets, resources.userAuthContext) {
-      case (?sec, ?uac) {
-        // Read tools — always available when resource and user identity are present
-        List.add(tools, getWorkspaceSecretsTool(sec.state, uac));
+    switch (resources.secrets, resources.userAuthContext, resources.workspaceId) {
+      case (?sec, ?uac, ?wsId) {
+        // Read tools — always available when resource, user identity, and workspace are present
+        List.add(tools, getWorkspaceSecretsTool(sec.state, uac, wsId));
         // Write tools — require write=true
         if (sec.write) {
-          // store_secret additionally needs workspaces resource for workspace existence check
-          switch (resources.workspaces) {
-            case (?ws) {
-              List.add(tools, storeSecretTool(sec.state, sec.keyCache, ws.state, uac));
-            };
-            case (null) {};
-          };
-          List.add(tools, deleteSecretTool(sec.state, uac));
+          List.add(tools, storeSecretTool(sec.state, sec.keyCache, uac, wsId));
+          List.add(tools, deleteSecretTool(sec.state, uac, wsId));
         };
       };
       case _ {};
@@ -424,64 +418,66 @@ module {
   // SECRETS MANAGEMENT TOOL IMPLEMENTATIONS
   // ============================================
 
-  /// Get workspace secrets tool — always available when secrets resource + user identity are present
+  /// Get workspace secrets tool — always available when secrets resource + user identity + workspaceId are present
   private func getWorkspaceSecretsTool(
     map : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
+    workspaceId : Nat,
   ) : FunctionTool {
     {
       definition = {
         tool_type = "function";
         function = {
           name = "get_workspace_secrets";
-          description = ?"Lists the secret identifiers stored for a workspace. Secret values are never returned — only the names of which secrets have been stored.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to list secrets for.\"}},\"required\":[\"workspaceId\"]}";
+          description = ?"Lists the secret identifiers stored for the current workspace. Secret values are never returned — only the names of which secrets have been stored.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
         };
       };
       handler = func(args : Text) : async Text {
-        await GetWorkspaceSecretsHandler.handle(map, uac, args);
+        await GetWorkspaceSecretsHandler.handle(map, uac, workspaceId, args);
       };
     };
   };
 
-  /// Store secret tool — requires secrets resource with write + workspaces resource + user identity
+  /// Store secret tool — requires secrets resource with write + user identity + workspaceId
   private func storeSecretTool(
     map : SecretModel.SecretsState,
     keyCache : KeyDerivationService.KeyCache,
-    workspacesState : WorkspaceModel.WorkspacesState,
     uac : SlackAuthMiddleware.UserAuthContext,
+    workspaceId : Nat,
   ) : FunctionTool {
     {
       definition = {
         tool_type = "function";
         function = {
           name = "store_secret";
-          description = ?"Encrypts and stores a secret for a workspace. The Slack bot token (slackBotToken) requires org-admin access. LLM API keys (openRouterApiKey) can be stored by workspace admins.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to store the secret for.\"},\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | anthropicApiKey | anthropicSetupToken | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"workspaceId\",\"secretId\",\"secretValue\"]}";
+          description = ?"Encrypts and stores a secret for the current workspace. The Slack bot token (slackBotToken) requires org-admin access. LLM API keys (openRouterApiKey) can be stored by workspace admins.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | anthropicApiKey | anthropicSetupToken | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"secretId\",\"secretValue\"]}";
         };
       };
       handler = func(args : Text) : async Text {
-        await StoreSecretHandler.handle(map, keyCache, workspacesState, uac, args);
+        await StoreSecretHandler.handle(map, keyCache, uac, workspaceId, args);
       };
     };
   };
 
-  /// Delete secret tool — requires secrets resource with write + user identity
+  /// Delete secret tool — requires secrets resource with write + user identity + workspaceId
   private func deleteSecretTool(
     map : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
+    workspaceId : Nat,
   ) : FunctionTool {
     {
       definition = {
         tool_type = "function";
         function = {
           name = "delete_secret";
-          description = ?"Removes a stored secret from a workspace. Slack secrets require org-admin access. LLM API keys can be deleted by workspace admins.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace.\"},\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | anthropicApiKey | anthropicSetupToken | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"}},\"required\":[\"workspaceId\",\"secretId\"]}";
+          description = ?"Removes a stored secret from the current workspace. Slack secrets require org-admin access. LLM API keys can be deleted by workspace admins.";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | anthropicApiKey | anthropicSetupToken | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"}},\"required\":[\"secretId\"]}";
         };
       };
       handler = func(args : Text) : async Text {
-        await DeleteSecretHandler.handle(map, uac, args);
+        await DeleteSecretHandler.handle(map, uac, workspaceId, args);
       };
     };
   };
