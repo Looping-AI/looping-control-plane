@@ -15,7 +15,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq wget
 # 2. Install Bun (match CI's oven-sh/setup-bun by using the official installer)
 curl -fsSL https://bun.sh/install | bash
 
-# Persist PATH update for future shells (lintoko also installs here)
+# Persist PATH update for future shells
 PATH_EXPORT='export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.bun/bin:$PATH"'
 if ! grep -qs '.bun/bin' "$HOME/.profile" 2>/dev/null; then
   echo "$PATH_EXPORT" >> "$HOME/.profile"
@@ -36,10 +36,6 @@ sudo chmod +x /usr/local/bin/didc
 
 # 5. Install Mops (matches CI's dfinity/setup-mops@v1)
 npm install -g ic-mops
-
-# 6. Install lintoko
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/caffeinelabs/lintoko/releases/download/${LINTOKO_VERSION}/lintoko-installer.sh | sh
 
 # 7. Install project dependencies
 bun install --frozen-lockfile

@@ -66,9 +66,7 @@ jobs:
         run: bun run format:check
 
       - name: Lint Motoko
-        run: |
-          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/caffeinelabs/lintoko/releases/download/${LINTOKO_VERSION}/lintoko-installer.sh | sh
-          bun run lint
+        run: bun run lint
 
       - name: Test ICP Cli
         run: |
