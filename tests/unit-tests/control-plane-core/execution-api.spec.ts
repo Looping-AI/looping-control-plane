@@ -1,0 +1,276 @@
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
+import type { PocketIc, Actor } from "@dfinity/pic";
+import { generateRandomIdentity } from "@dfinity/pic";
+import type { TestCanisterService } from "../../setup.ts";
+import { createTestCanister, freshTestCanister } from "../../setup.ts";
+
+// ============================================
+// executionApi – Candid endpoint tests
+//
+// Tests the `executionApi` method on the main backend canister.
+// This covers the transport-level authorization guard and verifies that
+// the service layer is wired correctly (route dispatch, token lifecycle).
+//
+// No LLM calls are made — tokens are issued directly via testIssueExecutionToken
+// and the engine principal is set via testSetInternalEnginePrincipal (both
+// controller-only helpers added for unit testing).
+//
+// The async effects scheduled by /execution/complete and /execution/milestone
+// fire after the call returns. They fail silently here (no turn seeded in
+// sessionStores), so only the synchronous response is verified. Phase 6
+// covers the full async-effect end-to-end path.
+// ============================================
+
+describe("executionApi – Candid endpoint", () => {
+  let pic: PocketIc;
+  let actor: Actor<TestCanisterService>;
+
+  beforeAll(async () => {
+    const testEnv = await createTestCanister();
+    pic = testEnv.pic;
+  });
+
+  beforeEach(async () => {
+    actor = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  // ============================================
+  // Authorization guard
+  // ============================================
+
+  describe("authorization guard", () => {
+    it("should pass guard and reach the service when no engine principal is configured", async () => {
+      // Fresh canister — internalEnginePrincipal is null → guard is skipped
+      // The call reaches the service layer, which rejects the bad token (not auth).
+      const result = await actor.testExecutionApi(
+        { get: null },
+        "/workspace",
+        JSON.stringify({ tokenNonce: "no-such-token" }),
+      );
+      // Service error (not auth) is still #err
+      expect("err" in result).toBe(true);
+      if ("err" in result) {
+        expect(result.err).not.toContain("Unauthorized");
+      }
+    });
+
+    it("should reject a caller that is not the registered engine principal", async () => {
+      // Register a specific engine identity as the internal engine
+      const engineIdentity = generateRandomIdentity();
+      await actor.testSetInternalEnginePrincipal(engineIdentity.getPrincipal());
+
+      // Switch to a different (non-engine) identity and call executionApi
+      const otherIdentity = generateRandomIdentity();
+      actor.setIdentity(otherIdentity);
+
+      const result = await actor.testExecutionApi(
+        { get: null },
+        "/workspace",
+        JSON.stringify({ tokenNonce: "any" }),
+      );
+      expect("err" in result).toBe(true);
+      if ("err" in result) {
+        expect(result.err).toContain("Unauthorized");
+      }
+    });
+
+    it("should allow the registered engine principal to call executionApi", async () => {
+      const engineIdentity = generateRandomIdentity();
+      await actor.testSetInternalEnginePrincipal(engineIdentity.getPrincipal());
+
+      // Issue a valid token so the service can proceed past token validation
+      const nonce = await actor.testIssueExecutionToken(
+        "env-auth-pass",
+        "0_0",
+        0n,
+      );
+
+      // Switch to the engine identity
+      actor.setIdentity(engineIdentity);
+
+      const result = await actor.testExecutionApi(
+        { get: null },
+        "/workspace",
+        JSON.stringify({ tokenNonce: nonce }),
+      );
+      // Guard passes; workspace 0 exists by default
+      expect("ok" in result).toBe(true);
+    });
+  });
+
+  // ============================================
+  // GET /workspace
+  // ============================================
+
+  describe("GET /workspace", () => {
+    it("should return workspace 0 for a valid full-scope token", async () => {
+      const nonce = await actor.testIssueExecutionToken(
+        "env-ws-get",
+        "0_0",
+        0n,
+      );
+
+      const result = await actor.testExecutionApi(
+        { get: null },
+        "/workspace",
+        JSON.stringify({ tokenNonce: nonce }),
+      );
+
+      expect("ok" in result).toBe(true);
+      if ("ok" in result) {
+        const data = JSON.parse(result.ok) as { id: number; name: string };
+        expect(data.id).toBe(0);
+        expect(typeof data.name).toBe("string");
+      }
+    });
+
+    it("should return error for a missing tokenNonce", async () => {
+      const result = await actor.testExecutionApi(
+        { get: null },
+        "/workspace",
+        JSON.stringify({}),
+      );
+      expect("err" in result).toBe(true);
+    });
+
+    it("should return error for an invalid token nonce", async () => {
+      const result = await actor.testExecutionApi(
+        { get: null },
+        "/workspace",
+        JSON.stringify({ tokenNonce: "no-such-token" }),
+      );
+      expect("err" in result).toBe(true);
+    });
+  });
+
+  // ============================================
+  // POST /execution/complete
+  // ============================================
+
+  describe("POST /execution/complete", () => {
+    it("should succeed and immediately revoke the token", async () => {
+      const nonce = await actor.testIssueExecutionToken(
+        "env-complete-01",
+        "0_0",
+        0n,
+      );
+
+      const firstResult = await actor.testExecutionApi(
+        { post: null },
+        "/execution/complete",
+        JSON.stringify({
+          tokenNonce: nonce,
+          humanSummary: "Workflow complete.",
+          status: "completed",
+        }),
+      );
+      expect("ok" in firstResult).toBe(true);
+
+      // Token must be revoked after complete — second call should fail
+      const retryResult = await actor.testExecutionApi(
+        { post: null },
+        "/execution/complete",
+        JSON.stringify({
+          tokenNonce: nonce,
+          humanSummary: "Retry.",
+          status: "completed",
+        }),
+      );
+      expect("err" in retryResult).toBe(true);
+    });
+
+    it("should return error for a missing humanSummary field", async () => {
+      const nonce = await actor.testIssueExecutionToken(
+        "env-complete-02",
+        "0_0",
+        0n,
+      );
+
+      const result = await actor.testExecutionApi(
+        { post: null },
+        "/execution/complete",
+        JSON.stringify({ tokenNonce: nonce }),
+      );
+      expect("err" in result).toBe(true);
+    });
+  });
+
+  // ============================================
+  // POST /execution/milestone
+  // ============================================
+
+  describe("POST /execution/milestone", () => {
+    it("should succeed and leave the token valid (not revoked)", async () => {
+      const nonce = await actor.testIssueExecutionToken(
+        "env-milestone-01",
+        "0_0",
+        0n,
+      );
+
+      const milestoneResult = await actor.testExecutionApi(
+        { post: null },
+        "/execution/milestone",
+        JSON.stringify({
+          tokenNonce: nonce,
+          humanSummary: "Step 1 done.",
+        }),
+      );
+      expect("ok" in milestoneResult).toBe(true);
+
+      // Token must still be valid after milestone (not revoked)
+      const followUpResult = await actor.testExecutionApi(
+        { get: null },
+        "/workspace",
+        JSON.stringify({ tokenNonce: nonce }),
+      );
+      expect("ok" in followUpResult).toBe(true);
+    });
+
+    it("should return error for a missing humanSummary field", async () => {
+      const nonce = await actor.testIssueExecutionToken(
+        "env-milestone-02",
+        "0_0",
+        0n,
+      );
+
+      const result = await actor.testExecutionApi(
+        { post: null },
+        "/execution/milestone",
+        JSON.stringify({ tokenNonce: nonce }),
+      );
+      expect("err" in result).toBe(true);
+    });
+  });
+
+  // ============================================
+  // Unknown route
+  // ============================================
+
+  describe("unknown route", () => {
+    it("should return error for an unrecognized path", async () => {
+      const nonce = await actor.testIssueExecutionToken(
+        "env-unknown",
+        "0_0",
+        0n,
+      );
+
+      const result = await actor.testExecutionApi(
+        { get: null },
+        "/no-such-route",
+        JSON.stringify({ tokenNonce: nonce }),
+      );
+      expect("err" in result).toBe(true);
+    });
+  });
+});

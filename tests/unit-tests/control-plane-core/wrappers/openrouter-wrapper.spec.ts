@@ -326,7 +326,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
           // but we expect tool call for this specific prompt
           throw new Error(
             "Expected tool call but got text response: " +
-              response.ok.textResponse.content.content,
+              response.ok.textResponse.content,
           );
         }
       } else {

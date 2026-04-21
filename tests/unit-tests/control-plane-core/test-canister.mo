@@ -6,6 +6,7 @@ import Float "mo:core/Float";
 import Array "mo:core/Array";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
+import Principal "mo:core/Principal";
 import Json "mo:json";
 import { str; obj; bool } "mo:json";
 
@@ -53,6 +54,7 @@ import SecretModel "../../../src/control-plane-core/models/secret-model";
 import EventStoreModel "../../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../../src/control-plane-core/models/session-model";
 import ExecutionTokenService "../../../src/control-plane-core/services/execution-token-service";
+import ExecutionApiService "../../../src/control-plane-core/services/execution-api-service";
 import ExecutionTypes "../../../src/control-plane-core/types/execution";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import Types "../../../src/control-plane-core/types";
@@ -117,6 +119,21 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Dispatch-path session stores — shared across testMessageHandlerDispatch calls
   // so testGetTurnStatus can observe turn state after the handler returns.
   let testDispatchSessionStores = SessionModel.emptyStores();
+
+  // Execution API token store — dedicated store for executionApi endpoint tests.
+  let testExecTokenStore = ExecutionTokenService.emptyStore();
+
+  // Internal engine principal for executionApi authorization guard tests.
+  var testInternalEnginePrincipal : ?Principal = null;
+
+  // Execution API service wired up for unit tests.
+  transient let testExecApiService = ExecutionApiService.Service({
+    tokenStore = testExecTokenStore;
+    workspaces = testWorkspacesState;
+    agentRegistry = testAgentRegistry;
+    eventStore = testEventStore;
+    sessionStores = testDispatchSessionStores;
+  });
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -600,6 +617,59 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         ?statusText;
       };
     };
+  };
+
+  // ============================================
+  // Execution API Test Methods
+  // ============================================
+
+  /// Sets the internal engine principal used by testExecutionApi's authorization guard.
+  public shared ({ caller }) func testSetInternalEnginePrincipal(p : Principal) : async () {
+    assert caller == parent;
+    testInternalEnginePrincipal := ?p;
+  };
+
+  /// Issues a full-scope execution token directly into testExecTokenStore.
+  /// Returns the token nonce.
+  public shared ({ caller }) func testIssueExecutionToken(
+    envelopeId : Text,
+    turnId : Text,
+    workspaceId : Nat,
+  ) : async Text {
+    assert caller == parent;
+    ExecutionTokenService.issue(
+      testExecTokenStore,
+      envelopeId,
+      turnId,
+      workspaceId,
+      [
+        #workspace({ access = #write }),
+        #agents({ access = #write }),
+        #slackQueue({ access = #read }),
+        #session({ access = #write }),
+      ],
+      [],
+    );
+  };
+
+  /// Mirrors the production executionApi endpoint for unit tests.
+  /// Applies the engine-principal authorization guard then delegates to testExecApiService.
+  /// Async effects are discarded — this tests the synchronous response only.
+  public shared ({ caller }) func testExecutionApi(
+    method : { #get; #post; #delete },
+    path : Text,
+    body : Text,
+  ) : async { #ok : Text; #err : Text } {
+    switch (testInternalEnginePrincipal) {
+      case (null) {};
+      case (?expected) {
+        if (caller != expected) {
+          return #err("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister");
+        };
+      };
+    };
+    let { response } = testExecApiService.handleRequest(method, path, body);
+    response;
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
