@@ -90,11 +90,7 @@ describe("executionApi – Candid endpoint", () => {
       await actor.testSetInternalEnginePrincipal(engineIdentity.getPrincipal());
 
       // Issue a valid token so the service can proceed past token validation
-      const nonce = await actor.testIssueExecutionToken(
-        "env-auth-pass",
-        "0_0",
-        0n,
-      );
+      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
 
       // Switch to the engine identity
       actor.setIdentity(engineIdentity);
@@ -115,11 +111,7 @@ describe("executionApi – Candid endpoint", () => {
 
   describe("GET /workspace", () => {
     it("should return workspace 0 for a valid full-scope token", async () => {
-      const nonce = await actor.testIssueExecutionToken(
-        "env-ws-get",
-        "0_0",
-        0n,
-      );
+      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
 
       const result = await actor.testExecutionApi(
         { get: null },
@@ -160,11 +152,7 @@ describe("executionApi – Candid endpoint", () => {
 
   describe("POST /execution/complete", () => {
     it("should succeed and immediately revoke the token", async () => {
-      const nonce = await actor.testIssueExecutionToken(
-        "env-complete-01",
-        "0_0",
-        0n,
-      );
+      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
 
       const firstResult = await actor.testExecutionApi(
         { post: null },
@@ -191,11 +179,7 @@ describe("executionApi – Candid endpoint", () => {
     });
 
     it("should return error for a missing humanSummary field", async () => {
-      const nonce = await actor.testIssueExecutionToken(
-        "env-complete-02",
-        "0_0",
-        0n,
-      );
+      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
 
       const result = await actor.testExecutionApi(
         { post: null },
@@ -212,11 +196,7 @@ describe("executionApi – Candid endpoint", () => {
 
   describe("POST /execution/milestone", () => {
     it("should succeed and leave the token valid (not revoked)", async () => {
-      const nonce = await actor.testIssueExecutionToken(
-        "env-milestone-01",
-        "0_0",
-        0n,
-      );
+      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
 
       const milestoneResult = await actor.testExecutionApi(
         { post: null },
@@ -238,11 +218,7 @@ describe("executionApi – Candid endpoint", () => {
     });
 
     it("should return error for a missing humanSummary field", async () => {
-      const nonce = await actor.testIssueExecutionToken(
-        "env-milestone-02",
-        "0_0",
-        0n,
-      );
+      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
 
       const result = await actor.testExecutionApi(
         { post: null },
@@ -259,11 +235,7 @@ describe("executionApi – Candid endpoint", () => {
 
   describe("unknown route", () => {
     it("should return error for an unrecognized path", async () => {
-      const nonce = await actor.testIssueExecutionToken(
-        "env-unknown",
-        "0_0",
-        0n,
-      );
+      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
 
       const result = await actor.testExecutionApi(
         { get: null },

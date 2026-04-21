@@ -33,7 +33,7 @@ module {
   /// Caller must wrap this in try/catch for trap safety.
   public func run(
     core : CoreApi.CoreApi,
-    envelopeId : Text,
+    envelopeId : Nat,
     runStore : RunStoreModel.RunStoreState,
   ) : async () {
 
@@ -44,8 +44,8 @@ module {
     };
 
     let envelope = record.envelope;
-    let tokenNonce = envelope.tokenNonce;
-    let callCore = ToolExecutor.buildCallCore(core, tokenNonce);
+    let envelopeNonce = envelope.envelopeNonce;
+    let callCore = ToolExecutor.buildCallCore(core, envelopeNonce);
 
     // Extract API key
     let apiKey = switch (
@@ -60,7 +60,7 @@ module {
         let errMsg = "Missing 'openrouter' API key in envelope secrets";
         let stats = buildStats(Time.now(), 0, 0, 0, 0, "");
         RunStoreModel.markFailed(runStore, envelopeId, errMsg, []);
-        ignore emitComplete(core, tokenNonce, errMsg, [], #failed(errMsg), stats);
+        ignore emitComplete(core, envelopeNonce, errMsg, [], #failed(errMsg), stats);
         return;
       };
     };
@@ -92,7 +92,7 @@ module {
         let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
         let msg = "Reached maximum rounds (" # Nat.toText(envelope.constraints.maxRounds) # ")";
         RunStoreModel.markCompleted(runStore, envelopeId, #roundLimitReached, stats, List.toArray(runSteps));
-        ignore emitComplete(core, tokenNonce, msg, List.toArray(summarizedSteps), #roundLimitReached, stats);
+        ignore emitComplete(core, envelopeNonce, msg, List.toArray(summarizedSteps), #roundLimitReached, stats);
         return;
       };
 
@@ -121,7 +121,7 @@ module {
         );
         let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
         RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
-        ignore emitComplete(core, tokenNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
+        ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
         return;
       };
 
@@ -166,7 +166,7 @@ module {
         case (#ok(#textResponse({ content; thinking = _ }))) {
           let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
           RunStoreModel.markCompleted(runStore, envelopeId, #completed, stats, List.toArray(runSteps));
-          ignore emitComplete(core, tokenNonce, content, List.toArray(summarizedSteps), #completed, stats);
+          ignore emitComplete(core, envelopeNonce, content, List.toArray(summarizedSteps), #completed, stats);
           return;
         };
 
@@ -194,7 +194,7 @@ module {
             );
             let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
             RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
-            ignore emitComplete(core, tokenNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
+            ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
             return;
           };
 
@@ -232,7 +232,7 @@ module {
             try {
               ignore emitMilestone(
                 core,
-                tokenNonce,
+                envelopeNonce,
                 summarizeToolRound(results),
                 List.toArray(summarizedSteps),
               );
@@ -246,7 +246,7 @@ module {
         case (#err(errMsg)) {
           let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
           RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
-          ignore emitComplete(core, tokenNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
+          ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
           return;
         };
       };
@@ -257,7 +257,7 @@ module {
 
   func emitComplete(
     core : CoreApi.CoreApi,
-    tokenNonce : Text,
+    envelopeNonce : Text,
     humanSummary : Text,
     stepsDetail : [ExecutionTypes.SummarizedStep],
     status : ExecutionTypes.ExecutionStatus,
@@ -265,7 +265,7 @@ module {
   ) : async { #ok : Text; #err : Text } {
     let body = Json.stringify(
       obj([
-        ("tokenNonce", str(tokenNonce)),
+        ("envelopeNonce", str(envelopeNonce)),
         ("humanSummary", str(humanSummary)),
         ("stepsDetail", stepsToJson(stepsDetail)),
         ("status", statusToJson(status)),
@@ -282,13 +282,13 @@ module {
 
   func emitMilestone(
     core : CoreApi.CoreApi,
-    tokenNonce : Text,
+    envelopeNonce : Text,
     humanSummary : Text,
     stepsDetail : [ExecutionTypes.SummarizedStep],
   ) : async { #ok : Text; #err : Text } {
     let body = Json.stringify(
       obj([
-        ("tokenNonce", str(tokenNonce)),
+        ("envelopeNonce", str(envelopeNonce)),
         ("humanSummary", str(humanSummary)),
         ("stepsDetail", stepsToJson(stepsDetail)),
       ]),
@@ -361,7 +361,7 @@ module {
     };
   };
 
-  func resolveModel(envelope : ExecutionTypes.ExecutionEnvelope) : Text {
+  func resolveModel(envelope : ExecutionTypes.EnvelopePayload) : Text {
     switch (
       Array.find<(Text, Text)>(
         envelope.secrets.apiKeys,

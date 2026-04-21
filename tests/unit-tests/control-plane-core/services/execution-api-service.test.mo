@@ -1,10 +1,9 @@
 import { test; suite; expect } "mo:test";
-import Array "mo:core/Array";
 import Nat "mo:core/Nat";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
 import ExecutionApiService "../../../../src/control-plane-core/services/execution-api-service";
-import ExecutionTokenService "../../../../src/control-plane-core/services/execution-token-service";
+import ExecutionEnvelopeModel "../../../../src/control-plane-core/models/execution-envelope-model";
 import ExecutionTypes "../../../../src/control-plane-core/types/execution";
 import WorkspaceModel "../../../../src/control-plane-core/models/workspace-model";
 import AgentModel "../../../../src/control-plane-core/models/agent-model";
@@ -36,12 +35,12 @@ func freshWorkspaces() : WorkspaceModel.WorkspacesState {
 
 /// Build ServiceDeps from loose components.
 func mkDeps(
-  store : ExecutionTokenService.TokenStore,
+  store : ExecutionEnvelopeModel.EnvelopeState,
   ws : WorkspaceModel.WorkspacesState,
   agents : AgentModel.AgentRegistryState,
 ) : ExecutionApiService.ServiceDeps {
   {
-    tokenStore = store;
+    envelopeState = store;
     workspaces = ws;
     agentRegistry = agents;
     eventStore = EventStoreModel.empty();
@@ -51,7 +50,7 @@ func mkDeps(
 
 /// Build a fresh Service from loose components.
 func mkSvc(
-  store : ExecutionTokenService.TokenStore,
+  store : ExecutionEnvelopeModel.EnvelopeState,
   ws : WorkspaceModel.WorkspacesState,
   agents : AgentModel.AgentRegistryState,
 ) : ExecutionApiService.Service {
@@ -63,11 +62,11 @@ func issue(
   grants : [ExecutionTypes.ScopeGrant],
   permits : [ExecutionTypes.OperationPermit],
   wsId : Nat,
-) : (ExecutionTokenService.TokenStore, WorkspaceModel.WorkspacesState, AgentModel.AgentRegistryState, ExecutionApiService.Service, Text) {
-  let store = ExecutionTokenService.emptyStore();
+) : (ExecutionEnvelopeModel.EnvelopeState, WorkspaceModel.WorkspacesState, AgentModel.AgentRegistryState, ExecutionApiService.Service, Text) {
+  let store = ExecutionEnvelopeModel.emptyState();
   let ws = freshWorkspaces();
   let agents = AgentModel.emptyState();
-  let nonce = ExecutionTokenService.issue(store, "env-1", "1_0", wsId, grants, permits);
+  let nonce = ExecutionEnvelopeModel.issue(store, "1_0", wsId, grants, permits).nonce;
   let svc = mkSvc(store, ws, agents);
   (store, ws, agents, svc, nonce);
 };
@@ -89,16 +88,16 @@ suite(
     test(
       "GET /workspace with unknown nonce returns error",
       func() {
-        let svc = mkSvc(ExecutionTokenService.emptyStore(), freshWorkspaces(), AgentModel.emptyState());
+        let svc = mkSvc(ExecutionEnvelopeModel.emptyState(), freshWorkspaces(), AgentModel.emptyState());
         let r = svc.handleRequest(#get, "/workspace", "{\"tokenNonce\":\"ghost\"}");
         expect.bool(isErr(r)).isTrue();
       },
     );
 
     test(
-      "POST /workspace with missing tokenNonce returns error",
+      "POST /workspace with missing envelopeNonce returns error",
       func() {
-        let svc = mkSvc(ExecutionTokenService.emptyStore(), freshWorkspaces(), AgentModel.emptyState());
+        let svc = mkSvc(ExecutionEnvelopeModel.emptyState(), freshWorkspaces(), AgentModel.emptyState());
         let r = svc.handleRequest(#post, "/workspace", "{}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -107,7 +106,7 @@ suite(
     test(
       "invalid JSON body returns error",
       func() {
-        let svc = mkSvc(ExecutionTokenService.emptyStore(), freshWorkspaces(), AgentModel.emptyState());
+        let svc = mkSvc(ExecutionEnvelopeModel.emptyState(), freshWorkspaces(), AgentModel.emptyState());
         let r = svc.handleRequest(#get, "/workspace", "not-json");
         expect.bool(isErr(r)).isTrue();
       },
@@ -452,14 +451,14 @@ suite(
     test(
       "agents:read token can read an agent in own workspace",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#agents({ access = #read })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#get, "/agent/" # Nat.toText(agentId), "{\"tokenNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -468,7 +467,7 @@ suite(
     test(
       "cross-workspace agent access is rejected (workspace boundary)",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         // ws 0 admin agent
@@ -477,7 +476,7 @@ suite(
           case (#err(_)) { assert false; 0 };
         };
         // Token is for ws 1
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#agents({ access = #read })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#get, "/agent/" # Nat.toText(agentId), "{\"tokenNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -504,14 +503,14 @@ suite(
     test(
       "agents:write token can update own workspace agent",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#agents({ access = #write })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"tokenNonce\":\"" # nonce # "\",\"name\":\"renamed\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -520,14 +519,14 @@ suite(
     test(
       "agents:read token cannot update",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#agents({ access = #read })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"tokenNonce\":\"" # nonce # "\",\"name\":\"renamed\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -536,7 +535,7 @@ suite(
     test(
       "cross-workspace agent update is rejected",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         // Agent belongs to ws 0
@@ -545,7 +544,7 @@ suite(
           case (#err(_)) { assert false; 0 };
         };
         // Token is for ws 1
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#agents({ access = #write })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"tokenNonce\":\"" # nonce # "\",\"name\":\"pwned\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -563,14 +562,14 @@ suite(
     test(
       "agents:write token can delete own workspace agent",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#agents({ access = #write })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#delete, "/agent/" # Nat.toText(agentId), "{\"tokenNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -579,7 +578,7 @@ suite(
     test(
       "cross-workspace agent delete is rejected",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         // Agent in ws 0
@@ -588,7 +587,7 @@ suite(
           case (#err(_)) { assert false; 0 };
         };
         // Token for ws 1
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#agents({ access = #write })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#delete, "/agent/" # Nat.toText(agentId), "{\"tokenNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -597,14 +596,14 @@ suite(
     test(
       "agents:read token cannot delete",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#agents({ access = #read })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#delete, "/agent/" # Nat.toText(agentId), "{\"tokenNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -692,14 +691,14 @@ suite(
     test(
       "milestone does NOT revoke the token",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#workspace({ access = #read })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })], []).nonce;
         let svc = mkSvc(store, ws, agents);
         ignore svc.handleRequest(#post, "/execution/milestone", "{\"tokenNonce\":\"" # nonce # "\",\"humanSummary\":\"step\"}");
         // Token should still be valid after a milestone
-        expect.bool(ExecutionTokenService.validate(store, nonce, #workspace({ access = #read }))).isTrue();
+        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, #workspace({ access = #read }))).isTrue();
       },
     );
 
@@ -715,7 +714,7 @@ suite(
     test(
       "invalid token returns error",
       func() {
-        let svc = mkSvc(ExecutionTokenService.emptyStore(), freshWorkspaces(), AgentModel.emptyState());
+        let svc = mkSvc(ExecutionEnvelopeModel.emptyState(), freshWorkspaces(), AgentModel.emptyState());
         let r = svc.handleRequest(#post, "/execution/milestone", "{\"tokenNonce\":\"ghost\",\"humanSummary\":\"x\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -749,23 +748,23 @@ suite(
     test(
       "complete revokes the token",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#workspace({ access = #read })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })], []).nonce;
         let svc = mkSvc(store, ws, agents);
         ignore svc.handleRequest(#post, "/execution/complete", "{\"tokenNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
-        expect.bool(ExecutionTokenService.validate(store, nonce, #workspace({ access = #read }))).isFalse();
+        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, #workspace({ access = #read }))).isFalse();
       },
     );
 
     test(
       "second call with same (revoked) token is rejected",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#workspace({ access = #read })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })], []).nonce;
         let svc = mkSvc(store, ws, agents);
         ignore svc.handleRequest(#post, "/execution/complete", "{\"tokenNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
         let r2 = svc.handleRequest(#post, "/execution/complete", "{\"tokenNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
@@ -794,7 +793,7 @@ suite(
     test(
       "session:write token can update policy for own workspace agent",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
@@ -804,13 +803,13 @@ suite(
         let sessions = SessionModel.emptyStores();
         ignore SessionModel.getOrCreateSession(sessions, agentId);
         let deps : ExecutionApiService.ServiceDeps = {
-          tokenStore = store;
+          envelopeState = store;
           workspaces = ws;
           agentRegistry = agents;
           eventStore = EventStoreModel.empty();
           sessionStores = sessions;
         };
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#session({ access = #write })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#session({ access = #write })], []).nonce;
         let svc = ExecutionApiService.Service(deps);
         let r = svc.handleRequest(#post, "/session/policy", "{\"tokenNonce\":\"" # nonce # "\",\"agentId\":" # Nat.toText(agentId) # ",\"summaryTokenBudget\":4096,\"maxTruncatedTokens\":512}");
         expect.bool(isOk(r)).isTrue();
@@ -829,7 +828,7 @@ suite(
     test(
       "cross-workspace agent is rejected for session/policy",
       func() {
-        let store = ExecutionTokenService.emptyStore();
+        let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
         // Agent in ws 0; token for ws 1
@@ -837,7 +836,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionTokenService.issue(store, "env", "1_0", 1, [#session({ access = #write })], []);
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#session({ access = #write })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/session/policy", "{\"tokenNonce\":\"" # nonce # "\",\"agentId\":" # Nat.toText(agentId) # ",\"summaryTokenBudget\":4096,\"maxTruncatedTokens\":512}");
         expect.bool(isErr(r)).isTrue();
       },

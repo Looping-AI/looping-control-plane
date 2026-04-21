@@ -6,7 +6,7 @@ import Nat "mo:core/Nat";
 
 import AgentModel "../../../src/control-plane-core/models/agent-model";
 import ChannelHistoryModel "../../../src/control-plane-core/models/channel-history-model";
-import ExecutionTokenService "../../../src/control-plane-core/services/execution-token-service";
+import ExecutionEnvelopeModel "../../../src/control-plane-core/models/execution-envelope-model";
 import ExecutionTypes "../../../src/control-plane-core/types/execution";
 import SecretModel "../../../src/control-plane-core/models/secret-model";
 import SlackUserModel "../../../src/control-plane-core/models/slack-user-model";
@@ -14,7 +14,6 @@ import WorkspaceModel "../../../src/control-plane-core/models/workspace-model";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import EventStoreModel "../../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../../src/control-plane-core/models/session-model";
-import Types "../../../src/control-plane-core/types";
 
 // ============================================
 // Test Helpers
@@ -87,9 +86,8 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      executionTokenStore = ExecutionTokenService.emptyStore();
-      generateEnvelopeId = func() { Debug.todo() };
-      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
         #ok;
         #err : Text;
       } { Debug.todo() };
@@ -144,9 +142,8 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      executionTokenStore = ExecutionTokenService.emptyStore();
-      generateEnvelopeId = func() { Debug.todo() };
-      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
         #ok;
         #err : Text;
       } { Debug.todo() };
@@ -200,9 +197,8 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      executionTokenStore = ExecutionTokenService.emptyStore();
-      generateEnvelopeId = func() { Debug.todo() };
-      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
         #ok;
         #err : Text;
       } { Debug.todo() };
@@ -274,9 +270,8 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      executionTokenStore = ExecutionTokenService.emptyStore();
-      generateEnvelopeId = func() { Debug.todo() };
-      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
         #ok;
         #err : Text;
       } { Debug.todo() };
@@ -345,9 +340,8 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      executionTokenStore = ExecutionTokenService.emptyStore();
-      generateEnvelopeId = func() { Debug.todo() };
-      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
         #ok;
         #err : Text;
       } { Debug.todo() };

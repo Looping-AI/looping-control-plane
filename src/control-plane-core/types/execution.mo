@@ -63,9 +63,13 @@ module {
 
   // ── Execution Envelope ─────────────────────────────────────────────
 
-  public type ExecutionEnvelope = {
-    envelopeId : Text;
-    envelopeVersion : Nat;
+  public type EnvelopePayload = {
+    envelopeId : Nat;
+    /// The engine version this envelope was dispatched with.
+    /// null = not yet dispatched (set by the handler; overridden by the dispatch lambda before send).
+    /// After a successful dispatch the lambda stamps the accepted version for audit trail.
+    /// Format: "v1", "v1.1" — major.minor, no patch.
+    dispatchedVersion : ?Text;
     requestId : Text;
     agentId : Nat;
     agentName : Text;
@@ -77,7 +81,7 @@ module {
     secrets : ExecutionSecrets;
     scopeGrants : [ScopeGrant];
     permits : [OperationPermit];
-    tokenNonce : Text;
+    envelopeNonce : Text;
   };
 
   // ── Execution Stats ────────────────────────────────────────────────
@@ -134,13 +138,13 @@ module {
 
   public type AsyncEffect = {
     #milestone : {
-      envelopeId : Text;
+      envelopeId : Nat;
       turnId : Text;
       humanSummary : Text;
       stepsDetail : [SummarizedStep];
     };
     #complete : {
-      envelopeId : Text;
+      envelopeId : Nat;
       turnId : Text;
       humanSummary : Text;
       stepsDetail : [SummarizedStep];

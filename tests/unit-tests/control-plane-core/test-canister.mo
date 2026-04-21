@@ -1,4 +1,5 @@
 import Error "mo:core/Error";
+import Blob "mo:core/Blob";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
@@ -39,10 +40,12 @@ import DeleteSecretHandler "../../../src/control-plane-core/tools/handlers/secre
 import GetEventStoreStatsHandler "../../../src/control-plane-core/tools/handlers/events/get-event-store-stats-handler";
 import GetFailedEventsHandler "../../../src/control-plane-core/tools/handlers/events/get-failed-events-handler";
 import DeleteFailedEventsHandler "../../../src/control-plane-core/tools/handlers/events/delete-failed-events-handler";
+import DispatchWorkflowHandler "../../../src/control-plane-core/tools/handlers/dispatch-workflow-handler";
 import WeeklyReconciliationRunner "../../../src/control-plane-core/timers/weekly-reconciliation-runner";
 import ClearKeyCacheRunner "../../../src/control-plane-core/timers/clear-key-cache-runner";
 import ProcessedEventsCleanupRunner "../../../src/control-plane-core/timers/processed-events-cleanup-runner";
 import ChannelHistoryPruneRunner "../../../src/control-plane-core/timers/channel-history-prune-runner";
+import TurnCleanupRunner "../../../src/control-plane-core/timers/turn-cleanup-runner";
 import SlackEventIntakeService "../../../src/control-plane-core/services/slack-event-intake-service";
 import ChannelHistoryModel "../../../src/control-plane-core/models/channel-history-model";
 import SlackUserModel "../../../src/control-plane-core/models/slack-user-model";
@@ -53,8 +56,9 @@ import KeyDerivationService "../../../src/control-plane-core/services/key-deriva
 import SecretModel "../../../src/control-plane-core/models/secret-model";
 import EventStoreModel "../../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../../src/control-plane-core/models/session-model";
-import ExecutionTokenService "../../../src/control-plane-core/services/execution-token-service";
+import ExecutionEnvelopeModel "../../../src/control-plane-core/models/execution-envelope-model";
 import ExecutionApiService "../../../src/control-plane-core/services/execution-api-service";
+import ExecutionAsyncEffectService "../../../src/control-plane-core/services/execution-async-effect-service";
 import ExecutionTypes "../../../src/control-plane-core/types/execution";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import Types "../../../src/control-plane-core/types";
@@ -116,19 +120,25 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Channel history store for channel-history-prune runner tests.
   let testChannelHistoryStore = ChannelHistoryModel.empty();
 
+  // Session stores dedicated to turn-cleanup-runner tests.
+  let testCleanupSessionStores = SessionModel.emptyStores();
+
+  // Envelope state paired with testCleanupSessionStores for turn-cleanup-runner tests.
+  let testCleanupEnvelopeState = ExecutionEnvelopeModel.emptyState();
+
   // Dispatch-path session stores — shared across testMessageHandlerDispatch calls
   // so testGetTurnStatus can observe turn state after the handler returns.
   let testDispatchSessionStores = SessionModel.emptyStores();
 
   // Execution API token store — dedicated store for executionApi endpoint tests.
-  let testExecTokenStore = ExecutionTokenService.emptyStore();
+  let testExecEnvelopeState = ExecutionEnvelopeModel.emptyState();
 
   // Internal engine principal for executionApi authorization guard tests.
   var testInternalEnginePrincipal : ?Principal = null;
 
   // Execution API service wired up for unit tests.
   transient let testExecApiService = ExecutionApiService.Service({
-    tokenStore = testExecTokenStore;
+    envelopeState = testExecEnvelopeState;
     workspaces = testWorkspacesState;
     agentRegistry = testAgentRegistry;
     eventStore = testEventStore;
@@ -139,13 +149,26 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Uses AgentModel.defaultState() so agent 0 (workspace-admin, ownedBy=0) is pre-seeded.
   let testEffectAgentRegistry = AgentModel.defaultState();
   let testEffectSessionStores = SessionModel.emptyStores();
-  let testEffectTokenStore = ExecutionTokenService.emptyStore();
+  let testEffectEnvelopeState = ExecutionEnvelopeModel.emptyState();
   transient let testEffectExecApiService = ExecutionApiService.Service({
-    tokenStore = testEffectTokenStore;
+    envelopeState = testEffectEnvelopeState;
     workspaces = testWorkspacesState;
     agentRegistry = testEffectAgentRegistry;
     eventStore = testEventStore;
     sessionStores = testEffectSessionStores;
+  });
+  // Secrets store and key cache for the async-effect service (workspace 0 only).
+  // The dummy key lets the service resolve secrets without a live Schnorr call.
+  let testEffectSecretsState = SecretModel.initState();
+  let testEffectKeyCache : KeyDerivationService.KeyCache = Map.fromArray<Nat, [Nat8]>(
+    [(0, TestHelpers.dummyKey)],
+    Nat.compare,
+  );
+  transient let testEffectAsyncEffectService = ExecutionAsyncEffectService.Service({
+    sessionStores = testEffectSessionStores;
+    agentRegistry = testEffectAgentRegistry;
+    workspaces = testWorkspacesState;
+    secrets = testEffectSecretsState;
   });
 
   // ============================================
@@ -605,9 +628,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       workspaces = baseCtx.workspaces;
       eventStore = baseCtx.eventStore;
       sessionStores = testDispatchSessionStores;
-      executionTokenStore = ExecutionTokenService.emptyStore();
-      generateEnvelopeId = func() { "dispatch-test-env-001" };
-      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
         #ok;
         #err : Text;
       } { #ok };
@@ -642,17 +664,15 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     testInternalEnginePrincipal := ?p;
   };
 
-  /// Issues a full-scope execution token directly into testExecTokenStore.
+  /// Issues a full-scope execution token directly into testExecEnvelopeState.
   /// Returns the token nonce.
   public shared ({ caller }) func testIssueExecutionToken(
-    envelopeId : Text,
     turnId : Text,
     workspaceId : Nat,
   ) : async Text {
     assert caller == parent;
-    ExecutionTokenService.issue(
-      testExecTokenStore,
-      envelopeId,
+    ExecutionEnvelopeModel.issue(
+      testExecEnvelopeState,
       turnId,
       workspaceId,
       [
@@ -662,7 +682,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         #session({ access = #write }),
       ],
       [],
-    );
+    ).nonce;
   };
 
   /// Mirrors the production executionApi endpoint for unit tests.
@@ -709,17 +729,15 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     turn.turnId;
   };
 
-  /// Issues a full-scope execution token into testEffectTokenStore.
+  /// Issues a full-scope execution token into testEffectEnvelopeState.
   /// Returns the token nonce.
   public shared ({ caller }) func testIssueEffectToken(
-    envelopeId : Text,
     turnId : Text,
     workspaceId : Nat,
   ) : async Text {
     assert caller == parent;
-    ExecutionTokenService.issue(
-      testEffectTokenStore,
-      envelopeId,
+    ExecutionEnvelopeModel.issue(
+      testEffectEnvelopeState,
       turnId,
       workspaceId,
       [
@@ -729,11 +747,13 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         #session({ access = #write }),
       ],
       [],
-    );
+    ).nonce;
   };
 
   /// Call testEffectExecApiService, then synchronously run any async effects
   /// using the provided botToken (bypasses Schnorr key derivation for unit tests).
+  /// The botToken is seeded into testEffectSecretsState encrypted with the dummy key
+  /// so ExecutionAsyncEffectService can resolve it without a live Schnorr call.
   public shared ({ caller }) func testRunAsyncEffect(
     method : { #get; #post; #delete },
     path : Text,
@@ -741,9 +761,17 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     botToken : Text,
   ) : async { #ok : Text; #err : Text } {
     assert caller == parent;
+    ignore SecretModel.storeSecret(
+      testEffectSecretsState,
+      TestHelpers.dummyKey,
+      0,
+      #slackBotToken,
+      botToken,
+      { slackUserId = null; agentId = null; operation = "test-seed" },
+    );
     let { response; asyncEffects } = testEffectExecApiService.handleRequest(method, path, body);
     for (effect in asyncEffects.vals()) {
-      await testExecEffect(effect, botToken);
+      await testEffectAsyncEffectService.processEffect(testEffectKeyCache, effect);
     };
     response;
   };
@@ -760,71 +788,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
           case (#failed) { "failed" };
         };
         ?statusText;
-      };
-    };
-  };
-
-  /// Run a single async effect against testEffectSessionStores and testEffectAgentRegistry.
-  /// Mirrors processExecutionAsyncEffect from main.mo, but uses test-local state and
-  /// accepts botToken directly so no Schnorr key derivation is required.
-  private func testExecEffect(effect : ExecutionTypes.AsyncEffect, botToken : Text) : async () {
-    let (_envelopeId, turnId, humanSummary) = switch (effect) {
-      case (#milestone(m)) { (m.envelopeId, m.turnId, m.humanSummary) };
-      case (#complete(c)) { (c.envelopeId, c.turnId, c.humanSummary) };
-    };
-
-    let turn = switch (SessionModel.findTurn(testEffectSessionStores, turnId)) {
-      case (?t) { t };
-      case null { return };
-    };
-
-    let agent = switch (AgentModel.lookupById(testEffectAgentRegistry, turn.agentId)) {
-      case (?a) { a };
-      case null { return };
-    };
-
-    // Only Slack source turns are exercised in these tests
-    let (channelId, ts, threadTs) = switch (turn.sourceRef) {
-      case (?#slack(s)) { (s.channelId, s.ts, s.threadTs) };
-      case (_) { return };
-    };
-
-    let metadata : ?Types.AgentMessageMetadata = ?{
-      event_type = "looping_agent_message";
-      event_payload = {
-        parent_agent = agent.config.name;
-        parent_ts = ts;
-        parent_channel = channelId;
-        turn_id = turnId;
-      };
-    };
-
-    switch (effect) {
-      case (#milestone(_m)) {
-        ignore await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata);
-      };
-      case (#complete(c)) {
-        switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata)) {
-          case (#ok({ ts = replyTs; channel = _ })) {
-            SessionModel.appendTrace(
-              testEffectSessionStores,
-              turnId,
-              #slackPost({ channelId; threadTs; ts = replyTs }),
-            );
-          };
-          case (#err(_)) {};
-        };
-        let (turnStatus, errorSummary) = switch (c.status) {
-          case (#completed) { (#succeeded, null) };
-          case (#failed(reason)) { (#failed, ?reason) };
-          case (#roundLimitReached) { (#failed, ?"Round limit reached") };
-        };
-        let turnCost : ?SessionModel.TurnCost = ?{
-          promptTokens = c.stats.inputTokens;
-          completionTokens = c.stats.outputTokens;
-          estimatedMicroUnits = 0;
-        };
-        SessionModel.completeTurn(testEffectSessionStores, turnId, turnStatus, turnCost, errorSummary);
       };
     };
   };
@@ -1145,6 +1108,40 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     switch (Map.get(testChannelHistoryStore, Text.compare, channelId)) {
       case (null) { 0 };
       case (?ch) { Map.size(ch.timeline) };
+    };
+  };
+
+  // ============================================
+  // Turn Cleanup Runner Test Methods
+  // ============================================
+
+  /// Run the turn-cleanup runner against testCleanupSessionStores.
+  /// Returns the number of turns deleted.
+  public shared ({ caller }) func testTurnCleanupRunner() : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    assert caller == parent;
+    TurnCleanupRunner.run(testCleanupSessionStores, testCleanupEnvelopeState);
+  };
+
+  /// Seed a turn into testCleanupSessionStores.
+  /// The turn's startedAtNs is stamped by Time.now() — control the clock
+  /// via pic.setTime() before calling this helper.
+  /// Returns the new turnId.
+  public shared ({ caller }) func testSeedTurn(agentId : Nat) : async Text {
+    assert caller == parent;
+    let turn = SessionModel.createTurn(testCleanupSessionStores, agentId, null, null, null);
+    turn.turnId;
+  };
+
+  /// Returns the number of turns stored for agentId in testCleanupSessionStores.
+  /// Returns 0 when no turns have been seeded for that agent.
+  public shared query ({ caller }) func testGetTurnCount(agentId : Nat) : async Nat {
+    assert caller == parent;
+    switch (SessionModel.getTurnsByAgent(testCleanupSessionStores, agentId)) {
+      case (null) { 0 };
+      case (?turnMap) { Map.size(turnMap) };
     };
   };
 
@@ -1679,6 +1676,60 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   ) : async Text {
     assert caller == parent;
     await DeleteFailedEventsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
+  };
+
+  // ============================================
+  // Dispatch Workflow Handler Test Methods
+  // ============================================
+
+  /// Test the DispatchWorkflowHandler in isolation.
+  ///
+  /// @param args               JSON-encoded tool arguments ({ workflowId, permits? }).
+  /// @param triggerMessageText The verbatim Slack trigger message text (for permit validation).
+  /// @param botToken           Optional Slack bot token (for setAdminChannel permit validation).
+  /// @param mockDispatchFail   When true, dispatchToEngine returns #err; otherwise #ok.
+  ///
+  /// Uses a minimal org-admin AgentRecord stub and a fresh ExecutionEnvelopeModel.EnvelopeState.
+  public shared ({ caller }) func testDispatchWorkflowHandler(
+    args : Text,
+    triggerMessageText : ?Text,
+    botToken : ?Text,
+    mockDispatchFail : Bool,
+  ) : async Text {
+    assert caller == parent;
+    let agent : AgentModel.AgentRecord = {
+      id = 0;
+      ownedBy = 0;
+      category = #_system(#admin);
+      config = {
+        name = "test-dispatch-admin";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#canister];
+        allowedChannelIds = Set.empty<Text>();
+        secrets = { allowed = []; overrides = [] };
+      };
+      state = {
+        toolsState = Map.empty<Text, AgentModel.ToolState>();
+      };
+    };
+    let engineDispatch : DispatchWorkflowHandler.EngineDispatch = {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
+        #ok;
+        #err : Text;
+      } {
+        if (mockDispatchFail) { #err("mock-engine-error") } else { #ok };
+      };
+    };
+    let envelopeContext : DispatchWorkflowHandler.EnvelopeContext = {
+      agent;
+      turnId = "test-turn-0_0";
+      instructions = "Test instructions";
+      messages = [];
+      botToken;
+      apiKey = "test-api-key";
+    };
+    await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, triggerMessageText, args);
   };
 
   /// Test the SlackEventIntakeService in isolation.

@@ -368,8 +368,7 @@ module {
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
   ) : async AgentRouter.RouteResult {
     let engineDeps : AgentRouter.EngineDeps = {
-      executionTokenStore = ctx.executionTokenStore;
-      generateEnvelopeId = ctx.generateEnvelopeId;
+      envelopeState = ctx.envelopeState;
       dispatchToEngine = ctx.dispatchToEngine;
     };
     await AgentRouter.route(

@@ -18,14 +18,14 @@ module {
   /// request body before forwarding to Core's execution API.
   public func buildCallCore(
     core : CoreApi.CoreApi,
-    tokenNonce : Text,
+    envelopeNonce : Text,
   ) : ToolTypes.CallCore {
     func(
       method : ExecutionTypes.HttpMethod,
       path : Text,
       body : Text,
     ) : async { #ok : Text; #err : Text } {
-      let enrichedBody = injectNonce(body, tokenNonce);
+      let enrichedBody = injectNonce(body, envelopeNonce);
       await core.executionApi(method, path, enrichedBody);
     };
   };
@@ -89,12 +89,12 @@ module {
 
   // ── Nonce injection ────────────────────────────────────────────────
 
-  /// Inject the tokenNonce field into a JSON body string.
+  /// Inject the envelopeNonce field into a JSON body string.
   public func injectNonce(body : Text, nonce : Text) : Text {
     switch (Json.parse(body)) {
       case (#ok(#object_(entries))) {
         let fields = List.empty<(Text, Json.Json)>();
-        List.add(fields, ("tokenNonce", #string(nonce)));
+        List.add(fields, ("envelopeNonce", #string(nonce)));
         for ((k, v) in entries.vals()) {
           List.add(fields, (k, v));
         };
@@ -102,7 +102,7 @@ module {
       };
       case (_) {
         // Body is not a valid JSON object — wrap nonce-only
-        Json.stringify(#object_([("tokenNonce", str(nonce))]), null);
+        Json.stringify(#object_([("envelopeNonce", str(nonce))]), null);
       };
     };
   };

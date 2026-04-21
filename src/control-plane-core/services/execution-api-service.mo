@@ -10,14 +10,14 @@ import AgentModel "../models/agent-model";
 import EventStoreModel "../models/event-store-model";
 import SessionModel "../models/session-model";
 import ExecutionTypes "../types/execution";
-import ExecutionTokenService "execution-token-service";
+import ExecutionEnvelopeModel "../models/execution-envelope-model";
 
 module {
 
   // ── Dependencies (threaded from main.mo) ───────────────────────────
 
   public type ServiceDeps = {
-    tokenStore : ExecutionTokenService.TokenStore;
+    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
     workspaces : WorkspaceModel.WorkspacesState;
     agentRegistry : AgentModel.AgentRegistryState;
     eventStore : EventStoreModel.EventStoreState;
@@ -43,11 +43,11 @@ module {
         case (#ok(json)) { json };
       };
 
-      // 2. Extract tokenNonce from body
-      let tokenNonce = switch (Json.get(parsed, "tokenNonce")) {
+      // 2. Extract envelopeNonce from body
+      let envelopeNonce = switch (Json.get(parsed, "envelopeNonce")) {
         case (?#string(n)) { n };
         case (_) {
-          return result(errorResponse("Missing or invalid 'tokenNonce'"), asyncEffects);
+          return result(errorResponse("Missing or invalid 'envelopeNonce'"), asyncEffects);
         };
       };
 
@@ -60,15 +60,15 @@ module {
           switch (method, segments[0]) {
             // #workspace scoped routes
             case (#get, "workspace") {
-              handleWorkspaceGet(tokenNonce);
+              handleWorkspaceGet(envelopeNonce);
             };
             case (#post, "workspace") {
-              handleWorkspaceCreate(tokenNonce, parsed);
+              handleWorkspaceCreate(envelopeNonce, parsed);
             };
 
             // #agents scoped routes
-            case (#get, "agent") { handleAgentList(tokenNonce) };
-            case (#post, "agent") { handleAgentCreate(tokenNonce, parsed) };
+            case (#get, "agent") { handleAgentList(envelopeNonce) };
+            case (#post, "agent") { handleAgentCreate(envelopeNonce, parsed) };
 
             case _ { errorResponse("Not found: " # path) };
           };
@@ -82,32 +82,32 @@ module {
             case (#post, "workspace") {
               switch (seg1) {
                 case "update" {
-                  handleWorkspaceUpdate(tokenNonce, parsed);
+                  handleWorkspaceUpdate(envelopeNonce, parsed);
                 };
                 case "admin-channel" {
-                  handleSetAdminChannel(tokenNonce, parsed);
+                  handleSetAdminChannel(envelopeNonce, parsed);
                 };
                 case _ { errorResponse("Not found: POST /workspace/" # seg1) };
               };
             };
             case (#delete, "workspace") {
-              handleWorkspaceDelete(tokenNonce, seg1);
+              handleWorkspaceDelete(envelopeNonce, seg1);
             };
 
             // #agents scoped routes
-            case (#get, "agent") { handleAgentGet(tokenNonce, seg1) }; // #agent scope route
+            case (#get, "agent") { handleAgentGet(envelopeNonce, seg1) }; // #agent scope route
             case (#post, "agent") {
-              handleAgentUpdate(tokenNonce, seg1, parsed);
+              handleAgentUpdate(envelopeNonce, seg1, parsed);
             };
             case (#delete, "agent") {
-              handleAgentDelete(tokenNonce, seg1);
+              handleAgentDelete(envelopeNonce, seg1);
             };
 
             // Slack Queue routes
             case (#get, "slack-queue") {
               switch (seg1) {
-                case "stats" { handleSlackQueueStats(tokenNonce) };
-                case "failed" { handleSlackQueueFailedList(tokenNonce) };
+                case "stats" { handleSlackQueueStats(envelopeNonce) };
+                case "failed" { handleSlackQueueFailedList(envelopeNonce) };
                 case _ { errorResponse("Not found: GET /slack-queue/" # seg1) };
               };
             };
@@ -116,10 +116,10 @@ module {
             case (#post, "execution") {
               switch (seg1) {
                 case "milestone" {
-                  handleEventMilestone(tokenNonce, asyncEffects, parsed);
+                  handleEventMilestone(envelopeNonce, asyncEffects, parsed);
                 };
                 case "complete" {
-                  handleEventComplete(tokenNonce, asyncEffects, parsed);
+                  handleEventComplete(envelopeNonce, asyncEffects, parsed);
                 };
                 case _ { errorResponse("Not found: POST /execution/" # seg1) };
               };
@@ -129,7 +129,7 @@ module {
             case (#post, "session") {
               switch (seg1) {
                 case "policy" {
-                  handleSessionPolicy(tokenNonce, parsed);
+                  handleSessionPolicy(envelopeNonce, parsed);
                 };
                 case _ {
                   errorResponse("Not found: POST /session/" # seg1);
@@ -149,8 +149,8 @@ module {
     // ── Token helpers ────────────────────────────────────────────────────
 
     /// Extract the workspace ID bound to a token. Returns null for invalid/expired tokens.
-    private func getTokenWorkspaceId(tokenNonce : Text) : ?Nat {
-      switch (ExecutionTokenService.getRecord(deps.tokenStore, tokenNonce)) {
+    private func getTokenWorkspaceId(envelopeNonce : Text) : ?Nat {
+      switch (ExecutionEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
         case (null) { null };
         case (?record) { ?record.workspaceId };
       };
@@ -159,13 +159,13 @@ module {
     /// Validates a scope grant and extracts the workspace ID from the token in one step.
     /// Returns #err if scope is missing or the token is invalid/expired.
     private func requireScope(
-      tokenNonce : Text,
+      envelopeNonce : Text,
       grant : ExecutionTypes.ScopeGrant,
     ) : { #ok : Nat; #err : Text } {
-      switch (checkGrant(tokenNonce, grant)) {
+      switch (checkGrant(envelopeNonce, grant)) {
         case (#err(e)) { #err(e) };
         case (#ok) {
-          switch (getTokenWorkspaceId(tokenNonce)) {
+          switch (getTokenWorkspaceId(envelopeNonce)) {
             case (null) { #err("Invalid or expired token") };
             case (?ws) { #ok(ws) };
           };
@@ -195,11 +195,11 @@ module {
     // ── Workspace handlers ─────────────────────────────────────────────
 
     /// Returns the token's own workspace.
-    private func handleWorkspaceGet(tokenNonce : Text) : {
+    private func handleWorkspaceGet(envelopeNonce : Text) : {
       #ok : Text;
       #err : Text;
     } {
-      let tokenWs = switch (requireScope(tokenNonce, #workspace({ access = #read }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #read }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -209,11 +209,11 @@ module {
       };
     };
 
-    private func handleWorkspaceCreate(tokenNonce : Text, body : Json.Json) : {
+    private func handleWorkspaceCreate(envelopeNonce : Text, body : Json.Json) : {
       #ok : Text;
       #err : Text;
     } {
-      let tokenWs = switch (requireScope(tokenNonce, #workspace({ access = #write }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #write }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -232,11 +232,11 @@ module {
     };
 
     /// Updates the token's own workspace.
-    private func handleWorkspaceUpdate(tokenNonce : Text, body : Json.Json) : {
+    private func handleWorkspaceUpdate(envelopeNonce : Text, body : Json.Json) : {
       #ok : Text;
       #err : Text;
     } {
-      let tokenWs = switch (requireScope(tokenNonce, #workspace({ access = #write }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #write }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -250,7 +250,7 @@ module {
       };
     };
 
-    private func handleWorkspaceDelete(tokenNonce : Text, idStr : Text) : {
+    private func handleWorkspaceDelete(envelopeNonce : Text, idStr : Text) : {
       #ok : Text;
       #err : Text;
     } {
@@ -258,7 +258,7 @@ module {
         case (null) { return errorResponse("Invalid workspace id: " # idStr) };
         case (?id) { id };
       };
-      let tokenWs = switch (requireScope(tokenNonce, #workspace({ access = #write }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #write }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -267,7 +267,7 @@ module {
         return errorResponse("Only org admin can delete workspaces");
       };
       // Require a matching #deleteWorkspace permit (pre-validated at Core dispatch)
-      if (not ExecutionTokenService.hasPermit(deps.tokenStore, tokenNonce, #deleteWorkspace({ workspaceId }))) {
+      if (not ExecutionEnvelopeModel.hasPermit(deps.envelopeState, envelopeNonce, #deleteWorkspace({ workspaceId }))) {
         return errorResponse("Missing #deleteWorkspace permit for workspace " # idStr);
       };
       switch (WorkspaceModel.deleteWorkspace(deps.workspaces, workspaceId)) {
@@ -278,11 +278,11 @@ module {
 
     // ── Agent handlers ─────────────────────────────────────────────────
 
-    private func handleAgentList(tokenNonce : Text) : {
+    private func handleAgentList(envelopeNonce : Text) : {
       #ok : Text;
       #err : Text;
     } {
-      let tokenWs = switch (requireScope(tokenNonce, #agents({ access = #read }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #agents({ access = #read }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -297,7 +297,7 @@ module {
       okResponse(?arr(List.toArray(items)));
     };
 
-    private func handleAgentGet(tokenNonce : Text, idStr : Text) : {
+    private func handleAgentGet(envelopeNonce : Text, idStr : Text) : {
       #ok : Text;
       #err : Text;
     } {
@@ -308,12 +308,12 @@ module {
       // Admins (agents:read) can get any agent in their workspace.
       // Non-admin agents can only read their own record (#agent scope with matching id).
       if (
-        not validateScope(tokenNonce, #agents({ access = #read })) and
-        not validateScope(tokenNonce, #agent({ id = agentId; access = #read }))
+        not validateScope(envelopeNonce, #agents({ access = #read })) and
+        not validateScope(envelopeNonce, #agent({ id = agentId; access = #read }))
       ) {
         return errorResponse("Token does not grant access to agent:" # idStr);
       };
-      let tokenWs = switch (getTokenWorkspaceId(tokenNonce)) {
+      let tokenWs = switch (getTokenWorkspaceId(envelopeNonce)) {
         case (null) { return errorResponse("Invalid or expired token") };
         case (?ws) { ws };
       };
@@ -324,11 +324,11 @@ module {
       okResponse(?agentRecordToJson(agent));
     };
 
-    private func handleAgentCreate(tokenNonce : Text, body : Json.Json) : {
+    private func handleAgentCreate(envelopeNonce : Text, body : Json.Json) : {
       #ok : Text;
       #err : Text;
     } {
-      let tokenWs = switch (requireScope(tokenNonce, #agents({ access = #write }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #agents({ access = #write }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -371,7 +371,7 @@ module {
       };
     };
 
-    private func handleAgentUpdate(tokenNonce : Text, idStr : Text, body : Json.Json) : {
+    private func handleAgentUpdate(envelopeNonce : Text, idStr : Text, body : Json.Json) : {
       #ok : Text;
       #err : Text;
     } {
@@ -380,7 +380,7 @@ module {
         case (?id) { id };
       };
       // 1. Check scope authorization
-      let tokenWs = switch (requireScope(tokenNonce, #agents({ access = #write }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #agents({ access = #write }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -405,7 +405,7 @@ module {
 
     // ── Agent delete handler ────────────────────────────────────────────
 
-    private func handleAgentDelete(tokenNonce : Text, idStr : Text) : {
+    private func handleAgentDelete(envelopeNonce : Text, idStr : Text) : {
       #ok : Text;
       #err : Text;
     } {
@@ -414,7 +414,7 @@ module {
         case (?id) { id };
       };
       // 1. Check scope authorization
-      let tokenWs = switch (requireScope(tokenNonce, #agents({ access = #write }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #agents({ access = #write }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -432,11 +432,11 @@ module {
     // ── Admin channel handler ──────────────────────────────────────────
 
     /// Sets admin channel on the token's own workspace.
-    private func handleSetAdminChannel(tokenNonce : Text, body : Json.Json) : {
+    private func handleSetAdminChannel(envelopeNonce : Text, body : Json.Json) : {
       #ok : Text;
       #err : Text;
     } {
-      let tokenWs = switch (requireScope(tokenNonce, #workspace({ access = #write }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #write }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -445,7 +445,7 @@ module {
         case (#ok(v)) { v };
       };
       // Require a matching #setAdminChannel permit (pre-validated at Core dispatch)
-      if (not ExecutionTokenService.hasPermit(deps.tokenStore, tokenNonce, #setAdminChannel({ channelId }))) {
+      if (not ExecutionEnvelopeModel.hasPermit(deps.envelopeState, envelopeNonce, #setAdminChannel({ channelId }))) {
         return errorResponse("Missing #setAdminChannel permit for channel " # channelId);
       };
       switch (WorkspaceModel.setAdminChannel(deps.workspaces, tokenWs, channelId)) {
@@ -456,11 +456,11 @@ module {
 
     // ── Event handlers ─────────────────────────────────────────────────
 
-    private func handleSlackQueueStats(tokenNonce : Text) : {
+    private func handleSlackQueueStats(envelopeNonce : Text) : {
       #ok : Text;
       #err : Text;
     } {
-      switch (checkGrant(tokenNonce, #slackQueue({ access = #read }))) {
+      switch (checkGrant(envelopeNonce, #slackQueue({ access = #read }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok) {};
       };
@@ -468,11 +468,11 @@ module {
       okResponse(?obj([("unprocessed", int(stats.unprocessed)), ("processed", int(stats.processed)), ("failed", int(stats.failed))]));
     };
 
-    private func handleSlackQueueFailedList(tokenNonce : Text) : {
+    private func handleSlackQueueFailedList(envelopeNonce : Text) : {
       #ok : Text;
       #err : Text;
     } {
-      switch (checkGrant(tokenNonce, #slackQueue({ access = #read }))) {
+      switch (checkGrant(envelopeNonce, #slackQueue({ access = #read }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok) {};
       };
@@ -492,11 +492,11 @@ module {
 
     // ── Session handler ────────────────────────────────────────────────
 
-    private func handleSessionPolicy(tokenNonce : Text, body : Json.Json) : {
+    private func handleSessionPolicy(envelopeNonce : Text, body : Json.Json) : {
       #ok : Text;
       #err : Text;
     } {
-      let tokenWs = switch (requireScope(tokenNonce, #session({ access = #write }))) {
+      let tokenWs = switch (requireScope(envelopeNonce, #session({ access = #write }))) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(ws)) { ws };
       };
@@ -531,14 +531,14 @@ module {
     // ── Event milestone/complete handlers ──────────────────────────────
 
     private func handleEventMilestone(
-      tokenNonce : Text,
+      envelopeNonce : Text,
       asyncEffects : List.List<ExecutionTypes.AsyncEffect>,
       body : Json.Json,
     ) : {
       #ok : Text;
       #err : Text;
     } {
-      let record = switch (ExecutionTokenService.getRecord(deps.tokenStore, tokenNonce)) {
+      let record = switch (ExecutionEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
         case (null) { return errorResponse("Invalid or expired token") };
         case (?r) { r };
       };
@@ -560,14 +560,14 @@ module {
     };
 
     private func handleEventComplete(
-      tokenNonce : Text,
+      envelopeNonce : Text,
       asyncEffects : List.List<ExecutionTypes.AsyncEffect>,
       body : Json.Json,
     ) : {
       #ok : Text;
       #err : Text;
     } {
-      let record = switch (ExecutionTokenService.getRecord(deps.tokenStore, tokenNonce)) {
+      let record = switch (ExecutionEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
         case (null) { return errorResponse("Invalid or expired token") };
         case (?r) { r };
       };
@@ -580,7 +580,7 @@ module {
       let stats = parseExecutionStats(body);
 
       // Revoke token immediately (defense-in-depth)
-      ExecutionTokenService.revoke(deps.tokenStore, tokenNonce);
+      ExecutionEnvelopeModel.revoke(deps.envelopeState, envelopeNonce);
 
       List.add(
         asyncEffects,
@@ -780,18 +780,18 @@ module {
 
     /// Checks a scope grant, returning #ok or a derived error message on failure.
     private func checkGrant(
-      tokenNonce : Text,
+      envelopeNonce : Text,
       grant : ExecutionTypes.ScopeGrant,
     ) : { #ok; #err : Text } {
-      if (validateScope(tokenNonce, grant)) { #ok } else {
+      if (validateScope(envelopeNonce, grant)) { #ok } else {
         #err("Token does not grant " # grantText(grant));
       };
     };
     private func validateScope(
-      tokenNonce : Text,
+      envelopeNonce : Text,
       requiredGrant : ExecutionTypes.ScopeGrant,
     ) : Bool {
-      ExecutionTokenService.validate(deps.tokenStore, tokenNonce, requiredGrant);
+      ExecutionEnvelopeModel.validate(deps.envelopeState, envelopeNonce, requiredGrant);
     };
 
   }; // end class Service

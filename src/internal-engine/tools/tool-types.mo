@@ -5,8 +5,8 @@ module {
   // ── CallCore function type ─────────────────────────────────────────
 
   /// A function that calls Core's execution API.
-  /// Parameters: (method, path, body) where body is JSON without tokenNonce.
-  /// The implementation injects tokenNonce automatically before forwarding.
+  /// Parameters: (method, path, body) where body is JSON without envelopeNonce.
+  /// The implementation injects envelopeNonce automatically before forwarding.
   public type CallCore = (ExecutionTypes.HttpMethod, Text, Text) -> async {
     #ok : Text;
     #err : Text;

@@ -37,6 +37,7 @@ const BOT_TOKEN =
   process.env["SLACK_APP_BOT_TOKEN"] ?? "not-needed-due-to-cassette";
 const OPENROUTER_API_KEY =
   process.env["OPENROUTER_TEST_KEY"] ?? "not-needed-due-to-cassette";
+const DISPATCH_TEST_CHANNEL = "C_DISPATCH_TEST";
 
 describe("MessageHandler Unit Tests", () => {
   let pic: PocketIc;
@@ -201,7 +202,7 @@ describe("MessageHandler Unit Tests", () => {
         expect(lastStep.timestamp).toBeGreaterThan(0n);
       }
     }
-  }, 20000);
+  });
 
   it("should include a positive nanosecond timestamp in every returned step", async () => {
     const event = messageStandardStub.event;
@@ -237,6 +238,50 @@ describe("MessageHandler Unit Tests", () => {
         expect(step.timestamp).toBeGreaterThan(0n);
       }
     }
+  });
+
+  it("should mark the turn as pending and return dispatch_to_engine step", async () => {
+    const cassetteName =
+      "unit-tests/control-plane-core/events/handlers/message-handler-dispatch/dispatch-workflow";
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerDispatch(
+          {
+            user: "U_ADMIN",
+            text: "List all workspaces for me.",
+            channel: DISPATCH_TEST_CHANNEL,
+            ts: "1700000020.000001",
+            threadTs: [],
+            isBotMessage: false,
+            agentMetadata: [],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+        ),
+      { ticks: 5, maxRounds: 5 },
+    );
+
+    const response = await result;
+
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      expect(response.ok.length).toBeGreaterThanOrEqual(1);
+      const dispatchStep = response.ok.find(
+        (s) => s.action === "dispatch_to_engine",
+      );
+      expect(dispatchStep).toBeDefined();
+      if (dispatchStep) {
+        expect("ok" in dispatchStep.result).toBe(true);
+      }
+      const slackStep = response.ok.find((s) => s.action === "post_to_slack");
+      expect(slackStep).toBeUndefined();
+    }
+
+    const statusResult = await (await testCanister.testGetTurnStatus("0_0"))();
+    expect(statusResult).toEqual(["pending"]);
   });
 
   // ============================================

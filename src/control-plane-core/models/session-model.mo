@@ -306,9 +306,10 @@ module {
   /// Pops from minEntry() of each agent's inner Map (ordered by turnNumber,
   /// which is monotonically increasing) until a turn newer than the cutoff is
   /// reached — O(deleted × log n) rather than O(total turns).
-  /// Returns the number of turns deleted.
-  public func deleteTurnsOlderThan(stores : SessionStores, cutoffNs : Int) : Nat {
-    var deleted : Nat = 0;
+  /// Returns the list of deleted turnIds so callers can GC related records
+  /// (e.g. execution envelopes) in a single coordinated sweep.
+  public func deleteTurnsOlderThan(stores : SessionStores, cutoffNs : Int) : [Text] {
+    let deletedTurnIds = List.empty<Text>();
     for ((_, turnMap) in Map.entries(stores.turns)) {
       // Collect keys to delete, then remove after scanning
       let toRemove = List.empty<(Nat, Text)>();
@@ -329,10 +330,10 @@ module {
       };
       for ((_, turnId) in List.values(toRemove)) {
         Map.remove(stores.traces, Text.compare, turnId);
-        deleted += 1;
+        List.add(deletedTurnIds, turnId);
       };
     };
-    deleted;
+    List.toArray(deletedTurnIds);
   };
 
   // ============================================

@@ -6,6 +6,7 @@
 /// Keyed by envelopeId.
 
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Time "mo:core/Time";
@@ -21,9 +22,9 @@ module {
   // ============================================
 
   public type RunStoreState = {
-    running : Map.Map<Text, RunTypes.RunRecord>;
-    completed : Map.Map<Text, RunTypes.RunRecord>;
-    failed : Map.Map<Text, RunTypes.RunRecord>;
+    running : Map.Map<Nat, RunTypes.RunRecord>;
+    completed : Map.Map<Nat, RunTypes.RunRecord>;
+    failed : Map.Map<Nat, RunTypes.RunRecord>;
   };
 
   // ============================================
@@ -32,9 +33,9 @@ module {
 
   public func empty() : RunStoreState {
     {
-      running = Map.empty<Text, RunTypes.RunRecord>();
-      completed = Map.empty<Text, RunTypes.RunRecord>();
-      failed = Map.empty<Text, RunTypes.RunRecord>();
+      running = Map.empty<Nat, RunTypes.RunRecord>();
+      completed = Map.empty<Nat, RunTypes.RunRecord>();
+      failed = Map.empty<Nat, RunTypes.RunRecord>();
     };
   };
 
@@ -49,12 +50,12 @@ module {
   } {
     let id = record.envelopeId;
     if (isDuplicate(state, id)) { return #duplicate };
-    Map.add(state.running, Text.compare, id, record);
+    Map.add(state.running, Nat.compare, id, record);
     #ok;
   };
 
-  public func isDuplicate(state : RunStoreState, envelopeId : Text) : Bool {
-    Map.containsKey(state.running, Text.compare, envelopeId) or Map.containsKey(state.completed, Text.compare, envelopeId) or Map.containsKey(state.failed, Text.compare, envelopeId);
+  public func isDuplicate(state : RunStoreState, envelopeId : Nat) : Bool {
+    Map.containsKey(state.running, Nat.compare, envelopeId) or Map.containsKey(state.completed, Nat.compare, envelopeId) or Map.containsKey(state.failed, Nat.compare, envelopeId);
   };
 
   // ============================================
@@ -63,30 +64,30 @@ module {
 
   /// Claim a run for processing — sets claimedAt timestamp.
   /// Returns the record if found in running, null otherwise.
-  public func claim(state : RunStoreState, envelopeId : Text) : ?RunTypes.RunRecord {
-    switch (Map.get(state.running, Text.compare, envelopeId)) {
+  public func claim(state : RunStoreState, envelopeId : Nat) : ?RunTypes.RunRecord {
+    switch (Map.get(state.running, Nat.compare, envelopeId)) {
       case (null) { null };
       case (?record) {
         let claimed : RunTypes.RunRecord = {
           record with
           claimedAt = ?Time.now();
         };
-        Map.add(state.running, Text.compare, envelopeId, claimed);
+        Map.add(state.running, Nat.compare, envelopeId, claimed);
         ?claimed;
       };
     };
   };
 
   /// Get a run record from the running map (without claiming).
-  public func getRunning(state : RunStoreState, envelopeId : Text) : ?RunTypes.RunRecord {
-    Map.get(state.running, Text.compare, envelopeId);
+  public func getRunning(state : RunStoreState, envelopeId : Nat) : ?RunTypes.RunRecord {
+    Map.get(state.running, Nat.compare, envelopeId);
   };
 
   /// Mark a run as successfully completed.
   /// Moves from running → completed with outcome data.
   public func markCompleted(
     state : RunStoreState,
-    envelopeId : Text,
+    envelopeId : Nat,
     status : { #completed; #roundLimitReached },
     stats : {
       durationNs : Int;
@@ -99,7 +100,7 @@ module {
     },
     steps : [RunTypes.RunStep],
   ) {
-    switch (Map.get(state.running, Text.compare, envelopeId)) {
+    switch (Map.get(state.running, Nat.compare, envelopeId)) {
       case (null) {};
       case (?record) {
         let done : RunTypes.RunRecord = {
@@ -109,8 +110,8 @@ module {
           stats = ?stats;
           steps;
         };
-        Map.remove(state.running, Text.compare, envelopeId);
-        Map.add(state.completed, Text.compare, envelopeId, done);
+        Map.remove(state.running, Nat.compare, envelopeId);
+        Map.add(state.completed, Nat.compare, envelopeId, done);
       };
     };
   };
@@ -119,11 +120,11 @@ module {
   /// Moves from running → failed with error and whatever steps were collected.
   public func markFailed(
     state : RunStoreState,
-    envelopeId : Text,
+    envelopeId : Nat,
     error : Text,
     steps : [RunTypes.RunStep],
   ) {
-    switch (Map.get(state.running, Text.compare, envelopeId)) {
+    switch (Map.get(state.running, Nat.compare, envelopeId)) {
       case (null) {};
       case (?record) {
         let errored : RunTypes.RunRecord = {
@@ -133,8 +134,8 @@ module {
           status = ?(#failed(error));
           steps;
         };
-        Map.remove(state.running, Text.compare, envelopeId);
-        Map.add(state.failed, Text.compare, envelopeId, errored);
+        Map.remove(state.running, Nat.compare, envelopeId);
+        Map.add(state.failed, Nat.compare, envelopeId, errored);
       };
     };
   };
@@ -144,13 +145,13 @@ module {
   // ============================================
 
   /// Get a run record by envelopeId from any map.
-  public func get(state : RunStoreState, envelopeId : Text) : ?RunTypes.RunRecord {
-    switch (Map.get(state.running, Text.compare, envelopeId)) {
+  public func get(state : RunStoreState, envelopeId : Nat) : ?RunTypes.RunRecord {
+    switch (Map.get(state.running, Nat.compare, envelopeId)) {
       case (?r) { ?r };
       case (null) {
-        switch (Map.get(state.completed, Text.compare, envelopeId)) {
+        switch (Map.get(state.completed, Nat.compare, envelopeId)) {
           case (?r) { ?r };
-          case (null) { Map.get(state.failed, Text.compare, envelopeId) };
+          case (null) { Map.get(state.failed, Nat.compare, envelopeId) };
         };
       };
     };
@@ -182,7 +183,7 @@ module {
   public func purgeCompleted(state : RunStoreState) : Nat {
     let threshold = Int.fromNat(Constants.COMPLETED_RUN_RETENTION_NS);
     let now = Time.now();
-    let keysToRemove = List.empty<Text>();
+    let keysToRemove = List.empty<Nat>();
     for ((id, record) in Map.entries(state.completed)) {
       switch (record.completedAt) {
         case (null) {};
@@ -193,9 +194,9 @@ module {
         };
       };
     };
-    List.forEach<Text>(
+    List.forEach<Nat>(
       keysToRemove,
-      func(id) { Map.remove(state.completed, Text.compare, id) },
+      func(id) { Map.remove(state.completed, Nat.compare, id) },
     );
     List.size(keysToRemove);
   };
@@ -204,7 +205,7 @@ module {
   public func purgeOldFailed(state : RunStoreState) : Nat {
     let threshold = Int.fromNat(Constants.FAILED_RUN_RETENTION_NS);
     let now = Time.now();
-    let keysToRemove = List.empty<Text>();
+    let keysToRemove = List.empty<Nat>();
     for ((id, record) in Map.entries(state.failed)) {
       switch (record.failedAt) {
         case (null) {};
@@ -215,28 +216,28 @@ module {
         };
       };
     };
-    List.forEach<Text>(
+    List.forEach<Nat>(
       keysToRemove,
-      func(id) { Map.remove(state.failed, Text.compare, id) },
+      func(id) { Map.remove(state.failed, Nat.compare, id) },
     );
     List.size(keysToRemove);
   };
 
   /// Move runs sitting in running for more than 1 hour to failed.
   /// Catches trapped or hung executions. Returns moved envelope IDs.
-  public func failStaleRunning(state : RunStoreState) : [Text] {
+  public func failStaleRunning(state : RunStoreState) : [Nat] {
     let threshold = Int.fromNat(Constants.STALE_RUN_THRESHOLD_NS);
     let now = Time.now();
-    let staleIds = List.empty<Text>();
+    let staleIds = List.empty<Nat>();
     for ((id, record) in Map.entries(state.running)) {
       if (now - record.enqueuedAt > threshold) {
         List.add(staleIds, id);
       };
     };
-    List.forEach<Text>(
+    List.forEach<Nat>(
       staleIds,
       func(id) {
-        switch (Map.get(state.running, Text.compare, id)) {
+        switch (Map.get(state.running, Nat.compare, id)) {
           case (null) {};
           case (?record) {
             let errored : RunTypes.RunRecord = {
@@ -245,8 +246,8 @@ module {
               failedError = "Run was not completed within 1 hour of being enqueued (possible trap).";
               status = ?(#failed("Run was not completed within 1 hour of being enqueued (possible trap)."));
             };
-            Map.remove(state.running, Text.compare, id);
-            Map.add(state.failed, Text.compare, id, errored);
+            Map.remove(state.running, Nat.compare, id);
+            Map.add(state.failed, Nat.compare, id, errored);
           };
         };
       },

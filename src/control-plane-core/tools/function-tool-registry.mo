@@ -24,6 +24,7 @@ import GetFailedEventsHandler "./handlers/events/get-failed-events-handler";
 import DeleteFailedEventsHandler "./handlers/events/delete-failed-events-handler";
 import SessionModel "../models/session-model";
 import UpdateSessionPolicyHandler "./handlers/sessions/update-session-policy-handler";
+import DispatchWorkflowHandler "./handlers/dispatch-workflow-handler";
 import AgentModel "../models/agent-model";
 import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
@@ -168,6 +169,16 @@ module {
         };
       };
       case (null) {};
+    };
+
+    // ==========================================
+    // DISPATCH WORKFLOW TOOL - requires engineDispatch + envelopeContext
+    // ==========================================
+    switch (resources.engineDispatch, resources.envelopeContext) {
+      case (?ed, ?ec) {
+        List.add(tools, dispatchWorkflowTool(ed, ec, resources.triggerMessageText));
+      };
+      case _ {};
     };
 
     List.toArray(tools);
@@ -564,6 +575,27 @@ module {
       };
       handler = func(args : Text) : async Text {
         await UpdateSessionPolicyHandler.handle(stores, args);
+      };
+    };
+  };
+
+  // ============================================
+  // DISPATCH WORKFLOW TOOL IMPLEMENTATION
+  // ============================================
+
+  /// Dispatch workflow tool — requires engineDispatch + envelopeContext resources.
+  private func dispatchWorkflowTool(
+    engineDispatch : DispatchWorkflowHandler.EngineDispatch,
+    envelopeContext : DispatchWorkflowHandler.EnvelopeContext,
+    triggerMessageText : ?Text,
+  ) : FunctionTool {
+    {
+      definition = {
+        tool_type = DispatchWorkflowHandler.definition.tool_type;
+        function = DispatchWorkflowHandler.definition.function;
+      };
+      handler = func(args : Text) : async Text {
+        await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, triggerMessageText, args);
       };
     };
   };

@@ -511,7 +511,7 @@ suite(
         // Use a very large cutoff — all turns (including the running t2) have startedAtNs < cutoff
         let cutoff = 9_999_999_999_999_999_999;
         let deleted = SessionModel.deleteTurnsOlderThan(stores, cutoff);
-        expect.nat(deleted).equal(3);
+        expect.nat(deleted.size()).equal(3);
 
         // All three turns should be gone (running turn is collected too)
         expect.bool(isNone(SessionModel.findTurn(stores, t0.turnId))).isTrue();
@@ -526,7 +526,7 @@ suite(
       "returns 0 when no turns exist",
       func() {
         let stores = makeStores();
-        expect.nat(SessionModel.deleteTurnsOlderThan(stores, 9_999_999_999_999_999_999)).equal(0);
+        expect.nat(SessionModel.deleteTurnsOlderThan(stores, 9_999_999_999_999_999_999).size()).equal(0);
       },
     );
 
@@ -539,7 +539,7 @@ suite(
 
         // cutoff of 0 → nothing is older than epoch 0
         let deleted = SessionModel.deleteTurnsOlderThan(stores, 0);
-        expect.nat(deleted).equal(0);
+        expect.nat(deleted.size()).equal(0);
         expect.bool(isSome(SessionModel.findTurn(stores, t0.turnId))).isTrue();
       },
     );

@@ -1,0 +1,224 @@
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
+import type { PocketIc, Actor } from "@dfinity/pic";
+import {
+  createTestCanister,
+  freshTestCanister,
+  type TestCanisterService,
+} from "../../../../setup";
+
+// ============================================
+// DispatchWorkflowHandler Unit Tests
+//
+// This handler (async — may call SlackWrapper for setAdminChannel permits):
+//   1. Parses JSON args for { workflowId, permits? }
+//   2. Validates each permit:
+//      - #deleteWorkspace: trigger message must contain "delete"
+//      - #setAdminChannel: Slack bot token must be present (HTTP call to verify channel)
+//   3. Issues an ExecutionToken via ExecutionTokenService
+//   4. Builds an ExecutionEnvelope and dispatches to the engine
+//   5. Returns { "dispatched": true } on success, { "dispatched": false, "error": "..." } on failure
+//
+// The test canister uses a minimal org-admin AgentRecord stub (id=0, ownedBy=0).
+// dispatchToEngine is mocked: mockDispatchFail=false → #ok, true → #err("mock-engine-error").
+//
+// testDispatchWorkflowHandler(args, triggerMessageText, botToken, mockDispatchFail)
+//   triggerMessageText: [] = no message (null), ["please delete workspace"] = user typed that
+//   botToken:           [] = no token (null),   ["xoxb-token"] = bot token available
+// ============================================
+
+function parseResponse(json: string): {
+  dispatched: boolean;
+  error?: string;
+} {
+  return JSON.parse(json);
+}
+
+// Candid optional shorthands
+const NO_TRIGGER = [] as [] | [string];
+const NO_TOKEN = [] as [] | [string];
+
+function trigger(text: string): [] | [string] {
+  return [text];
+}
+
+const DISPATCH_OK = false; // mockDispatchFail = false → #ok
+const DISPATCH_FAIL = true; // mockDispatchFail = true → #err
+
+const VALID_ARGS = JSON.stringify({ workflowId: "admin-v1" });
+
+function withDeletePermit(workspaceId: number): string {
+  return JSON.stringify({
+    workflowId: "admin-v1",
+    permits: [{ type: "deleteWorkspace", workspaceId }],
+  });
+}
+
+function withAdminChannelPermit(channelId: string): string {
+  return JSON.stringify({
+    workflowId: "admin-v1",
+    permits: [{ type: "setAdminChannel", channelId }],
+  });
+}
+
+describe("DispatchWorkflowHandler", () => {
+  let pic: PocketIc;
+  let testCanister: Actor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  describe("argument validation", () => {
+    it("should return dispatched:false for invalid JSON", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        "not-valid-json",
+        NO_TRIGGER,
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("Invalid JSON arguments");
+    });
+
+    it("should return dispatched:false when workflowId is missing", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        JSON.stringify({}),
+        NO_TRIGGER,
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("workflowId");
+    });
+
+    it("should return dispatched:false when workflowId is not a string", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        JSON.stringify({ workflowId: 42 }),
+        NO_TRIGGER,
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("workflowId");
+    });
+  });
+
+  describe("dispatch success path (no permits)", () => {
+    it("should return dispatched:true when engine accepts the envelope", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        VALID_ARGS,
+        NO_TRIGGER,
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(true);
+    });
+
+    it("should return dispatched:true with an empty permits array", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        JSON.stringify({ workflowId: "admin-v1", permits: [] }),
+        NO_TRIGGER,
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(true);
+    });
+  });
+
+  describe("dispatch failure path (no permits)", () => {
+    it("should return dispatched:false when engine rejects the envelope", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        VALID_ARGS,
+        NO_TRIGGER,
+        NO_TOKEN,
+        DISPATCH_FAIL,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("Engine dispatch failed");
+      expect(response.error).toContain("mock-engine-error");
+    });
+  });
+
+  describe("deleteWorkspace permit validation", () => {
+    it("should return dispatched:false when no trigger message is available", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        withDeletePermit(1),
+        NO_TRIGGER,
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("trigger message");
+    });
+
+    it("should return dispatched:false when trigger message does not contain 'delete'", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        withDeletePermit(1),
+        trigger("please remove workspace 1"),
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("delete");
+    });
+
+    it("should return dispatched:true when trigger message contains 'delete'", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        withDeletePermit(1),
+        trigger("please delete workspace 1"),
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(true);
+    });
+
+    it("should accept trigger message with 'Delete' (case-insensitive)", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        withDeletePermit(2),
+        trigger("Delete workspace 2"),
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(true);
+    });
+  });
+
+  describe("setAdminChannel permit validation", () => {
+    it("should return dispatched:false when no bot token is available", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        withAdminChannelPermit("C_NEW_CHANNEL"),
+        NO_TRIGGER,
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("bot token");
+    });
+  });
+});

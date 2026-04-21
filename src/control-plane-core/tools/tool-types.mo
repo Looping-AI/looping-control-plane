@@ -5,6 +5,8 @@ import SecretModel "../models/secret-model";
 import KeyDerivationService "../services/key-derivation-service";
 import EventStoreModel "../models/event-store-model";
 import SessionModel "../models/session-model";
+import ExecutionEnvelopeModel "../models/execution-envelope-model";
+import ExecutionTypes "../types/execution";
 
 module {
   // ============================================
@@ -90,6 +92,27 @@ module {
     sessionStores : ?{
       stores : SessionModel.SessionStores;
       write : Bool;
+    };
+
+    // Engine dispatch resources — if provided, dispatch_workflow tool is available.
+    // Carries the envelope state (token store + counter + salt) and async dispatch function.
+    engineDispatch : ?{
+      envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+      dispatchToEngine : (ExecutionTypes.EnvelopePayload) -> async {
+        #ok;
+        #err : Text;
+      };
+    };
+
+    // Per-turn envelope context needed by dispatch_workflow to build the ExecutionEnvelope.
+    // Requires engineDispatch to also be set.
+    envelopeContext : ?{
+      agent : AgentModel.AgentRecord;
+      turnId : Text;
+      instructions : Text;
+      messages : [ExecutionTypes.ChatMessage];
+      botToken : ?Text;
+      apiKey : Text;
     };
   };
 };

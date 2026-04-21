@@ -22,13 +22,13 @@ module {
 
   public type RunRecord = {
     // Identity — from the envelope
-    envelopeId : Text;
+    envelopeId : Nat;
     requestId : Text;
     agentName : Text;
     workflowId : Text;
 
     // The full envelope — needed by the runner to execute
-    envelope : ExecutionTypes.ExecutionEnvelope;
+    envelope : ExecutionTypes.EnvelopePayload;
 
     // Lifecycle timestamps
     enqueuedAt : Int;
@@ -46,7 +46,7 @@ module {
   };
 
   /// Build a fresh RunRecord from an envelope, stamped with enqueuedAt.
-  public func fromEnvelope(envelope : ExecutionTypes.ExecutionEnvelope, now : Int) : RunRecord {
+  public func fromEnvelope(envelope : ExecutionTypes.EnvelopePayload, now : Int) : RunRecord {
     {
       envelopeId = envelope.envelopeId;
       requestId = envelope.requestId;

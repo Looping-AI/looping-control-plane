@@ -30,10 +30,12 @@ import TurnCleanupRunner "./timers/turn-cleanup-runner";
 import EngineTopUpRunner "./timers/engine-topup-runner";
 import SlackEventIntakeService "./services/slack-event-intake-service";
 import SessionModel "./models/session-model";
-import ExecutionTokenService "./services/execution-token-service";
+import Random "mo:core/Random";
+import ExecutionEnvelopeModel "./models/execution-envelope-model";
 import ExecutionApiService "./services/execution-api-service";
+import ExecutionAsyncEffectService "./services/execution-async-effect-service";
 import ExecutionTypes "./types/execution";
-import SlackWrapper "./wrappers/slack-wrapper";
+import Json "mo:json";
 import InternalEngine "../internal-engine/main";
 
 persistent actor class OpenOrgBackend() {
@@ -67,16 +69,25 @@ persistent actor class OpenOrgBackend() {
   // Agent session stores (sessions, turns, traces)
   let sessionStores = SessionModel.emptyStores();
 
-  // Execution token store (engine ↔ Core authorization)
-  let executionTokenStore = ExecutionTokenService.emptyStore();
+  // Envelope state (engine ↔ Core authorization): token store, counter, and entropy salt.
+  // The salt is refreshed on every upgrade via raw_rand (see init/postupgrade timers).
+  let executionEnvelopeState = ExecutionEnvelopeModel.emptyState();
 
   // Execution API service (instantiated once with all deps captured in class scope)
   transient let executionApiService = ExecutionApiService.Service({
-    tokenStore = executionTokenStore;
+    envelopeState = executionEnvelopeState;
     workspaces;
     agentRegistry;
     eventStore;
     sessionStores;
+  });
+
+  // Execution async-effect service (processes engine results: Slack posts, turn completion)
+  transient let executionAsyncEffectService = ExecutionAsyncEffectService.Service({
+    sessionStores;
+    agentRegistry;
+    workspaces;
+    secrets;
   });
 
   // Internal engine canister principal — set when engine is spawned (Phase 6)
@@ -85,11 +96,13 @@ persistent actor class OpenOrgBackend() {
   // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
   var internalEngine : ?InternalEngine.InternalEngine = null;
 
+  // Last-known envelope version accepted by the internal engine.
+  // Initialised to "v1" (current version). Updated automatically whenever the engine
+  // rejects an envelope and responds with the version it requires.
+  var knownInternalEngineEnvelopeVersion : Text = "v1";
+
   // Track last engine top-up for the timer runner
   var lastEngineTopUpTimestamp : Int = Time.now();
-
-  // Monotonic counter for generating unique envelope IDs
-  var nextEnvelopeId : Nat = 0;
 
   // Scheduled timer tracking — transient so it resets on upgrade (matching IC timer wipe).
   // Populated by scheduleAll() during init and postupgrade.
@@ -101,29 +114,22 @@ persistent actor class OpenOrgBackend() {
   // ============================================
 
   /// Spawn a new engine canister with initial cycles.
-  private func deployEngine() : async InternalEngine.InternalEngine {
+  private func deployInternalEngine() : async InternalEngine.InternalEngine {
     await (with cycles = Constants.ENGINE_SPAWN_CYCLES) InternalEngine.InternalEngine();
   };
 
   /// Ensure the engine canister exists, spawning it lazily on first need.
-  private func ensureEngine() : async InternalEngine.InternalEngine {
+  private func ensureInternalEngine() : async InternalEngine.InternalEngine {
     switch (internalEngine) {
       case (?e) { e };
       case null {
-        let e = await deployEngine();
+        let e = await deployInternalEngine();
         internalEngine := ?e;
         internalEnginePrincipal := ?Principal.fromActor(e);
         Logger.log(#info, ?"EngineLifecycle", "Engine canister spawned: " # Principal.toText(Principal.fromActor(e)));
         e;
       };
     };
-  };
-
-  /// Generate a unique envelope ID for engine dispatch.
-  private func generateEnvelopeId() : Text {
-    let id = nextEnvelopeId;
-    nextEnvelopeId += 1;
-    "env_" # Nat.toText(id);
   };
 
   // ============================================
@@ -193,7 +199,7 @@ persistent actor class OpenOrgBackend() {
         getLastRun = func() : Int { lastTurnCleanupTimestamp };
         setLastRun = func(t : Int) { lastTurnCleanupTimestamp := t };
         wrappedRun = func() : async { #ok; #err : Text } {
-          switch (TurnCleanupRunner.run(sessionStores)) {
+          switch (TurnCleanupRunner.run(sessionStores, executionEnvelopeState)) {
             case (#ok(_)) { #ok };
             case (#err(e)) { #err(e) };
           };
@@ -278,14 +284,49 @@ persistent actor class OpenOrgBackend() {
       workspaces;
       eventStore;
       sessionStores;
-      executionTokenStore;
-      generateEnvelopeId;
-      dispatchToEngine = func(envelope : ExecutionTypes.ExecutionEnvelope) : async {
+      envelopeState = executionEnvelopeState;
+      dispatchToEngine = func(envelope : ExecutionTypes.EnvelopePayload) : async {
         #ok;
         #err : Text;
       } {
-        let e = await ensureEngine();
-        await e.execute(envelope);
+        let e = await ensureInternalEngine();
+        let nonce = envelope.envelopeNonce;
+        let stamped = {
+          envelope with dispatchedVersion = ?knownInternalEngineEnvelopeVersion
+        };
+        switch (await e.execute(stamped)) {
+          case (#ok) {
+            ExecutionEnvelopeModel.stampDispatchedVersion(executionEnvelopeState, nonce, knownInternalEngineEnvelopeVersion);
+            #ok;
+          };
+          case (#err(msg)) {
+            // Check for the version-mismatch JSON protocol: {"envelopeVersionRequired":"vX"}
+            // The same protocol is used by future HTTP engines so no engine-specific branching is needed.
+            switch (Json.parse(msg)) {
+              case (#ok(json)) {
+                switch (Json.get(json, "envelopeVersionRequired")) {
+                  case (?#string(requiredVersion)) {
+                    // Engine told us which version it needs — update our cached version and retry once.
+                    Logger.log(#info, ?"EnvelopeVersion", "Version sync: " # knownInternalEngineEnvelopeVersion # " → " # requiredVersion);
+                    knownInternalEngineEnvelopeVersion := requiredVersion;
+                    let retried = {
+                      stamped with dispatchedVersion = ?requiredVersion
+                    };
+                    switch (await e.execute(retried)) {
+                      case (#ok) {
+                        ExecutionEnvelopeModel.stampDispatchedVersion(executionEnvelopeState, nonce, requiredVersion);
+                        #ok;
+                      };
+                      case (#err(retryMsg)) { #err(retryMsg) };
+                    };
+                  };
+                  case (_) { #err(msg) };
+                };
+              };
+              case (#err(_)) { #err(msg) };
+            };
+          };
+        };
       };
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
@@ -301,6 +342,14 @@ persistent actor class OpenOrgBackend() {
   // Schedule all recurring timers on first install.
   // Subsequent upgrades will wipe these timers; postupgrade re-creates them.
   scheduleAll<system>(func(config : TimerRegistryEntry) : Nat { config.interval });
+
+  // Fetch initial envelope salt — raw_rand requires an async context, so we use a zero-delay timer.
+  ignore Timer.setTimer<system>(
+    #nanoseconds 0,
+    func() : async () {
+      executionEnvelopeState.envelopeSalt := await Random.blob();
+    },
+  );
 
   // System hook called after every upgrade
   system func postupgrade() {
@@ -339,6 +388,14 @@ persistent actor class OpenOrgBackend() {
       };
       case null {};
     };
+
+    // Refresh envelope salt with new entropy on every upgrade
+    ignore Timer.setTimer<system>(
+      #nanoseconds 0,
+      func() : async () {
+        executionEnvelopeState.envelopeSalt := await Random.blob();
+      },
+    );
   };
 
   // ============================================
@@ -441,139 +498,12 @@ persistent actor class OpenOrgBackend() {
       ignore Timer.setTimer<system>(
         #seconds 0,
         func() : async () {
-          await processExecutionAsyncEffect(effect);
+          await executionAsyncEffectService.processEffect(keyCache, effect);
         },
       );
     };
 
     response;
-  };
-
-  /// Process a single execution async effect — posts results to Slack and completes turns.
-  private func processExecutionAsyncEffect(effect : ExecutionTypes.AsyncEffect) : async () {
-    let (envelopeId, turnId, humanSummary) = switch (effect) {
-      case (#milestone(m)) { (m.envelopeId, m.turnId, m.humanSummary) };
-      case (#complete(c)) { (c.envelopeId, c.turnId, c.humanSummary) };
-    };
-
-    // Look up the turn to get source context
-    let turn = switch (SessionModel.findTurn(sessionStores, turnId)) {
-      case (?t) { t };
-      case null {
-        Logger.log(#error, ?"ExecutionAsyncEffect", "Turn not found: " # turnId # " (envelope=" # envelopeId # ")");
-        return;
-      };
-    };
-
-    // Look up agent for metadata and workspace context
-    let agent = switch (AgentModel.lookupById(agentRegistry, turn.agentId)) {
-      case (?a) { a };
-      case null {
-        Logger.log(#error, ?"ExecutionAsyncEffect", "Agent not found: " # Nat.toText(turn.agentId));
-        return;
-      };
-    };
-
-    // For non-Slack sources (timer, GitHub, etc.), fall back to the agent's workspace
-    // admin channel so execution is observable rather than silently lost.
-    // ts and threadTs are null since there is no parent message to thread under.
-    let (channelId, ts, threadTs) = switch (turn.sourceRef) {
-      case (?#slack(s)) { (s.channelId, s.ts, s.threadTs) };
-      case (_) {
-        let adminChannel = switch (WorkspaceModel.getWorkspace(workspaces, agent.ownedBy)) {
-          case (?ws) { ws.adminChannelId };
-          case null { null };
-        };
-        switch (adminChannel) {
-          case (?ch) { (ch, "", null) };
-          case null {
-            Logger.log(#error, ?"ExecutionAsyncEffect", "No admin channel for non-Slack turn " # turnId # " — cannot post result");
-            return;
-          };
-        };
-      };
-    };
-
-    // Derive bot token
-    let orgKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let botToken = switch (
-      SecretModel.resolvePlatformSecret(
-        secrets,
-        orgKey,
-        null,
-        #slackBotToken,
-        {
-          slackUserId = null;
-          agentId = null;
-          operation = "async-effect:bot-token";
-        },
-      )
-    ) {
-      case (?t) { t };
-      case null {
-        Logger.log(#error, ?"ExecutionAsyncEffect", "Bot token not available for turn " # turnId);
-        return;
-      };
-    };
-
-    // Build metadata matching the message-handler pattern
-    let metadata : ?Types.AgentMessageMetadata = ?{
-      event_type = "looping_agent_message";
-      event_payload = {
-        parent_agent = agent.config.name;
-        parent_ts = ts;
-        parent_channel = channelId;
-        turn_id = turnId;
-      };
-    };
-
-    switch (effect) {
-      case (#milestone(_m)) {
-        // Post milestone update to Slack thread
-        let milestoneText = humanSummary;
-        switch (await SlackWrapper.postMessage(botToken, channelId, milestoneText, threadTs, metadata)) {
-          case (#ok(_)) {};
-          case (#err(e)) {
-            Logger.log(#error, ?"ExecutionAsyncEffect", "Milestone post failed for turn " # turnId # ": " # e);
-          };
-        };
-      };
-      case (#complete(c)) {
-        // Post final response
-        let replyText = humanSummary;
-        switch (await SlackWrapper.postMessage(botToken, channelId, replyText, threadTs, metadata)) {
-          case (#ok({ ts = replyTs; channel = _ })) {
-            SessionModel.appendTrace(
-              sessionStores,
-              turnId,
-              #slackPost({
-                channelId;
-                threadTs;
-                ts = replyTs;
-              }),
-            );
-          };
-          case (#err(e)) {
-            Logger.log(#error, ?"ExecutionAsyncEffect", "Reply post failed for turn " # turnId # ": " # e);
-          };
-        };
-
-        // Map engine execution status to turn status and cost
-        let (turnStatus, errorSummary) = switch (c.status) {
-          case (#completed) { (#succeeded, null) };
-          case (#failed(reason)) { (#failed, ?reason) };
-          case (#roundLimitReached) { (#failed, ?"Round limit reached") };
-        };
-
-        let turnCost : ?SessionModel.TurnCost = ?{
-          promptTokens = c.stats.inputTokens;
-          completionTokens = c.stats.outputTokens;
-          estimatedMicroUnits = 0; // TODO: compute from model pricing
-        };
-
-        SessionModel.completeTurn(sessionStores, turnId, turnStatus, turnCost, errorSummary);
-      };
-    };
   };
 
   // ============================================

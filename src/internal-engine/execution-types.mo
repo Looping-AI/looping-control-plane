@@ -13,7 +13,7 @@ module {
   public type ChatMessage = E.ChatMessage;
   public type ExecutionConstraints = E.ExecutionConstraints;
   public type ExecutionSecrets = E.ExecutionSecrets;
-  public type ExecutionEnvelope = E.ExecutionEnvelope;
+  public type EnvelopePayload = E.EnvelopePayload;
   public type ExecutionStats = E.ExecutionStats;
   public type ExecutionStatus = E.ExecutionStatus;
   public type ExecutionResult = E.ExecutionResult;
