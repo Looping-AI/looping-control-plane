@@ -135,6 +135,19 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     sessionStores = testDispatchSessionStores;
   });
 
+  // Execution async effect end-to-end test state.
+  // Uses AgentModel.defaultState() so agent 0 (workspace-admin, ownedBy=0) is pre-seeded.
+  let testEffectAgentRegistry = AgentModel.defaultState();
+  let testEffectSessionStores = SessionModel.emptyStores();
+  let testEffectTokenStore = ExecutionTokenService.emptyStore();
+  transient let testEffectExecApiService = ExecutionApiService.Service({
+    tokenStore = testEffectTokenStore;
+    workspaces = testWorkspacesState;
+    agentRegistry = testEffectAgentRegistry;
+    eventStore = testEventStore;
+    sessionStores = testEffectSessionStores;
+  });
+
   // ============================================
   // Slack Wrapper Test Methods
   // ============================================
@@ -670,6 +683,150 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     };
     let { response } = testExecApiService.handleRequest(method, path, body);
     response;
+  };
+
+  // ============================================
+  // Execution Async Effect Test Methods
+  // ============================================
+
+  /// Seed a pending turn in testEffectSessionStores with a Slack sourceRef.
+  /// Returns the generated turnId (format: "{agentId}_{turnNumber}").
+  public shared ({ caller }) func testSeedPendingTurn(
+    agentId : Nat,
+    channelId : Text,
+    ts : Text,
+    threadTs : ?Text,
+  ) : async Text {
+    assert caller == parent;
+    let turn = SessionModel.createTurn(
+      testEffectSessionStores,
+      agentId,
+      ?#slack({ channelId; ts; threadTs }),
+      null,
+      null,
+    );
+    SessionModel.markPending(testEffectSessionStores, turn.turnId);
+    turn.turnId;
+  };
+
+  /// Issues a full-scope execution token into testEffectTokenStore.
+  /// Returns the token nonce.
+  public shared ({ caller }) func testIssueEffectToken(
+    envelopeId : Text,
+    turnId : Text,
+    workspaceId : Nat,
+  ) : async Text {
+    assert caller == parent;
+    ExecutionTokenService.issue(
+      testEffectTokenStore,
+      envelopeId,
+      turnId,
+      workspaceId,
+      [
+        #workspace({ access = #write }),
+        #agents({ access = #write }),
+        #slackQueue({ access = #read }),
+        #session({ access = #write }),
+      ],
+      [],
+    );
+  };
+
+  /// Call testEffectExecApiService, then synchronously run any async effects
+  /// using the provided botToken (bypasses Schnorr key derivation for unit tests).
+  public shared ({ caller }) func testRunAsyncEffect(
+    method : { #get; #post; #delete },
+    path : Text,
+    body : Text,
+    botToken : Text,
+  ) : async { #ok : Text; #err : Text } {
+    assert caller == parent;
+    let { response; asyncEffects } = testEffectExecApiService.handleRequest(method, path, body);
+    for (effect in asyncEffects.vals()) {
+      await testExecEffect(effect, botToken);
+    };
+    response;
+  };
+
+  /// Query the status of a turn in testEffectSessionStores.
+  public query func testGetEffectTurnStatus(turnId : Text) : async ?Text {
+    switch (SessionModel.findTurn(testEffectSessionStores, turnId)) {
+      case (null) { null };
+      case (?turn) {
+        let statusText = switch (turn.status) {
+          case (#running) { "running" };
+          case (#pending) { "pending" };
+          case (#succeeded) { "succeeded" };
+          case (#failed) { "failed" };
+        };
+        ?statusText;
+      };
+    };
+  };
+
+  /// Run a single async effect against testEffectSessionStores and testEffectAgentRegistry.
+  /// Mirrors processExecutionAsyncEffect from main.mo, but uses test-local state and
+  /// accepts botToken directly so no Schnorr key derivation is required.
+  private func testExecEffect(effect : ExecutionTypes.AsyncEffect, botToken : Text) : async () {
+    let (_envelopeId, turnId, humanSummary) = switch (effect) {
+      case (#milestone(m)) { (m.envelopeId, m.turnId, m.humanSummary) };
+      case (#complete(c)) { (c.envelopeId, c.turnId, c.humanSummary) };
+    };
+
+    let turn = switch (SessionModel.findTurn(testEffectSessionStores, turnId)) {
+      case (?t) { t };
+      case null { return };
+    };
+
+    let agent = switch (AgentModel.lookupById(testEffectAgentRegistry, turn.agentId)) {
+      case (?a) { a };
+      case null { return };
+    };
+
+    // Only Slack source turns are exercised in these tests
+    let (channelId, ts, threadTs) = switch (turn.sourceRef) {
+      case (?#slack(s)) { (s.channelId, s.ts, s.threadTs) };
+      case (_) { return };
+    };
+
+    let metadata : ?Types.AgentMessageMetadata = ?{
+      event_type = "looping_agent_message";
+      event_payload = {
+        parent_agent = agent.config.name;
+        parent_ts = ts;
+        parent_channel = channelId;
+        turn_id = turnId;
+      };
+    };
+
+    switch (effect) {
+      case (#milestone(_m)) {
+        ignore await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata);
+      };
+      case (#complete(c)) {
+        switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata)) {
+          case (#ok({ ts = replyTs; channel = _ })) {
+            SessionModel.appendTrace(
+              testEffectSessionStores,
+              turnId,
+              #slackPost({ channelId; threadTs; ts = replyTs }),
+            );
+          };
+          case (#err(_)) {};
+        };
+        let (turnStatus, errorSummary) = switch (c.status) {
+          case (#completed) { (#succeeded, null) };
+          case (#failed(reason)) { (#failed, ?reason) };
+          case (#roundLimitReached) { (#failed, ?"Round limit reached") };
+        };
+        let turnCost : ?SessionModel.TurnCost = ?{
+          promptTokens = c.stats.inputTokens;
+          completionTokens = c.stats.outputTokens;
+          estimatedMicroUnits = 0;
+        };
+        SessionModel.completeTurn(testEffectSessionStores, turnId, turnStatus, turnCost, errorSummary);
+      };
+    };
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
