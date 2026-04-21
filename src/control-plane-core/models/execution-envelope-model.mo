@@ -40,6 +40,10 @@ module {
     var nextTokenId : Nat;
     var envelopeSalt : Blob;
     envelopes : Map.Map<Text, EnvelopeRecord>;
+    /// Last-known envelope version accepted by each named engine.
+    /// Key = engine name (e.g. "internal-engine"), value = version string (e.g. "v1").
+    /// Updated automatically on version-mismatch retries by EngineDispatchService.
+    knownEngineVersions : Map.Map<Text, Text>;
   };
 
   // ── Constructor ────────────────────────────────────────────────────
@@ -49,6 +53,7 @@ module {
       var nextTokenId = 0;
       var envelopeSalt = Blob.fromArray([]);
       envelopes = Map.empty<Text, EnvelopeRecord>();
+      knownEngineVersions = Map.empty<Text, Text>();
     };
   };
 

@@ -369,7 +369,7 @@ module {
   ) : async AgentRouter.RouteResult {
     let engineDeps : AgentRouter.EngineDeps = {
       envelopeState = ctx.envelopeState;
-      dispatchToEngine = ctx.dispatchToEngine;
+      internalEngine = ctx.internalEngine;
     };
     await AgentRouter.route(
       primaryAgent,

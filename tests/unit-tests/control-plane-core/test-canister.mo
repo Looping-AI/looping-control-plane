@@ -8,8 +8,11 @@ import Array "mo:core/Array";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Principal "mo:core/Principal";
+import Timer "mo:core/Timer";
 import Json "mo:json";
 import { str; obj; bool } "mo:json";
+
+import InternalEngine "../../../src/internal-engine/main";
 
 import HttpWrapper "../../../src/control-plane-core/wrappers/http-wrapper";
 import OpenRouterWrapper "../../../src/control-plane-core/wrappers/openrouter-wrapper";
@@ -41,6 +44,8 @@ import GetEventStoreStatsHandler "../../../src/control-plane-core/tools/handlers
 import GetFailedEventsHandler "../../../src/control-plane-core/tools/handlers/events/get-failed-events-handler";
 import DeleteFailedEventsHandler "../../../src/control-plane-core/tools/handlers/events/delete-failed-events-handler";
 import DispatchWorkflowHandler "../../../src/control-plane-core/tools/handlers/dispatch-workflow-handler";
+import EngineDispatchService "../../../src/control-plane-core/services/engine-dispatch-service";
+import ExecutionTypes "../../../src/control-plane-core/types/execution";
 import WeeklyReconciliationRunner "../../../src/control-plane-core/timers/weekly-reconciliation-runner";
 import ClearKeyCacheRunner "../../../src/control-plane-core/timers/clear-key-cache-runner";
 import ProcessedEventsCleanupRunner "../../../src/control-plane-core/timers/processed-events-cleanup-runner";
@@ -59,7 +64,6 @@ import SessionModel "../../../src/control-plane-core/models/session-model";
 import ExecutionEnvelopeModel "../../../src/control-plane-core/models/execution-envelope-model";
 import ExecutionApiService "../../../src/control-plane-core/services/execution-api-service";
 import ExecutionAsyncEffectService "../../../src/control-plane-core/services/execution-async-effect-service";
-import ExecutionTypes "../../../src/control-plane-core/types/execution";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import Types "../../../src/control-plane-core/types";
 import TestHelpers "./test-helpers";
@@ -135,6 +139,19 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   // Internal engine principal for executionApi authorization guard tests.
   var testInternalEnginePrincipal : ?Principal = null;
+
+  // Internal engine canister for dispatch tests — spawned lazily at init.
+  // Test methods that exercise the dispatch path use this actor.
+  var testInternalEngine : ?InternalEngine.InternalEngine = null;
+
+  // Spawn the internal engine at init so dispatch tests have a ready actor.
+  ignore Timer.setTimer<system>(
+    #nanoseconds 0,
+    func() : async () {
+      let e = await InternalEngine.InternalEngine();
+      testInternalEngine := ?e;
+    },
+  );
 
   // Execution API service wired up for unit tests.
   transient let testExecApiService = ExecutionApiService.Service({
@@ -629,10 +646,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       eventStore = baseCtx.eventStore;
       sessionStores = testDispatchSessionStores;
       envelopeState = ExecutionEnvelopeModel.emptyState();
-      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
-        #ok;
-        #err : Text;
-      } { #ok };
+      internalEngine = switch (testInternalEngine) {
+        case (?e) { e };
+        case null { actor "aaaaa-aa" : InternalEngine.InternalEngine };
+      };
     };
     await MessageHandler.handle(msg, ctx);
   };
@@ -1679,6 +1696,90 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   // ============================================
+  // EngineDispatchService Test Methods
+  // ============================================
+
+  /// Test EngineDispatchService.dispatch directly using the pre-spawned testInternalEngine.
+  ///
+  /// @param seedVersion   Pre-seeds knownEngineVersions["internal-engine"] before the call.
+  ///                      null → map starts empty (service defaults to "v1").
+  ///                      e.g. ?"v0" → simulates a stale cached version to exercise negotiation.
+  /// @param includeApiKey Whether to include the "openrouter" key in envelope secrets.
+  ///                      false triggers the engine's API-key error, covering error-propagation
+  ///                      and retry-failure paths.
+  ///
+  /// Returns a flat record so both success and failure expose `knownVersionAfter`,
+  /// which is the value stored in knownEngineVersions after the call (null = no update).
+  public shared ({ caller }) func testEngineDispatchService(
+    seedVersion : ?Text,
+    includeApiKey : Bool,
+  ) : async { dispatched : Bool; error : ?Text; knownVersionAfter : ?Text } {
+    assert caller == parent;
+    let engine = switch (testInternalEngine) {
+      case (?e) { e };
+      case null {
+        return {
+          dispatched = false;
+          error = ?"engine not initialized";
+          knownVersionAfter = null;
+        };
+      };
+    };
+    let store = ExecutionEnvelopeModel.emptyState();
+    switch (seedVersion) {
+      case (?v) {
+        Map.add(store.knownEngineVersions, Text.compare, "internal-engine", v);
+      };
+      case null {};
+    };
+    let apiKeys : [(Text, Text)] = if (includeApiKey) {
+      [("openrouter", "test-key"), ("model", "gpt-4")];
+    } else { [("model", "gpt-4")] };
+    let { envelopeId; nonce = envelopeNonce } = ExecutionEnvelopeModel.issue(
+      store,
+      "test-turn-dispatch-0_0",
+      0,
+      [#workspace({ access = #read })],
+      [],
+    );
+    let envelope : ExecutionTypes.EnvelopePayload = {
+      envelopeId;
+      envelopeNonce;
+      dispatchedVersion = null;
+      requestId = "test-turn-dispatch-0_0";
+      agentId = 0;
+      agentName = "test-agent";
+      workspaceId = 0;
+      workflowId = "admin-v1";
+      messages = [];
+      instructions = "test instructions";
+      constraints = { maxRounds = 1; maxTokenBudget = null };
+      secrets = { apiKeys };
+      scopeGrants = [#workspace({ access = #read })];
+      permits = [];
+    };
+    let knownVersionAfter = func() : ?Text {
+      Map.get(store.knownEngineVersions, Text.compare, "internal-engine");
+    };
+    switch (await EngineDispatchService.dispatch(store, engine, envelope)) {
+      case (#ok) {
+        {
+          dispatched = true;
+          error = null;
+          knownVersionAfter = knownVersionAfter();
+        };
+      };
+      case (#err(e)) {
+        {
+          dispatched = false;
+          error = ?e;
+          knownVersionAfter = knownVersionAfter();
+        };
+      };
+    };
+  };
+
+  // ============================================
   // Dispatch Workflow Handler Test Methods
   // ============================================
 
@@ -1712,14 +1813,18 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         toolsState = Map.empty<Text, AgentModel.ToolState>();
       };
     };
+    let internalEngine : InternalEngine.InternalEngine = if (mockDispatchFail) {
+      // Use a non-existent canister so execute throws, triggering the handler's error path.
+      actor "aaaaa-aa" : InternalEngine.InternalEngine;
+    } else {
+      switch (testInternalEngine) {
+        case (?e) { e };
+        case null { actor "aaaaa-aa" : InternalEngine.InternalEngine };
+      };
+    };
     let engineDispatch : DispatchWorkflowHandler.EngineDispatch = {
       envelopeState = ExecutionEnvelopeModel.emptyState();
-      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
-        #ok;
-        #err : Text;
-      } {
-        if (mockDispatchFail) { #err("mock-engine-error") } else { #ok };
-      };
+      internalEngine;
     };
     let envelopeContext : DispatchWorkflowHandler.EnvelopeContext = {
       agent;

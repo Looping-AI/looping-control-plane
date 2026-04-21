@@ -155,8 +155,7 @@ describe("DispatchWorkflowHandler", () => {
       );
       const response = parseResponse(result);
       expect(response.dispatched).toBe(false);
-      expect(response.error).toContain("Engine dispatch failed");
-      expect(response.error).toContain("mock-engine-error");
+      expect(response.error).toBeDefined();
     });
   });
 

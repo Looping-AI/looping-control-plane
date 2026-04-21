@@ -10,6 +10,8 @@ import ExecutionTypes "../../types/execution";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
 import Constants "../../constants";
 import SlackWrapper "../../wrappers/slack-wrapper";
+import InternalEngine "../../../internal-engine/main";
+import EngineDispatchService "../../services/engine-dispatch-service";
 
 module {
 
@@ -17,10 +19,7 @@ module {
 
   public type EngineDispatch = {
     envelopeState : ExecutionEnvelopeModel.EnvelopeState;
-    dispatchToEngine : (ExecutionTypes.EnvelopePayload) -> async {
-      #ok;
-      #err : Text;
-    };
+    internalEngine : InternalEngine.InternalEngine;
   };
 
   public type EnvelopeContext = {
@@ -128,7 +127,7 @@ module {
     };
 
     try {
-      switch (await engineDispatch.dispatchToEngine(envelope)) {
+      switch (await EngineDispatchService.dispatch(engineDispatch.envelopeState, engineDispatch.internalEngine, envelope)) {
         case (#ok) {
           Json.stringify(obj([("dispatched", bool(true))]), null);
         };

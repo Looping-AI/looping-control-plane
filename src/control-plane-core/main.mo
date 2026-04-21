@@ -34,8 +34,6 @@ import Random "mo:core/Random";
 import ExecutionEnvelopeModel "./models/execution-envelope-model";
 import ExecutionApiService "./services/execution-api-service";
 import ExecutionAsyncEffectService "./services/execution-async-effect-service";
-import ExecutionTypes "./types/execution";
-import Json "mo:json";
 import InternalEngine "../internal-engine/main";
 
 persistent actor class OpenOrgBackend() {
@@ -95,11 +93,6 @@ persistent actor class OpenOrgBackend() {
 
   // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
   var internalEngine : ?InternalEngine.InternalEngine = null;
-
-  // Last-known envelope version accepted by the internal engine.
-  // Initialised to "v1" (current version). Updated automatically whenever the engine
-  // rejects an envelope and responds with the version it requires.
-  var knownInternalEngineEnvelopeVersion : Text = "v1";
 
   // Track last engine top-up for the timer runner
   var lastEngineTopUpTimestamp : Int = Time.now();
@@ -275,6 +268,7 @@ persistent actor class OpenOrgBackend() {
 
   // Per-event timer callback factory — returns an async closure that processes one event by ID
   private func makeEventProcessor(eventId : Text) : async () {
+    let e = await ensureInternalEngine();
     let ctx : EventRouter.EventProcessingContext = {
       secrets;
       keyCache;
@@ -285,49 +279,7 @@ persistent actor class OpenOrgBackend() {
       eventStore;
       sessionStores;
       envelopeState = executionEnvelopeState;
-      dispatchToEngine = func(envelope : ExecutionTypes.EnvelopePayload) : async {
-        #ok;
-        #err : Text;
-      } {
-        let e = await ensureInternalEngine();
-        let nonce = envelope.envelopeNonce;
-        let stamped = {
-          envelope with dispatchedVersion = ?knownInternalEngineEnvelopeVersion
-        };
-        switch (await e.execute(stamped)) {
-          case (#ok) {
-            ExecutionEnvelopeModel.stampDispatchedVersion(executionEnvelopeState, nonce, knownInternalEngineEnvelopeVersion);
-            #ok;
-          };
-          case (#err(msg)) {
-            // Check for the version-mismatch JSON protocol: {"envelopeVersionRequired":"vX"}
-            // The same protocol is used by future HTTP engines so no engine-specific branching is needed.
-            switch (Json.parse(msg)) {
-              case (#ok(json)) {
-                switch (Json.get(json, "envelopeVersionRequired")) {
-                  case (?#string(requiredVersion)) {
-                    // Engine told us which version it needs — update our cached version and retry once.
-                    Logger.log(#info, ?"EnvelopeVersion", "Version sync: " # knownInternalEngineEnvelopeVersion # " → " # requiredVersion);
-                    knownInternalEngineEnvelopeVersion := requiredVersion;
-                    let retried = {
-                      stamped with dispatchedVersion = ?requiredVersion
-                    };
-                    switch (await e.execute(retried)) {
-                      case (#ok) {
-                        ExecutionEnvelopeModel.stampDispatchedVersion(executionEnvelopeState, nonce, requiredVersion);
-                        #ok;
-                      };
-                      case (#err(retryMsg)) { #err(retryMsg) };
-                    };
-                  };
-                  case (_) { #err(msg) };
-                };
-              };
-              case (#err(_)) { #err(msg) };
-            };
-          };
-        };
-      };
+      internalEngine = e;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
@@ -348,6 +300,14 @@ persistent actor class OpenOrgBackend() {
     #nanoseconds 0,
     func() : async () {
       executionEnvelopeState.envelopeSalt := await Random.blob();
+    },
+  );
+
+  // Pre-warm the engine canister so the first dispatch doesn't pay the spawn cost.
+  ignore Timer.setTimer<system>(
+    #nanoseconds 0,
+    func() : async () {
+      ignore await ensureInternalEngine();
     },
   );
 
@@ -386,7 +346,15 @@ persistent actor class OpenOrgBackend() {
           },
         );
       };
-      case null {};
+      case null {
+        // Engine not yet spawned — pre-warm so first dispatch is fast.
+        ignore Timer.setTimer<system>(
+          #nanoseconds 0,
+          func() : async () {
+            ignore await ensureInternalEngine();
+          },
+        );
+      };
     };
 
     // Refresh envelope salt with new entropy on every upgrade

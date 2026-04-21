@@ -1,4 +1,3 @@
-import Debug "mo:core/Debug";
 import Map "mo:core/Map";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
@@ -7,13 +6,13 @@ import Nat "mo:core/Nat";
 import AgentModel "../../../src/control-plane-core/models/agent-model";
 import ChannelHistoryModel "../../../src/control-plane-core/models/channel-history-model";
 import ExecutionEnvelopeModel "../../../src/control-plane-core/models/execution-envelope-model";
-import ExecutionTypes "../../../src/control-plane-core/types/execution";
 import SecretModel "../../../src/control-plane-core/models/secret-model";
 import SlackUserModel "../../../src/control-plane-core/models/slack-user-model";
 import WorkspaceModel "../../../src/control-plane-core/models/workspace-model";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import EventStoreModel "../../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../../src/control-plane-core/models/session-model";
+import InternalEngine "../../../src/internal-engine/main";
 
 // ============================================
 // Test Helpers
@@ -87,10 +86,7 @@ module {
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
-      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
-        #ok;
-        #err : Text;
-      } { Debug.todo() };
+      internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
     };
   };
 
@@ -143,10 +139,7 @@ module {
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
-      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
-        #ok;
-        #err : Text;
-      } { Debug.todo() };
+      internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
     };
   };
 
@@ -198,10 +191,7 @@ module {
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
-      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
-        #ok;
-        #err : Text;
-      } { Debug.todo() };
+      internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
     };
   };
 
@@ -271,10 +261,7 @@ module {
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
-      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
-        #ok;
-        #err : Text;
-      } { Debug.todo() };
+      internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
     };
   };
 
@@ -341,10 +328,7 @@ module {
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
-      dispatchToEngine = func(_e : ExecutionTypes.EnvelopePayload) : async {
-        #ok;
-        #err : Text;
-      } { Debug.todo() };
+      internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
     };
   };
 

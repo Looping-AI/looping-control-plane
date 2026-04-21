@@ -20,6 +20,7 @@ import FunctionToolRegistry "../tools/function-tool-registry";
 import ToolTypes "../tools/tool-types";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import LlmWrapper "../../internal-engine/wrappers/llm-wrapper";
+import InternalEngine "../../internal-engine/main";
 
 module {
 
@@ -28,10 +29,7 @@ module {
   /// Dependencies for engine dispatch, threaded from EventProcessingContext.
   public type EngineDeps = {
     envelopeState : ExecutionEnvelopeModel.EnvelopeState;
-    dispatchToEngine : (ExecutionTypes.EnvelopePayload) -> async {
-      #ok;
-      #err : Text;
-    };
+    internalEngine : InternalEngine.InternalEngine;
   };
 
   // ─── Context types ───────────────────────────────────────────────────────────
@@ -155,7 +153,7 @@ module {
           sessionStores = null;
           engineDispatch = ?{
             envelopeState = engineDeps.envelopeState;
-            dispatchToEngine = engineDeps.dispatchToEngine;
+            internalEngine = engineDeps.internalEngine;
           };
           envelopeContext = ?{
             agent;

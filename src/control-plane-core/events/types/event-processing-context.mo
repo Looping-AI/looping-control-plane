@@ -19,7 +19,7 @@ import WorkspaceModel "../../models/workspace-model";
 import EventStoreModel "../../models/event-store-model";
 import SessionModel "../../models/session-model";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
-import ExecutionTypes "../../types/execution";
+import InternalEngine "../../../internal-engine/main";
 
 module {
 
@@ -57,12 +57,8 @@ module {
     /// salt in one place. Pass this wherever envelope generation is needed.
     envelopeState : ExecutionEnvelopeModel.EnvelopeState;
 
-    /// Dispatch an envelope to the internal engine canister.
-    /// Returns #ok on successful fire-and-forget dispatch, #err on failure.
-    /// Handles engine spawning (ensureEngine) internally.
-    dispatchToEngine : (ExecutionTypes.EnvelopePayload) -> async {
-      #ok;
-      #err : Text;
-    };
+    /// Pre-resolved internal engine actor. Guaranteed non-null by the time any
+    /// event is processed (pre-warmed at init and postupgrade).
+    internalEngine : InternalEngine.InternalEngine;
   };
 };
