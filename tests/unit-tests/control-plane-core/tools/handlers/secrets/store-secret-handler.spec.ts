@@ -20,13 +20,13 @@ import {
 //   1. Authorizes the caller via UserAuthContext
 //      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
 //      - LLM keys (openRouterApiKey, anthropicApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
-//   2. Validates input: workspaceId (number), secretId (string enum), secretValue (non-empty string)
-//   3. Verifies the workspace exists
-//   4. Derives encryption key from the key cache (pre-seeded with dummy key)
-//   5. Stores the encrypted secret in the secrets map
+//   2. Validates input: secretId (string enum), secretValue (non-empty string)
+//      workspaceId is extracted from JSON args by the test wrapper and passed as a typed
+//      caller-provided param — workspace existence is enforced at the orchestrator layer.
+//   3. Derives encryption key from the key cache (pre-seeded with dummy key)
+//   4. Stores the encrypted secret in the secrets map
 //
 // The test canister starts with an empty secrets map.
-// testWorkspacesState has workspaces 0, 1, and 2 pre-seeded.
 // testSecretsKeyCache is pre-seeded with all-zeros dummy key for workspaces 0, 1, 2.
 // ============================================
 
@@ -233,20 +233,6 @@ describe("StoreSecretHandler", () => {
       const response = parseResponse(result);
       expect(response.success).toBe(false);
       expect(response.error).toContain("empty");
-    });
-
-    it("should return error when workspace does not exist", async () => {
-      const result = await testCanister.testStoreSecretHandler(
-        JSON.stringify({
-          workspaceId: 999,
-          secretId: "openRouterApiKey",
-          secretValue: "sk-test",
-        }),
-        PRIMARY_OWNER,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(false);
-      expect(response.error).toContain("Workspace not found");
     });
 
     it("should reject slackBotToken on non-zero workspace", async () => {

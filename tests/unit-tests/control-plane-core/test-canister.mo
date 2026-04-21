@@ -1,9 +1,13 @@
 import Error "mo:core/Error";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Float "mo:core/Float";
 import Array "mo:core/Array";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
+import Json "mo:json";
+import { str; obj; bool } "mo:json";
 
 import HttpWrapper "../../../src/control-plane-core/wrappers/http-wrapper";
 import OpenRouterWrapper "../../../src/control-plane-core/wrappers/openrouter-wrapper";
@@ -28,9 +32,6 @@ import ListAgentsHandler "../../../src/control-plane-core/tools/handlers/agents/
 import GetAgentHandler "../../../src/control-plane-core/tools/handlers/agents/get-agent-handler";
 import UpdateAgentHandler "../../../src/control-plane-core/tools/handlers/agents/update-agent-handler";
 import UnregisterAgentHandler "../../../src/control-plane-core/tools/handlers/agents/unregister-agent-handler";
-import RegisterMcpToolHandler "../../../src/control-plane-core/tools/handlers/mcp/register-mcp-tool-handler";
-import UnregisterMcpToolHandler "../../../src/control-plane-core/tools/handlers/mcp/unregister-mcp-tool-handler";
-import ListMcpToolsHandler "../../../src/control-plane-core/tools/handlers/mcp/list-mcp-tools-handler";
 import StoreSecretHandler "../../../src/control-plane-core/tools/handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "../../../src/control-plane-core/tools/handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "../../../src/control-plane-core/tools/handlers/secrets/delete-secret-handler";
@@ -47,11 +48,13 @@ import SlackUserModel "../../../src/control-plane-core/models/slack-user-model";
 import SlackAuthMiddleware "../../../src/control-plane-core/middleware/slack-auth-middleware";
 import WorkspaceModel "../../../src/control-plane-core/models/workspace-model";
 import AgentModel "../../../src/control-plane-core/models/agent-model";
-import McpToolRegistry "../../../src/control-plane-core/tools/mcp-tool-registry";
 import KeyDerivationService "../../../src/control-plane-core/services/key-derivation-service";
 import SecretModel "../../../src/control-plane-core/models/secret-model";
 import EventStoreModel "../../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../../src/control-plane-core/models/session-model";
+import ExecutionTokenService "../../../src/control-plane-core/services/execution-token-service";
+import ExecutionTypes "../../../src/control-plane-core/types/execution";
+import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import Types "../../../src/control-plane-core/types";
 import TestHelpers "./test-helpers";
 
@@ -92,11 +95,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // canister lifetime (but each test creates a fresh PocketIC canister).
   let testAgentRegistry = AgentModel.emptyState();
 
-  // MCP tool registry state for MCP handler tests. Starts empty; tests
-  // register tools through handler calls and state persists within a single
-  // canister lifetime (but each test creates a fresh PocketIC canister).
-  let testMcpToolRegistry = McpToolRegistry.empty();
-
   // Secrets map and key cache for secrets handler tests. Starts empty; tests
   // store/delete secrets through handler calls and state persists within a single
   // canister lifetime (but each test creates a fresh PocketIC canister).
@@ -115,6 +113,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
 
   // Channel history store for channel-history-prune runner tests.
   let testChannelHistoryStore = ChannelHistoryModel.empty();
+
+  // Dispatch-path session stores — shared across testMessageHandlerDispatch calls
+  // so testGetTurnStatus can observe turn state after the handler returns.
+  let testDispatchSessionStores = SessionModel.emptyStores();
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -540,6 +542,64 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       case (null) {}; // leave workspace 0 with no admin channel
     };
     await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
+  };
+
+  /// Like testMessageHandlerWithSecrets but uses real (non-todo) engine dispatch stubs:
+  /// - generateEnvelopeId returns "dispatch-test-env-001"
+  /// - dispatchToEngine always returns #ok (mock engine accepts the envelope)
+  ///
+  /// sessionStores is the shared testDispatchSessionStores so that
+  /// testGetTurnStatus can observe turn state after the call.
+  public shared ({ caller }) func testMessageHandlerDispatch(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    openRouterApiKey : Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    let baseCtx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]);
+    let ctx : EventProcessingContextTypes.EventProcessingContext = {
+      secrets = baseCtx.secrets;
+      keyCache = baseCtx.keyCache;
+      channelHistory = baseCtx.channelHistory;
+      agentRegistry = baseCtx.agentRegistry;
+      slackUsers = baseCtx.slackUsers;
+      workspaces = baseCtx.workspaces;
+      eventStore = baseCtx.eventStore;
+      sessionStores = testDispatchSessionStores;
+      executionTokenStore = ExecutionTokenService.emptyStore();
+      generateEnvelopeId = func() { "dispatch-test-env-001" };
+      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+        #ok;
+        #err : Text;
+      } { #ok };
+    };
+    await MessageHandler.handle(msg, ctx);
+  };
+
+  /// Query the status of a turn recorded in testDispatchSessionStores.
+  /// Returns "running", "pending", "succeeded", or "failed"; null if not found.
+  public query func testGetTurnStatus(turnId : Text) : async ?Text {
+    switch (SessionModel.findTurn(testDispatchSessionStores, turnId)) {
+      case (null) { null };
+      case (?turn) {
+        let statusText = switch (turn.status) {
+          case (#running) { "running" };
+          case (#pending) { "pending" };
+          case (#succeeded) { "succeeded" };
+          case (#failed) { "failed" };
+        };
+        ?statusText;
+      };
+    };
   };
 
   public shared ({ caller }) func testMessageDeletedHandler(
@@ -1138,54 +1198,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   };
 
   // ============================================
-  // MCP Tool Handler Test Methods
-  //
-  // All MCP handlers run against testMcpToolRegistry (starts empty).
-  // Each test creates a fresh PocketIC canister so there is no
-  // cross-test state leakage.
-  // ============================================
-
-  /// Test the RegisterMcpToolHandler in isolation.
-  /// @param args  JSON-encoded tool arguments ({ name, serverId, description?, parameters?, remoteName? }).
-  /// @param auth  Simplified auth context.
-  ///
-  /// Tools registered here persist for the lifetime of this PocketIC canister
-  /// so subsequent calls to testListMcpToolsHandler see them.
-  public shared ({ caller }) func testRegisterMcpToolHandler(
-    args : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-    },
-  ) : async Text {
-    assert caller == parent;
-    await RegisterMcpToolHandler.handle(testMcpToolRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
-  };
-
-  /// Test the UnregisterMcpToolHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ name }).
-  /// @param auth Simplified auth context.
-  public shared ({ caller }) func testUnregisterMcpToolHandler(
-    args : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-    },
-  ) : async Text {
-    assert caller == parent;
-    await UnregisterMcpToolHandler.handle(testMcpToolRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
-  };
-
-  /// Test the ListMcpToolsHandler in isolation.
-  /// @param args JSON-encoded tool arguments (unused by this handler).
-  public shared ({ caller }) func testListMcpToolsHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await ListMcpToolsHandler.handle(testMcpToolRegistry, args);
-  };
-
-  // ============================================
   // Secrets Handler Test Methods
   //
   // All secrets handlers run against testSecretsMap (starts empty).
@@ -1223,7 +1235,23 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await StoreSecretHandler.handle(testSecretsMap, testSecretsKeyCache, testWorkspacesState, uac, args);
+    // Extract workspaceId from JSON args so the handler receives it as a typed param.
+    // The original args string is passed through unchanged — the handler only reads secretId/secretValue.
+    let workspaceId : Nat = switch (Json.parse(args)) {
+      case (#err(_)) {
+        return Json.stringify(obj([("success", bool(false)), ("error", str("Failed to parse arguments"))]), null);
+      };
+      case (#ok(json)) {
+        switch (Json.get(json, "workspaceId")) {
+          case (?#number(#int(n))) { Int.abs(n) };
+          case (?#number(#float(f))) { Int.abs(Float.toInt(f)) };
+          case _ {
+            return Json.stringify(obj([("success", bool(false)), ("error", str("Missing or invalid 'workspaceId'"))]), null);
+          };
+        };
+      };
+    };
+    await StoreSecretHandler.handle(testSecretsMap, testSecretsKeyCache, uac, workspaceId, args);
   };
 
   /// Test the GetWorkspaceSecretsHandler in isolation.
@@ -1251,7 +1279,22 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, args);
+    // Extract workspaceId from JSON args so the handler receives it as a typed param.
+    let workspaceId : Nat = switch (Json.parse(args)) {
+      case (#err(_)) {
+        return Json.stringify(obj([("success", bool(false)), ("error", str("Failed to parse arguments"))]), null);
+      };
+      case (#ok(json)) {
+        switch (Json.get(json, "workspaceId")) {
+          case (?#number(#int(n))) { Int.abs(n) };
+          case (?#number(#float(f))) { Int.abs(Float.toInt(f)) };
+          case _ {
+            return Json.stringify(obj([("success", bool(false)), ("error", str("Missing or invalid 'workspaceId'"))]), null);
+          };
+        };
+      };
+    };
+    await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, workspaceId, args);
   };
 
   /// Test the DeleteSecretHandler in isolation.
@@ -1279,7 +1322,22 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       isOrgAdmin = auth.isOrgAdmin;
       adminWorkspaces;
     };
-    await DeleteSecretHandler.handle(testSecretsMap, uac, args);
+    // Extract workspaceId from JSON args so the handler receives it as a typed param.
+    let workspaceId : Nat = switch (Json.parse(args)) {
+      case (#err(_)) {
+        return Json.stringify(obj([("success", bool(false)), ("error", str("Failed to parse arguments"))]), null);
+      };
+      case (#ok(json)) {
+        switch (Json.get(json, "workspaceId")) {
+          case (?#number(#int(n))) { Int.abs(n) };
+          case (?#number(#float(f))) { Int.abs(Float.toInt(f)) };
+          case _ {
+            return Json.stringify(obj([("success", bool(false)), ("error", str("Missing or invalid 'workspaceId'"))]), null);
+          };
+        };
+      };
+    };
+    await DeleteSecretHandler.handle(testSecretsMap, uac, workspaceId, args);
   };
 
   // ============================================

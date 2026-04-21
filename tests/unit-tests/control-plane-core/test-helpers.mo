@@ -1,3 +1,4 @@
+import Debug "mo:core/Debug";
 import Map "mo:core/Map";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
@@ -5,7 +6,8 @@ import Nat "mo:core/Nat";
 
 import AgentModel "../../../src/control-plane-core/models/agent-model";
 import ChannelHistoryModel "../../../src/control-plane-core/models/channel-history-model";
-import McpToolRegistry "../../../src/control-plane-core/tools/mcp-tool-registry";
+import ExecutionTokenService "../../../src/control-plane-core/services/execution-token-service";
+import ExecutionTypes "../../../src/control-plane-core/types/execution";
 import SecretModel "../../../src/control-plane-core/models/secret-model";
 import SlackUserModel "../../../src/control-plane-core/models/slack-user-model";
 import WorkspaceModel "../../../src/control-plane-core/models/workspace-model";
@@ -80,12 +82,17 @@ module {
       secrets = SecretModel.initState();
       keyCache;
       channelHistory = ChannelHistoryModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = AgentModel.emptyState();
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
+      executionTokenStore = ExecutionTokenService.emptyStore();
+      generateEnvelopeId = func() { Debug.todo() };
+      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+        #ok;
+        #err : Text;
+      } { Debug.todo() };
     };
   };
 
@@ -132,12 +139,17 @@ module {
       secrets;
       keyCache;
       channelHistory = ChannelHistoryModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
+      executionTokenStore = ExecutionTokenService.emptyStore();
+      generateEnvelopeId = func() { Debug.todo() };
+      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+        #ok;
+        #err : Text;
+      } { Debug.todo() };
     };
   };
 
@@ -183,12 +195,17 @@ module {
       secrets;
       keyCache;
       channelHistory = ChannelHistoryModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
+      executionTokenStore = ExecutionTokenService.emptyStore();
+      generateEnvelopeId = func() { Debug.todo() };
+      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+        #ok;
+        #err : Text;
+      } { Debug.todo() };
     };
   };
 
@@ -252,12 +269,17 @@ module {
       secrets;
       keyCache;
       channelHistory = ChannelHistoryModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
+      executionTokenStore = ExecutionTokenService.emptyStore();
+      generateEnvelopeId = func() { Debug.todo() };
+      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+        #ok;
+        #err : Text;
+      } { Debug.todo() };
     };
   };
 
@@ -318,12 +340,17 @@ module {
       secrets;
       keyCache;
       channelHistory = ChannelHistoryModel.empty();
-      mcpToolRegistry = McpToolRegistry.empty();
       agentRegistry = registry;
       slackUsers;
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
+      executionTokenStore = ExecutionTokenService.emptyStore();
+      generateEnvelopeId = func() { Debug.todo() };
+      dispatchToEngine = func(_e : ExecutionTypes.ExecutionEnvelope) : async {
+        #ok;
+        #err : Text;
+      } { Debug.todo() };
     };
   };
 

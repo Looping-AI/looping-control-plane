@@ -130,6 +130,60 @@ suite(
 );
 
 // ============================================
+// markPending
+// ============================================
+
+suite(
+  "markPending",
+  func() {
+    test(
+      "transitions a running turn to pending",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        expect.bool(turn.status == #running).isTrue();
+        SessionModel.markPending(stores, turn.turnId);
+        expect.bool(turn.status == #pending).isTrue();
+      },
+    );
+
+    test(
+      "no-ops silently for unknown turnId",
+      func() {
+        let stores = makeStores();
+        // Should not trap
+        SessionModel.markPending(stores, "999_999");
+      },
+    );
+
+    test(
+      "pending turn can be finalized with completeTurn",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        SessionModel.markPending(stores, turn.turnId);
+        expect.bool(turn.status == #pending).isTrue();
+        SessionModel.completeTurn(stores, turn.turnId, #succeeded, null, null);
+        expect.bool(turn.status == #succeeded).isTrue();
+        expect.bool(turn.completedAtNs != null).isTrue();
+      },
+    );
+
+    test(
+      "pending turn can be finalized as failed",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        SessionModel.markPending(stores, turn.turnId);
+        SessionModel.completeTurn(stores, turn.turnId, #failed, null, ?"engine error");
+        expect.bool(turn.status == #failed).isTrue();
+        expect.bool(turn.errorSummary == ?"engine error").isTrue();
+      },
+    );
+  },
+);
+
+// ============================================
 // completeTurn
 // ============================================
 
