@@ -8,7 +8,6 @@ import Array "mo:core/Array";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Principal "mo:core/Principal";
-import Timer "mo:core/Timer";
 import Json "mo:json";
 import { str; obj; bool } "mo:json";
 
@@ -65,6 +64,9 @@ import ExecutionEnvelopeModel "../../../src/control-plane-core/models/execution-
 import ExecutionApiService "../../../src/control-plane-core/services/execution-api-service";
 import ExecutionAsyncEffectService "../../../src/control-plane-core/services/execution-async-effect-service";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
+import AgentOrchestrator "../../../src/control-plane-core/orchestrators/agent-orchestrator";
+import ToolExecutor "../../../src/control-plane-core/tools/tool-executor";
+import ToolTypes "../../../src/control-plane-core/tools/tool-types";
 import Types "../../../src/control-plane-core/types";
 import TestHelpers "./test-helpers";
 
@@ -75,7 +77,7 @@ import TestHelpers "./test-helpers";
 // IMPORTANT:
 // Never add this canister to dfx or deploy it
 
-shared ({ caller = parent }) persistent actor class TestCanister() {
+shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Store for HTTP certification testing
   var certStore = HttpCertification.initStore();
 
@@ -140,18 +142,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
   // Internal engine principal for executionApi authorization guard tests.
   var testInternalEnginePrincipal : ?Principal = null;
 
-  // Internal engine canister for dispatch tests — spawned lazily at init.
-  // Test methods that exercise the dispatch path use this actor.
-  var testInternalEngine : ?InternalEngine.InternalEngine = null;
-
-  // Spawn the internal engine at init so dispatch tests have a ready actor.
-  ignore Timer.setTimer<system>(
-    #nanoseconds 0,
-    func() : async () {
-      let e = await InternalEngine.InternalEngine();
-      testInternalEngine := ?e;
-    },
-  );
+  let mockInternalEngine : InternalEngine.InternalEngine = actor (Principal.toText(Principal.fromActor(self))) : InternalEngine.InternalEngine;
 
   // Execution API service wired up for unit tests.
   transient let testExecApiService = ExecutionApiService.Service({
@@ -187,6 +178,80 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     workspaces = testWorkspacesState;
     secrets = testEffectSecretsState;
   });
+
+  func testOrchestratorEngineDeps() : AgentOrchestrator.EngineDeps {
+    {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      internalEngine = mockInternalEngine;
+    };
+  };
+
+  func testAgent(category : AgentModel.AgentCategory, name : Text) : AgentModel.AgentRecord {
+    let allowedChannelIds = switch (category) {
+      case (#_system(#admin)) { Set.empty<Text>() };
+      case (_) { Set.fromArray(["C_TEST_CATEGORY"], Text.compare) };
+    };
+    {
+      id = 999;
+      ownedBy = 0;
+      category;
+      config = {
+        name;
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#canister];
+        allowedChannelIds;
+        secrets = { allowed = []; overrides = [] };
+      };
+      state = {
+        toolsState = Map.empty<Text, AgentModel.ToolState>();
+      };
+    };
+  };
+
+  func emptyToolResources() : ToolTypes.ToolResources {
+    {
+      workspaceId = null;
+      openRouterApiKey = null;
+      resolveSlackBotToken = null;
+      userAuthContext = null;
+      triggerMessageText = null;
+      workspaces = null;
+      agentRegistry = null;
+      secrets = null;
+      eventStore = null;
+      sessionStores = null;
+      engineDispatch = null;
+      envelopeContext = null;
+    };
+  };
+
+  func ensureTestInternalEngine() : async InternalEngine.InternalEngine {
+    mockInternalEngine;
+  };
+
+  public shared ({ caller = _ }) func execute(envelope : ExecutionTypes.EnvelopePayload) : async {
+    #ok;
+    #err : Text;
+  } {
+    let requiredVersion = "v1";
+    let versionOk = switch (envelope.dispatchedVersion) {
+      case (?v) { v == requiredVersion };
+      case (null) { false };
+    };
+    if (not versionOk) {
+      return #err("{\"envelopeVersionRequired\":\"" # requiredVersion # "\"}");
+    };
+
+    let hasApiKey = Array.find<(Text, Text)>(
+      envelope.secrets.apiKeys,
+      func(kv : (Text, Text)) : Bool { kv.0 == "openrouter" },
+    ) != null;
+    if (not hasApiKey) {
+      return #err("Missing 'openrouter' API key in envelope secrets");
+    };
+
+    #ok;
+  };
 
   // ============================================
   // Slack Wrapper Test Methods
@@ -636,6 +701,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     assert caller == parent;
     ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
     let baseCtx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]);
+    let engine = await ensureTestInternalEngine();
     let ctx : EventProcessingContextTypes.EventProcessingContext = {
       secrets = baseCtx.secrets;
       keyCache = baseCtx.keyCache;
@@ -646,10 +712,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       eventStore = baseCtx.eventStore;
       sessionStores = testDispatchSessionStores;
       envelopeState = ExecutionEnvelopeModel.emptyState();
-      internalEngine = switch (testInternalEngine) {
-        case (?e) { e };
-        case null { actor "aaaaa-aa" : InternalEngine.InternalEngine };
-      };
+      internalEngine = engine;
     };
     await MessageHandler.handle(msg, ctx);
   };
@@ -669,6 +732,99 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
         ?statusText;
       };
     };
+  };
+
+  // ============================================
+  // Agent Orchestrator Category Test Methods
+  // ============================================
+
+  public shared ({ caller }) func testOrchestrateSystemAdminNoApiKey() : async AgentOrchestrator.OrchestrateResult {
+    assert caller == parent;
+    await AgentOrchestrator.orchestrateAgentTalk(
+      testAgent(#_system(#admin), "unit-test-admin"),
+      SecretModel.initState(),
+      null,
+      ChannelHistoryModel.empty(),
+      "C_TEST_CATEGORY",
+      null,
+      #_system(#admin),
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      "turn-admin-0",
+      SessionModel.emptyStores(),
+      testOrchestratorEngineDeps(),
+      null,
+      null,
+      null,
+      testSecretsKeyCache,
+    );
+  };
+
+  public shared ({ caller }) func testOrchestrateSystemOnboarding() : async AgentOrchestrator.OrchestrateResult {
+    assert caller == parent;
+    await AgentOrchestrator.orchestrateAgentTalk(
+      testAgent(#_system(#onboarding), "unit-test-onboarding"),
+      SecretModel.initState(),
+      null,
+      ChannelHistoryModel.empty(),
+      "C_TEST_CATEGORY",
+      null,
+      #_system(#onboarding),
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      "turn-onboarding-0",
+      SessionModel.emptyStores(),
+      testOrchestratorEngineDeps(),
+      null,
+      null,
+      null,
+      testSecretsKeyCache,
+    );
+  };
+
+  public shared ({ caller }) func testOrchestrateCustom() : async AgentOrchestrator.OrchestrateResult {
+    assert caller == parent;
+    await AgentOrchestrator.orchestrateAgentTalk(
+      testAgent(#custom, "unit-test-custom"),
+      SecretModel.initState(),
+      null,
+      ChannelHistoryModel.empty(),
+      "C_TEST_CATEGORY",
+      null,
+      #custom,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      "turn-custom-0",
+      SessionModel.emptyStores(),
+      testOrchestratorEngineDeps(),
+      null,
+      null,
+      null,
+      testSecretsKeyCache,
+    );
+  };
+
+  // ============================================
+  // Tool Executor Test Methods
+  // ============================================
+
+  public shared ({ caller }) func testToolExecutorExecute(
+    toolName : Text,
+    args : Text,
+  ) : async [ToolTypes.ToolResult] {
+    assert caller == parent;
+    await ToolExecutor.execute(
+      emptyToolResources(),
+      [{ callId = "call-1"; toolName; arguments = args }],
+    );
+  };
+
+  public shared ({ caller }) func testToolExecutorFormatFixture() : async Text {
+    assert caller == parent;
+    ToolExecutor.formatResultsForLlm([
+      { callId = "call-1"; result = #success("{\"ok\":true}"); durationMs = 0 },
+      { callId = "call-2"; result = #error("boom"); durationMs = 0 },
+    ]);
   };
 
   // ============================================
@@ -1715,16 +1871,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
     includeApiKey : Bool,
   ) : async { dispatched : Bool; error : ?Text; knownVersionAfter : ?Text } {
     assert caller == parent;
-    let engine = switch (testInternalEngine) {
-      case (?e) { e };
-      case null {
-        return {
-          dispatched = false;
-          error = ?"engine not initialized";
-          knownVersionAfter = null;
-        };
-      };
-    };
+    let engine = mockInternalEngine;
     let store = ExecutionEnvelopeModel.emptyState();
     switch (seedVersion) {
       case (?v) {
@@ -1817,10 +1964,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() {
       // Use a non-existent canister so execute throws, triggering the handler's error path.
       actor "aaaaa-aa" : InternalEngine.InternalEngine;
     } else {
-      switch (testInternalEngine) {
-        case (?e) { e };
-        case null { actor "aaaaa-aa" : InternalEngine.InternalEngine };
-      };
+      mockInternalEngine;
     };
     let engineDispatch : DispatchWorkflowHandler.EngineDispatch = {
       envelopeState = ExecutionEnvelopeModel.emptyState();

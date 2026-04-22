@@ -1,0 +1,241 @@
+import Array "mo:core/Array";
+import Time "mo:core/Time";
+import Error "mo:core/Error";
+import List "mo:core/List";
+import Nat "mo:core/Nat";
+import Json "mo:json";
+import Types "../../types";
+import SecretModel "../../models/secret-model";
+import ChannelHistoryModel "../../models/channel-history-model";
+import AgentModel "../../models/agent-model";
+import SessionModel "../../models/session-model";
+import ExecutionTypes "../../types/execution";
+import ExecutionEnvelopeModel "../../models/execution-envelope-model";
+import KeyDerivationService "../../services/key-derivation-service";
+import InstructionComposer "../../instructions/instruction-composer";
+import AgentHelpers "../helpers";
+import ContextAssembler "../context-assembler";
+import Constants "../../constants";
+import FunctionToolRegistry "../../tools/function-tool-registry";
+import ToolExecutor "../../tools/tool-executor";
+import ToolTypes "../../tools/tool-types";
+import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
+import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
+import InternalEngine "../../../internal-engine/main";
+
+module {
+
+  public type EngineDeps = {
+    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+    internalEngine : InternalEngine.InternalEngine;
+  };
+
+  public type ProcessResult = {
+    #dispatched : { steps : [Types.ProcessingStep] };
+    #ok : {
+      response : Text;
+      steps : [Types.ProcessingStep];
+    };
+    #err : {
+      message : Text;
+      steps : [Types.ProcessingStep];
+    };
+  };
+
+  public func process(
+    agent : AgentModel.AgentRecord,
+    secrets : SecretModel.SecretsState,
+    slackUserId : ?Text,
+    channelHistory : ChannelHistoryModel.ChannelHistoryStore,
+    channelId : Text,
+    threadTs : ?Text,
+    workspaceKey : [Nat8],
+    orgKey : [Nat8],
+    turnId : Text,
+    sessionStores : SessionModel.SessionStores,
+    engineDeps : EngineDeps,
+    triggerMessageText : ?Text,
+    botToken : ?Text,
+    userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
+    keyCache : KeyDerivationService.KeyCache,
+  ) : async ProcessResult {
+    let apiKey = SecretModel.resolveSecret(secrets, agent, agent.ownedBy, #openRouterApiKey, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
+
+    switch (apiKey) {
+      case (null) {
+        #err({
+          message = "No OpenRouter API key found for agent talk. Please store the API key first.";
+          steps = [];
+        });
+      };
+      case (?key) {
+        let instructions = InstructionComposer.compose(
+          AgentHelpers.categoryToRole(agent.category, agent.config.name),
+          [],
+          [],
+        );
+
+        let assembled = ContextAssembler.assemble(
+          sessionStores,
+          agent.id,
+          turnId,
+          channelHistory,
+          channelId,
+          threadTs,
+        );
+
+        let chatMessages = messagesToChat(assembled.messages);
+
+        let toolResources : ToolTypes.ToolResources = {
+          openRouterApiKey = ?key;
+          workspaceId = ?agent.ownedBy;
+          resolveSlackBotToken = null;
+          userAuthContext;
+          triggerMessageText;
+          workspaces = null;
+          agentRegistry = null;
+          secrets = ?{ state = secrets; keyCache; write = true };
+          eventStore = null;
+          sessionStores = null;
+          engineDispatch = ?{
+            envelopeState = engineDeps.envelopeState;
+            internalEngine = engineDeps.internalEngine;
+          };
+          envelopeContext = ?{
+            agent;
+            turnId;
+            instructions;
+            messages = chatMessages;
+            botToken;
+            apiKey = key;
+          };
+        };
+
+        let toolDefinitions = FunctionToolRegistry.getAllDefinitions(toolResources);
+        let toolsOpt = if (toolDefinitions.size() == 0) null else ?toolDefinitions;
+
+        await adminLoop(
+          key,
+          agent.config.model,
+          instructions,
+          assembled.messages,
+          #workspaceAgent(agent.ownedBy, agent.id),
+          toolsOpt,
+          toolResources,
+        );
+      };
+    };
+  };
+
+  private func adminLoop(
+    apiKey : Text,
+    model : Text,
+    instructions : Text,
+    initialInput : [OpenRouterWrapper.ResponseInputMessage],
+    trackId : OpenRouterWrapper.TrackId,
+    toolDefinitions : ?[OpenRouterWrapper.Tool],
+    toolResources : ToolTypes.ToolResources,
+  ) : async ProcessResult {
+    let inputHistory = List.fromArray<OpenRouterWrapper.ResponseInputMessage>(initialInput);
+    var rounds : Nat = 0;
+
+    label loop_ loop {
+      if (rounds >= Constants.MAX_AGENT_ROUNDS) {
+        return #err({
+          message = "Core agent loop reached max rounds (" # Nat.toText(Constants.MAX_AGENT_ROUNDS) # ")";
+          steps = [];
+        });
+      };
+
+      let response = try {
+        await OpenRouterWrapper.reason(
+          apiKey,
+          List.toArray(inputHistory),
+          model,
+          trackId,
+          ?instructions,
+          null,
+          toolDefinitions,
+        );
+      } catch (e : Error) {
+        return #err({
+          message = "Core LLM call failed: " # Error.message(e);
+          steps = [];
+        });
+      };
+
+      rounds += 1;
+
+      switch (response) {
+        case (#ok(#textResponse({ content; thinking = _ }))) {
+          return #ok({ response = content; steps = [] });
+        };
+        case (#ok(#toolCalls(calls))) {
+          let toolCallContent = "Using tools: " # Array.foldLeft<OpenRouterWrapper.ToolCall, Text>(
+            calls,
+            "",
+            func(acc : Text, call : OpenRouterWrapper.ToolCall) : Text {
+              if (acc == "") call.toolName else acc # ", " # call.toolName;
+            },
+          );
+          List.add(inputHistory, { role = #assistant; content = toolCallContent });
+
+          let toolResults = await ToolExecutor.execute(toolResources, calls);
+
+          for (toolResult in toolResults.vals()) {
+            switch (toolResult.result) {
+              case (#success(output)) {
+                if (isDispatchSignal(output)) {
+                  let step : Types.ProcessingStep = {
+                    action = "dispatch_to_engine";
+                    result = #ok;
+                    timestamp = Time.now();
+                  };
+                  return #dispatched({ steps = [step] });
+                };
+              };
+              case (#error(_)) {};
+            };
+          };
+
+          let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
+          List.add(inputHistory, { role = #assistant; content = formattedResults });
+        };
+        case (#err(msg)) {
+          return #err({ message = "Core LLM error: " # msg; steps = [] });
+        };
+      };
+    };
+
+    #err({
+      message = "Core agent loop reached max rounds (" # Nat.toText(Constants.MAX_AGENT_ROUNDS) # ")";
+      steps = [];
+    });
+  };
+
+  private func isDispatchSignal(output : Text) : Bool {
+    switch (Json.parse(output)) {
+      case (#ok(json)) {
+        switch (Json.get(json, "dispatched")) {
+          case (?#bool(true)) { true };
+          case _ { false };
+        };
+      };
+      case _ { false };
+    };
+  };
+
+  private func messagesToChat(
+    msgs : [{
+      role : { #user; #assistant; #system_; #developer };
+      content : Text;
+    }]
+  ) : [ExecutionTypes.ChatMessage] {
+    Array.map(
+      msgs,
+      func(m : { role : { #user; #assistant; #system_; #developer }; content : Text }) : ExecutionTypes.ChatMessage {
+        { role = m.role; content = m.content };
+      },
+    );
+  };
+};
