@@ -35,6 +35,21 @@ const BUILD_TARGETS = {
     ),
     outputPrefix: "internal-engine-test-canister",
   },
+  "internal-engine": {
+    name: "internal-engine canister",
+    sourceFile: join(process.cwd(), "src", "internal-engine", "main.mo"),
+    outputPrefix: "internal-engine",
+  },
+  "internal-engine-stub-core": {
+    name: "internal-engine stub-core canister",
+    sourceFile: join(
+      process.cwd(),
+      "tests",
+      "internal-engine",
+      "stub-core-canister.mo",
+    ),
+    outputPrefix: "internal-engine-stub-core",
+  },
 } as const;
 
 /**
@@ -157,6 +172,9 @@ export const generateControlPlaneCoreCandidInterface = () =>
   generateCandidInterface("control-plane-core");
 export const buildInternalEngineTestCanister = () =>
   buildTarget("internal-engine-test");
+export const buildInternalEngineCanister = () => buildTarget("internal-engine");
+export const buildInternalEngineStubCoreCanister = () =>
+  buildTarget("internal-engine-stub-core");
 
 /**
  * Complete build process: compiles both test and main canisters and generates Candid interfaces
@@ -171,6 +189,12 @@ export async function buildAll() {
   console.log();
 
   await buildTarget("internal-engine-test");
+  console.log();
+
+  await buildTarget("internal-engine");
+  console.log();
+
+  await buildTarget("internal-engine-stub-core");
   console.log();
 
   console.log("🎉 Complete build process finished successfully!");

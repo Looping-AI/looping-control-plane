@@ -1,6 +1,4 @@
-import Principal "mo:core/Principal";
 import Nat "mo:core/Nat";
-import ExecutionTypes "../../src/internal-engine/execution-types";
 import RunStoreModel "../../src/internal-engine/models/run-store-model";
 import RunTypes "../../src/internal-engine/runner/run-types";
 import TestHelpers "./test-helpers";
@@ -31,9 +29,36 @@ shared ({ caller = _parent }) persistent actor class InternalEngineTestCanister(
     };
   };
 
-  /// Return the number of runs currently in the running map.
-  public func testRunningCount() : async Nat {
-    RunStoreModel.sizes(runStore).running;
+  /// Return the number of runs in each store bucket.
+  public query func testGetSizes() : async {
+    running : Nat;
+    completed : Nat;
+    failed : Nat;
+  } {
+    RunStoreModel.sizes(runStore);
+  };
+
+  /// Return a JSON summary of a run record by envelopeId, or null if not found.
+  /// Fields included: envelopeId, requestId, agentName, enqueuedAt, status.
+  public query func testGetRunRecord(envelopeId : Nat) : async ?Text {
+    switch (RunStoreModel.get(runStore, envelopeId)) {
+      case (null) { null };
+      case (?r) {
+        let status = switch (r.status) {
+          case (null) { "null" };
+          case (?#completed) { "completed" };
+          case (?#roundLimitReached) { "roundLimitReached" };
+          case (?#failed(_)) { "failed" };
+        };
+        ?(
+          "{\"envelopeId\":" # Nat.toText(r.envelopeId) #
+          ",\"requestId\":\"" # r.requestId # "\"" #
+          ",\"agentName\":\"" # r.agentName # "\"" #
+          ",\"enqueuedAt\":" # debug_show (r.enqueuedAt) #
+          ",\"status\":\"" # status # "\"}"
+        );
+      };
+    };
   };
 
 };

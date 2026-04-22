@@ -27,17 +27,9 @@ import MemberLeftChannelHandler "../../src/control-plane-core/events/handlers/me
 import NormalizedEventTypes "../../src/control-plane-core/events/types/normalized-event-types";
 import SlackAdapter "../../src/control-plane-core/events/slack-adapter";
 
-import RegisterAgentHandler "../../src/control-plane-core/agents/tools/handlers/agents/register-agent-handler";
-import ListAgentsHandler "../../src/control-plane-core/agents/tools/handlers/agents/list-agents-handler";
-import GetAgentHandler "../../src/control-plane-core/agents/tools/handlers/agents/get-agent-handler";
-import UpdateAgentHandler "../../src/control-plane-core/agents/tools/handlers/agents/update-agent-handler";
-import UnregisterAgentHandler "../../src/control-plane-core/agents/tools/handlers/agents/unregister-agent-handler";
 import StoreSecretHandler "../../src/control-plane-core/agents/tools/handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "../../src/control-plane-core/agents/tools/handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "../../src/control-plane-core/agents/tools/handlers/secrets/delete-secret-handler";
-import GetEventStoreStatsHandler "../../src/control-plane-core/agents/tools/handlers/events/get-event-store-stats-handler";
-import GetFailedEventsHandler "../../src/control-plane-core/agents/tools/handlers/events/get-failed-events-handler";
-import DeleteFailedEventsHandler "../../src/control-plane-core/agents/tools/handlers/events/delete-failed-events-handler";
 import DispatchWorkflowHandler "../../src/control-plane-core/agents/tools/handlers/dispatch-workflow-handler";
 import EngineDispatchService "../../src/control-plane-core/services/engine-dispatch-service";
 import ExecutionTypes "../../src/control-plane-core/types/execution";
@@ -865,11 +857,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       resolveSlackBotToken = null;
       userAuthContext = null;
       triggerMessageText = null;
-      workspaces = null;
-      agentRegistry = null;
       secrets = null;
-      eventStore = null;
-      sessionStores = null;
       engineDispatch = null;
       envelopeContext = null;
     };
@@ -1431,112 +1419,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   };
 
   // ============================================
-  // ============================================
-  // Agent Handler Test Methods
-  //
-  // All agent handlers run against testAgentRegistry (starts empty).
-  // Each test creates a fresh PocketIC canister so there is no
-  // cross-test state leakage.
-  // ============================================
-
-  /// Build a UserAuthContext for agent handler tests.
-  private func agentHandlerUac(isPrimaryOwner : Bool, isOrgAdmin : Bool) : SlackAuthMiddleware.UserAuthContext {
-    {
-      slackUserId = "U_TEST_USER";
-      isPrimaryOwner;
-      isOrgAdmin;
-      adminWorkspaces = Set.empty<Nat>();
-    };
-  };
-
-  /// Test the RegisterAgentHandler in isolation.
-  /// @param args  JSON-encoded tool arguments ({ name, category, llmModel?, secretsAllowed?, toolsDisallowed?, sources? }).
-  /// @param auth  Simplified auth context.
-  ///
-  /// Agents registered here persist for the lifetime of this PocketIC canister
-  /// so subsequent calls to testListAgentsHandler / testGetAgentHandler see them.
-  public shared ({ caller }) func testRegisterAgentHandler(
-    args : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-    },
-  ) : async Text {
-    assert caller == parent;
-    await RegisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null, null);
-  };
-
-  /// Directly seed a #_system(#admin) agent into testAgentRegistry without going through
-  /// the create_workspace HTTP flow. Useful for unit tests that need a system admin agent.
-  /// Returns the assigned agent ID.
-  public shared ({ caller }) func testDirectSeedAdminAgent() : async Nat {
-    assert caller == parent;
-    switch (
-      AgentModel.register(
-        testAgentRegistry,
-        0,
-        #_system(#admin),
-        {
-          name = "test-admin";
-          model = "openai/gpt-oss-120b";
-          executionEngines = [#canister];
-          allowedChannelIds = Set.empty<Text>();
-          secrets = { allowed = []; overrides = [] };
-        },
-      )
-    ) {
-      case (#ok id) { id };
-      case (#err _) { 999 };
-    };
-  };
-
-  /// Test the ListAgentsHandler in isolation.
-  /// @param args JSON-encoded tool arguments (unused by this handler).
-  public shared ({ caller }) func testListAgentsHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await ListAgentsHandler.handle(testAgentRegistry, args);
-  };
-
-  /// Test the GetAgentHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ id } or { name }).
-  public shared ({ caller }) func testGetAgentHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await GetAgentHandler.handle(testAgentRegistry, args);
-  };
-
-  /// Test the UpdateAgentHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ id, name?, category?, llmModel?, secretsAllowed?, toolsDisallowed?, sources? }).
-  /// @param auth Simplified auth context.
-  public shared ({ caller }) func testUpdateAgentHandler(
-    args : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-    },
-  ) : async Text {
-    assert caller == parent;
-    await UpdateAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args, null);
-  };
-
-  /// Test the UnregisterAgentHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ id }).
-  /// @param auth Simplified auth context.
-  public shared ({ caller }) func testUnregisterAgentHandler(
-    args : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-    },
-  ) : async Text {
-    assert caller == parent;
-    await UnregisterAgentHandler.handle(testAgentRegistry, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
-  };
-
-  // ============================================
   // Secrets Handler Test Methods
   //
   // All secrets handlers run against testSecretsMap (starts empty).
@@ -1749,48 +1631,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     };
     ignore EventStoreModel.enqueue(testEventStore, event);
     EventStoreModel.markProcessed(testEventStore, "slack_" # eventId, []);
-  };
-
-  /// Test the GetEventStoreStatsHandler in isolation.
-  /// @param args JSON-encoded tool arguments (unused by this handler).
-  /// @param auth Simplified auth context.
-  public shared ({ caller }) func testGetEventStoreStatsHandler(
-    args : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-    },
-  ) : async Text {
-    assert caller == parent;
-    await GetEventStoreStatsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
-  };
-
-  /// Test the GetFailedEventsHandler in isolation.
-  /// @param args JSON-encoded tool arguments (unused by this handler).
-  /// @param auth Simplified auth context.
-  public shared ({ caller }) func testGetFailedEventsHandler(
-    args : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-    },
-  ) : async Text {
-    assert caller == parent;
-    await GetFailedEventsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
-  };
-
-  /// Test the DeleteFailedEventsHandler in isolation.
-  /// @param args JSON-encoded tool arguments ({ eventId? }).
-  /// @param auth Simplified auth context.
-  public shared ({ caller }) func testDeleteFailedEventsHandler(
-    args : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-    },
-  ) : async Text {
-    assert caller == parent;
-    await DeleteFailedEventsHandler.handle(testEventStore, agentHandlerUac(auth.isPrimaryOwner, auth.isOrgAdmin), args);
   };
 
   // ============================================

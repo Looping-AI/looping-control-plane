@@ -20,13 +20,18 @@ const COLORS = {
   integration: "\x1b[36m", // cyan
   "unit:tools": "\x1b[33m", // yellow
   "unit:not-tools": "\x1b[35m", // magenta
+  "integration:ie": "\x1b[34m", // blue
   reset: "\x1b[0m",
   bold: "\x1b[1m",
   red: "\x1b[31m",
   green: "\x1b[32m",
 };
 
-type GroupName = "integration" | "unit:tools" | "unit:not-tools";
+type GroupName =
+  | "integration"
+  | "unit:tools"
+  | "unit:not-tools"
+  | "integration:ie";
 
 interface TestGroup {
   name: GroupName;
@@ -60,6 +65,10 @@ const TEST_GROUPS: TestGroup[] = [
   {
     name: "unit:not-tools",
     args: ["test", ...unitSubdirs],
+  },
+  {
+    name: "integration:ie",
+    args: ["test", "tests/internal-engine/integration-tests"],
   },
 ];
 

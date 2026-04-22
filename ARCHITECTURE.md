@@ -28,7 +28,7 @@ Sections and items marked **[planned]** describe target architecture not yet imp
 
 ## Non-Goals (for now)
 
-- Cycles cost and top-ups.
+- Comprehensive cycles treasury strategy (beyond the current internal-engine keepalive top-up).
 - Frontend Canister to easily do the read operations, with short-lived tokens.
 - Guaranteed perfect autonomy; humans remain in the loop via goals, preferences in operating procedures, policies, and approvals.
 
@@ -36,29 +36,36 @@ Sections and items marked **[planned]** describe target architecture not yet imp
 
 ### Current implementation (today)
 
-- Single Motoko backend canister receiving Slack events via `http_request` / `http_request_update`.
-- Slack event adapter with HMAC-SHA256 signature verification and event normalization.
+- Two Motoko backend canisters:
+  - **Control Plane Core**: Slack ingress (`http_request` / `http_request_update`), signature verification, event intake/routing, state ownership, secrets, sessions, and timers.
+  - **Internal Engine**: asynchronous workflow execution canister (`execute`) with its own run store and tool handlers, calling back into Core via `executionApi`.
+- Slack event adapter with HMAC-SHA256 signature verification and normalized event mapping.
 - Event store with lifecycle management (unprocessed → processed/failed) and per-event timer dispatch.
-- Event router dispatching to handlers (message handler fully implemented, others stubbed).
-- Workspace admin (`#admin`) agent orchestrator calling LLM services with function tools. `#onboarding` and `#custom` category agents are registered and routable but their process handlers are stubs (return a not-yet-implemented error).
-- Tool infrastructure: static function tool registry (resource-gated) and dynamic MCP tool registry.
+- Event router dispatching to implemented handlers (`message`, assistant thread events, `message_changed`, `message_deleted`, `member_joined_channel`, `member_left_channel`, `team_join`).
+- Workspace admin (`#_system(#admin)`) category loop implemented with OpenRouter + function tools, including `dispatch_workflow` for internal-engine execution.
+- `#_system(#onboarding)` and `#custom` category loops are registered/routable but currently return not-yet-implemented errors.
+- Tooling split by boundary:
+  - Control-plane function tools (web search, secrets management, workflow dispatch).
+  - Internal-engine workflow tools (`admin-v1`) with migrated handlers for workspace, agent, Slack queue, and session policy operations.
+- Execution envelope model implemented (nonce/token issuance, scope grants, operation permits, version stamping, and revocation).
+- Execution async effects implemented (`milestone` / `complete`) to post Slack updates and finalize turns.
 - API keys and secrets encrypted at rest using workspace-scoped derived keys (ICP Threshold Schnorr).
-- LLM provider integration via HTTP outcalls (OpenRouter).
 - Credential cascade implemented in secrets model (agent → workspace → org), with access audit logging. See [Credential Cascade](#credential-cascade).
 - Identity and authorization derived from Slack, with workspace administration anchored on admin channels.
 - Agent registry with `::` routing and category-based dispatch via Agent Router.
 - Session tracking linking Slack message IDs to user auth context and agent execution context. Agent session model with per-agent persistent sessions, turn logs, and trace entries (see [src/control-plane-core/models/session-model.mo](src/control-plane-core/models/session-model.mo)).
 
-Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
+Primary code entrypoints: [src/control-plane-core/main.mo](src/control-plane-core/main.mo) and [src/internal-engine/main.mo](src/internal-engine/main.mo)
 
 ### Target direction (what this architecture file plans for)
 
-- **Multi-source webhook ingress**: The canister accepts writes from Slack (primary) and GitHub webhooks (agent session lifecycle and result callbacks). Each source has its own HMAC-SHA256 signature verification. Slack remains the primary user interaction layer.
-- **[Agent Execution Types](#agent-execution-type)**: `#api` agents run in-canister calling LLM APIs directly; `#runtime(#githubCodingAgent)` agents run remotely in agent-specific GitHub repositories. The canister acts as control plane for both.
-- **[GitHub Coding Agent integration](#core-flows)**: each `#runtime` agent is bound to its own repository; the canister dispatches via `workflow_dispatch`, tracks session state, and receives signed webhook callbacks with structured results.
+- **Multi-source ingress**: Slack webhook ingress remains primary and implemented; GitHub webhook ingress for runtime session lifecycle is the next write-source expansion.
+- **[Agent Execution Types](#agent-execution-type)**: `#canister` execution is implemented (Core + Internal Engine envelope flow); `#github` runtime execution remains planned for repo-bound remote runs.
+- **[GitHub Coding Agent integration](#core-flows)**: each `#github` agent is bound to its own repository; the control plane dispatches via `workflow_dispatch`, tracks session state, and receives signed webhook callbacks with structured results.
 - **Admin-channel-only workspace model**: each workspace is anchored by an admin channel. The member-channel concept and workspace member role are removed from the target model.
 - **Agent channel allowlist**: each agent has an explicit list of Slack channels where it is allowed to run. Agents are still configured from the workspace admin channel, but execution is gated by this per-agent allowlist.
 - **Out-of-allowlist behavior**: execution is blocked and the bot posts an automatic warning; enforcement details in [Agent routing and round control](#agent-routing-and-round-control).
+- **Execution API + async effect bridge**: the current `executionApiService` + `executionAsyncEffectService` pair is the implemented stepping stone toward a fuller process/effect architecture.
 - **[Process Engine (Loop Engine)](#process-engine-loop-engine)**: all agent invocations, multi-turn LLM conversations, and delegation chains are modelled as processes; `LoopEngine.step(process, event) → [Effect]` is a pure function executed by the Effect Applicator.
 - **[Effect-driven execution](#effect)**: the only side-effect mechanism is the effect list returned by a process step — `StateWrite`, `SlackPost`, `EventEmit`, `ProcessSuspend`. Process logic never writes state or calls external APIs directly.
 - **[Channel History](#channel-history)**: per-channel Slack message timeline, append-optimised, with retroactive edit support; the source material for agent context assembly, maintained independently of agents.
@@ -79,18 +86,21 @@ Primary code entrypoint: [src/control-plane-core/main.mo](src/control-plane-core
 
 ```mermaid
 flowchart LR
-    Ext(["Sources\nSlack · GitHub"])
-    Ing["Ingress\nverify + normalize"]
-    ED["Event Store\n+ Router"]
-    PE["Process Engine\npure step → effects"]
-    EA["Effect Applicator"]
-    IO["Wrappers\nSlack · LLM · GitHub · MCP"]
-    State[("State\nsessions · history\nregistry · secrets")]
+  Ext(["Sources\nSlack · GitHub (planned)"])
+  Ing["Ingress\nverify + normalize"]
+  ED["Event Store\n+ Router"]
+  Core["Control Plane Core\nagent orchestration + envelope issue"]
+  Engine["Internal Engine\nrun store + tool execution"]
+  AsyncFx["Execution Async Effects\nSlack post + turn completion"]
+  IO["Wrappers\nSlack · OpenRouter · GitHub (planned)"]
+  State(["State\nsessions · history\nregistry · secrets · envelopes"])
 
-    Ext -->|webhooks| Ing --> ED --> PE --> EA
-    EA --> IO -->|API calls| Ext
-    EA -->|write| State
-    PE -.->|read| State
+  Ext -->|Slack webhook| Ing --> ED --> Core
+  Core -->|dispatch_workflow| Engine
+  Engine -->|executionApi milestone/complete| AsyncFx --> IO -->|API calls| Ext
+  Core -.->|read/write| State
+  ED -.->|claim/mark| State
+  AsyncFx -.->|write| State
 ```
 
 #### Component detail
@@ -102,26 +112,22 @@ flowchart TD
     classDef planned stroke-dasharray:5 5
 
     S([Slack]) -->|"/webhook/slack"| SA[SlackAdapter]
-    GH([GitHub]) -->|"/github/webhook"| GHA[GitHubWebhookAdapter]
+  SA --> ES(["Event Store"]) --> ER[Event Router]
+  ER --> MH[MessageHandler]
+  MH --> AR[AgentRouter]
+  AR --> AAL[AdminAgentLoop]
+  AAL -->|dispatch_workflow| EDS[EngineDispatchService]
+  EDS --> IE[InternalEngine.execute]
+  IE --> RUN[ExecutionRunner]
+  RUN -->|execution milestone/complete| EAPI[Core executionApi]
+  EAPI --> AFX[ExecutionAsyncEffectService]
+  AFX --> SW["SlackWrapper → Slack API"]
+  AFX --> SS(["Sessions + Traces"])
 
-    SA --> ES
-    GHA --> ES
-    ES[("Event Store")] --> ER[Event Router]
-    ER --> PE[Process Step] --> EA[Effect Applicator]
+  GH([GitHub]) -->|"/github/webhook"| GHA[GitHubWebhookAdapter]
+  GHA --> ES
 
-    EA -->|SlackPost| SW["SlackWrapper → Slack API"]
-    EA -->|LLM call| LLM["OpenRouterWrapper → OpenRouter"]
-    EA -->|dispatch| GHW["GitHubWrapper → GitHub API"]
-    EA -->|tool call| MCP[MCP tools]
-
-    EA -->|StateWrite| AS[("Sessions + Traces")]
-    EA -->|StateWrite| CH[("Channel History")]
-
-    PE -.->|read| AS
-    PE -.->|read| CH
-    PE -.->|read| AR[("Registry + Secrets")]
-
-    class GH,GHA,PE,EA,GHW,MCP planned
+  class GH,GHA planned
 ```
 
 ## Architecture Principles
@@ -132,9 +138,9 @@ flowchart TD
   - **Event Dispatch**: claim events from the queue and route by `event.type` to the appropriate process handler.
   - **Process Engine (Loop Engine)**: pure functional step model — `Process.step(process, event) → [Effect]`; process logic is deterministic and never side-effects directly. [→ know more](#process-engine-loop-engine)
   - **Effect Applicator**: executes effects returned by the Process Engine; the only place where state is written or external APIs are called. [→ know more](#process-engine-loop-engine)
-  - **Wrappers**: encapsulate external API calls (Slack, GitHub, LLM providers, MCP Servers); called by the Effect Applicator. [→ know more](#tooling-and-integrations)
+  - **Wrappers**: encapsulate external API calls (Slack, OpenRouter, GitHub planned); called by orchestration/effect services. [→ know more](#tooling-and-integrations)
 - Verified-source security: all webhook operations must originate from a verified source — Slack events (HMAC-SHA256 with signing secret) or GitHub webhooks (HMAC-SHA256 with webhook secret). The canister never trusts a hook that doesn't come through a verified signature. Slack remains the only user interaction layer.
-- **Controller-only surface**: the canister exposes `http_request` and `http_request_update` as its public HTTP gateway — these are the webhook ingress points protected by per-source HMAC verification (see Verified-source security above). Beyond that gateway, the only other exposed `update` methods are controller-restricted — callable solely by the canister controller principal and limited to critical secret setup and recovery operations. All other system activity is internal: timer-fired work (scheduled) or event-queue dispatch. Timer-fired operations or queue-dispatched operations may be system- or user-triggered. User-triggered operations are always attributed to both the agent executing them and the Slack user who originated the request chain.
+- **Controller-only surface**: the canister exposes `http_request` and `http_request_update` as its public HTTP gateway — these are the webhook ingress points protected by per-source HMAC verification (see Verified-source security above). Beyond that gateway there are two guarded update paths: controller-only operations (critical secret setup/recovery) and `executionApi` (transport-guarded to the spawned internal-engine principal). All other system activity is internal: timer-fired work (scheduled) or event-queue dispatch. Timer-fired operations or queue-dispatched operations may be system- or user-triggered. User-triggered operations are always attributed to both the agent executing them and the Slack user who originated the request chain.
 - **Least-privilege, capability-scoped control**: grant a minimal tool set and Slack channel allowlist rather than micro-managing individual actions. Do not interrupt flows for decisions that have already been approved at the capability level — trust previously established allowlists and policies. Control at the capability boundary (which effects and tools an agent may invoke) rather than at the action level. For powerful but necessary tools (e.g., `browser`), prefer constraining _what they can reach_ (URL/domain firewall) over removing the tool entirely.
 - Specialized agents is desired as a strategy (Lower input/context window, easier A/B testing for cost/quality optimizing, lower risk on model upgrading) over a single, big, monolithic agent that accumulates very distinct domains.
 - Auditable: the system should be auditable (events, session, secrets and effects).
@@ -205,10 +211,10 @@ Key characteristics:
 
 Agents have one of two execution types:
 
-- **`#api`**: Runs inside the canister. The canister calls LLM APIs directly (OpenRouter), executes tool loops in-canister, and posts replies to Slack. Uses canister-level secrets (e.g., OpenRouter API key). Examples: workspace-admin, custom agents.
-- **`#runtime(#githubCodingAgent)`** [planned]: Runs remotely through GitHub Coding Agents in an agent-specific repository. The canister dispatches a workflow run (`workflow_dispatch`) with the session payload, receives a structured result via signed GitHub webhook, then composes and posts the final Slack reply.
+- **`#canister`** (implemented): Core orchestrates the turn, issues an execution envelope, and dispatches workflow execution to the internal-engine canister. The engine reports milestones and completion back through `executionApi`, and Core posts/finalizes via async effects.
+- **`#github`** [planned]: Runs remotely through GitHub Coding Agents in an agent-specific repository. The control plane dispatches a workflow run (`workflow_dispatch`) with the session payload, receives a structured result via signed GitHub webhook, then composes and posts the final Slack reply.
 
-The `AgentRouter` branches on execution type before dispatching. The `#runtime` variant is extensible for future runtime types beyond GitHub Coding Agents.
+`executionEngines` is validated and persisted on agent records today (`#canister | #github`). Runtime branching by engine is currently driven by tool/orchestration flow (`dispatch_workflow`) and will be expanded as `#github` execution lands.
 
 ### Agent Category
 
@@ -226,10 +232,10 @@ Policy enforcement follows the capability-scoped control principle: policies gra
 
 ### Events
 
-Normalized inbound signals derived from verified external sources (Slack, GitHub).
+Normalized inbound signals derived from verified external sources.
 All system state mutations are driven exclusively by Events (or internally scheduled Tasks).
-Each event source has its own HMAC-SHA256 signature verification — Slack uses a signing secret and GitHub uses a webhook secret.
-Slack remains the primary user interaction layer; GitHub webhooks handle runtime session lifecycle and agent response delivery.
+Each event source has its own HMAC-SHA256 signature verification — Slack uses a signing secret and GitHub (planned) uses a webhook secret.
+Slack remains the primary user interaction layer; GitHub webhooks are planned for runtime session lifecycle and agent response delivery.
 
 ### Processes [planned]
 
@@ -297,13 +303,13 @@ This keeps one unified persistence model while still enabling skill-specific con
 
 ### Write Surface — Verified Webhooks
 
-All write operations enter the canister through verified webhook endpoints:
+External writes enter the control plane through verified webhook endpoints:
 
 - **Slack Events API** (`http_request_update` at `/webhook/slack`): messages, app mentions, channel membership changes, interactive message callbacks. HMAC-SHA256 with Slack signing secret + timestamp replay protection.
 - **GitHub Webhooks** [planned] (`http_request_update` at `/github/webhook`): workflow lifecycle and runtime agent session result callbacks from GitHub Actions. HMAC-SHA256 with `X-Hub-Signature-256` header using a stored GitHub webhook secret.
 - **Slack API** (outbound HTTP outcalls): the canister calls Slack to post messages, read user lists, and read channel memberships.
 
-No public canister `update` methods are exposed for external clients. Controller-restricted methods (callable only by the canister controller principal) exist for secret setup and recovery but are not part of the webhook surface — see "Controller-only surface" in Architecture Principles. Each webhook source has its own signature verification as the authentication layer.
+The internal-engine callback path uses a separate shared method, `executionApi`, guarded by caller principal (must match the spawned internal engine canister). This is not an external/public client surface. Controller-restricted methods (callable only by the canister controller principal) exist for secret setup and recovery. Each webhook source has its own signature verification as the authentication layer.
 
 ### Read Surface — Token-Gated Queries [planned]
 
@@ -322,7 +328,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 - **Slack** (primary, implemented): Events API, Web API (`postMessage`, `users.list`, `conversations.list`, `conversations.members`).
 - **GitHub** (planned): GitHub Actions APIs for `workflow_dispatch` session execution, run status APIs, and webhook delivery for agent session lifecycle and result callbacks.
-- **OpenRouter** (implemented): OpenAI-compatible chat completions API used by canister `#api` agents via HTTP outcalls. Supports BYOK — no need to configure specific API provider keys in the repo; free tier covers up to 1M calls/month.
+- **OpenRouter** (implemented): OpenAI-compatible APIs used by both Control Plane Core and Internal Engine loops via HTTP outcalls. Supports BYOK — no need to configure specific API provider keys in the repo; free tier covers up to 1M calls/month.
 - **Slack Interactive Messages** (future): `block_actions` and `view_submission` payloads for configuration and onboarding UX.
 
 ## Core Flows
@@ -335,20 +341,23 @@ This design aligns with security best practices: short-lived tokens, server-side
 4. `EventStoreModel` enqueues the event (dedup check across all maps).
 5. A `Timer.setTimer(#seconds 0)` fires `EventRouter.processSingleEvent`.
 6. The router claims the event, dispatches to the appropriate handler.
-7. The handler executes (e.g., calls LLM via orchestrator, posts reply to Slack).
-8. Event is marked as processed or failed.
+7. `MessageHandler` persists the message, resolves auth/round context, creates a turn, and routes to `AgentRouter`.
+8. The admin loop may dispatch a workflow envelope to Internal Engine (or return a synchronous error/response).
+9. Engine milestones/completion callback through `executionApi`; async effects post to Slack and complete the turn.
+10. Event is marked as processed or failed.
 
-### Agent talk flow — `#api` execution (current)
+### Agent talk flow — `#canister` execution (current)
 
 1. Message handler receives a normalized message event.
-2. Scopes workspace data, derives encryption key, decrypts secrets.
-3. Calls orchestrator → LLM service (OpenRouter).
-4. Multi-turn LLM conversation loop (up to 10 iterations) with function tool calling.
-5. Posts reply to Slack via `SlackWrapper.postMessage` (threaded if original was threaded).
+2. It derives workspace/org keys, resolves secrets, and creates/updates session turn context.
+3. Admin agent loop calls OpenRouter with assembled context and function tools.
+4. When `dispatch_workflow` is chosen, Core validates permits, issues an execution envelope (nonce + grants), and dispatches to Internal Engine.
+5. Internal Engine enqueues/claims the run, executes LLM + tool rounds (`admin-v1`), and emits `milestone`/`complete` events to Core `executionApi`.
+6. Core `executionAsyncEffectService` posts Slack updates and marks the turn `#pending` → terminal status with aggregated cost.
 
-### Agent talk flow — `#runtime(#githubCodingAgent)` execution (planned)
+### Agent talk flow — `#github` execution (planned)
 
-1. Message handler receives a normalized message event referencing a `#runtime(#githubCodingAgent)` agent.
+1. Message handler receives a normalized message event referencing an agent with `#github` in `executionEngines`.
 2. Resolves the agent's GitHub repository and workflow from agent runtime configuration.
 3. Resolves required secrets via credential cascade and prepares a signed session payload.
 4. Canister triggers `workflow_dispatch` in the agent repository via GitHub API.
@@ -359,9 +368,9 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 ### Agent repository binding flow (planned)
 
-1. Workspace admin configures a runtime agent with repository metadata (owner/repo, workflow file/ref, branch/ref constraints).
+1. Workspace admin configures a `#github` agent with repository metadata (owner/repo, workflow file/ref, branch/ref constraints).
 2. Canister validates repository reachability and workflow availability through GitHub API.
-3. Canister stores runtime configuration in the agent record (`#runtime(#githubCodingAgent)` config).
+3. Canister stores runtime configuration in the agent record.
 4. Future sessions for that agent dispatch only to that configured repository/workflow.
 
 ### Agent-to-agent delegation (planned)
@@ -410,32 +419,39 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 ### Current persistent state
 
-See [src/control-plane-core/main.mo](src/control-plane-core/main.mo).
+See [src/control-plane-core/main.mo](src/control-plane-core/main.mo) and [src/internal-engine/main.mo](src/internal-engine/main.mo).
 
-- `agentRegistry`: global agent registry with dual index by ID and name (Phase 1.1, implemented).
-- `channelHistoryStore`: channel-keyed, timeline-structured message history stored via `ChannelHistoryModel`, with 1-month ts-based retention (Phase 1.4, implemented). Replaces old `conversations` / `adminConversations` workspace-keyed maps. Messages carry `userAuthContext` for identity/authorization snapshot only. Routing round progression and force-termination state are tracked in `SessionsModel`, not in channel history messages.
-- `slackUsers`: Slack user cache (`SlackUserEntry` records indexed by Slack user ID); populated by event-driven membership events and weekly reconciliation.
-- `workspaces`: workspace channel anchors (`WorkspaceRecord` indexed by workspace ID, each with `adminChannelId`). Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor.
-- `secrets`: encrypted secrets per workspace.
-- `mcpToolRegistry`: dynamic MCP tool registry.
-- `eventStore`: event lifecycle (unprocessed/processed/failed).
-- `httpCertStore`: HTTP certification state.
+- **Control Plane Core canister**:
+  - `agentRegistry`: global agent registry with dual index by ID and name.
+  - `channelHistoryStore`: channel-keyed, timeline-structured message history with retention pruning.
+  - `slackUsers`: Slack user cache + access change log; updated by events and weekly reconciliation.
+  - `workspaces`: workspace channel anchors (`adminChannelId` only model).
+  - `secrets`: encrypted secrets + per-workspace audit logs.
+  - `eventStore`: unprocessed/processed/failed lifecycle maps.
+  - `sessionStores`: persistent sessions, turns, traces.
+  - `executionEnvelopeState`: envelope nonce store, grants/permits, dispatch version stamps, known engine versions.
+  - `httpCertStore`: HTTP certification state.
+  - `internalEnginePrincipal`: persisted engine principal used for transport-level guard on `executionApi`.
+- **Internal Engine canister**:
+  - `runStore`: running/completed/failed execution lifecycle store for dispatched envelopes.
 
 ### Target persistent state
 
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceAdminScopes: [workspaceId] }`. Backed by `SlackUserModel`.
-- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, ownedBy, category: AgentCategory, config: AgentConfig, state: AgentState }`. `AgentCategory = { #_system: SystemAgentKind | #custom }`, `SystemAgentKind = { #admin | #onboarding }`. `AgentConfig = { name, model, executionEngines: [ExecutionEngine], allowedChannelIds: Set<Text>, secrets: AgentSecretsConfig }`, `ExecutionEngine = { #api | #canister | #github }`. `AgentState = { toolsState: Map<Text, ToolState> }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
+- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, ownedBy, category: AgentCategory, config: AgentConfig, state: AgentState }`. `AgentCategory = { #_system: SystemAgentKind | #custom }`, `SystemAgentKind = { #admin | #onboarding }`. `AgentConfig = { name, model, executionEngines: [ExecutionEngine], allowedChannelIds: Set<Text>, secrets: AgentSecretsConfig }`, `ExecutionEngine = { #canister | #github }`. `AgentState = { toolsState: Map<Text, ToolState> }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
 - **Agent session store**: `Map<agentId, AgentSessionRecord>` — one persistent session per agent, with compaction state (summary layers, cursor) and context-budget policy. No separate session ID; the agent ID is the key. File: [src/control-plane-core/models/session-model.mo](src/control-plane-core/models/session-model.mo).
 - **Agent turn store**: `Map<agentId, List<AgentTurnRecord>>` — append-only turn log per agent. Each turn has a deterministic `turnId` (`"{agentId}_{turnNumber}"`), execution status, source ref, delegation lineage (`triggerTurnId`), user auth context snapshot, cost, and Slack reply ts list.
 - **Turn trace store**: `Map<turnId, List<TurnTraceEntry>>` — immutable, append-only trace per turn. Each entry is a self-contained `TraceDetail` variant (`#llmCall`, `#toolCall`, `#slackPost`, etc.) with per-entry cost on LLM calls. Truncated fields (`truncatedContent`, `truncatedOutput`) are pre-computed at write time; raw originals always retained. Context assembly uses raw fields for turns < 1h old, truncated fields for older turns. Hard deletion after 3 months.
+- **Execution envelope store**: `Map<nonce, EnvelopeRecord>` with turn linkage, workspace scope grants, operation permits, expiry/revocation, and accepted engine dispatch version. File: [src/control-plane-core/models/execution-envelope-model.mo](src/control-plane-core/models/execution-envelope-model.mo).
+- **Internal-engine run store**: `Map<envelopeId, RunRecord>` split by `running/completed/failed`, with per-step execution detail and retention cleanup helpers. File: [src/internal-engine/models/run-store-model.mo](src/internal-engine/models/run-store-model.mo).
 - **GitHub runtime session store**: `Map<sessionId, GithubAgentSessionRecord>` where `GithubAgentSessionRecord = { sessionId, agentId, repoFullName, workflowId, runId: ?Nat64, status: #queued | #running | #succeeded | #failed | #cancelled | #unknown, requestId, startedAt, completedAt, lastWebhookAt, lastError }`. Tracks remote execution lifecycle and callback correlation. File: `src/control-plane-core/models/github-agent-session-model.mo` (new).
 - **Embedding indexes**: searchable indexes for memory records, core files, and Store documents (including skill documents under `skills/`) used during prompt-time retrieval.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceAdminScopes: [workspaceId], resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace. Includes `#custom(Text)` secret types for flexible credential mapping. Per-workspace audit state: `SecretAuditState = { changeLog: List<SecretChangeEntry>, accessLog: List<SecretAccessEntry> }` tracking stores, deletes, and accesses with timestamps and sources.
 - **Channel History**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/control-plane-core/models/channel-history-model.mo](src/control-plane-core/models/channel-history-model.mo) for the `ChannelHistoryStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
 - **Event store**: event lifecycle with timer dispatch (existing, retained).
-- **Tool registries**: function tool registry (static) and MCP tool registry (dynamic), with new per-agent `toolsAllowed` and `toolsState`.
+- **Tool registries**: control-plane function tool registry and internal-engine workflow tool registry (`admin-v1`) are implemented; broader dynamic registries (including MCP) remain planned.
 
 ### Transient state
 
@@ -491,8 +507,8 @@ Model examples:
 Tool examples:
 
 - `web_search`: org access.
-- `mcp_send_social_post`: org access.
-- `mcp_send_job_opening`: admin access.
+- `update_session_policy`: admin access.
+- `delete_workspace`: admin access plus explicit `#deleteWorkspace` permit.
 
 No individual access configuration is allowed. If truly needed, the org admin can create a workspace with only that individual and explicitly assign the desired resources and tools.
 
@@ -515,7 +531,7 @@ Agents are stored in a persistent registry with dual indexes (`agentsById: Map<N
 - `category`: `AgentCategory = { #_system : SystemAgentKind | #custom }` where `SystemAgentKind = { #admin | #onboarding }`. Determines the available tool catalogue and prompt strategy. Immutable after creation.
 - `config.name`: kebab-case identifier, must be unique and match the `::name` syntax. Stored lower-cased; lookups are case-insensitive.
 - `config.model`: OpenRouter model string (e.g. `"openai/gpt-oss-120b"`).
-- `config.executionEngines`: `[ExecutionEngine]` where `ExecutionEngine = { #api | #canister | #github }`. Non-empty list of execution engines this agent is permitted to use. `#api` = in-canister LLM loop; `#canister` = external canister via webhook; `#github` = GitHub Actions workflow dispatch.
+- `config.executionEngines`: `[ExecutionEngine]` where `ExecutionEngine = { #canister | #github }`. Non-empty list of execution engines this agent is permitted to use. `#canister` = internal-engine workflow dispatch path; `#github` = GitHub Actions workflow dispatch (planned).
 - `config.allowedChannelIds`: `Set<Text>` — Slack channel allowlist. Must be non-empty for `#custom` agents; always empty for `#_system(#admin)` (routing governed by `WorkspaceModel.adminChannelId`).
 - `config.secrets.allowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent may access.
 - `config.secrets.overrides`: `[(targetSecretId, customKeyName)]` — agent-level credential override; see [Credential Cascade](#credential-cascade).
@@ -570,7 +586,8 @@ Each agent category defines the process logic that handles execution:
 **Phased implementation:**
 
 - **v0.2**: Agent registry, `::` routing, admin agent process handler, `#onboarding`/`#custom` category stubs, Slack-only write surface.
-- **v0.5**: Agent execution types (`#api` / `#runtime`), GitHub Coding Agent integration via Actions + webhooks, credential cascade, secrets hardening, Process Engine + Effect Applicator, Agent Session, Channel History, Store.
+- **v0.5 (implemented core path)**: `#canister` execution flow (Core + Internal Engine), envelope grants/permits, execution API callbacks (`milestone`/`complete`), credential cascade hardening, Agent Session, Channel History, and weekly reconciliation.
+- **v0.6 (planned)**: `#github` runtime execution via Actions + webhooks, richer Process Engine/Effect Applicator, and Store/embedding layers.
 - **Future**: Full pluggable agent framework, interactive Slack messages, auth tokens, cost optimization, and richer Store document conventions.
 
 ### Agent routing and round control
@@ -649,46 +666,48 @@ Design rules (planned and recommended for any new code):
 ### Current
 
 - Key-derivation cache clearing timer (30 days).
-- Metric datapoints retention cleanup timer (30 days).
 - Processed events cleanup timer (7 days): fails stale unprocessed events, purges old processed/failed events.
+- Weekly reconciliation timer (7 days): user cache + channel membership reconciliation and anchor verification.
+- Channel history prune timer (7 days): prunes entries older than retention window.
+- Turn cleanup timer (7 days): hard-deletes old turns/traces and envelope records.
+- Engine top-up timer (7 days): checks spawned internal-engine cycle balance and tops up when below threshold.
 - Keep timer state minimal and upgrade-safe (store "next run time" and reschedule in `postupgrade`).
 
 Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
 ### Planned
 
-- **Weekly reconciliation timer** (Sundays): full Slack user and channel membership sync. Also verifies workspace and org admin channel IDs.
 - **Auth token purge timer**: periodic cleanup of expired tokens.
 - **Session compaction timer**: periodic pass over agent sessions; compacts raw turns into summary layers when token budget thresholds are exceeded.
-- **Turn cleanup timer** (monthly): hard-deletes entire turns and their trace entries when `completedAtNs` is older than `TURN_CLEANUP_RETENTION_NS` (3 months).
 - **Process Engine timer**: kick the Process Engine step loop periodically.
 - **Recurring task timer**: goal-monitoring, reporting, and dashboard alerts.
 - **Workspace deletion cascading cleanup timer**: when a workspace is deleted, ensure all associated objects (agents, secrets, sessions, traces, stored documents) are cleaned up thoroughly. This will require an async cleanup queue to handle the cascade safely, retrying failed deletions and ensuring all cleanup operations succeed before removing the workspace from the registry.
+- **Internal-engine run-store maintenance timer**: schedule `running` stale-fail and completed/failed retention purges directly inside the internal-engine canister.
 
 ## Tooling and Integrations
 
 ### Current
 
-- **Function tool registry**: static, resource-gated. Tools are available based on provided resources (e.g., `web_search` needs API key, `save_value_stream` needs workspace + write flag). See [src/control-plane-core/agents/tools/function-tool-registry.mo](src/control-plane-core/agents/tools/function-tool-registry.mo).
-- **MCP tool registry**: dynamic, runtime-configurable. Registration/unregistration supported; execution not yet implemented.
-- **Tool executor**: routes tool calls from LLM responses to function tools or MCP tools.
-- **SlackWrapper**: outbound Slack API calls (`postMessage`). See [src/control-plane-core/wrappers](src/control-plane-core/wrappers).
+- **Control-plane function tool registry**: static, resource-gated. Includes `web_search`, workspace secret management tools, and `dispatch_workflow`. See [src/control-plane-core/agents/tools/function-tool-registry.mo](src/control-plane-core/agents/tools/function-tool-registry.mo).
+- **Control-plane tool executor**: executes function tools selected by the admin loop and can return dispatch signals for engine handoff.
+- **Internal-engine workflow tool registry**: workflow-scoped tool catalogue (`admin-v1`) backed by migrated handlers (`workspace`, `agent`, `slack-queue`, `session`). See [src/internal-engine/tools/tool-registry.mo](src/internal-engine/tools/tool-registry.mo).
+- **Execution API services**: `execution-api-service` (sync route + authz + permits) and `execution-async-effect-service` (Slack milestone/final posts + turn finalization).
+- **Wrappers**: Slack wrapper and OpenRouter wrappers are implemented in both canister boundaries where needed.
 
 ### Planned
 
-- **OpenRouterWrapper**: OpenAI-compatible chat completions via OpenRouter (replacing `groq-wrapper.mo`). Same request/response types, updated URL (`openrouter.ai/api/v1`) and headers (`HTTP-Referer`, `X-Title`).
 - **GitHubWrapper**: HTTP outcalls for workflow dispatch, workflow/run status queries, and repository metadata validation for runtime agents.
 - **GitHubWebhookAdapter**: verifies and normalizes GitHub Actions lifecycle/result webhooks into internal events for session correlation.
-- **SlackWrapper expansion**: add private internal functions matching Slack API method names (`users_list()`, `conversations_list()`, `conversations_members()`), with parameters aligned to Slack's API. Public higher-level functions (e.g., `getWorkspaceMembers()`, `listChannels()`) wrap these for use by internal services. Adapter pattern: the wrapper is the single boundary for all Slack API I/O.
+- **SlackWrapper expansion**: broaden read/write coverage and interactive-message support while keeping wrapper as the single Slack I/O boundary.
 - **Embedding retrieval pipeline**: at each LLM call, embed the active prompt and query indexes for memory, core files, and Store documents (optionally filtered by `path`, such as `/skills/**`); inject top findings into the turn context.
 - **Embedding indexes**: maintain searchable embeddings for memory records, core files, and Store documents. Index updates happen asynchronously when source documents change.
-- **Tool scoping**: tools have access level requirements (`org`, `admin`). Enforcement happens at the Agent Router level by comparing the tool's required level against the `userAuthContext`. For tools that carry inherent risk (e.g., `browser`), the preferred mitigation is scoping their reach (e.g., a URL/domain allowlist) rather than revoking access — consistent with the least-privilege, capability-scoped control principle.
-- **Category tools**: each agent category defines a `category_tools` array of tool enum variants. Agents within the category configure `toolsAllowed` (a subset) and `toolsState` (per-tool runtime data).
-- **LLM tools** (for `#api` agents): a focused, powerful set — `file_read`, `file_write`, `mcp` (call an MCP tool), `browser`, `memory_search`, `store_search` (including `path` filters like `/skills/**`). Agents choose from this list based on `toolsAllowed`.
+- **Tool scoping**: keep grants/permits and userAuthContext checks aligned across control plane and runtime engines.
+- **Category tools**: formalize per-category tool contracts and stricter runtime subsets while preserving `toolsState` telemetry.
+- **Broader LLM tool surface**: additional file/memory/store/browser/MCP patterns remain planned once execution-engine contracts stabilize.
 - **Interactive Messages** (future): support for `block_actions` and `view_submission` payloads in the Slack adapter.
 - Agents empowered with:
   - LLM internal tools (function calling).
-  - Remote MCPs.
+  - Remote MCPs (planned).
   - Custom functions (run inside the canister).
   - Custom functions (run externally, lambdas, RPCs).
   - Deployed canisters with custom code.
@@ -698,7 +717,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 ### Current
 
 - Secrets are encrypted at rest per workspace using keys derived from ICP Threshold Schnorr signatures.
-- Secret types: `#openRouterApiKey`, `#anthropicApiKey`, `#anthropicSetupToken`, `#githubUserToken`, `#githubWebhookSecret`, `#slackSigningSecret`, `#slackBotToken`, `#custom(Text)`.
+- Secret types: `#openRouterApiKey`, `#anthropicApiKey`, `#anthropicSetupToken`, `#slackSigningSecret`, `#slackBotToken`, `#custom(Text)`.
 - Per-workspace encryption key cache (transient, cleared periodically).
 
 Deep dive entrypoints:
@@ -789,7 +808,9 @@ See [AGENTS.md](AGENTS.md) for build commands, test strategy, cassette usage, an
 - Services: [src/control-plane-core/services](src/control-plane-core/services)
 - Wrappers and outcalls: [src/control-plane-core/wrappers](src/control-plane-core/wrappers)
 - Event system: [src/control-plane-core/events](src/control-plane-core/events)
-- Tools: [src/control-plane-core/tools](src/control-plane-core/tools)
+- Control-plane tools: [src/control-plane-core/agents/tools](src/control-plane-core/agents/tools)
+- Internal-engine runtime: [src/internal-engine](src/internal-engine)
+- Internal-engine tools: [src/internal-engine/tools](src/internal-engine/tools)
 - Models: [src/control-plane-core/models](src/control-plane-core/models)
 - Cassette system: [tests/lib](tests/lib) and [tests/cassettes](tests/cassettes)
 

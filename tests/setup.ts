@@ -12,10 +12,24 @@ import type { _SERVICE } from "./builds/control-plane-core.did.d.ts";
 import { idlFactory } from "./builds/control-plane-core.did.js";
 import type { _SERVICE as TestCanisterService } from "./builds/test-canister.did.d.ts";
 import { idlFactory as testCanisterIdlFactory } from "./builds/test-canister.did.js";
+import type { InternalEngine as InternalEngineService } from "./builds/internal-engine.did.d.ts";
+import { idlFactory as internalEngineIdlFactory } from "./builds/internal-engine.did.js";
+import type { StubCoreCanister as StubCoreService } from "./builds/internal-engine-stub-core.did.d.ts";
+import { idlFactory as stubCoreIdlFactory } from "./builds/internal-engine-stub-core.did.js";
 
 // Re-export for use with deferred actors
-export { idlFactory, testCanisterIdlFactory };
-export type { _SERVICE, TestCanisterService };
+export {
+  idlFactory,
+  testCanisterIdlFactory,
+  internalEngineIdlFactory,
+  stubCoreIdlFactory,
+};
+export type {
+  _SERVICE,
+  TestCanisterService,
+  InternalEngineService,
+  StubCoreService,
+};
 
 // Test constants for unit tests
 export const TEST_API_KEY =
@@ -70,9 +84,24 @@ export const TEST_CANISTER_WASM_PATH = resolve(
   "test-canister.wasm",
 );
 
+// Define the path to the internal-engine WASM files
+export const INTERNAL_ENGINE_WASM_PATH = resolve(
+  import.meta.dir,
+  "builds",
+  "internal-engine.wasm",
+);
+
+export const INTERNAL_ENGINE_STUB_CORE_WASM_PATH = resolve(
+  import.meta.dir,
+  "builds",
+  "internal-engine-stub-core.wasm",
+);
+
 // In-memory WASM cache — loaded once, reused across all tests
 let _controlPlaneWasm: Uint8Array | undefined;
 let _testCanisterWasm: Uint8Array | undefined;
+let _internalEngineWasm: Uint8Array | undefined;
+let _stubCoreWasm: Uint8Array | undefined;
 
 function getControlPlaneWasm(): Uint8Array {
   if (!_controlPlaneWasm) {
@@ -86,6 +115,24 @@ function getTestCanisterWasm(): Uint8Array {
     _testCanisterWasm = new Uint8Array(readFileSync(TEST_CANISTER_WASM_PATH));
   }
   return _testCanisterWasm;
+}
+
+function getInternalEngineWasm(): Uint8Array {
+  if (!_internalEngineWasm) {
+    _internalEngineWasm = new Uint8Array(
+      readFileSync(INTERNAL_ENGINE_WASM_PATH),
+    );
+  }
+  return _internalEngineWasm;
+}
+
+function getStubCoreWasm(): Uint8Array {
+  if (!_stubCoreWasm) {
+    _stubCoreWasm = new Uint8Array(
+      readFileSync(INTERNAL_ENGINE_STUB_CORE_WASM_PATH),
+    );
+  }
+  return _stubCoreWasm;
 }
 
 /**
@@ -248,4 +295,52 @@ export async function freshDeferredTestCanister(pic: PocketIc): Promise<{
     fixture.canisterId,
   );
   return { actor: deferredActor, canisterId: fixture.canisterId };
+}
+
+// ── Internal Engine helpers ───────────────────────────────────────
+
+/**
+ * Deploy the stub-core canister on an existing PocketIc instance.
+ * The stub records every `executionApi` call and returns `#ok("{}")`.
+ */
+export async function createStubCoreActor(pic: PocketIc): Promise<{
+  actor: Actor<StubCoreService>;
+  canisterId: import("@icp-sdk/core/principal").Principal;
+}> {
+  const fixture = await pic.setupCanister<StubCoreService>({
+    idlFactory: stubCoreIdlFactory,
+    wasm: getStubCoreWasm(),
+  });
+  return { actor: fixture.actor, canisterId: fixture.canisterId };
+}
+
+/**
+ * Deploy the internal-engine canister on an existing PocketIc instance.
+ *
+ * `coreId` is the principal that becomes the engine's `coreId`.  Any
+ * `execute()` call whose `caller != coreId` will be rejected.
+ *
+ * To allow `execute()` calls from a TypeScript test, create a fake identity
+ * whose `getPrincipal()` returns `coreId` and set it on the returned actor:
+ *
+ * ```ts
+ * const fakeCore = { getPrincipal: () => coreId, sign: async () => new ArrayBuffer(64) } as any;
+ * engineActor.setIdentity(fakeCore);
+ * ```
+ *
+ * PocketIC does not verify cryptographic signatures, so the noop `sign` is fine.
+ */
+export async function createInternalEngineActor(
+  pic: PocketIc,
+  coreId: import("@icp-sdk/core/principal").Principal,
+): Promise<{
+  actor: Actor<InternalEngineService>;
+  canisterId: import("@icp-sdk/core/principal").Principal;
+}> {
+  const fixture = await pic.setupCanister<InternalEngineService>({
+    idlFactory: internalEngineIdlFactory,
+    wasm: getInternalEngineWasm(),
+    sender: coreId,
+  });
+  return { actor: fixture.actor, canisterId: fixture.canisterId };
 }

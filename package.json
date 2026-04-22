@@ -13,6 +13,7 @@
     "test:unit:tools": "bun test tests/control-plane-core/unit-tests/agents/tools",
     "test:unit:not-tools": "bun test tests/control-plane-core/unit-tests/agents tests/control-plane-core/unit-tests/events tests/control-plane-core/unit-tests/middleware tests/control-plane-core/unit-tests/models tests/control-plane-core/unit-tests/services tests/control-plane-core/unit-tests/timers tests/control-plane-core/unit-tests/utilities tests/control-plane-core/unit-tests/wrappers --ignore=tests/control-plane-core/unit-tests/agents/tools",
     "test:integration": "bun test tests/control-plane-core/integration-tests",
+    "test:integration:internal-engine": "bun test tests/internal-engine/integration-tests",
     "test:ts-parallel": "bun run scripts/run-parallel-tests.ts",
     "test": "bun run test:build && bun run test:mops && bun run test:ts-parallel"
   },
