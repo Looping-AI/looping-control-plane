@@ -88,10 +88,6 @@ async function main() {
 
   const moFiles = findMoFiles(SRC_DIR).sort();
   const rootFiles = findCheckRoots(moFiles);
-  console.log(
-    `Checking ${rootFiles.length} Motoko root files ` +
-      `(covering ${moFiles.length} source files)…\n`,
-  );
 
   // Root-only checks avoid re-checking files that are already compiled via a
   // local importer. Shared dependencies can still appear under multiple roots,
@@ -129,7 +125,8 @@ async function main() {
   }
 
   if (uniqueDiagnostics.length === 0) {
-    console.log("✅ No compiler warnings found.");
+    // Silent on success, like other linters
+    process.exit(0);
   } else {
     for (const diag of uniqueDiagnostics) {
       console.log(`⚠️`);
