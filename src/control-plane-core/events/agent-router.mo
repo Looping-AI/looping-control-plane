@@ -10,7 +10,7 @@ import Text "mo:core/Text";
 import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
 import Types "../types";
-import AgentOrchestrator "../orchestrators/agent-orchestrator";
+import AgentOrchestrator "../agents/agent-orchestrator";
 import SecretModel "../models/secret-model";
 import SessionModel "../models/session-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";

@@ -1,6 +1,6 @@
 import { test; suite; expect } "mo:test";
 import Text "mo:core/Text";
-import InstructionComposer "../../../../src/control-plane-core/instructions/instruction-composer";
+import InstructionComposer "../../../../src/control-plane-core/agents/instructions/instruction-composer";
 import AgentHelpers "../../../../src/control-plane-core/agents/helpers";
 
 // ═══════════════════════════════════════════════════════════════════════════════

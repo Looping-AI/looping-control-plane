@@ -669,7 +669,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 
 ### Current
 
-- **Function tool registry**: static, resource-gated. Tools are available based on provided resources (e.g., `web_search` needs API key, `save_value_stream` needs workspace + write flag). See [src/control-plane-core/tools/function-tool-registry.mo](src/control-plane-core/tools/function-tool-registry.mo).
+- **Function tool registry**: static, resource-gated. Tools are available based on provided resources (e.g., `web_search` needs API key, `save_value_stream` needs workspace + write flag). See [src/control-plane-core/agents/tools/function-tool-registry.mo](src/control-plane-core/agents/tools/function-tool-registry.mo).
 - **MCP tool registry**: dynamic, runtime-configurable. Registration/unregistration supported; execution not yet implemented.
 - **Tool executor**: routes tool calls from LLM responses to function tools or MCP tools.
 - **SlackWrapper**: outbound Slack API calls (`postMessage`). See [src/control-plane-core/wrappers](src/control-plane-core/wrappers).
