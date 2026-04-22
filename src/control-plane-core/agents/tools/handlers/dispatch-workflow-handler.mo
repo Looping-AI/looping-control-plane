@@ -27,7 +27,6 @@ module {
     turnId : Text;
     instructions : Text;
     messages : [ExecutionTypes.ChatMessage];
-    botToken : ?Text;
     apiKey : Text;
   };
 
@@ -54,6 +53,7 @@ module {
   public func handle(
     engineDispatch : EngineDispatch,
     envelopeContext : EnvelopeContext,
+    resolveSlackBotToken : ?(Text -> ?Text),
     triggerMessageText : ?Text,
     args : Text,
   ) : async Text {
@@ -85,7 +85,7 @@ module {
           };
         };
         case (#setAdminChannel({ channelId })) {
-          switch (await validateSetAdminChannelPermit(envelopeContext.botToken, channelId)) {
+          switch (await validateSetAdminChannelPermit(resolveSlackBotToken, channelId)) {
             case (#ok) {};
             case (#err(msg)) { return dispatchError(msg) };
           };
@@ -169,25 +169,31 @@ module {
   /// Validate #setAdminChannel permit: verify the channel exists and is
   /// accessible via the Slack API.
   private func validateSetAdminChannelPermit(
-    botToken : ?Text,
+    resolveSlackBotToken : ?(Text -> ?Text),
     channelId : Text,
   ) : async { #ok; #err : Text } {
-    switch (botToken) {
+    let token = switch (resolveSlackBotToken) {
       case (null) {
-        #err("Cannot validate admin channel permit: no Slack bot token available");
+        return #err("Cannot validate admin channel permit: no Slack bot token available");
       };
-      case (?token) {
-        try {
-          switch (await SlackWrapper.getChannelInfo(token, channelId)) {
-            case (#ok(_)) { #ok };
-            case (#err(e)) {
-              #err("Channel verification failed for " # channelId # ": " # e);
-            };
+      case (?resolve) {
+        switch (resolve("validate-admin-channel")) {
+          case (null) {
+            return #err("Cannot validate admin channel permit: no Slack bot token available");
           };
-        } catch (e : Error) {
-          #err("Slack API call failed: " # Error.message(e));
+          case (?t) { t };
         };
       };
+    };
+    try {
+      switch (await SlackWrapper.getChannelInfo(token, channelId)) {
+        case (#ok(_)) { #ok };
+        case (#err(e)) {
+          #err("Channel verification failed for " # channelId # ": " # e);
+        };
+      };
+    } catch (e : Error) {
+      #err("Slack API call failed: " # Error.message(e));
     };
   };
 

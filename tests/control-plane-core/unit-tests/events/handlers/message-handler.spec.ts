@@ -187,7 +187,7 @@ describe("MessageHandler Unit Tests", () => {
     "should handle messages consistently across multiple scenarios",
     async () => {
       for (const label of ["ws0", "ws1", "ws42"]) {
-        const cassetteName = `unit-tests/control-plane-core/events/handlers/message-handler/multi-workspace-${label}`;
+        const cassetteName = `control-plane-core/unit-tests/events/handlers/message-handler/multi-workspace-${label}`;
         const channel = await resolveSpecsChannel(cassetteName);
         const { result } = await withCassette(
           pic,

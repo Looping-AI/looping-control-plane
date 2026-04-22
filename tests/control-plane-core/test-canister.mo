@@ -9,7 +9,7 @@ import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Principal "mo:core/Principal";
 import Json "mo:json";
-import { str; obj; bool } "mo:json";
+import { str; obj; bool; int } "mo:json";
 
 import InternalEngine "../../src/internal-engine/main";
 
@@ -53,7 +53,6 @@ import ExecutionApiService "../../src/control-plane-core/services/execution-api-
 import ExecutionAsyncEffectService "../../src/control-plane-core/services/execution-async-effect-service";
 import EventProcessingContextTypes "../../src/control-plane-core/events/types/event-processing-context";
 import AgentOrchestrator "../../src/control-plane-core/agents/agent-orchestrator";
-import AdminAgentLoop "../../src/control-plane-core/agents/categories/system/admin-agent-loop";
 import ToolExecutor "../../src/control-plane-core/agents/tools/tool-executor";
 import ToolTypes "../../src/control-plane-core/agents/tools/tool-types";
 import Types "../../src/control-plane-core/types";
@@ -731,16 +730,20 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       testOrchestratorEngineDeps(),
       null,
       null,
-      null,
       testSecretsKeyCache,
     );
   };
 
   public shared ({ caller }) func testOrchestrateSystemOnboarding() : async Types.AgentOrchestrateResult {
     assert caller == parent;
+    let secrets = do {
+      let s = SecretModel.initState();
+      ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
+      s;
+    };
     await AgentOrchestrator.orchestrateAgentTalk(
       testAgent(#_system(#onboarding), "unit-test-onboarding"),
-      SecretModel.initState(),
+      secrets,
       null,
       ChannelHistoryModel.empty(),
       "C_TEST_CATEGORY",
@@ -753,16 +756,20 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       testOrchestratorEngineDeps(),
       null,
       null,
-      null,
       testSecretsKeyCache,
     );
   };
 
   public shared ({ caller }) func testOrchestrateCustom() : async Types.AgentOrchestrateResult {
     assert caller == parent;
+    let secrets = do {
+      let s = SecretModel.initState();
+      ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
+      s;
+    };
     await AgentOrchestrator.orchestrateAgentTalk(
       testAgent(#custom, "unit-test-custom"),
-      SecretModel.initState(),
+      secrets,
       null,
       ChannelHistoryModel.empty(),
       "C_TEST_CATEGORY",
@@ -773,7 +780,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       "turn-custom-0",
       SessionModel.emptyStores(),
       testOrchestratorEngineDeps(),
-      null,
       null,
       null,
       testSecretsKeyCache,
@@ -822,20 +828,20 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
     );
     let triggerPrompt : ?Text = if (prompt == "") { null } else { ?prompt };
-    await AdminAgentLoop.process(
+    await AgentOrchestrator.orchestrateAgentTalk(
       testAgentWithModel(#_system(#admin), "unit-test-admin", model),
       secrets,
       null,
       history,
       "C_TEST_CATEGORY",
       null,
+      #_system(#admin),
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
       "turn-admin-loop-0",
       SessionModel.emptyStores(),
       testOrchestratorEngineDeps(),
       triggerPrompt,
-      null,
       null,
       testSecretsKeyCache,
     );
@@ -1718,7 +1724,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   /// @param triggerMessageText The verbatim Slack trigger message text (for permit validation).
   /// @param botToken           Optional Slack bot token (for setAdminChannel permit validation).
   /// @param mockDispatchFail   When true, dispatchToEngine returns #err; otherwise #ok.
-  ///
   /// Uses a minimal org-admin AgentRecord stub and a fresh ExecutionEnvelopeModel.EnvelopeState.
   public shared ({ caller }) func testDispatchWorkflowHandler(
     args : Text,
@@ -1757,10 +1762,13 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       turnId = "test-turn-0_0";
       instructions = "Test instructions";
       messages = [];
-      botToken;
       apiKey = "test-api-key";
     };
-    await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, triggerMessageText, args);
+    let resolveSlackBotToken : ?(Text -> ?Text) = switch (botToken) {
+      case (null) { null };
+      case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
+    };
+    await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, args);
   };
 
   /// Test the SlackEventIntakeService in isolation.
@@ -1780,5 +1788,21 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (#notEventCallback) { "notEventCallback" };
       case (#parseError(msg)) { "parseError:" # msg };
     };
+  };
+
+  /// Return event store statistics for test assertions.
+  /// JSON: { "success": true, "unprocessedEvents": N, "processedEvents": N, "failedEvents": N }
+  public shared ({ caller }) func testGetEventStoreStats() : async Text {
+    assert caller == parent;
+    let s = EventStoreModel.sizes(testEventStore);
+    Json.stringify(
+      obj([
+        ("success", bool(true)),
+        ("unprocessedEvents", int(s.unprocessed)),
+        ("processedEvents", int(s.processed)),
+        ("failedEvents", int(s.failed)),
+      ]),
+      null,
+    );
   };
 };

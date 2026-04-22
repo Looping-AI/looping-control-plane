@@ -86,7 +86,10 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
         testCanister.testRunAsyncEffect(
           { post: null },
           "/execution/milestone",
-          JSON.stringify({ tokenNonce: nonce, humanSummary: "Step 1 done." }),
+          JSON.stringify({
+            envelopeNonce: nonce,
+            humanSummary: "Step 1 done.",
+          }),
           BOT_TOKEN,
         ),
       { ticks: 5, maxRounds: 3 },
@@ -128,7 +131,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
           { post: null },
           "/execution/complete",
           JSON.stringify({
-            tokenNonce: nonce,
+            envelopeNonce: nonce,
             humanSummary: "Workflow complete.",
             status: "completed",
             stats: { inputTokens: 100, outputTokens: 50 },

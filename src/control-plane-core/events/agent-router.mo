@@ -50,7 +50,6 @@ module {
     agentAdminChannelId : ?Text,
     engineDeps : EngineDeps,
     triggerMessageText : ?Text,
-    botToken : ?Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     keyCache : KeyDerivationService.KeyCache,
   ) : async RouteResult {
@@ -138,7 +137,6 @@ module {
       sessionStores,
       engineDeps,
       triggerMessageText,
-      botToken,
       userAuthContext,
       keyCache,
     );

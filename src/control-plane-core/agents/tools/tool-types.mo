@@ -76,7 +76,6 @@ module {
       turnId : Text;
       instructions : Text;
       messages : [ExecutionTypes.ChatMessage];
-      botToken : ?Text;
       apiKey : Text;
     };
   };

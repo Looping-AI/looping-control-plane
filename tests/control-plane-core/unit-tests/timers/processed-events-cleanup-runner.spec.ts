@@ -40,10 +40,7 @@ interface EventStoreStats {
 async function getStats(
   testCanister: Actor<TestCanisterService>,
 ): Promise<EventStoreStats> {
-  const raw = await testCanister.testGetEventStoreStatsHandler("{}", {
-    isPrimaryOwner: true,
-    isOrgAdmin: true,
-  });
+  const raw = await testCanister.testGetEventStoreStats();
   return JSON.parse(raw) as EventStoreStats;
 }
 

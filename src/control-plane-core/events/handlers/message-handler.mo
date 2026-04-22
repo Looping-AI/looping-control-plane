@@ -364,7 +364,6 @@ module {
     turnId : Text,
     agentAdminChannelId : ?Text,
     triggerMessageText : ?Text,
-    botToken : ?Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
   ) : async AgentRouter.RouteResult {
     let engineDeps : AgentRouter.EngineDeps = {
@@ -386,7 +385,6 @@ module {
       agentAdminChannelId,
       engineDeps,
       triggerMessageText,
-      botToken,
       userAuthContext,
       ctx.keyCache,
     );
@@ -544,7 +542,6 @@ module {
       turnId,
       agentAdminChannelId,
       ?msg.text,
-      ?botToken,
       activeCtxOpt,
     );
 

@@ -26,10 +26,8 @@ import thirdPartyBotPayload from "../../../stubs/slack-payloads/message-bot-thir
 // absent — those belong to the integration tests for http_request_update.
 //
 // Each test uses a fresh canister so testEventStore starts empty.
-// State is verified via testGetEventStoreStatsHandler.
+// State is verified via testGetEventStoreStats.
 // ============================================
-
-const PRIMARY_OWNER = { isPrimaryOwner: true, isOrgAdmin: false };
 
 interface StatsResponse {
   success: boolean;
@@ -71,9 +69,7 @@ describe("SlackEventIntakeService", () => {
       );
       expect(result).toStartWith("enqueued:");
 
-      const stats = parseStats(
-        await testCanister.testGetEventStoreStatsHandler("{}", PRIMARY_OWNER),
-      );
+      const stats = parseStats(await testCanister.testGetEventStoreStats());
       expect(stats.unprocessedEvents).toBe(1);
     });
 
@@ -83,9 +79,7 @@ describe("SlackEventIntakeService", () => {
       );
       expect(result).toStartWith("enqueued:");
 
-      const stats = parseStats(
-        await testCanister.testGetEventStoreStatsHandler("{}", PRIMARY_OWNER),
-      );
+      const stats = parseStats(await testCanister.testGetEventStoreStats());
       expect(stats.unprocessedEvents).toBe(1);
     });
 
@@ -97,9 +91,7 @@ describe("SlackEventIntakeService", () => {
       );
       expect(result).toStartWith("enqueued:");
 
-      const stats = parseStats(
-        await testCanister.testGetEventStoreStatsHandler("{}", PRIMARY_OWNER),
-      );
+      const stats = parseStats(await testCanister.testGetEventStoreStats());
       expect(stats.unprocessedEvents).toBe(1);
     });
   });
@@ -119,9 +111,7 @@ describe("SlackEventIntakeService", () => {
       expect(second).toBe("duplicate");
 
       // Only one event in the store
-      const stats = parseStats(
-        await testCanister.testGetEventStoreStatsHandler("{}", PRIMARY_OWNER),
-      );
+      const stats = parseStats(await testCanister.testGetEventStoreStats());
       expect(stats.unprocessedEvents).toBe(1);
     });
   });
@@ -137,9 +127,7 @@ describe("SlackEventIntakeService", () => {
       );
       expect(result).toStartWith("skipped:");
 
-      const stats = parseStats(
-        await testCanister.testGetEventStoreStatsHandler("{}", PRIMARY_OWNER),
-      );
+      const stats = parseStats(await testCanister.testGetEventStoreStats());
       expect(stats.unprocessedEvents).toBe(0);
     });
 
@@ -149,9 +137,7 @@ describe("SlackEventIntakeService", () => {
       );
       expect(result).toStartWith("skipped:");
 
-      const stats = parseStats(
-        await testCanister.testGetEventStoreStatsHandler("{}", PRIMARY_OWNER),
-      );
+      const stats = parseStats(await testCanister.testGetEventStoreStats());
       expect(stats.unprocessedEvents).toBe(0);
     });
 
@@ -176,9 +162,7 @@ describe("SlackEventIntakeService", () => {
       const result = await testCanister.testSlackEventIntakeService(payload);
       expect(result).toStartWith("skipped:");
 
-      const stats = parseStats(
-        await testCanister.testGetEventStoreStatsHandler("{}", PRIMARY_OWNER),
-      );
+      const stats = parseStats(await testCanister.testGetEventStoreStats());
       expect(stats.unprocessedEvents).toBe(0);
     });
   });
@@ -198,9 +182,7 @@ describe("SlackEventIntakeService", () => {
       const result = await testCanister.testSlackEventIntakeService(payload);
       expect(result).toBe("notEventCallback");
 
-      const stats = parseStats(
-        await testCanister.testGetEventStoreStatsHandler("{}", PRIMARY_OWNER),
-      );
+      const stats = parseStats(await testCanister.testGetEventStoreStats());
       expect(stats.unprocessedEvents).toBe(0);
     });
   });

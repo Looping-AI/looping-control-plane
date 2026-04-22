@@ -6,9 +6,7 @@ import Nat "mo:core/Nat";
 import Json "mo:json";
 import Types "../../../types";
 import SecretModel "../../../models/secret-model";
-import ChannelHistoryModel "../../../models/channel-history-model";
 import AgentModel "../../../models/agent-model";
-import SessionModel "../../../models/session-model";
 import ExecutionTypes "../../../types/execution";
 import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
 import KeyDerivationService "../../../services/key-derivation-service";
@@ -26,82 +24,55 @@ module {
   public func process(
     agent : AgentModel.AgentRecord,
     secrets : SecretModel.SecretsState,
-    slackUserId : ?Text,
-    channelHistory : ChannelHistoryModel.ChannelHistoryStore,
-    channelId : Text,
-    threadTs : ?Text,
-    workspaceKey : [Nat8],
-    orgKey : [Nat8],
+    apiKey : Text,
+    assembled : ContextAssembler.AssembledContext,
     turnId : Text,
-    sessionStores : SessionModel.SessionStores,
     engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
     triggerMessageText : ?Text,
-    botToken : ?Text,
+    resolveSlackBotToken : (Text -> ?Text),
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     keyCache : KeyDerivationService.KeyCache,
   ) : async Types.AgentOrchestrateResult {
-    let apiKey = SecretModel.resolveSecret(secrets, agent, agent.ownedBy, #openRouterApiKey, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
+    let instructions = InstructionComposer.compose(
+      AgentHelpers.categoryToRole(agent.category, agent.config.name),
+      [],
+      [],
+    );
 
-    switch (apiKey) {
-      case (null) {
-        #err({
-          message = "No OpenRouter API key found for agent talk. Please store the API key first.";
-          steps = [];
-        });
+    let chatMessages = messagesToChat(assembled.messages);
+
+    let toolResources : ToolTypes.ToolResources = {
+      openRouterApiKey = ?apiKey;
+      workspaceId = ?agent.ownedBy;
+      resolveSlackBotToken = ?(resolveSlackBotToken);
+      userAuthContext;
+      triggerMessageText;
+      secrets = ?{ state = secrets; keyCache; write = true };
+      engineDispatch = ?{
+        envelopeState = engineDeps.envelopeState;
+        internalEngine = engineDeps.internalEngine;
       };
-      case (?key) {
-        let instructions = InstructionComposer.compose(
-          AgentHelpers.categoryToRole(agent.category, agent.config.name),
-          [],
-          [],
-        );
-
-        let assembled = ContextAssembler.assemble(
-          sessionStores,
-          agent.id,
-          turnId,
-          channelHistory,
-          channelId,
-          threadTs,
-        );
-
-        let chatMessages = messagesToChat(assembled.messages);
-
-        let toolResources : ToolTypes.ToolResources = {
-          openRouterApiKey = ?key;
-          workspaceId = ?agent.ownedBy;
-          resolveSlackBotToken = null;
-          userAuthContext;
-          triggerMessageText;
-          secrets = ?{ state = secrets; keyCache; write = true };
-          engineDispatch = ?{
-            envelopeState = engineDeps.envelopeState;
-            internalEngine = engineDeps.internalEngine;
-          };
-          envelopeContext = ?{
-            agent;
-            turnId;
-            instructions;
-            messages = chatMessages;
-            botToken;
-            apiKey = key;
-          };
-        };
-
-        let toolDefinitions = FunctionToolRegistry.getAllDefinitions(toolResources);
-        let toolsOpt = if (toolDefinitions.size() == 0) null else ?toolDefinitions;
-
-        await adminLoop(
-          key,
-          agent.config.model,
-          instructions,
-          assembled.messages,
-          #workspaceAgent(agent.ownedBy, agent.id),
-          toolsOpt,
-          toolResources,
-        );
+      envelopeContext = ?{
+        agent;
+        turnId;
+        instructions;
+        messages = chatMessages;
+        apiKey;
       };
     };
+
+    let toolDefinitions = FunctionToolRegistry.getAllDefinitions(toolResources);
+    let toolsOpt = if (toolDefinitions.size() == 0) null else ?toolDefinitions;
+
+    await adminLoop(
+      apiKey,
+      agent.config.model,
+      instructions,
+      assembled.messages,
+      #workspaceAgent(agent.ownedBy, agent.id),
+      toolsOpt,
+      toolResources,
+    );
   };
 
   private func adminLoop(

@@ -21,8 +21,9 @@ Examples:
 - `bun run <script>` - Run scripts from package.json
 - `bun run test` - Run full tests flow
 - `bun run test:build` - Rebuild canisters when src code modified
-- `bun run test:unit` - Run unit tests
-- `bun run test:integration` - Run integration tests
+- `bun run test:control-plane-core` - Run all control-plane-core tests
+- `bun run test:internal-engine` - Run all internal-engine tests
+- `bun run test:ts-parallel` - Run both TypeScript suites in parallel
 - `bun run format` - Run code formatter
 - `bun run lint` - Run linter
 
