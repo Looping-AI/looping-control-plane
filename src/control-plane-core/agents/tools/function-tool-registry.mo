@@ -3,21 +3,14 @@ import List "mo:core/List";
 import Nat "mo:core/Nat";
 import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
-import Constants "../../constants";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import WebSearchHandler "./handlers/web-search-handler";
 import StoreSecretHandler "./handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "./handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
-import GetEventStoreStatsHandler "./handlers/events/get-event-store-stats-handler";
-import GetFailedEventsHandler "./handlers/events/get-failed-events-handler";
-import DeleteFailedEventsHandler "./handlers/events/delete-failed-events-handler";
-import SessionModel "../../models/session-model";
-import UpdateSessionPolicyHandler "./handlers/sessions/update-session-policy-handler";
 import DispatchWorkflowHandler "./handlers/dispatch-workflow-handler";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
-import EventStoreModel "../../models/event-store-model";
 
 module {
   // ============================================
@@ -72,34 +65,6 @@ module {
         };
       };
       case _ {};
-    };
-
-    // ==========================================
-    // EVENT STORE TOOLS - require eventStore resource + userAuthContext
-    // ==========================================
-    switch (resources.eventStore, resources.userAuthContext) {
-      case (?es, ?uac) {
-        // Read tools — always available when resource and user identity are present
-        List.add(tools, getEventStoreStatsTool(es.state, uac));
-        List.add(tools, getFailedEventsTool(es.state, uac));
-        // Write tools — require write=true
-        if (es.write) {
-          List.add(tools, deleteFailedEventsTool(es.state, uac));
-        };
-      };
-      case _ {};
-    };
-
-    // ==========================================
-    // SESSION POLICY TOOLS - require sessionStores resource with write
-    // ==========================================
-    switch (resources.sessionStores) {
-      case (?ss) {
-        if (ss.write) {
-          List.add(tools, updateSessionPolicyTool(ss.stores));
-        };
-      };
-      case (null) {};
     };
 
     // ==========================================
@@ -214,92 +179,6 @@ module {
       };
       handler = func(args : Text) : async Text {
         await DeleteSecretHandler.handle(map, uac, workspaceId, args);
-      };
-    };
-  };
-
-  // ============================================
-  // EVENT STORE TOOL IMPLEMENTATIONS
-  // ============================================
-
-  /// Get event store stats tool — requires eventStore resource + user identity
-  private func getEventStoreStatsTool(
-    state : EventStoreModel.EventStoreState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "get_event_store_stats";
-          description = ?"Get event queue statistics: counts of unprocessed, processed, and failed events.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{}}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await GetEventStoreStatsHandler.handle(state, uac, args);
-      };
-    };
-  };
-
-  /// Get failed events tool — requires eventStore resource + user identity
-  private func getFailedEventsTool(
-    state : EventStoreModel.EventStoreState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "get_failed_events";
-          description = ?"List all failed events with their event IDs, error messages, and timestamps.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{}}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await GetFailedEventsHandler.handle(state, uac, args);
-      };
-    };
-  };
-
-  /// Delete failed events tool — requires eventStore resource with write + user identity
-  private func deleteFailedEventsTool(
-    state : EventStoreModel.EventStoreState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "delete_failed_events";
-          description = ?"Delete failed event(s). Provide eventId to delete one specific event, or omit to delete all failed events.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"eventId\":{\"type\":\"string\",\"description\":\"ID of a specific failed event to delete (e.g. 'slack_Ev0123'). Omit to delete all failed events.\"}}}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await DeleteFailedEventsHandler.handle(state, uac, args);
-      };
-    };
-  };
-
-  /// Update session policy tool — requires sessionStores resource with write
-  private func updateSessionPolicyTool(
-    stores : SessionModel.SessionStores
-  ) : FunctionTool {
-    let summaryBudgetStr = Nat.toText(Constants.DEFAULT_SUMMARY_TOKEN_BUDGET);
-    let maxTruncatedStr = Nat.toText(Constants.DEFAULT_MAX_TRUNCATED_TOKENS);
-    let params = "{\"type\":\"object\",\"properties\":{\"agent_id\":{\"type\":\"number\",\"description\":\"The numeric ID of the agent whose session policy to update.\"},\"summary_token_budget\":{\"type\":\"number\",\"description\":\"Total token budget for session context (default " # summaryBudgetStr # "). Controls how much context window is reserved for session history.\"},\"max_truncated_tokens\":{\"type\":\"number\",\"description\":\"Cap per text field when truncating vertically (default " # maxTruncatedStr # "). Controls maximum tokens per individual field in truncated output.\"}},\"required\":[\"agent_id\"]}";
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "update_session_policy";
-          description = ?"Update the session token-budget policy for a specific agent. Omit a field to keep its current value. Use this to tune how much context window budget is allocated to session summaries vs raw turns.";
-          parameters = ?params;
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await UpdateSessionPolicyHandler.handle(stores, args);
       };
     };
   };

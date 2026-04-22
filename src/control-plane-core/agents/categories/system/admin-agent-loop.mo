@@ -74,8 +74,6 @@ module {
           userAuthContext;
           triggerMessageText;
           secrets = ?{ state = secrets; keyCache; write = true };
-          eventStore = null;
-          sessionStores = null;
           engineDispatch = ?{
             envelopeState = engineDeps.envelopeState;
             internalEngine = engineDeps.internalEngine;
