@@ -89,7 +89,7 @@ async function main() {
   const moFiles = findMoFiles(SRC_DIR).sort();
   const rootFiles = findCheckRoots(moFiles);
   console.log(
-    `Checking ${rootFiles.length} Motoko root files for compiler warnings ` +
+    `Checking ${rootFiles.length} Motoko root files ` +
       `(covering ${moFiles.length} source files)…\n`,
   );
 
