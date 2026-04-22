@@ -11,6 +11,7 @@ import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Time "mo:core/Time";
 import Int "mo:core/Int";
+import Float "mo:core/Float";
 import List "mo:core/List";
 import RunTypes "../runner/run-types";
 import Constants "../constants";
@@ -97,6 +98,7 @@ module {
       outputTokens : Nat;
       model : Text;
       rounds : Nat;
+      estimatedDollarCost : ?Float;
     },
     steps : [RunTypes.RunStep],
   ) {

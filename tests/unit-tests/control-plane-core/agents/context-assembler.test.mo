@@ -188,7 +188,7 @@ suite(
             cost = {
               promptTokens = 10;
               completionTokens = 5;
-              estimatedMicroUnits = 100;
+              estimatedDollarCost = ?0.0001;
             };
           }),
         );
@@ -279,7 +279,7 @@ suite(
           cost = {
             promptTokens = 10;
             completionTokens = 5;
-            estimatedMicroUnits = 100;
+            estimatedDollarCost = ?0.0001;
           };
         }),
       );

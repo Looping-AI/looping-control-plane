@@ -13,6 +13,7 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
+import Float "mo:core/Float";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Constants "../constants";
@@ -60,7 +61,7 @@ module {
   public type TurnCost = {
     promptTokens : Nat;
     completionTokens : Nat;
-    estimatedMicroUnits : Nat;
+    estimatedDollarCost : ?Float;
   };
 
   public type TraceDetail = {
@@ -367,21 +368,26 @@ module {
       case (?traceList) {
         var promptTokens : Nat = 0;
         var completionTokens : Nat = 0;
-        var estimatedMicroUnits : Nat = 0;
+        var estimatedDollarCost : ?Float = null;
         var hasLlmCalls = false;
         for (entry in List.values(traceList)) {
           switch (entry.detail) {
             case (#llmCall({ cost })) {
               promptTokens += cost.promptTokens;
               completionTokens += cost.completionTokens;
-              estimatedMicroUnits += cost.estimatedMicroUnits;
+              switch (cost.estimatedDollarCost) {
+                case (?c) {
+                  estimatedDollarCost := ?(switch (estimatedDollarCost) { case (?acc) { acc + c }; case null { c } });
+                };
+                case (null) {};
+              };
               hasLlmCalls := true;
             };
             case _ {};
           };
         };
         if (hasLlmCalls) {
-          ?{ promptTokens; completionTokens; estimatedMicroUnits };
+          ?{ promptTokens; completionTokens; estimatedDollarCost };
         } else {
           null;
         };

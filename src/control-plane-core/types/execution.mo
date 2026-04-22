@@ -94,6 +94,7 @@ module {
     outputTokens : Nat;
     model : Text;
     rounds : Nat;
+    estimatedDollarCost : ?Float;
   };
 
   // ── Execution Status ───────────────────────────────────────────────

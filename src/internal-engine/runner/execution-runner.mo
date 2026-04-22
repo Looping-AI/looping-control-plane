@@ -11,12 +11,13 @@
 
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";
+import Float "mo:core/Float";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import List "mo:core/List";
 import Error "mo:core/Error";
 import Json "mo:json";
-import { str; arr; int; bool; obj } "mo:json";
+import { str; arr; int; float; bool; obj } "mo:json";
 import ExecutionTypes "../execution-types";
 import CoreApi "../wrappers/core-api";
 import LlmWrapper "../wrappers/llm-wrapper";
@@ -58,7 +59,7 @@ module {
       case (null) {
         // Already validated at ingress, but handle defensively
         let errMsg = "Missing 'openrouter' API key in envelope secrets";
-        let stats = buildStats(Time.now(), 0, 0, 0, 0, "");
+        let stats = buildStats(Time.now(), 0, 0, 0, 0, "", null);
         RunStoreModel.markFailed(runStore, envelopeId, errMsg, []);
         ignore emitComplete(core, envelopeNonce, errMsg, [], #failed(errMsg), stats);
         return;
@@ -83,13 +84,14 @@ module {
     var totalInputTokens : Nat = 0;
     var totalOutputTokens : Nat = 0;
     var totalToolCalls : Nat = 0;
+    var totalCost : ?Float = null;
     var resolvedModel : Text = model;
     let startNs = Time.now();
 
     label loop_ loop {
       // Check round limit
       if (rounds >= envelope.constraints.maxRounds) {
-        let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
+        let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
         let msg = "Reached maximum rounds (" # Nat.toText(envelope.constraints.maxRounds) # ")";
         RunStoreModel.markCompleted(runStore, envelopeId, #roundLimitReached, stats, List.toArray(runSteps));
         ignore emitComplete(core, envelopeNonce, msg, List.toArray(summarizedSteps), #roundLimitReached, stats);
@@ -119,7 +121,7 @@ module {
             durationNs = Time.now() - llmStartNs;
           },
         );
-        let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
+        let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
         RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
         ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
         return;
@@ -128,11 +130,17 @@ module {
       rounds += 1;
       resolvedModel := response.model;
 
-      // Accumulate token usage
+      // Accumulate token usage and cost
       switch (response.usage) {
         case (?u) {
           totalInputTokens += u.inputTokens;
           totalOutputTokens += u.outputTokens;
+          switch (u.cost) {
+            case (?c) {
+              totalCost := ?(switch (totalCost) { case (?t) { t + c }; case null { c } });
+            };
+            case (null) {};
+          };
         };
         case (null) {};
       };
@@ -164,7 +172,7 @@ module {
       switch (response.result) {
         // ── Text response — execution complete ──
         case (#ok(#textResponse({ content; thinking = _ }))) {
-          let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
+          let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
           RunStoreModel.markCompleted(runStore, envelopeId, #completed, stats, List.toArray(runSteps));
           ignore emitComplete(core, envelopeNonce, content, List.toArray(summarizedSteps), #completed, stats);
           return;
@@ -192,7 +200,7 @@ module {
                 durationNs = Time.now() - toolStartNs;
               },
             );
-            let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
+            let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
             RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
             ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
             return;
@@ -244,7 +252,7 @@ module {
 
         // ── LLM error ──
         case (#err(errMsg)) {
-          let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel);
+          let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
           RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
           ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
           return;
@@ -329,15 +337,19 @@ module {
   };
 
   func statsToJson(stats : ExecutionTypes.ExecutionStats) : Json.Json {
-    obj([
-      ("durationNs", int(stats.durationNs)),
-      ("llmCalls", int(stats.llmCalls)),
-      ("toolCalls", int(stats.toolCalls)),
-      ("inputTokens", int(stats.inputTokens)),
-      ("outputTokens", int(stats.outputTokens)),
-      ("model", str(stats.model)),
-      ("rounds", int(stats.rounds)),
-    ]);
+    let fields = List.empty<(Text, Json.Json)>();
+    List.add(fields, ("durationNs", int(stats.durationNs)));
+    List.add(fields, ("llmCalls", int(stats.llmCalls)));
+    List.add(fields, ("toolCalls", int(stats.toolCalls)));
+    List.add(fields, ("inputTokens", int(stats.inputTokens)));
+    List.add(fields, ("outputTokens", int(stats.outputTokens)));
+    List.add(fields, ("model", str(stats.model)));
+    List.add(fields, ("rounds", int(stats.rounds)));
+    switch (stats.estimatedDollarCost) {
+      case (?cost) { List.add(fields, ("estimatedDollarCost", float(cost))) };
+      case (null) {};
+    };
+    obj(List.toArray(fields));
   };
 
   // ── Utility helpers ────────────────────────────────────────────────
@@ -349,6 +361,7 @@ module {
     outputTokens : Nat,
     toolCalls : Nat,
     model : Text,
+    totalCost : ?Float,
   ) : ExecutionTypes.ExecutionStats {
     {
       durationNs = Time.now() - startNs;
@@ -358,6 +371,7 @@ module {
       outputTokens;
       model;
       rounds;
+      estimatedDollarCost = totalCost;
     };
   };
 

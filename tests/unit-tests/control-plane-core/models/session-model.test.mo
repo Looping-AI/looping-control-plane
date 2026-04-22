@@ -198,7 +198,7 @@ suite(
         let cost : SessionModel.TurnCost = {
           promptTokens = 100;
           completionTokens = 50;
-          estimatedMicroUnits = 200;
+          estimatedDollarCost = ?0.0002;
         };
         SessionModel.completeTurn(stores, turn.turnId, #succeeded, ?cost, null);
         expect.bool(turn.status == #succeeded).isTrue();
@@ -451,7 +451,7 @@ suite(
             cost = {
               promptTokens = 100;
               completionTokens = 50;
-              estimatedMicroUnits = 200;
+              estimatedDollarCost = ?0.0002;
             };
           }),
         );
@@ -469,7 +469,7 @@ suite(
             cost = {
               promptTokens = 80;
               completionTokens = 30;
-              estimatedMicroUnits = 150;
+              estimatedDollarCost = ?0.00015;
             };
           }),
         );
@@ -478,7 +478,7 @@ suite(
           case (?cost) {
             expect.nat(cost.promptTokens).equal(180);
             expect.nat(cost.completionTokens).equal(80);
-            expect.nat(cost.estimatedMicroUnits).equal(350);
+            expect.bool(cost.estimatedDollarCost == ?(0.0002 + 0.00015)).isTrue();
           };
           case (null) { expect.bool(false).isTrue() };
         };

@@ -755,6 +755,11 @@ module {
         outputTokens = getNatField("outputTokens");
         model;
         rounds = getNatField("rounds");
+        estimatedDollarCost = switch (Json.get(body, "stats.estimatedDollarCost")) {
+          case (?#number(#float(f))) { ?f };
+          case (?#number(#int(i))) { ?Float.fromInt(i) };
+          case (_) { null };
+        };
       };
     };
 

@@ -54,6 +54,7 @@ module {
   public type ReasonUsage = {
     inputTokens : Nat;
     outputTokens : Nat;
+    cost : ?Float;
   };
 
   public type ReasonResponse = {
@@ -199,9 +200,14 @@ module {
           case (?#number(#float(f))) { ?Int.abs(Float.toInt(f)) };
           case (_) { null };
         };
+        let cost = switch (Json.get(usageJson, "cost")) {
+          case (?#number(#float(f))) { ?f };
+          case (?#number(#int(i))) { ?Float.fromInt(i) };
+          case (_) { null };
+        };
         switch (inputOpt, outputOpt) {
           case (?inputTokens, ?outputTokens) {
-            ?{ inputTokens; outputTokens };
+            ?{ inputTokens; outputTokens; cost };
           };
           case (_) { null };
         };

@@ -145,7 +145,7 @@ module {
           let turnCost : ?SessionModel.TurnCost = ?{
             promptTokens = c.stats.inputTokens;
             completionTokens = c.stats.outputTokens;
-            estimatedMicroUnits = 0; // TODO: compute from model pricing
+            estimatedDollarCost = c.stats.estimatedDollarCost;
           };
 
           SessionModel.completeTurn(deps.sessionStores, turnId, turnStatus, turnCost, errorSummary);
