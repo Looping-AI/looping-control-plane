@@ -65,6 +65,7 @@ import ExecutionApiService "../../../src/control-plane-core/services/execution-a
 import ExecutionAsyncEffectService "../../../src/control-plane-core/services/execution-async-effect-service";
 import EventProcessingContextTypes "../../../src/control-plane-core/events/types/event-processing-context";
 import AgentOrchestrator "../../../src/control-plane-core/agents/agent-orchestrator";
+import AdminAgentLoop "../../../src/control-plane-core/agents/categories/system/admin-agent-loop";
 import ToolExecutor "../../../src/control-plane-core/agents/tools/tool-executor";
 import ToolTypes "../../../src/control-plane-core/agents/tools/tool-types";
 import Types "../../../src/control-plane-core/types";
@@ -179,14 +180,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     secrets = testEffectSecretsState;
   });
 
-  func testOrchestratorEngineDeps() : AgentOrchestrator.EngineDeps {
+  func testOrchestratorEngineDeps() : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState> {
     {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = mockInternalEngine;
     };
   };
 
-  func testAgent(category : AgentModel.AgentCategory, name : Text) : AgentModel.AgentRecord {
+  func testAgentWithModel(category : AgentModel.AgentCategory, name : Text, model : Text) : AgentModel.AgentRecord {
     let allowedChannelIds = switch (category) {
       case (#_system(#admin)) { Set.empty<Text>() };
       case (_) { Set.fromArray(["C_TEST_CATEGORY"], Text.compare) };
@@ -197,15 +198,19 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       category;
       config = {
         name;
-        model = "openai/gpt-oss-120b";
+        model;
         executionEngines = [#canister];
         allowedChannelIds;
-        secrets = { allowed = []; overrides = [] };
+        secrets = { allowed = [(0, #openRouterApiKey)]; overrides = [] };
       };
       state = {
         toolsState = Map.empty<Text, AgentModel.ToolState>();
       };
     };
+  };
+
+  func testAgent(category : AgentModel.AgentCategory, name : Text) : AgentModel.AgentRecord {
+    testAgentWithModel(category, name, "openai/gpt-oss-120b");
   };
 
   func emptyToolResources() : ToolTypes.ToolResources {
@@ -738,7 +743,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Agent Orchestrator Category Test Methods
   // ============================================
 
-  public shared ({ caller }) func testOrchestrateSystemAdminNoApiKey() : async AgentOrchestrator.OrchestrateResult {
+  public shared ({ caller }) func testOrchestrateSystemAdminNoApiKey() : async Types.AgentOrchestrateResult {
     assert caller == parent;
     await AgentOrchestrator.orchestrateAgentTalk(
       testAgent(#_system(#admin), "unit-test-admin"),
@@ -760,7 +765,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     );
   };
 
-  public shared ({ caller }) func testOrchestrateSystemOnboarding() : async AgentOrchestrator.OrchestrateResult {
+  public shared ({ caller }) func testOrchestrateSystemOnboarding() : async Types.AgentOrchestrateResult {
     assert caller == parent;
     await AgentOrchestrator.orchestrateAgentTalk(
       testAgent(#_system(#onboarding), "unit-test-onboarding"),
@@ -782,7 +787,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     );
   };
 
-  public shared ({ caller }) func testOrchestrateCustom() : async AgentOrchestrator.OrchestrateResult {
+  public shared ({ caller }) func testOrchestrateCustom() : async Types.AgentOrchestrateResult {
     assert caller == parent;
     await AgentOrchestrator.orchestrateAgentTalk(
       testAgent(#custom, "unit-test-custom"),
@@ -798,6 +803,67 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       SessionModel.emptyStores(),
       testOrchestratorEngineDeps(),
       null,
+      null,
+      null,
+      testSecretsKeyCache,
+    );
+  };
+
+  /// Run AdminAgentLoop.process with configurable apiKey, model, and prompt.
+  /// Pass apiKey="" to simulate no secret seeded (triggers "No OpenRouter API key" error).
+  /// Pass model="" to trigger an invalid-model error from the LLM wrapper.
+  public shared ({ caller }) func testAdminAgentLoopProcess(
+    apiKey : Text,
+    model : Text,
+    prompt : Text,
+  ) : async Types.AgentOrchestrateResult {
+    assert caller == parent;
+    let secrets = if (apiKey == "") {
+      SecretModel.initState();
+    } else {
+      let s = SecretModel.initState();
+      ignore SecretModel.storeSecret(
+        s,
+        TestHelpers.dummyKey,
+        0,
+        #openRouterApiKey,
+        apiKey,
+        { slackUserId = null; agentId = null; operation = "test-seed" },
+      );
+      s;
+    };
+    let history = ChannelHistoryModel.empty();
+    let authCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_ADMIN_LOOP_TEST";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      adminWorkspaces = Set.empty<Nat>();
+    };
+    ChannelHistoryModel.addMessage(
+      history,
+      "C_TEST_CATEGORY",
+      {
+        ts = "1700000000.000001";
+        userAuthContext = ?authCtx;
+        text = prompt;
+        agentMetadata = null;
+      },
+      null,
+    );
+    let triggerPrompt : ?Text = if (prompt == "") { null } else { ?prompt };
+    await AdminAgentLoop.process(
+      testAgentWithModel(#_system(#admin), "unit-test-admin", model),
+      secrets,
+      null,
+      history,
+      "C_TEST_CATEGORY",
+      null,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      "turn-admin-loop-0",
+      SessionModel.emptyStores(),
+      testOrchestratorEngineDeps(),
+      triggerPrompt,
       null,
       null,
       testSecretsKeyCache,

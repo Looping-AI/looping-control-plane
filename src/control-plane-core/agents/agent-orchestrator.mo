@@ -7,48 +7,11 @@ import ExecutionEnvelopeModel "../models/execution-envelope-model";
 import KeyDerivationService "../services/key-derivation-service";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import InternalEngine "../../internal-engine/main";
-import AdminAgentLoop "./system/admin-agent-loop";
-import OnboardingAgentLoop "./system/onboarding-agent-loop";
-import CustomAgentLoop "./custom/custom-agent-loop";
+import AdminAgentLoop "./categories/system/admin-agent-loop";
+import OnboardingAgentLoop "./categories/system/onboarding-agent-loop";
+import CustomAgentLoop "./categories/custom/custom-agent-loop";
 
 module {
-
-  // ─── Engine dispatch dependencies ────────────────────────────────────────────
-
-  /// Dependencies for engine dispatch, threaded from EventProcessingContext.
-  public type EngineDeps = {
-    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
-    internalEngine : InternalEngine.InternalEngine;
-  };
-
-  // ─── Context types ───────────────────────────────────────────────────────────
-
-  /// Typed per-category context union — mirrors AgentCategory nesting.
-  /// The variant tag gates dispatch; no payload is needed since the orchestrator
-  /// reads all state from EventProcessingContext / params.
-  public type AgentCtx = {
-    #_system : { #admin; #onboarding };
-    #custom;
-  };
-
-  // ─── Result type ─────────────────────────────────────────────────────────────
-
-  /// Result from orchestrateAgentTalk.
-  /// - #dispatched: envelope accepted by engine (response comes async via events)
-  /// - #ok: synchronous response (future: non-engine agents)
-  /// - #err: immediate failure
-  public type OrchestrateResult = {
-    #dispatched : { steps : [Types.ProcessingStep] };
-    #ok : {
-      response : Text;
-      steps : [Types.ProcessingStep];
-    };
-    #err : {
-      message : Text;
-      steps : [Types.ProcessingStep];
-    };
-  };
-
   // ─── Orchestration ───────────────────────────────────────────────────────────
 
   public func orchestrateAgentTalk(
@@ -58,17 +21,17 @@ module {
     channelHistory : ChannelHistoryModel.ChannelHistoryStore,
     channelId : Text,
     threadTs : ?Text,
-    agentCtx : AgentCtx,
+    agentCtx : Types.AgentCtx,
     workspaceKey : [Nat8],
     orgKey : [Nat8],
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
-    engineDeps : EngineDeps,
+    engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
     triggerMessageText : ?Text,
     botToken : ?Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     keyCache : KeyDerivationService.KeyCache,
-  ) : async OrchestrateResult {
+  ) : async Types.AgentOrchestrateResult {
     switch (agentCtx) {
       case (#_system(#admin)) {
         await AdminAgentLoop.process(

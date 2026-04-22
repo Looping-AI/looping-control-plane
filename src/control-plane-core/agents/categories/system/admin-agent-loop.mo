@@ -4,44 +4,25 @@ import Error "mo:core/Error";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Json "mo:json";
-import Types "../../types";
-import SecretModel "../../models/secret-model";
-import ChannelHistoryModel "../../models/channel-history-model";
-import AgentModel "../../models/agent-model";
-import SessionModel "../../models/session-model";
-import ExecutionTypes "../../types/execution";
-import ExecutionEnvelopeModel "../../models/execution-envelope-model";
-import KeyDerivationService "../../services/key-derivation-service";
-import InstructionComposer "../instructions/instruction-composer";
-import AgentHelpers "../helpers";
-import ContextAssembler "../context-assembler";
-import Constants "../../constants";
-import FunctionToolRegistry "../tools/function-tool-registry";
-import ToolExecutor "../tools/tool-executor";
-import ToolTypes "../tools/tool-types";
-import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
-import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
-import InternalEngine "../../../internal-engine/main";
+import Types "../../../types";
+import SecretModel "../../../models/secret-model";
+import ChannelHistoryModel "../../../models/channel-history-model";
+import AgentModel "../../../models/agent-model";
+import SessionModel "../../../models/session-model";
+import ExecutionTypes "../../../types/execution";
+import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
+import KeyDerivationService "../../../services/key-derivation-service";
+import InstructionComposer "../../instructions/instruction-composer";
+import AgentHelpers "../../helpers";
+import ContextAssembler "../../context-assembler";
+import Constants "../../../constants";
+import FunctionToolRegistry "../../tools/function-tool-registry";
+import ToolExecutor "../../tools/tool-executor";
+import ToolTypes "../../tools/tool-types";
+import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
+import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
 
 module {
-
-  public type EngineDeps = {
-    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
-    internalEngine : InternalEngine.InternalEngine;
-  };
-
-  public type ProcessResult = {
-    #dispatched : { steps : [Types.ProcessingStep] };
-    #ok : {
-      response : Text;
-      steps : [Types.ProcessingStep];
-    };
-    #err : {
-      message : Text;
-      steps : [Types.ProcessingStep];
-    };
-  };
-
   public func process(
     agent : AgentModel.AgentRecord,
     secrets : SecretModel.SecretsState,
@@ -53,12 +34,12 @@ module {
     orgKey : [Nat8],
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
-    engineDeps : EngineDeps,
+    engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
     triggerMessageText : ?Text,
     botToken : ?Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     keyCache : KeyDerivationService.KeyCache,
-  ) : async ProcessResult {
+  ) : async Types.AgentOrchestrateResult {
     let apiKey = SecretModel.resolveSecret(secrets, agent, agent.ownedBy, #openRouterApiKey, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" });
 
     switch (apiKey) {
@@ -135,7 +116,7 @@ module {
     trackId : OpenRouterWrapper.TrackId,
     toolDefinitions : ?[OpenRouterWrapper.Tool],
     toolResources : ToolTypes.ToolResources,
-  ) : async ProcessResult {
+  ) : async Types.AgentOrchestrateResult {
     let inputHistory = List.fromArray<OpenRouterWrapper.ResponseInputMessage>(initialInput);
     var rounds : Nat = 0;
 
@@ -182,20 +163,13 @@ module {
 
           let toolResults = await ToolExecutor.execute(toolResources, calls);
 
-          for (toolResult in toolResults.vals()) {
-            switch (toolResult.result) {
-              case (#success(output)) {
-                if (isDispatchSignal(output)) {
-                  let step : Types.ProcessingStep = {
-                    action = "dispatch_to_engine";
-                    result = #ok;
-                    timestamp = Time.now();
-                  };
-                  return #dispatched({ steps = [step] });
-                };
-              };
-              case (#error(_)) {};
+          if (toolResultsContainDispatchSignal(toolResults)) {
+            let step : Types.ProcessingStep = {
+              action = "dispatch_to_engine";
+              result = #ok;
+              timestamp = Time.now();
             };
+            return #dispatched({ steps = [step] });
           };
 
           let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
@@ -211,6 +185,20 @@ module {
       message = "Core agent loop reached max rounds (" # Nat.toText(Constants.MAX_AGENT_ROUNDS) # ")";
       steps = [];
     });
+  };
+
+  private func toolResultsContainDispatchSignal(toolResults : [ToolTypes.ToolResult]) : Bool {
+    for (toolResult in toolResults.vals()) {
+      switch (toolResult.result) {
+        case (#success(output)) {
+          if (isDispatchSignal(output)) {
+            return true;
+          };
+        };
+        case (#error(_)) {};
+      };
+    };
+    false;
   };
 
   private func isDispatchSignal(output : Text) : Bool {

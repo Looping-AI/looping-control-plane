@@ -9,6 +9,7 @@ import Set "mo:core/Set";
 import Text "mo:core/Text";
 import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
+import ExecutionEnvelopeModel "../models/execution-envelope-model";
 import Types "../types";
 import AgentOrchestrator "../agents/agent-orchestrator";
 import SecretModel "../models/secret-model";
@@ -22,15 +23,15 @@ module {
 
   /// Per-category context union — callers construct the right variant based on
   /// `primaryAgent.category` and pass it to `route()`.
-  public type AgentCtx = AgentOrchestrator.AgentCtx;
+  public type AgentCtx = Types.AgentCtx;
 
   /// Engine dispatch dependencies — threaded from EventProcessingContext.
-  public type EngineDeps = AgentOrchestrator.EngineDeps;
+  public type EngineDeps = Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>;
 
   // ─── Result type ─────────────────────────────────────────────────────────────
 
   /// Shared result type returned by `route()`.
-  public type RouteResult = AgentOrchestrator.OrchestrateResult;
+  public type RouteResult = Types.AgentOrchestrateResult;
 
   // ─── Dispatch ────────────────────────────────────────────────────────────────
 

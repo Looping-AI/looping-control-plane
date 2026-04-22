@@ -1,3 +1,5 @@
+import InternalEngine "../internal-engine/main";
+
 module {
   /// Environment configuration for the bot-agent application
   /// Determines which Schnorr key to use for key derivation and other environment-specific behavior
@@ -59,6 +61,35 @@ module {
     action : Text; // e.g. "llm_call", "post_to_slack", "update_channel_history"
     result : { #ok; #err : Text };
     timestamp : Int; // Time.now() when this step completed
+  };
+
+  // ============================================
+  // Agent Orchestration Types
+  // ============================================
+
+  /// Typed per-category context union used by agent routing/orchestration.
+  public type AgentCtx = {
+    #_system : { #admin; #onboarding };
+    #custom;
+  };
+
+  /// Engine dispatch dependencies threaded into agent loops.
+  public type AgentEngineDeps<EnvelopeState> = {
+    envelopeState : EnvelopeState;
+    internalEngine : InternalEngine.InternalEngine;
+  };
+
+  /// Shared result returned by agent orchestration and category loops.
+  public type AgentOrchestrateResult = {
+    #dispatched : { steps : [ProcessingStep] };
+    #ok : {
+      response : Text;
+      steps : [ProcessingStep];
+    };
+    #err : {
+      message : Text;
+      steps : [ProcessingStep];
+    };
   };
 
   // ============================================
