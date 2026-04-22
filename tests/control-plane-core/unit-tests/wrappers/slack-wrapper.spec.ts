@@ -100,7 +100,7 @@ describe("Slack Wrapper Unit Tests", () => {
     it("should return a list of organization members", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/slack-wrapper/get-organization-members",
+        "control-plane-core/unit-tests/wrappers/slack-wrapper/get-organization-members",
         () => testCanister.slackGetOrganizationMembers(SLACK_TEST_TOKEN),
         { ticks: 5, maxRounds: 10 },
       );
@@ -128,7 +128,7 @@ describe("Slack Wrapper Unit Tests", () => {
     it("should have exactly one primary owner in the organization", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/slack-wrapper/get-organization-members",
+        "control-plane-core/unit-tests/wrappers/slack-wrapper/get-organization-members",
         () => testCanister.slackGetOrganizationMembers(SLACK_TEST_TOKEN),
         { ticks: 5, maxRounds: 10 },
       );
@@ -169,7 +169,7 @@ describe("Slack Wrapper Unit Tests", () => {
     it("should return a list of channels with no type filter", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/slack-wrapper/list-channels-all",
+        "control-plane-core/unit-tests/wrappers/slack-wrapper/list-channels-all",
         () => testCanister.slackListChannels(SLACK_TEST_TOKEN, []),
         { ticks: 5, maxRounds: 10 },
       );
@@ -194,7 +194,7 @@ describe("Slack Wrapper Unit Tests", () => {
     it("should return only public channels when types is public_channel", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/slack-wrapper/list-channels-public",
+        "control-plane-core/unit-tests/wrappers/slack-wrapper/list-channels-public",
         () =>
           testCanister.slackListChannels(SLACK_TEST_TOKEN, ["public_channel"]),
         { ticks: 5, maxRounds: 10 },
@@ -220,7 +220,7 @@ describe("Slack Wrapper Unit Tests", () => {
     it("should return only private channels when types is private_channel", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/slack-wrapper/list-channels-private",
+        "control-plane-core/unit-tests/wrappers/slack-wrapper/list-channels-private",
         () =>
           testCanister.slackListChannels(SLACK_TEST_TOKEN, ["private_channel"]),
         { ticks: 5, maxRounds: 10 },
@@ -286,7 +286,7 @@ describe("Slack Wrapper Unit Tests", () => {
       // Fetch channels first to get a real channel ID
       const channelsResult = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/slack-wrapper/get-channel-members-list-channels",
+        "control-plane-core/unit-tests/wrappers/slack-wrapper/get-channel-members-list-channels",
         () => testCanister.slackListChannels(SLACK_TEST_TOKEN, []),
         { ticks: 5, maxRounds: 10 },
       );
@@ -300,7 +300,7 @@ describe("Slack Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/slack-wrapper/get-channel-members",
+        "control-plane-core/unit-tests/wrappers/slack-wrapper/get-channel-members",
         () => testCanister.slackGetChannelMembers(SLACK_TEST_TOKEN, channelId),
         { ticks: 5, maxRounds: 10 },
       );

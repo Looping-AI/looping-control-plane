@@ -36,7 +36,7 @@ describe("HTTP Wrapper Unit Tests", () => {
     it("should successfully request a valid endpoint and return expected content", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/valid-endpoint-get",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/valid-endpoint-get",
         () => testCanister.httpGet("https://httpbin.org/html", []),
         { ticks: 5 },
       );
@@ -57,7 +57,7 @@ describe("HTTP Wrapper Unit Tests", () => {
       // Invalid URL format - should add https:// and succeed
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/get-invalid-url-format",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/get-invalid-url-format",
         () => testCanister.httpGet("httpbin.org/get", []),
         { ticks: 5 },
       );
@@ -95,7 +95,7 @@ describe("HTTP Wrapper Unit Tests", () => {
     it("should handle query parameters correctly", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/query-parameters",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/query-parameters",
         () =>
           testCanister.httpGet(
             "https://httpbin.org/get?param1=value1&param2=value2",
@@ -127,7 +127,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/custom-headers",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/custom-headers",
         () => testCanister.httpGet("https://httpbin.org/headers", headers),
         { ticks: 5 },
       );
@@ -158,7 +158,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/post-json",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/post-json",
         () => testCanister.httpPost("https://httpbin.org/post", headers, body),
         { ticks: 5 },
       );
@@ -184,7 +184,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result: plainResult } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/post-plain-text",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/post-plain-text",
         () =>
           testCanister.httpPost(
             "https://httpbin.org/post",
@@ -203,7 +203,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result: formResult } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/post-form",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/post-form",
         () =>
           testCanister.httpPost(
             "https://httpbin.org/post",
@@ -218,7 +218,7 @@ describe("HTTP Wrapper Unit Tests", () => {
       // Empty body
       const { result: emptyResult } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/post-empty",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/post-empty",
         () => testCanister.httpPost("https://httpbin.org/post", [], ""),
         { ticks: 5 },
       );
@@ -230,7 +230,7 @@ describe("HTTP Wrapper Unit Tests", () => {
       // Invalid URL format
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/post-invalid-url-format",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/post-invalid-url-format",
         () => testCanister.httpPost("httpbin.org/post", [], "test data"),
         { ticks: 5 },
       );
@@ -276,7 +276,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/post-special-chars",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/post-special-chars",
         () => testCanister.httpPost("https://httpbin.org/post", headers, body),
         { ticks: 5 },
       );
@@ -292,7 +292,7 @@ describe("HTTP Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/http-wrapper/post-unicode",
+        "control-plane-core/unit-tests/wrappers/http-wrapper/post-unicode",
         () => testCanister.httpPost("https://httpbin.org/post", headers, body),
         { ticks: 5 },
       );

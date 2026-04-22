@@ -50,7 +50,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
     it("should handle basic chat with valid API key", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/basic-chat",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/basic-chat",
         () =>
           testCanister.openRouterChat(TEST_API_KEY, "Say hello", TEST_MODEL),
         { ticks: 5 },
@@ -70,7 +70,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
     it("should handle unicode characters in message", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/unicode",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/unicode",
         () =>
           testCanister.openRouterChat(
             TEST_API_KEY,
@@ -98,7 +98,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/json-content",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/json-content",
         () => testCanister.openRouterChat(TEST_API_KEY, message, TEST_MODEL),
         { ticks: 5 },
       );
@@ -124,7 +124,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/reason-basic",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/reason-basic",
         () =>
           testCanister.openRouterReason(
             TEST_API_KEY,
@@ -162,7 +162,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/reason-no-instructions",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/reason-no-instructions",
         () =>
           testCanister.openRouterReason(
             TEST_API_KEY,
@@ -295,7 +295,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-single-call",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/tool-single-call",
         () =>
           testCanister.openRouterReason(
             TEST_API_KEY,
@@ -384,7 +384,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-select-from-multiple",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/tool-select-from-multiple",
         () =>
           testCanister.openRouterReason(
             TEST_API_KEY,
@@ -464,7 +464,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-complex-params",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/tool-complex-params",
         () =>
           testCanister.openRouterReason(
             TEST_API_KEY,
@@ -526,7 +526,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
 
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/tool-no-params",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/tool-no-params",
         () =>
           testCanister.openRouterReason(
             TEST_API_KEY,
@@ -568,7 +568,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-web-search-basic",
+          "control-plane-core/unit-tests/wrappers/openrouter-wrapper/built-in-web-search-basic",
           () =>
             testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
@@ -621,7 +621,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-web-search-exclude",
+          "control-plane-core/unit-tests/wrappers/openrouter-wrapper/built-in-web-search-exclude",
           () =>
             testCanister.openRouterUseBuiltInTool(
               TEST_API_KEY,
@@ -667,7 +667,7 @@ describe("OpenRouter Wrapper Unit Tests", () => {
     it("should handle visit website with single URL", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/wrappers/openrouter-wrapper/built-in-visit-website",
+        "control-plane-core/unit-tests/wrappers/openrouter-wrapper/built-in-visit-website",
         () =>
           testCanister.openRouterUseBuiltInTool(
             TEST_API_KEY,

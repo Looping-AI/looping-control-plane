@@ -67,7 +67,7 @@ describe("MessageHandler Unit Tests", () => {
     async () => {
       const event = messageStandardStub.event;
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/standard-message-reply";
+        "control-plane-core/unit-tests/events/handlers/message-handler/standard-message-reply";
       const channel = await resolveSpecsChannel(cassetteName);
 
       const { result } = await withCassette(
@@ -113,7 +113,7 @@ describe("MessageHandler Unit Tests", () => {
     "should reply within an existing thread when threadTs is set",
     async () => {
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/thread-reply";
+        "control-plane-core/unit-tests/events/handlers/message-handler/thread-reply";
       const channel = await resolveSpecsChannel(cassetteName);
       const { result } = await withCassette(
         pic,
@@ -150,7 +150,7 @@ describe("MessageHandler Unit Tests", () => {
     "should post a top-level channel message when threadTs is absent",
     async () => {
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/top-level-channel-post";
+        "control-plane-core/unit-tests/events/handlers/message-handler/top-level-channel-post";
       const channel = await resolveSpecsChannel(cassetteName);
       const { result } = await withCassette(
         pic,
@@ -226,7 +226,7 @@ describe("MessageHandler Unit Tests", () => {
     async () => {
       const event = messageStandardStub.event;
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/step-timestamps";
+        "control-plane-core/unit-tests/events/handlers/message-handler/step-timestamps";
       const channel = await resolveSpecsChannel(cassetteName);
 
       const { result } = await withCassette(
@@ -265,7 +265,7 @@ describe("MessageHandler Unit Tests", () => {
     "should mark the turn as pending and return dispatch_to_engine step",
     async () => {
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler-dispatch/dispatch-workflow";
+        "control-plane-core/unit-tests/events/handlers/message-handler-dispatch/dispatch-workflow";
 
       const { result } = await withCassette(
         pic,
@@ -323,7 +323,7 @@ describe("MessageHandler Unit Tests", () => {
     async () => {
       const PARENT_TS = "1700000010.000100";
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/bot-branch-session-inherit";
+        "control-plane-core/unit-tests/events/handlers/message-handler/bot-branch-session-inherit";
       const channel = await resolveSpecsChannel(cassetteName);
 
       const { result } = await withCassette(
@@ -619,7 +619,7 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
       // resolves to the custom category, which returns a stub #err without an LLM
       // call.  postAgentReply then posts that error to Slack — captured via cassette.
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/custom-category-stub";
+        "control-plane-core/unit-tests/events/handlers/message-handler/custom-category-stub";
       const channel = await resolveSpecsChannel(cassetteName);
 
       const { result } = await withCassette(
@@ -676,7 +676,7 @@ describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
       // LLM call.  postAgentReply then posts that error to Slack — captured via cassette.
       // The important assertion: primary_agent_skip is NOT emitted — the fallback succeeded.
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/primary-agent-admin-fallback";
+        "control-plane-core/unit-tests/events/handlers/message-handler/primary-agent-admin-fallback";
       const channel = await resolveSpecsChannel(cassetteName);
 
       const { result } = await withCassette(
@@ -748,7 +748,7 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
       // (the termination prompt) via cassette.
       const PARENT_TS = "1700000010.000100";
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/max-rounds-termination-prompt";
+        "control-plane-core/unit-tests/events/handlers/message-handler/max-rounds-termination-prompt";
       const channel = await resolveSpecsChannel(cassetteName);
 
       const { result } = await withCassette(
@@ -832,7 +832,7 @@ describe("MessageHandler — admin channel routing guard", () => {
       // Workspace 0 has no admin channel configured.
       // The routing guard fires and the error is posted to Slack via postAgentReply.
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/admin-guard-null-channel";
+        "control-plane-core/unit-tests/events/handlers/message-handler/admin-guard-null-channel";
       const channel = await resolveSpecsChannel(cassetteName);
 
       const { result } = await withCassette(
@@ -884,7 +884,7 @@ describe("MessageHandler — admin channel routing guard", () => {
       // message arrives from a different channel (the specs channel).
       // The routing guard fires and the error is posted to Slack.
       const cassetteName =
-        "unit-tests/control-plane-core/events/handlers/message-handler/admin-guard-wrong-channel";
+        "control-plane-core/unit-tests/events/handlers/message-handler/admin-guard-wrong-channel";
       const channel = await resolveSpecsChannel(cassetteName);
 
       const { result } = await withCassette(

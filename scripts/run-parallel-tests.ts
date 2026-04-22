@@ -33,19 +33,29 @@ interface TestGroup {
   args: string[];
 }
 
-const UNIT_BASE = "tests/unit-tests/control-plane-core";
+const UNIT_BASE = "tests/control-plane-core/unit-tests";
+const TOOLS_PATH = `${UNIT_BASE}/agents/tools`;
 const unitSubdirs = readdirSync(UNIT_BASE, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && d.name !== "tools")
-  .map((d) => join(UNIT_BASE, d.name));
+  .filter((d) => d.isDirectory())
+  .flatMap((d) => {
+    // Expand agents/ subdirs so agents/tools can be excluded as a separate group
+    if (d.name === "agents") {
+      const agentsBase = join(UNIT_BASE, "agents");
+      return readdirSync(agentsBase, { withFileTypes: true })
+        .filter((ad) => ad.isDirectory() && ad.name !== "tools")
+        .map((ad) => join(agentsBase, ad.name));
+    }
+    return [join(UNIT_BASE, d.name)];
+  });
 
 const TEST_GROUPS: TestGroup[] = [
   {
     name: "integration",
-    args: ["test", "tests/integration-tests"],
+    args: ["test", "tests/control-plane-core/integration-tests"],
   },
   {
     name: "unit:tools",
-    args: ["test", "tests/unit-tests/control-plane-core/tools"],
+    args: ["test", TOOLS_PATH],
   },
   {
     name: "unit:not-tools",

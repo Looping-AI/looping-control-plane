@@ -81,7 +81,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     // Run the milestone effect — Slack postMessage is the HTTP outcall
     const { result } = await withCassette(
       pic,
-      "unit-tests/control-plane-core/services/execution-async-effect-service/milestone-post",
+      "control-plane-core/unit-tests/services/execution-async-effect-service/milestone-post",
       () =>
         testCanister.testRunAsyncEffect(
           { post: null },
@@ -122,7 +122,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     // Run the complete effect — Slack postMessage is the HTTP outcall
     const { result } = await withCassette(
       pic,
-      "unit-tests/control-plane-core/services/execution-async-effect-service/complete-success",
+      "control-plane-core/unit-tests/services/execution-async-effect-service/complete-success",
       () =>
         testCanister.testRunAsyncEffect(
           { post: null },

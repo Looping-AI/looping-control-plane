@@ -41,13 +41,13 @@ Examples:
 
 ```bash
 # Run a specific test file
-bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts
+bun test tests/control-plane-core/integration-tests/workspace-admin-talk.spec.ts
 
 # Run a specific test case by name (using -t flag)
-bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts -t "should accept message from workspace admin"
+bun test tests/control-plane-core/integration-tests/workspace-admin-talk.spec.ts -t "should accept message from workspace admin"
 
 # Record cassettes for a specific test file
-RECORD_CASSETTES=true bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts
+RECORD_CASSETTES=true bun test tests/control-plane-core/integration-tests/workspace-admin-talk.spec.ts
 ```
 
 ## Library Dependencies

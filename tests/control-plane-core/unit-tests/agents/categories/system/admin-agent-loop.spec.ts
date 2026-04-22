@@ -88,7 +88,7 @@ describe("AdminAgentLoop", () => {
     it("returns a direct text response when the admin loop completes without tool calls", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/agents/categories/system/admin-agent-loop/text-response",
+        "control-plane-core/unit-tests/agents/categories/system/admin-agent-loop/text-response",
         () =>
           testCanister.testAdminAgentLoopProcess(
             TEST_API_KEY,

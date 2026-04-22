@@ -1256,7 +1256,7 @@ describe("Weekly Reconciliation Runner Unit Tests", () => {
     it("should complete reconciliation with real Slack responses", async () => {
       const { result } = await withCassette(
         pic,
-        "unit-tests/control-plane-core/timers/weekly-reconciliation-runner/full-run",
+        "control-plane-core/unit-tests/timers/weekly-reconciliation-runner/full-run",
         () =>
           testCanister.testWeeklyReconciliationRunner(SLACK_TEST_TOKEN, none),
         { ticks: 5, maxRounds: 20 },

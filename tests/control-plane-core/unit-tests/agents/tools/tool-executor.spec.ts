@@ -84,7 +84,7 @@ describe("ToolExecutor", () => {
       async () => {
         const { result } = await withCassette(
           pic,
-          "unit-tests/control-plane-core/agents/tools/tool-executor/web-search",
+          "control-plane-core/unit-tests/agents/tools/tool-executor/web-search",
           () =>
             testCanister.testToolExecutorExecute(
               TEST_API_KEY,
