@@ -5,11 +5,6 @@ import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
 import Constants "../../constants";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
-import WorkspaceModel "../../models/workspace-model";
-import ListWorkspacesHandler "./handlers/workspaces/list-workspaces-handler";
-import CreateWorkspaceHandler "./handlers/workspaces/create-workspace-handler";
-import DeleteWorkspaceHandler "./handlers/workspaces/delete-workspace-handler";
-import SetWorkspaceAdminChannelHandler "./handlers/workspaces/set-workspace-admin-channel-handler";
 import WebSearchHandler "./handlers/web-search-handler";
 import RegisterAgentHandler "./handlers/agents/register-agent-handler";
 import ListAgentsHandler "./handlers/agents/list-agents-handler";
@@ -60,46 +55,11 @@ module {
     let tools = List.empty<FunctionTool>();
 
     // ==========================================
-    // ECHO TOOL (for testing) - always available
-    // ==========================================
-    List.add(tools, echoTool());
-
-    // ==========================================
     // WEB SEARCH TOOL - requires openRouterApiKey
     // ==========================================
     switch (resources.openRouterApiKey) {
       case (?apiKey) {
         List.add(tools, webSearchTool(apiKey));
-      };
-      case (null) {};
-    };
-
-    // ==========================================
-    // WORKSPACE TOOLS - require workspaces resource
-    // ==========================================
-    switch (resources.workspaces) {
-      case (?ws) {
-        // Read tools — always available when resource is present
-        List.add(tools, listWorkspacesTool(ws.state));
-        // Write tools — require write=true AND a resolved user identity AND a platform secret resolver
-        // (the resolver is needed for channel verification; the identity for authorization)
-        switch (resources.userAuthContext, resources.resolveSlackBotToken) {
-          case (?uac, ?resolver) {
-            if (ws.write) {
-              // These tools are always wired when workspace and credentials are present.
-              List.add(tools, deleteWorkspaceTool(ws.state, uac, resources.triggerMessageText));
-              List.add(tools, setWorkspaceAdminChannelTool(ws.state, uac, resolver));
-              switch (resources.agentRegistry) {
-                case (?ar) {
-                  // create_workspace additionally requires agentRegistry;
-                  List.add(tools, createWorkspaceTool(ws.state, uac, resolver, ar.state));
-                };
-                case (null) {};
-              };
-            };
-          };
-          case _ {};
-        };
       };
       case (null) {};
     };
@@ -200,113 +160,6 @@ module {
         t.definition.function.name == name;
       },
     );
-  };
-
-  // ============================================
-  // PRIVATE TOOL IMPLEMENTATIONS
-  // ============================================
-
-  /// Echo tool - no resources required
-  private func echoTool() : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "echo";
-          description = ?"Echoes back the input message. Useful for testing.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"The message to echo back\"}},\"required\":[\"message\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        // Simply return the arguments as-is
-        args;
-      };
-    };
-  };
-
-  // ============================================
-  // WORKSPACE TOOL IMPLEMENTATIONS
-  // ============================================
-
-  /// List workspaces tool — always available when workspaces resource is present
-  private func listWorkspacesTool(state : WorkspaceModel.WorkspacesState) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "list_workspaces";
-          description = ?"Lists all workspace records including their IDs, names, and Slack admin channel anchors. Workspace 0 is the org workspace; its admin channel is also the org-admin channel.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await ListWorkspacesHandler.handle(state, args);
-      };
-    };
-  };
-
-  /// Create workspace tool — requires workspaces resource with write
-  private func createWorkspaceTool(
-    state : WorkspaceModel.WorkspacesState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-    resolver : Text -> ?Text,
-    agentRegistry : AgentModel.AgentRegistryState,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "create_workspace";
-          description = ?"Creates a new workspace with the given name and anchors a Slack channel as its admin channel. Workspace names must be unique. The channelId must exist and the bot must be invited to it. Returns the new workspace ID.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Name for the new workspace. Must be unique across all workspaces.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the admin channel for the new workspace. The bot must be invited to this channel.\"}},\"required\":[\"name\",\"channelId\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await CreateWorkspaceHandler.handle(state, agentRegistry, uac, resolver, args);
-      };
-    };
-  };
-
-  /// Delete workspace tool — requires workspaces resource with write
-  private func deleteWorkspaceTool(
-    state : WorkspaceModel.WorkspacesState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-    triggerMessageText : ?Text,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "delete_workspace";
-          description = ?"Permanently deletes a workspace by ID. This action is irreversible. Workspace 0 (the org workspace) is protected and cannot be deleted.\n\nThis operation requires explicit user confirmation. The user's Slack message MUST contain exactly '::admin <workspace name>' (e.g. '::admin Marketing') as the full message text — nothing more. The system validates the user's actual message automatically; you cannot provide the phrase yourself. Look up the workspace name first if needed, then instruct the user to type that exact phrase as their next message. Only call this tool after the user has sent that confirmation message.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to delete. Must be > 0.\"}},\"required\":[\"workspaceId\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        DeleteWorkspaceHandler.handle(state, uac, triggerMessageText, args);
-      };
-    };
-  };
-
-  /// Set workspace admin channel tool — requires workspaces resource with write
-  private func setWorkspaceAdminChannelTool(
-    state : WorkspaceModel.WorkspacesState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-    resolver : Text -> ?Text,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "set_workspace_admin_channel";
-          description = ?"Sets the Slack channel whose members become admins of the given workspace. For workspace 0 (the org workspace) this also anchors the org-admin channel. Channel IDs must be globally unique across all workspace anchors.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to configure.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Slack channel ID (e.g. 'C01234567') to set as the admin channel.\"}},\"required\":[\"workspaceId\",\"channelId\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await SetWorkspaceAdminChannelHandler.handle(state, uac, resolver, args);
-      };
-    };
   };
 
   /// Web search tool - requires openRouterApiKey

@@ -1,4 +1,3 @@
-import WorkspaceModel "../../models/workspace-model";
 import AgentModel "../../models/agent-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
@@ -53,17 +52,8 @@ module {
 
     // The verbatim text of the Slack message that triggered this agent turn.
     // Set by the agent from channel history before building ToolResources.
-    // Used by destructive operations (e.g. delete_workspace) to verify that the
-    // user explicitly typed a confirmation phrase in their own message, making it
-    // impossible for the LLM to fabricate a confirmation.
+    // Used by destructive operations to verify explicit user confirmation.
     triggerMessageText : ?Text;
-
-    // Workspaces - if provided, workspace-management tools are available.
-    // write=true enables create_workspace, set_workspace_admin_channel.
-    workspaces : ?{
-      state : WorkspaceModel.WorkspacesState;
-      write : Bool;
-    };
 
     // Agent Registry - if provided, agent-management tools are available.
     // write=true enables register_agent, update_agent, unregister_agent.

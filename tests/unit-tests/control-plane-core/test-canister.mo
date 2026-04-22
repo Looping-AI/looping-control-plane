@@ -26,11 +26,7 @@ import MemberJoinedChannelHandler "../../../src/control-plane-core/events/handle
 import MemberLeftChannelHandler "../../../src/control-plane-core/events/handlers/member-left-channel-handler";
 import NormalizedEventTypes "../../../src/control-plane-core/events/types/normalized-event-types";
 import SlackAdapter "../../../src/control-plane-core/events/slack-adapter";
-import SetWorkspaceAdminChannelHandler "../../../src/control-plane-core/agents/tools/handlers/workspaces/set-workspace-admin-channel-handler";
 
-import CreateWorkspaceHandler "../../../src/control-plane-core/agents/tools/handlers/workspaces/create-workspace-handler";
-import DeleteWorkspaceHandler "../../../src/control-plane-core/agents/tools/handlers/workspaces/delete-workspace-handler";
-import ListWorkspacesHandler "../../../src/control-plane-core/agents/tools/handlers/workspaces/list-workspaces-handler";
 import RegisterAgentHandler "../../../src/control-plane-core/agents/tools/handlers/agents/register-agent-handler";
 import ListAgentsHandler "../../../src/control-plane-core/agents/tools/handlers/agents/list-agents-handler";
 import GetAgentHandler "../../../src/control-plane-core/agents/tools/handlers/agents/get-agent-handler";
@@ -211,23 +207,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   func testAgent(category : AgentModel.AgentCategory, name : Text) : AgentModel.AgentRecord {
     testAgentWithModel(category, name, "openai/gpt-oss-120b");
-  };
-
-  func emptyToolResources() : ToolTypes.ToolResources {
-    {
-      workspaceId = null;
-      openRouterApiKey = null;
-      resolveSlackBotToken = null;
-      userAuthContext = null;
-      triggerMessageText = null;
-      workspaces = null;
-      agentRegistry = null;
-      secrets = null;
-      eventStore = null;
-      sessionStores = null;
-      engineDispatch = null;
-      envelopeContext = null;
-    };
   };
 
   func ensureTestInternalEngine() : async InternalEngine.InternalEngine {
@@ -875,12 +854,27 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // ============================================
 
   public shared ({ caller }) func testToolExecutorExecute(
+    apiKey : Text,
     toolName : Text,
     args : Text,
   ) : async [ToolTypes.ToolResult] {
     assert caller == parent;
+    let resources : ToolTypes.ToolResources = {
+      openRouterApiKey = ?apiKey;
+      workspaceId = null;
+      resolveSlackBotToken = null;
+      userAuthContext = null;
+      triggerMessageText = null;
+      workspaces = null;
+      agentRegistry = null;
+      secrets = null;
+      eventStore = null;
+      sessionStores = null;
+      engineDispatch = null;
+      envelopeContext = null;
+    };
     await ToolExecutor.execute(
-      emptyToolResources(),
+      resources,
       [{ callId = "call-1"; toolName; arguments = args }],
     );
   };
@@ -1437,124 +1431,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   };
 
   // ============================================
-  // Tool Handler Test Methods
-  // ============================================
-
-  /// Test the SetWorkspaceAdminChannelHandler in isolation.
-  ///
-  /// @param args           JSON-encoded tool arguments (workspaceId + channelId).
-  /// @param botToken       Slack bot token forwarded to SlackWrapper for channel verification.
-  /// @param auth           Simplified auth context — builds UserAuthContext internally so
-  ///                       tests do not need to serialise the full type over Candid.
-  ///
-  /// Note: the handler runs against the pre-seeded testWorkspacesState:
-  ///   Workspace 0: Default (no channel anchors)
-  ///   Workspace 1: adminChannelId = C_ADMIN_CHANNEL
-  ///   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN
-  public shared ({ caller }) func testSetWorkspaceAdminChannelHandler(
-    args : Text,
-    botToken : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-      workspaceAdminFor : ?Nat;
-    },
-  ) : async Text {
-    assert caller == parent;
-    let adminWorkspaces = Set.empty<Nat>();
-    switch (auth.workspaceAdminFor) {
-      case (?wsId) {
-        Set.add(adminWorkspaces, Nat.compare, wsId);
-      };
-      case (null) {};
-    };
-    let uac : SlackAuthMiddleware.UserAuthContext = {
-      slackUserId = "U_TEST_USER";
-      isPrimaryOwner = auth.isPrimaryOwner;
-      isOrgAdmin = auth.isOrgAdmin;
-      adminWorkspaces;
-    };
-    await SetWorkspaceAdminChannelHandler.handle(testWorkspacesState, uac, func(_ : Text) : ?Text { ?botToken }, args);
-  };
-
-  /// Test the CreateWorkspaceHandler in isolation.
-  ///
-  /// @param args      JSON-encoded tool arguments ({ name: string, channelId: string }).
-  /// @param botToken  Slack bot token forwarded to SlackWrapper for channel verification.
-  /// @param auth      Simplified auth context.
-  ///
-  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
-  /// Workspaces created here persist within the same canister lifetime.
-  public shared ({ caller }) func testCreateWorkspaceHandler(
-    args : Text,
-    botToken : Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-      workspaceAdminFor : ?Nat;
-    },
-  ) : async Text {
-    assert caller == parent;
-    let adminWorkspaces = Set.empty<Nat>();
-    switch (auth.workspaceAdminFor) {
-      case (?wsId) {
-        Set.add(adminWorkspaces, Nat.compare, wsId);
-      };
-      case (null) {};
-    };
-    let uac : SlackAuthMiddleware.UserAuthContext = {
-      slackUserId = "U_TEST_USER";
-      isPrimaryOwner = auth.isPrimaryOwner;
-      isOrgAdmin = auth.isOrgAdmin;
-      adminWorkspaces;
-    };
-    await CreateWorkspaceHandler.handle(testWorkspacesState, testAgentRegistry, uac, func(_ : Text) : ?Text { ?botToken }, args);
-  };
-
-  /// Test the DeleteWorkspaceHandler in isolation.
-  ///
-  /// @param args  JSON-encoded tool arguments ({ workspaceId: number }).
-  /// @param auth  Simplified auth context.
-  ///
-  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
-  public shared ({ caller }) func testDeleteWorkspaceHandler(
-    args : Text,
-    triggerMessageText : ?Text,
-    auth : {
-      isPrimaryOwner : Bool;
-      isOrgAdmin : Bool;
-      workspaceAdminFor : ?Nat;
-    },
-  ) : async Text {
-    assert caller == parent;
-    let adminWorkspaces = Set.empty<Nat>();
-    switch (auth.workspaceAdminFor) {
-      case (?wsId) {
-        Set.add(adminWorkspaces, Nat.compare, wsId);
-      };
-      case (null) {};
-    };
-    let uac : SlackAuthMiddleware.UserAuthContext = {
-      slackUserId = "U_TEST_USER";
-      isPrimaryOwner = auth.isPrimaryOwner;
-      isOrgAdmin = auth.isOrgAdmin;
-      adminWorkspaces;
-    };
-    DeleteWorkspaceHandler.handle(testWorkspacesState, uac, triggerMessageText, args);
-  };
-
-  /// Test the ListWorkspacesHandler in isolation.
-  ///
-  /// @param args   JSON-encoded tool arguments (unused by this handler).
-  ///
-  /// Note: runs against the pre-seeded testWorkspacesState (workspaces 0, 1, 2).
-  public shared ({ caller }) func testListWorkspacesHandler(
-    args : Text
-  ) : async Text {
-    assert caller == parent;
-    await ListWorkspacesHandler.handle(testWorkspacesState, args);
-  };
-
   // ============================================
   // Agent Handler Test Methods
   //
