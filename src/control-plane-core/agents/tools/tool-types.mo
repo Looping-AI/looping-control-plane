@@ -55,13 +55,6 @@ module {
     // Used by destructive operations to verify explicit user confirmation.
     triggerMessageText : ?Text;
 
-    // Agent Registry - if provided, agent-management tools are available.
-    // write=true enables register_agent, update_agent, unregister_agent.
-    agentRegistry : ?{
-      state : AgentModel.AgentRegistryState;
-      write : Bool;
-    };
-
     // Secrets store - if provided, secrets-management tools are available.
     // write=true enables store_secret and delete_secret.
     // All secrets tools also require workspaceId and userAuthContext.

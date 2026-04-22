@@ -6,11 +6,6 @@ import ToolTypes "./tool-types";
 import Constants "../../constants";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import WebSearchHandler "./handlers/web-search-handler";
-import RegisterAgentHandler "./handlers/agents/register-agent-handler";
-import ListAgentsHandler "./handlers/agents/list-agents-handler";
-import GetAgentHandler "./handlers/agents/get-agent-handler";
-import UpdateAgentHandler "./handlers/agents/update-agent-handler";
-import UnregisterAgentHandler "./handlers/agents/unregister-agent-handler";
 import StoreSecretHandler "./handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "./handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
@@ -20,7 +15,6 @@ import DeleteFailedEventsHandler "./handlers/events/delete-failed-events-handler
 import SessionModel "../../models/session-model";
 import UpdateSessionPolicyHandler "./handlers/sessions/update-session-policy-handler";
 import DispatchWorkflowHandler "./handlers/dispatch-workflow-handler";
-import AgentModel "../../models/agent-model";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import EventStoreModel "../../models/event-store-model";
@@ -60,29 +54,6 @@ module {
     switch (resources.openRouterApiKey) {
       case (?apiKey) {
         List.add(tools, webSearchTool(apiKey));
-      };
-      case (null) {};
-    };
-
-    // ==========================================
-    // AGENT REGISTRY TOOLS - require agentRegistry resource
-    // ==========================================
-    switch (resources.agentRegistry) {
-      case (?ar) {
-        // Read tools — always available when resource is present
-        List.add(tools, listAgentsTool(ar.state));
-        List.add(tools, getAgentTool(ar.state));
-        // Write tools — require write access and a resolved user identity
-        switch (resources.userAuthContext) {
-          case (?uac) {
-            if (ar.write) {
-              List.add(tools, registerAgentTool(ar.state, uac, resources.resolveSlackBotToken));
-              List.add(tools, updateAgentTool(ar.state, uac));
-              List.add(tools, unregisterAgentTool(ar.state, uac));
-            };
-          };
-          case (null) {};
-        };
       };
       case (null) {};
     };
@@ -175,105 +146,6 @@ module {
       };
       handler = func(args : Text) : async Text {
         await WebSearchHandler.handle(apiKey, args);
-      };
-    };
-  };
-
-  // ============================================
-  // AGENT REGISTRY TOOL IMPLEMENTATIONS
-  // ============================================
-
-  /// List agents tool — always available when agentRegistry resource is present
-  private func listAgentsTool(state : AgentModel.AgentRegistryState) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "list_agents";
-          description = ?"Lists all registered agents with their IDs, names, categories, LLM models, and configuration.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await ListAgentsHandler.handle(state, args);
-      };
-    };
-  };
-
-  /// Get agent tool — always available when agentRegistry resource is present
-  private func getAgentTool(state : AgentModel.AgentRegistryState) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "get_agent";
-          description = ?"Looks up a registered agent by its ID (number) or name (string). Provide either 'id' or 'name'.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Agent ID to look up.\"},\"name\":{\"type\":\"string\",\"description\":\"Agent name to look up (case-insensitive).\"}},\"required\":[]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await GetAgentHandler.handle(state, args);
-      };
-    };
-  };
-
-  /// Register agent tool — requires agentRegistry resource with write + user identity
-  private func registerAgentTool(
-    state : AgentModel.AgentRegistryState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-    resolveSlackBotToken : ?(Text -> ?Text),
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "register_agent";
-          description = ?"Registers a new custom agent in the global registry. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens. executionEngines specifies which execution backends the agent may use (at least one required): api = in-canister LLM loop via OpenRouter; canister = external canister called via envelope/webhook; github = GitHub Actions workflow triggered via webhook reply.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'workspace-helper').\"},\"executionEngines\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"api\",\"canister\",\"github\"]},\"minItems\":1,\"description\":\"Execution backends this agent is permitted to use.\"},\"ownedBy\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"Workspace that will own the agent. Omit to default to org workspace (0).\"},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b). Defaults to openai/gpt-oss-120b if omitted.\"},\"allowedChannelIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"description\":\"Slack channel IDs where this agent is permitted to run. Required; must contain at least one channel ID.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Secrets this agent may access. Omit for empty list.\"},\"secretOverrides\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]},\"customKeyName\":{\"type\":\"string\",\"description\":\"Name of the custom secret (without the 'custom:' prefix).\"}},\"required\":[\"secretId\",\"customKeyName\"]},\"description\":\"Per-agent credential overrides. For each entry, resolving secretId first looks up custom:<customKeyName> in the agent's workspace. Omit for none.\"}},\"required\":[\"name\",\"executionEngines\",\"allowedChannelIds\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await RegisterAgentHandler.handle(state, uac, args, ?OpenRouterWrapper.validateModel, resolveSlackBotToken);
-      };
-    };
-  };
-
-  /// Update agent tool — requires agentRegistry resource with write + user identity
-  private func updateAgentTool(
-    state : AgentModel.AgentRegistryState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "update_agent";
-          description = ?"Updates an existing agent's configuration. Provide the agent 'id' and only the fields you want to change; omitted fields are left unchanged.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"executionEngines\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"api\",\"canister\",\"github\"]},\"minItems\":1,\"description\":\"Replace the full execution engines list (optional). Must be non-empty.\"},\"model\":{\"type\":\"string\",\"description\":\"New OpenRouter model string (optional).\"},\"allowedChannelIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"description\":\"Replace the full channel allowlist (optional). Must be non-empty \\u2014 the allowlist cannot be emptied.\"},\"secretsAllowed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\"},\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]}},\"required\":[\"workspaceId\",\"secretId\"]},\"description\":\"Replace the full secrets whitelist (optional). Pass [] to revoke all secret access.\"},\"secretOverrides\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"secretId\":{\"anyOf\":[{\"type\":\"string\",\"enum\":[\"openRouterApiKey\",\"anthropicApiKey\",\"anthropicSetupToken\"]},{\"type\":\"string\",\"pattern\":\"^custom:.+\",\"description\":\"Custom secret identifier, e.g. custom:my-key\"}]},\"customKeyName\":{\"type\":\"string\"}},\"required\":[\"secretId\",\"customKeyName\"]},\"description\":\"Replace per-agent credential overrides (optional). Pass [] to clear all overrides.\"}},\"required\":[\"id\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await UpdateAgentHandler.handle(state, uac, args, ?OpenRouterWrapper.validateModel);
-      };
-    };
-  };
-
-  /// Unregister agent tool — requires agentRegistry resource with write + user identity
-  private func unregisterAgentTool(
-    state : AgentModel.AgentRegistryState,
-    uac : SlackAuthMiddleware.UserAuthContext,
-  ) : FunctionTool {
-    {
-      definition = {
-        tool_type = "function";
-        function = {
-          name = "unregister_agent";
-          description = ?"Permanently removes an agent from the registry. This action cannot be undone. Any active sessions referencing this agent will fail after removal.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to unregister.\"}},\"required\":[\"id\"]}";
-        };
-      };
-      handler = func(args : Text) : async Text {
-        await UnregisterAgentHandler.handle(state, uac, args);
       };
     };
   };

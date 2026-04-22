@@ -73,7 +73,6 @@ module {
           resolveSlackBotToken = null;
           userAuthContext;
           triggerMessageText;
-          agentRegistry = null;
           secrets = ?{ state = secrets; keyCache; write = true };
           eventStore = null;
           sessionStores = null;
