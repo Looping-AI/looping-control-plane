@@ -18,6 +18,9 @@
 tests/builds/*
 !tests/builds/.gitkeep
 
+# ai temp files
+*.txt
+
 # rust
 target/
 
@@ -34,4 +37,3 @@ test-env.mo
 
 # linter binary file
 lintoko
-changed_files_list.txt
