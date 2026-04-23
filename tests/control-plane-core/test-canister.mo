@@ -38,6 +38,7 @@ import ClearKeyCacheRunner "../../src/control-plane-core/timers/clear-key-cache-
 import ProcessedEventsCleanupRunner "../../src/control-plane-core/timers/processed-events-cleanup-runner";
 import ChannelHistoryPruneRunner "../../src/control-plane-core/timers/channel-history-prune-runner";
 import TurnCleanupRunner "../../src/control-plane-core/timers/turn-cleanup-runner";
+import EngineTopupRunner "../../src/control-plane-core/timers/engine-topup-runner";
 import SlackEventIntakeService "../../src/control-plane-core/services/slack-event-intake-service";
 import ChannelHistoryModel "../../src/control-plane-core/models/channel-history-model";
 import SlackUserModel "../../src/control-plane-core/models/slack-user-model";
@@ -1370,6 +1371,22 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (null) { 0 };
       case (?turnMap) { Map.size(turnMap) };
     };
+  };
+
+  // ============================================
+  // Engine Topup Runner Test Methods
+  // ============================================
+
+  /// Run the engine-topup runner with the given optional engine principal.
+  /// Pass null to test the "engine not yet spawned" no-op path.
+  /// Pass a principal for a non-existent/uncontrolled canister to test the
+  /// canister_status failure path — the try/catch should return #err.
+  public shared ({ caller }) func testEngineTopupRunner(enginePrincipal : ?Principal) : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    await EngineTopupRunner.run(enginePrincipal);
   };
 
   // ============================================

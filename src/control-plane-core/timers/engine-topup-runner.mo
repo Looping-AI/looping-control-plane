@@ -2,6 +2,7 @@
 /// Checks the internal engine canister's cycle balance and tops it up
 /// if it falls below the configured threshold. Scheduled to run every 7 days.
 
+import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 import Constants "../constants";
 
@@ -29,12 +30,20 @@ module {
       case (?p) { p };
     };
 
-    let status = await ic.canister_status({ canister_id = canisterId });
+    let status = try {
+      await ic.canister_status({ canister_id = canisterId });
+    } catch (e) {
+      return #err("canister_status failed: " # Error.message(e));
+    };
 
     if (status.cycles < Constants.ENGINE_MIN_CYCLES) {
-      await (with cycles = Constants.ENGINE_TOPUP_CYCLES) ic.deposit_cycles({
-        canister_id = canisterId;
-      });
+      try {
+        await (with cycles = Constants.ENGINE_TOPUP_CYCLES) ic.deposit_cycles({
+          canister_id = canisterId;
+        });
+      } catch (e) {
+        return #err("deposit_cycles failed: " # Error.message(e));
+      };
     };
 
     #ok;
