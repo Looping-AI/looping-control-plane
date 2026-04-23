@@ -1,12 +1,10 @@
-/// Run Types — Unit Tests (placeholder)
+/// Run Helpers — Unit Tests
 ///
-/// Tests for `RunTypes.fromEnvelope` and RunRecord field invariants.
-/// Populated in a future session once the internal-engine test canister
-/// is wired up and its DID is generated.
+/// Tests for `RunHelpers.fromEnvelope` and RunRecord field invariants.
 
 import { test; expect } "mo:test";
 import Nat "mo:core/Nat";
-import RunTypes "../../../../src/internal-engine/runner/run-types";
+import RunHelpers "../../../../src/internal-engine/runner/run-helpers";
 import ExecutionTypes "../../../../src/internal-engine/execution-types";
 
 // ─────────────────────────────────────────────────────────────────
@@ -40,7 +38,7 @@ test(
   "fromEnvelope preserves envelopeId",
   func() {
     let env = makeEnvelope(5);
-    let record = RunTypes.fromEnvelope(env, 1234);
+    let record = RunHelpers.fromEnvelope(env, 1234);
     expect.nat(record.envelopeId).equal(5);
   },
 );
@@ -49,7 +47,7 @@ test(
   "fromEnvelope sets enqueuedAt from now parameter",
   func() {
     let env = makeEnvelope(1);
-    let record = RunTypes.fromEnvelope(env, 9999);
+    let record = RunHelpers.fromEnvelope(env, 9999);
     expect.bool(record.enqueuedAt == 9999).isTrue();
   },
 );
@@ -58,7 +56,7 @@ test(
   "fromEnvelope starts with nil lifecycle timestamps",
   func() {
     let env = makeEnvelope(2);
-    let record = RunTypes.fromEnvelope(env, 0);
+    let record = RunHelpers.fromEnvelope(env, 0);
     expect.bool(record.claimedAt == null).isTrue();
     expect.bool(record.completedAt == null).isTrue();
     expect.bool(record.failedAt == null).isTrue();
@@ -71,7 +69,7 @@ test(
   "fromEnvelope starts with empty steps",
   func() {
     let env = makeEnvelope(3);
-    let record = RunTypes.fromEnvelope(env, 0);
+    let record = RunHelpers.fromEnvelope(env, 0);
     expect.nat(record.steps.size()).equal(0);
   },
 );

@@ -1,6 +1,6 @@
 import Nat "mo:core/Nat";
 import RunStoreModel "../../src/internal-engine/models/run-store-model";
-import RunTypes "../../src/internal-engine/runner/run-types";
+import RunHelpers "../../src/internal-engine/runner/run-helpers";
 import TestHelpers "./test-helpers";
 
 // ============================================
@@ -22,7 +22,7 @@ shared ({ caller = _parent }) persistent actor class InternalEngineTestCanister(
   /// Enqueue a minimal test envelope and return ok/duplicate.
   public func testEnqueue(envelopeId : Nat) : async Text {
     let envelope = TestHelpers.minimalEnvelope(envelopeId, "test-agent", "Hello");
-    let record = RunTypes.fromEnvelope(envelope, 0);
+    let record = RunHelpers.fromEnvelope(envelope, 0);
     switch (RunStoreModel.enqueue(runStore, record)) {
       case (#ok) { "ok" };
       case (#duplicate) { "duplicate" };

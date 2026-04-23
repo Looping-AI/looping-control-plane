@@ -6,7 +6,7 @@ import Timer "mo:core/Timer";
 import Error "mo:core/Error";
 import ExecutionTypes "./execution-types";
 import CoreApi "./wrappers/core-api";
-import RunTypes "./runner/run-types";
+import RunHelpers "./runner/run-helpers";
 import RunStoreModel "./models/run-store-model";
 import ExecutionRunner "./runner/execution-runner";
 
@@ -67,7 +67,7 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
     };
 
     // Build run record and enqueue
-    let record = RunTypes.fromEnvelope(envelope, Time.now());
+    let record = RunHelpers.fromEnvelope(envelope, Time.now());
     switch (RunStoreModel.enqueue(runStore, record)) {
       case (#duplicate) {
         return #err("Duplicate envelopeId: " # Nat.toText(envelope.envelopeId));

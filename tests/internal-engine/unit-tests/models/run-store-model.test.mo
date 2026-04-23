@@ -6,6 +6,7 @@ import Time "mo:core/Time";
 import Map "mo:core/Map";
 import RunStoreModel "../../../../src/internal-engine/models/run-store-model";
 import RunTypes "../../../../src/internal-engine/runner/run-types";
+import RunHelpers "../../../../src/internal-engine/runner/run-helpers";
 import ExecutionTypes "../../../../src/internal-engine/execution-types";
 
 // ─────────────────────────────────────────────────────────────────
@@ -38,12 +39,12 @@ let ANCIENT : Int = -9_999_999_999_999_999;
 
 /// Stale record — enqueuedAt set far in the past, exceeds the 1-hour stale threshold.
 func makeRecord(id : Nat) : RunTypes.RunRecord {
-  RunTypes.fromEnvelope(makeEnvelope(id), ANCIENT);
+  RunHelpers.fromEnvelope(makeEnvelope(id), ANCIENT);
 };
 
 /// Fresh record — enqueuedAt = Time.now(), will not be considered stale.
 func freshRecord(id : Nat) : RunTypes.RunRecord {
-  RunTypes.fromEnvelope(makeEnvelope(id), Time.now());
+  RunHelpers.fromEnvelope(makeEnvelope(id), Time.now());
 };
 
 func dummyStats() : ExecutionTypes.ExecutionStats {

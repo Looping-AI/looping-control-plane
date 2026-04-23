@@ -96,7 +96,9 @@ module {
         let fields = List.empty<(Text, Json.Json)>();
         List.add(fields, ("envelopeNonce", #string(nonce)));
         for ((k, v) in entries.vals()) {
-          List.add(fields, (k, v));
+          if (k != "envelopeNonce") {
+            List.add(fields, (k, v));
+          };
         };
         Json.stringify(#object_(List.toArray(fields)), null);
       };
