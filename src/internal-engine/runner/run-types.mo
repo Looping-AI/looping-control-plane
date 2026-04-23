@@ -45,4 +45,16 @@ module {
     steps : [RunStep];
   };
 
+  // ── Run Outcome ──────────────────────────────────────────────────
+  // Returned by the runner after executing an envelope.
+  // The caller is responsible for marking the store and emitting to Core.
+
+  public type RunOutcome = {
+    status : ExecutionTypes.ExecutionStatus;
+    humanSummary : Text;
+    steps : [RunStep];
+    summarizedSteps : [ExecutionTypes.SummarizedStep];
+    stats : ExecutionTypes.ExecutionStats;
+  };
+
 };

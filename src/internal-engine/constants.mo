@@ -11,8 +11,7 @@ module {
   // Failed runs older than this are purged by the cleanup timer.
   public let FAILED_RUN_RETENTION_NS : Nat = 2_592_000_000_000_000;
 
-  // 1 hour in nanoseconds (60 * 60 * 1_000_000_000)
-  // Running entries older than this are assumed to have trapped and moved to failed.
-  public let STALE_RUN_THRESHOLD_NS : Nat = 3_600_000_000_000;
+  // Default OpenRouter model used when the envelope does not supply a "model" key.
+  public let DEFAULT_LLM_MODEL : Text = "openai/gpt-oss-120b";
 
 };

@@ -225,36 +225,4 @@ module {
     List.size(keysToRemove);
   };
 
-  /// Move runs sitting in running for more than 1 hour to failed.
-  /// Catches trapped or hung executions. Returns moved envelope IDs.
-  public func failStaleRunning(state : RunStoreState) : [Nat] {
-    let threshold = Int.fromNat(Constants.STALE_RUN_THRESHOLD_NS);
-    let now = Time.now();
-    let staleIds = List.empty<Nat>();
-    for ((id, record) in Map.entries(state.running)) {
-      if (now - record.enqueuedAt > threshold) {
-        List.add(staleIds, id);
-      };
-    };
-    List.forEach<Nat>(
-      staleIds,
-      func(id) {
-        switch (Map.get(state.running, Nat.compare, id)) {
-          case (null) {};
-          case (?record) {
-            let errored : RunTypes.RunRecord = {
-              record with
-              failedAt = ?now;
-              failedError = "Run was not completed within 1 hour of being enqueued (possible trap).";
-              status = ?(#failed("Run was not completed within 1 hour of being enqueued (possible trap)."));
-            };
-            Map.remove(state.running, Nat.compare, id);
-            Map.add(state.failed, Nat.compare, id, errored);
-          };
-        };
-      },
-    );
-    List.toArray(staleIds);
-  };
-
 };

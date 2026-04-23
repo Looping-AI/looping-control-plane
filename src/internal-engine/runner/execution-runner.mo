@@ -1,13 +1,16 @@
 /// Execution Runner
 /// Multi-round LLM loop extracted from main.mo for testability.
-/// All outcomes are reported to the run store and emitted to Core.
+/// Executes an envelope and returns a RunOutcome describing what happened.
 ///
-/// The runner:
-///   1. Claims the run from the store
-///   2. Extracts API key and model from the envelope
-///   3. Runs the LLM → tool → emit loop
-///   4. Marks the run as completed or failed in the store
-///   5. Emits the final result to Core via executionApi
+/// Responsibilities of this module:
+///   1. Extracts API key and model from the envelope
+///   2. Runs the LLM → tool → milestone loop
+///   3. Returns a RunOutcome for every exit path
+///
+/// NOT responsible for:
+///   - Claiming / marking the run store  (done by the caller in main.mo)
+///   - Emitting the final completion event to Core  (done by the caller in main.mo)
+///   - Milestone emissions stay here — they are mid-loop, not final outcomes
 
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";
@@ -16,35 +19,27 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import List "mo:core/List";
 import Error "mo:core/Error";
-import Json "mo:json";
-import { str; arr; int; float; bool; obj } "mo:json";
 import ExecutionTypes "../execution-types";
 import CoreApi "../wrappers/core-api";
 import LlmWrapper "../wrappers/llm-wrapper";
 import ToolRegistry "../tools/tool-registry";
 import ToolExecutor "../tools/tool-executor";
 import ToolTypes "../tools/tool-types";
+import Constants "../constants";
 import RunTypes "./run-types";
-import RunStoreModel "../models/run-store-model";
+import CoreEmitter "./core-emitter";
 
 module {
 
-  /// Run a single envelope to completion. Claims the run from the store,
-  /// executes the multi-round LLM loop, and marks the outcome.
+  /// Execute a single envelope to completion.
+  /// Returns a RunOutcome for every exit path — the caller is responsible for
+  /// marking the run store and emitting the final result to Core.
   /// Caller must wrap this in try/catch for trap safety.
   public func run(
     core : CoreApi.CoreApi,
-    envelopeId : Nat,
-    runStore : RunStoreModel.RunStoreState,
-  ) : async () {
+    envelope : ExecutionTypes.EnvelopePayload,
+  ) : async RunTypes.RunOutcome {
 
-    // Claim the run
-    let record = switch (RunStoreModel.claim(runStore, envelopeId)) {
-      case (null) { return }; // Already claimed or missing — no-op
-      case (?r) { r };
-    };
-
-    let envelope = record.envelope;
     let envelopeNonce = envelope.envelopeNonce;
     let callCore = ToolExecutor.buildCallCore(core, envelopeNonce);
 
@@ -60,9 +55,13 @@ module {
         // Already validated at ingress, but handle defensively
         let errMsg = "Missing 'openrouter' API key in envelope secrets";
         let stats = buildStats(Time.now(), 0, 0, 0, 0, "", null);
-        RunStoreModel.markFailed(runStore, envelopeId, errMsg, []);
-        ignore emitComplete(core, envelopeNonce, errMsg, [], #failed(errMsg), stats);
-        return;
+        return {
+          status = #failed(errMsg);
+          humanSummary = errMsg;
+          steps = [];
+          summarizedSteps = [];
+          stats;
+        };
       };
     };
 
@@ -88,14 +87,18 @@ module {
     var resolvedModel : Text = model;
     let startNs = Time.now();
 
-    label loop_ loop {
+    loop {
       // Check round limit
       if (rounds >= envelope.constraints.maxRounds) {
         let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
         let msg = "Reached maximum rounds (" # Nat.toText(envelope.constraints.maxRounds) # ")";
-        RunStoreModel.markCompleted(runStore, envelopeId, #roundLimitReached, stats, List.toArray(runSteps));
-        ignore emitComplete(core, envelopeNonce, msg, List.toArray(summarizedSteps), #roundLimitReached, stats);
-        return;
+        return {
+          status = #roundLimitReached;
+          humanSummary = msg;
+          steps = List.toArray(runSteps);
+          summarizedSteps = List.toArray(summarizedSteps);
+          stats;
+        };
       };
 
       // Call LLM
@@ -122,9 +125,13 @@ module {
           },
         );
         let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
-        RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
-        ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
-        return;
+        return {
+          status = #failed(errMsg);
+          humanSummary = errMsg;
+          steps = List.toArray(runSteps);
+          summarizedSteps = List.toArray(summarizedSteps);
+          stats;
+        };
       };
 
       rounds += 1;
@@ -173,9 +180,13 @@ module {
         // ── Text response — execution complete ──
         case (#ok(#textResponse({ content; thinking = _ }))) {
           let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
-          RunStoreModel.markCompleted(runStore, envelopeId, #completed, stats, List.toArray(runSteps));
-          ignore emitComplete(core, envelopeNonce, content, List.toArray(summarizedSteps), #completed, stats);
-          return;
+          return {
+            status = #completed;
+            humanSummary = content;
+            steps = List.toArray(runSteps);
+            summarizedSteps = List.toArray(summarizedSteps);
+            stats;
+          };
         };
 
         // ── Tool calls — execute and continue loop ──
@@ -201,9 +212,13 @@ module {
               },
             );
             let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
-            RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
-            ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
-            return;
+            return {
+              status = #failed(errMsg);
+              humanSummary = errMsg;
+              steps = List.toArray(runSteps);
+              summarizedSteps = List.toArray(summarizedSteps);
+              stats;
+            };
           };
 
           totalToolCalls += results.size();
@@ -238,7 +253,7 @@ module {
           // Emit milestone if meaningful work was done (2+ tools, or any tool succeeded)
           if (results.size() >= 2 or hasAnySuccess(results)) {
             try {
-              ignore emitMilestone(
+              ignore await CoreEmitter.emitMilestone(
                 core,
                 envelopeNonce,
                 summarizeToolRound(results),
@@ -253,102 +268,16 @@ module {
         // ── LLM error ──
         case (#err(errMsg)) {
           let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
-          RunStoreModel.markFailed(runStore, envelopeId, errMsg, List.toArray(runSteps));
-          ignore emitComplete(core, envelopeNonce, errMsg, List.toArray(summarizedSteps), #failed(errMsg), stats);
-          return;
+          return {
+            status = #failed(errMsg);
+            humanSummary = errMsg;
+            steps = List.toArray(runSteps);
+            summarizedSteps = List.toArray(summarizedSteps);
+            stats;
+          };
         };
       };
     };
-  };
-
-  // ── Event emission helpers ─────────────────────────────────────────
-
-  func emitComplete(
-    core : CoreApi.CoreApi,
-    envelopeNonce : Text,
-    humanSummary : Text,
-    stepsDetail : [ExecutionTypes.SummarizedStep],
-    status : ExecutionTypes.ExecutionStatus,
-    stats : ExecutionTypes.ExecutionStats,
-  ) : async { #ok : Text; #err : Text } {
-    let fields = List.empty<(Text, Json.Json)>();
-    List.add(fields, ("envelopeNonce", str(envelopeNonce)));
-    List.add(fields, ("humanSummary", str(humanSummary)));
-    List.add(fields, ("stepsDetail", stepsToJson(stepsDetail)));
-    List.add(fields, ("status", statusToJson(status)));
-    switch (status) {
-      case (#failed(reason)) { List.add(fields, ("statusReason", str(reason))) };
-      case (_) {};
-    };
-    List.add(fields, ("stats", statsToJson(stats)));
-    let body = Json.stringify(obj(List.toArray(fields)), null);
-    try {
-      await core.executionApi(#post, "/execution/complete", body);
-    } catch (e : Error) {
-      #err("Failed to emit complete: " # Error.message(e));
-    };
-  };
-
-  func emitMilestone(
-    core : CoreApi.CoreApi,
-    envelopeNonce : Text,
-    humanSummary : Text,
-    stepsDetail : [ExecutionTypes.SummarizedStep],
-  ) : async { #ok : Text; #err : Text } {
-    let body = Json.stringify(
-      obj([
-        ("envelopeNonce", str(envelopeNonce)),
-        ("humanSummary", str(humanSummary)),
-        ("stepsDetail", stepsToJson(stepsDetail)),
-      ]),
-      null,
-    );
-    try {
-      await core.executionApi(#post, "/execution/milestone", body);
-    } catch (e : Error) {
-      #err("Failed to emit milestone: " # Error.message(e));
-    };
-  };
-
-  // ── Serialization helpers ──────────────────────────────────────────
-
-  func stepsToJson(steps : [ExecutionTypes.SummarizedStep]) : Json.Json {
-    arr(
-      Array.map<ExecutionTypes.SummarizedStep, Json.Json>(
-        steps,
-        func(s : ExecutionTypes.SummarizedStep) : Json.Json {
-          obj([
-            ("tool", str(s.tool)),
-            ("summary", str(s.summary)),
-            ("success", bool(s.success)),
-          ]);
-        },
-      )
-    );
-  };
-
-  func statusToJson(status : ExecutionTypes.ExecutionStatus) : Json.Json {
-    switch (status) {
-      case (#completed) { str("completed") };
-      case (#failed(_)) { str("failed") };
-      case (#roundLimitReached) { str("roundLimitReached") };
-    };
-  };
-
-  func statsToJson(stats : ExecutionTypes.ExecutionStats) : Json.Json {
-    let fields = List.empty<(Text, Json.Json)>();
-    List.add(fields, ("durationNs", int(stats.durationNs)));
-    List.add(fields, ("llmCalls", int(stats.llmCalls)));
-    List.add(fields, ("toolCalls", int(stats.toolCalls)));
-    List.add(fields, ("inputTokens", int(stats.inputTokens)));
-    List.add(fields, ("outputTokens", int(stats.outputTokens)));
-    List.add(fields, ("model", str(stats.model)));
-    List.add(fields, ("rounds", int(stats.rounds)));
-    switch (stats.estimatedDollarCost) {
-      case (?cost) { List.add(fields, ("estimatedDollarCost", float(cost))) };
-      case (null) {};
-    };
-    obj(List.toArray(fields));
   };
 
   // ── Utility helpers ────────────────────────────────────────────────
@@ -382,7 +311,7 @@ module {
       )
     ) {
       case (?(_, m)) { m };
-      case (null) { "openai/gpt-4.1-mini" };
+      case (null) { Constants.DEFAULT_LLM_MODEL };
     };
   };
 

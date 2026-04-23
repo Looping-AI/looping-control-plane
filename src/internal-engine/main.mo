@@ -3,12 +3,11 @@ import Array "mo:core/Array";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
-import Error "mo:core/Error";
 import ExecutionTypes "./execution-types";
 import CoreApi "./wrappers/core-api";
 import RunHelpers "./runner/run-helpers";
 import RunStoreModel "./models/run-store-model";
-import ExecutionRunner "./runner/execution-runner";
+import EnvelopeProcessor "./runner/envelope-processor";
 
 shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
 
@@ -25,11 +24,10 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
   let envelopeVersion : Text = "v1";
 
   // ── Periodic run-store maintenance ────────────────────────────────
-  // Runs every hour: recovers hung runs, prunes completed/failed records.
+  // Runs every week: prunes completed/failed records.
   ignore Timer.recurringTimer<system>(
-    #seconds(3600),
+    #seconds(604800),
     func() : async () {
-      ignore RunStoreModel.failStaleRunning(runStore);
       ignore RunStoreModel.purgeCompleted(runStore);
       ignore RunStoreModel.purgeOldFailed(runStore);
     },
@@ -79,32 +77,10 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
     ignore Timer.setTimer<system>(
       #nanoseconds 0,
       func() : async () {
-        await processEnvelope(envelopeId);
+        await EnvelopeProcessor.process(core, envelopeId, runStore);
       },
     );
     #ok;
   };
 
-  // ── Envelope processor ─────────────────────────────────────────────
-  // Delegates to the runner and catches traps so that failures are
-  // always recorded in the run store.
-
-  private func processEnvelope(envelopeId : Nat) : async () {
-    try {
-      await ExecutionRunner.run(core, envelopeId, runStore);
-    } catch (e : Error) {
-      // Trap or unexpected error — record failure if the runner didn't already
-      switch (RunStoreModel.getRunning(runStore, envelopeId)) {
-        case (null) {}; // Runner already moved it — nothing to do
-        case (_) {
-          RunStoreModel.markFailed(
-            runStore,
-            envelopeId,
-            "Trap: " # Error.message(e),
-            [],
-          );
-        };
-      };
-    };
-  };
 };

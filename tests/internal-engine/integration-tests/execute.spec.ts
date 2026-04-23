@@ -274,4 +274,46 @@ describe("internal-engine / execute (async completion)", () => {
     expect((body["humanSummary"] as string).length).toBeGreaterThan(0);
     expect(body["status"]).toBe("completed");
   });
+
+  // ── EnvelopeProcessor: roundLimitReached path ─────────────────
+
+  it("emits roundLimitReached when maxRounds is 0 (no LLM call needed)", async () => {
+    // maxRounds = 0 causes the runner's round-limit check to fire immediately
+    // before any LLM HTTP call — so no cassette is required.
+    await stubActor.clearRecordedCalls();
+
+    const envelope: EnvelopePayload = {
+      ...minimalEnvelope(101n, "test-agent", "Will not run"),
+      constraints: { maxRounds: 0n, maxTokenBudget: [] },
+    };
+
+    const submitResult = await engineActor.execute(envelope);
+    expect("ok" in submitResult).toBe(true);
+
+    // Tick until EnvelopeProcessor.process completes and emitComplete fires.
+    // No HTTP outcalls to serve — the round-limit path is purely synchronous
+    // inside the runner, so all async boundaries resolve quickly.
+    await pic.tick(10);
+
+    // ── Assertions ────────────────────────────────────────────────
+    const recordedCalls = await stubActor.getRecordedCalls();
+
+    const completionCall = recordedCalls.find(
+      (c) => c.path === "/execution/complete",
+    );
+    expect(completionCall).toBeDefined();
+    expect("post" in completionCall!.method).toBe(true);
+
+    const body = JSON.parse(completionCall!.body) as Record<string, unknown>;
+    expect(body["envelopeNonce"]).toBe("nonce-101");
+    expect(body["status"]).toBe("roundLimitReached");
+    expect(typeof body["humanSummary"]).toBe("string");
+    expect((body["humanSummary"] as string).length).toBeGreaterThan(0);
+
+    // stats object must be present with expected fields
+    const stats = body["stats"] as Record<string, unknown>;
+    expect(stats).toBeDefined();
+    expect(typeof stats["durationNs"]).toBe("number");
+    expect(stats["rounds"]).toBe(0);
+  });
 });

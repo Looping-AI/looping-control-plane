@@ -455,62 +455,6 @@ test(
 );
 
 // ─────────────────────────────────────────────────────────────────
-// failStaleRunning
-// ─────────────────────────────────────────────────────────────────
-
-test(
-  "failStaleRunning moves stale record to failed",
-  func() {
-    let store = RunStoreModel.empty();
-    enq(store, 60); // enqueuedAt = 0 → stale
-    let moved = RunStoreModel.failStaleRunning(store);
-    expect.nat(moved.size()).equal(1);
-    expect.nat(RunStoreModel.sizes(store).running).equal(0);
-    expect.nat(RunStoreModel.sizes(store).failed).equal(1);
-  },
-);
-
-test(
-  "failStaleRunning returns the affected envelopeIds",
-  func() {
-    let store = RunStoreModel.empty();
-    enq(store, 61);
-    enq(store, 62);
-    let moved = RunStoreModel.failStaleRunning(store);
-    expect.nat(moved.size()).equal(2);
-  },
-);
-
-test(
-  "failStaleRunning does not move a fresh record",
-  func() {
-    let store = RunStoreModel.empty();
-    ignore RunStoreModel.enqueue(store, freshRecord(63));
-    let moved = RunStoreModel.failStaleRunning(store);
-    expect.nat(moved.size()).equal(0);
-    expect.nat(RunStoreModel.sizes(store).running).equal(1);
-    expect.nat(RunStoreModel.sizes(store).failed).equal(0);
-  },
-);
-
-test(
-  "failStaleRunning sets failedError on stale record",
-  func() {
-    let store = RunStoreModel.empty();
-    enq(store, 64);
-    ignore RunStoreModel.failStaleRunning(store);
-    let r = RunStoreModel.get(store, 64);
-    switch (r) {
-      case (null) { expect.bool(false).isTrue() };
-      case (?rec) {
-        expect.bool(rec.failedError != "").isTrue();
-        expect.bool(rec.status != null).isTrue();
-      };
-    };
-  },
-);
-
-// ─────────────────────────────────────────────────────────────────
 // purgeCompleted
 // ─────────────────────────────────────────────────────────────────
 
