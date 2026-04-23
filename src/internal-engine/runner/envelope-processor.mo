@@ -40,16 +40,13 @@ module {
       // Trap or unexpected error — mark failed in the store and notify Core
       let errMsg = "Trap: " # Error.message(e);
       RunStoreModel.markFailed(runStore, envelopeId, errMsg, []);
-      try {
-        ignore await CoreEmitter.emitComplete(
-          core,
-          envelope.envelopeNonce,
-          errMsg,
-          [],
-          #failed(errMsg),
-          zeroStats(),
-        );
-      } catch (_emitErr : Error) {};
+      let emitResult = try {
+        switch (await CoreEmitter.emitComplete(core, envelope.envelopeNonce, errMsg, [], #failed(errMsg), zeroStats())) {
+          case (#ok(_)) { #ok };
+          case (#err(msg)) { #err(msg) };
+        };
+      } catch (_emitErr : Error) { #err("emit failed after trap") };
+      RunStoreModel.setEmitResult(runStore, envelopeId, emitResult);
       return;
     };
 
@@ -67,14 +64,13 @@ module {
     };
 
     // ── Emit final result to Core ──────────────────────────────────────
-    ignore await CoreEmitter.emitComplete(
-      core,
-      envelope.envelopeNonce,
-      outcome.humanSummary,
-      outcome.summarizedSteps,
-      outcome.status,
-      outcome.stats,
-    );
+    let emitResult = try {
+      switch (await CoreEmitter.emitComplete(core, envelope.envelopeNonce, outcome.humanSummary, outcome.summarizedSteps, outcome.status, outcome.stats)) {
+        case (#ok(_)) { #ok };
+        case (#err(msg)) { #err(msg) };
+      };
+    } catch (e : Error) { #err("emit failed: " # Error.message(e)) };
+    RunStoreModel.setEmitResult(runStore, envelopeId, emitResult);
   };
 
   // ── Private helpers ────────────────────────────────────────────────

@@ -43,6 +43,12 @@ module {
 
     // Per-step detail (accumulated during execution)
     steps : [RunStep];
+
+    // Result of the final emitComplete call to Core.
+    // null  = emit not yet attempted (transient — only between markFailed/markCompleted and setEmitResult)
+    // #ok   = Core acknowledged the notification
+    // #err  = emit failed; Text contains the error message
+    coreEmitResult : ?{ #ok; #err : Text };
   };
 
   // ── Run Outcome ──────────────────────────────────────────────────

@@ -142,6 +142,29 @@ module {
     };
   };
 
+  /// Store the result of the final emitComplete call on a closed run record.
+  /// Searches completed then failed — the run will have been moved before emit is attempted.
+  /// No-op if the envelopeId is not found in either map.
+  public func setEmitResult(
+    state : RunStoreState,
+    envelopeId : Nat,
+    result : { #ok; #err : Text },
+  ) {
+    switch (Map.get(state.completed, Nat.compare, envelopeId)) {
+      case (?record) {
+        Map.add(state.completed, Nat.compare, envelopeId, { record with coreEmitResult = ?result });
+      };
+      case (null) {
+        switch (Map.get(state.failed, Nat.compare, envelopeId)) {
+          case (?record) {
+            Map.add(state.failed, Nat.compare, envelopeId, { record with coreEmitResult = ?result });
+          };
+          case (null) {};
+        };
+      };
+    };
+  };
+
   // ============================================
   // Lookups & Observability
   // ============================================

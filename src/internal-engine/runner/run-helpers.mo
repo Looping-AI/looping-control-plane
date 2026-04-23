@@ -22,6 +22,7 @@ module {
       status = null;
       stats = null;
       steps = [];
+      coreEmitResult = null;
     };
   };
 

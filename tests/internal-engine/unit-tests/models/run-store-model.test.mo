@@ -531,3 +531,91 @@ test(
     expect.nat(RunStoreModel.sizes(store).failed).equal(1);
   },
 );
+
+// ─────────────────────────────────────────────────────────────────
+// setEmitResult
+// ─────────────────────────────────────────────────────────────────
+
+test(
+  "setEmitResult starts as null on a freshly completed record",
+  func() {
+    let store = RunStoreModel.empty();
+    enqAndComplete(store, 90);
+    let r = RunStoreModel.get(store, 90);
+    switch (r) {
+      case (null) { expect.bool(false).isTrue() };
+      case (?rec) { expect.bool(rec.coreEmitResult == null).isTrue() };
+    };
+  },
+);
+
+test(
+  "setEmitResult stores #ok on completed record",
+  func() {
+    let store = RunStoreModel.empty();
+    enqAndComplete(store, 91);
+    RunStoreModel.setEmitResult(store, 91, #ok);
+    let r = RunStoreModel.get(store, 91);
+    switch (r) {
+      case (null) { expect.bool(false).isTrue() };
+      case (?rec) { expect.bool(rec.coreEmitResult == ?(#ok)).isTrue() };
+    };
+  },
+);
+
+test(
+  "setEmitResult stores #err on completed record",
+  func() {
+    let store = RunStoreModel.empty();
+    enqAndComplete(store, 92);
+    RunStoreModel.setEmitResult(store, 92, #err("timeout"));
+    let r = RunStoreModel.get(store, 92);
+    switch (r) {
+      case (null) { expect.bool(false).isTrue() };
+      case (?rec) {
+        expect.bool(rec.coreEmitResult == ?(#err("timeout"))).isTrue();
+      };
+    };
+  },
+);
+
+test(
+  "setEmitResult stores #ok on failed record",
+  func() {
+    let store = RunStoreModel.empty();
+    enqAndFail(store, 93, "boom");
+    RunStoreModel.setEmitResult(store, 93, #ok);
+    let r = RunStoreModel.get(store, 93);
+    switch (r) {
+      case (null) { expect.bool(false).isTrue() };
+      case (?rec) { expect.bool(rec.coreEmitResult == ?(#ok)).isTrue() };
+    };
+  },
+);
+
+test(
+  "setEmitResult stores #err on failed record",
+  func() {
+    let store = RunStoreModel.empty();
+    enqAndFail(store, 94, "boom");
+    RunStoreModel.setEmitResult(store, 94, #err("network error"));
+    let r = RunStoreModel.get(store, 94);
+    switch (r) {
+      case (null) { expect.bool(false).isTrue() };
+      case (?rec) {
+        expect.bool(rec.coreEmitResult == ?(#err("network error"))).isTrue();
+      };
+    };
+  },
+);
+
+test(
+  "setEmitResult is a no-op for unknown envelopeId",
+  func() {
+    let store = RunStoreModel.empty();
+    RunStoreModel.setEmitResult(store, 999, #ok); // should not trap
+    let sz = RunStoreModel.sizes(store);
+    expect.nat(sz.completed).equal(0);
+    expect.nat(sz.failed).equal(0);
+  },
+);
