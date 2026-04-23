@@ -24,6 +24,17 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
   // On mismatch Core receives a JSON error body and retries with the required version.
   let envelopeVersion : Text = "v1";
 
+  // ── Periodic run-store maintenance ────────────────────────────────
+  // Runs every hour: recovers hung runs, prunes completed/failed records.
+  ignore Timer.recurringTimer<system>(
+    #seconds(3600),
+    func() : async () {
+      ignore RunStoreModel.failStaleRunning(runStore);
+      ignore RunStoreModel.purgeCompleted(runStore);
+      ignore RunStoreModel.purgeOldFailed(runStore);
+    },
+  );
+
   // ── Execute (ingress) ─────────────────────────────────────────────
   // Validates, enqueues into the run store, fires a zero-delay timer,
   // and returns immediately. The LLM loop runs asynchronously via the

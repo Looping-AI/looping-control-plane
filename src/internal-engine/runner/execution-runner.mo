@@ -235,8 +235,8 @@ module {
             List.add(inputHistory, item);
           };
 
-          // Emit milestone if meaningful work was done (write operations or 2+ tools)
-          if (results.size() >= 2 or hasWriteOperation(results)) {
+          // Emit milestone if meaningful work was done (2+ tools, or any tool succeeded)
+          if (results.size() >= 2 or hasAnySuccess(results)) {
             try {
               ignore emitMilestone(
                 core,
@@ -271,16 +271,17 @@ module {
     status : ExecutionTypes.ExecutionStatus,
     stats : ExecutionTypes.ExecutionStats,
   ) : async { #ok : Text; #err : Text } {
-    let body = Json.stringify(
-      obj([
-        ("envelopeNonce", str(envelopeNonce)),
-        ("humanSummary", str(humanSummary)),
-        ("stepsDetail", stepsToJson(stepsDetail)),
-        ("status", statusToJson(status)),
-        ("stats", statsToJson(stats)),
-      ]),
-      null,
-    );
+    let fields = List.empty<(Text, Json.Json)>();
+    List.add(fields, ("envelopeNonce", str(envelopeNonce)));
+    List.add(fields, ("humanSummary", str(humanSummary)));
+    List.add(fields, ("stepsDetail", stepsToJson(stepsDetail)));
+    List.add(fields, ("status", statusToJson(status)));
+    switch (status) {
+      case (#failed(reason)) { List.add(fields, ("statusReason", str(reason))) };
+      case (_) {};
+    };
+    List.add(fields, ("stats", statsToJson(stats)));
+    let body = Json.stringify(obj(List.toArray(fields)), null);
     try {
       await core.executionApi(#post, "/execution/complete", body);
     } catch (e : Error) {
@@ -329,9 +330,7 @@ module {
   func statusToJson(status : ExecutionTypes.ExecutionStatus) : Json.Json {
     switch (status) {
       case (#completed) { str("completed") };
-      case (#failed(msg)) {
-        obj([("failed", str(msg))]);
-      };
+      case (#failed(_)) { str("failed") };
       case (#roundLimitReached) { str("roundLimitReached") };
     };
   };
@@ -418,7 +417,7 @@ module {
     };
   };
 
-  func hasWriteOperation(results : [ToolTypes.ToolResult]) : Bool {
+  func hasAnySuccess(results : [ToolTypes.ToolResult]) : Bool {
     Array.any<ToolTypes.ToolResult>(
       results,
       func(r : ToolTypes.ToolResult) : Bool {
