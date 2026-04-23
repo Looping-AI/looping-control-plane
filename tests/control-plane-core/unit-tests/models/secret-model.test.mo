@@ -198,7 +198,7 @@ suite(
 
         // Store multiple secrets
         ignore SecretModel.storeSecret(state, testKey, workspaceId, #openRouterApiKey, "key-1", testRequester);
-        ignore SecretModel.storeSecret(state, testKey, workspaceId, #anthropicApiKey, "key-2", testRequester);
+        ignore SecretModel.storeSecret(state, testKey, workspaceId, #custom("tool-key"), "key-2", testRequester);
         ignore SecretModel.storeSecret(state, testKey, workspaceId, #slackBotToken, "bot-token", testRequester);
 
         let result = SecretModel.getWorkspaceSecrets(state, workspaceId);
@@ -311,12 +311,12 @@ suite(
       func() {
         let workspaceId = 1;
         let state = SecretModel.initState();
-        ignore SecretModel.storeSecret(state, testKey, workspaceId, #anthropicApiKey, "k", testRequester);
-        ignore SecretModel.deleteSecret(state, workspaceId, #anthropicApiKey, testRequester);
+        ignore SecretModel.storeSecret(state, testKey, workspaceId, #custom("tool-key"), "k", testRequester);
+        ignore SecretModel.deleteSecret(state, workspaceId, #custom("tool-key"), testRequester);
         // Query all entries (timestamps may collide in synchronous test execution)
         let log = SecretModel.getChangeLogSince(state, workspaceId, 0);
         expect.nat(log.size()).equal(2); // store + delete
-        expect.bool(log[1].changeType == #deleted(#anthropicApiKey)).isTrue();
+        expect.bool(log[1].changeType == #deleted(#custom("tool-key"))).isTrue();
       },
     );
 
@@ -342,12 +342,12 @@ suite(
         let workspaceId = 2;
         let state = SecretModel.initState();
         ignore SecretModel.storeSecret(state, testKey, workspaceId, #openRouterApiKey, "k1", testRequester);
-        ignore SecretModel.storeSecret(state, testKey, workspaceId, #anthropicApiKey, "k2", testRequester);
+        ignore SecretModel.storeSecret(state, testKey, workspaceId, #custom("tool-key"), "k2", testRequester);
         // In synchronous test execution Time.now() is constant, so since=0 returns all entries.
         let log = SecretModel.getChangeLogSince(state, workspaceId, 0);
         expect.nat(log.size()).equal(2);
         expect.bool(log[0].changeType == #stored(#openRouterApiKey)).isTrue();
-        expect.bool(log[1].changeType == #stored(#anthropicApiKey)).isTrue();
+        expect.bool(log[1].changeType == #stored(#custom("tool-key"))).isTrue();
         // A far-future cutoff should return nothing
         let futureLog = SecretModel.getChangeLogSince(state, workspaceId, 9_999_999_999_999_999_999);
         expect.nat(futureLog.size()).equal(0);
