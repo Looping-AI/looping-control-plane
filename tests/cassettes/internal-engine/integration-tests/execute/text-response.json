@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "text-response",
-  "recordedAt": "2026-04-22T22:45:57.360Z",
+  "recordedAt": "2026-04-23T10:59:33.830Z",
   "interactions": [
     {
       "request": {
@@ -13,7 +13,7 @@
           ["HTTP-Referer", "https://loopingai.app"],
           ["X-Title", "Looping AI"]
         ],
-        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Say hello in exactly one word.\"}],\"model\":\"openai/gpt-4.1-mini\",\"instructions\":\"You are a test assistant.\",\"store\":false,\"stream\":false,\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"}}",
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Say hello in exactly one word.\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are a test assistant.\",\"store\":false,\"stream\":false,\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"}}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -21,9 +21,9 @@
         "headers": [
           ["access-control-allow-origin", "*"],
           ["access-control-expose-headers", "X-Generation-Id,cf-ray"],
-          ["cf-ray", "9f08296aec540b12-LIS"],
+          ["cf-ray", "9f0c5c09dcb2b2a2-LIS"],
           ["content-type", "application/json"],
-          ["date", "Wed, 22 Apr 2026 22:45:58 GMT"],
+          ["date", "Thu, 23 Apr 2026 10:59:34 GMT"],
           [
             "permissions-policy",
             "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
@@ -31,9 +31,9 @@
           ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
           ["server", "cloudflare"],
           ["x-content-type-options", "nosniff"],
-          ["x-generation-id", "gen-1776897957-Fn1XL0Jx5yay6e6zUaM8"]
+          ["x-generation-id", "gen-1776941974-7lzKclIdD1wrMBOH0n8N"]
         ],
-        "body": "\n         \n{\"id\":\"gen-1776897957-Fn1XL0Jx5yay6e6zUaM8\",\"object\":\"response\",\"created_at\":1776897957,\"model\":\"openai/gpt-4.1-mini-2025-04-14\",\"status\":\"completed\",\"completed_at\":1776897958,\"output\":[{\"id\":\"msg_tmp_62yc38dhqll\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello!\",\"annotations\":[],\"logprobs\":[]}]}],\"error\":null,\"incomplete_details\":null,\"tools\":[],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"default\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":\"You are a test assistant.\",\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"safety_identifier\":null,\"prompt_cache_key\":null,\"usage\":{\"input_tokens\":24,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":3,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":27,\"cost\":0.0000144,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.0000144,\"upstream_inference_input_cost\":0.0000096,\"upstream_inference_output_cost\":0.0000048}}}",
+        "body": "\n         \n\n         \n\n         \n\n         \n{\"id\":\"gen-1776941974-7lzKclIdD1wrMBOH0n8N\",\"object\":\"response\",\"created_at\":1776941974,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1776941976,\"output\":[{\"id\":\"rs_tmp_8r787wtxoyl\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asks: \\\"Say hello in exactly one word.\\\" The user wants a single word that says hello. Potentially \\\"Hello\\\" is one word. Or \\\"Hi\\\". But \\\"Hello\\\" is one word. The request says: \\\"Say hello in exactly one word.\\\" So answer: \\\"Hello\\\". Or \\\"Hi\\\". The simplest answer: \\\"Hello\\\". Provide the exact single word. Not extra punctuation? Typically punctuation is okay, but it's safe to just output \\\"Hello\\\". No extra words. So just output the word.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"msg_tmp_793f1pofa8\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello\",\"annotations\":[],\"logprobs\":[]}]}],\"error\":null,\"incomplete_details\":null,\"tools\":[],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":\"You are a test assistant.\",\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"safety_identifier\":null,\"prompt_cache_key\":null,\"usage\":{\"input_tokens\":74,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":117,\"output_tokens_details\":{\"reasoning_tokens\":109},\"total_tokens\":191,\"cost\":0.000025116,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.000025116,\"upstream_inference_input_cost\":0.000002886,\"upstream_inference_output_cost\":0.00002223}}}",
         "bodyEncoding": "text"
       }
     }
