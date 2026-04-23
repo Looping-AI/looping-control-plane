@@ -97,7 +97,7 @@ describe("storeOrgCriticalSecrets", () => {
     it("should NOT store secrets that are not Critical", async () => {
       expectErr(
         await actor.storeOrgCriticalSecrets(
-          { anthropicApiKey: null },
+          { custom: "my-key" },
           "sk-test-key",
         ),
       );

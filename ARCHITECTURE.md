@@ -717,7 +717,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 ### Current
 
 - Secrets are encrypted at rest per workspace using keys derived from ICP Threshold Schnorr signatures.
-- Secret types: `#openRouterApiKey`, `#anthropicApiKey`, `#anthropicSetupToken`, `#slackSigningSecret`, `#slackBotToken`, `#custom(Text)`.
+- Secret types: `#openRouterApiKey`, `#slackSigningSecret`, `#slackBotToken`, `#custom(Text)`.
 - Per-workspace encryption key cache (transient, cleared periodically).
 
 Deep dive entrypoints:

@@ -153,7 +153,7 @@ module {
         function = {
           name = "store_secret";
           description = ?"Encrypts and stores a secret for the current workspace. The Slack bot token (slackBotToken) requires org-admin access. LLM API keys (openRouterApiKey) can be stored by workspace admins.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | anthropicApiKey | anthropicSetupToken | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"secretId\",\"secretValue\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"secretId\",\"secretValue\"]}";
         };
       };
       handler = func(args : Text) : async Text {
@@ -174,7 +174,7 @@ module {
         function = {
           name = "delete_secret";
           description = ?"Removes a stored secret from the current workspace. Slack secrets require org-admin access. LLM API keys can be deleted by workspace admins.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | anthropicApiKey | anthropicSetupToken | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"}},\"required\":[\"secretId\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"}},\"required\":[\"secretId\"]}";
         };
       };
       handler = func(args : Text) : async Text {

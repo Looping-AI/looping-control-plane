@@ -19,7 +19,7 @@ import {
 // This handler:
 //   1. Authorizes the caller via UserAuthContext
 //      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
-//      - LLM keys (openRouterApiKey, anthropicApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+//      - LLM keys (openRouterApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
 //   2. Parses JSON args for { workspaceId: number, secretId: string }
 //   3. Deletes the specified secret from the secrets map
 //
@@ -170,7 +170,7 @@ describe("DeleteSecretHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "anthropicApiKey",
+          secretId: "custom:other-key",
           secretValue: "sk-openai",
         }),
         PRIMARY_OWNER,
@@ -200,7 +200,7 @@ describe("DeleteSecretHandler", () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "anthropicApiKey",
+          secretId: "custom:second-key",
           secretValue: "sk-openai-test",
         }),
         ORG_ADMIN,
@@ -214,7 +214,7 @@ describe("DeleteSecretHandler", () => {
       const deleteResponse = parseResponse(deleteResult);
       expect(deleteResponse.success).toBe(true);
 
-      // Verify only anthropicApiKey remains
+      // Verify only custom:second-key remains
       const listResult = await testCanister.testGetWorkspaceSecretsHandler(
         JSON.stringify({ workspaceId: 0 }),
         PRIMARY_OWNER,
@@ -225,7 +225,7 @@ describe("DeleteSecretHandler", () => {
       };
       expect(listResponse.success).toBe(true);
       expect(listResponse.secretIds).toHaveLength(1);
-      expect(listResponse.secretIds).toContain("anthropicApiKey");
+      expect(listResponse.secretIds).toContain("custom:second-key");
       expect(listResponse.secretIds).not.toContain("openRouterApiKey");
     });
 
@@ -233,7 +233,7 @@ describe("DeleteSecretHandler", () => {
       // Store all four secrets
       for (const secretId of [
         "openRouterApiKey",
-        "anthropicApiKey",
+        "custom:extra-key",
         "slackBotToken",
         "slackSigningSecret",
       ] as const) {
@@ -245,7 +245,7 @@ describe("DeleteSecretHandler", () => {
 
       // Delete only one
       await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "anthropicApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "custom:extra-key" }),
         ORG_ADMIN,
       );
 
@@ -259,7 +259,7 @@ describe("DeleteSecretHandler", () => {
         secretIds: string[];
       };
       expect(listResponse.secretIds).toHaveLength(3);
-      expect(listResponse.secretIds).not.toContain("anthropicApiKey");
+      expect(listResponse.secretIds).not.toContain("custom:extra-key");
     });
 
     it("should delete a slackSigningSecret successfully (org admin)", async () => {
@@ -324,38 +324,6 @@ describe("DeleteSecretHandler", () => {
       expect(response.success).toBe(true);
     });
 
-    it("should delete an anthropicApiKey successfully", async () => {
-      await testCanister.testStoreSecretHandler(
-        JSON.stringify({
-          workspaceId: 0,
-          secretId: "anthropicApiKey",
-          secretValue: "sk-ant-test",
-        }),
-        PRIMARY_OWNER,
-      );
-      const result = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "anthropicApiKey" }),
-        PRIMARY_OWNER,
-      );
-      expect(parseResponse(result).success).toBe(true);
-    });
-
-    it("should delete an anthropicSetupToken successfully", async () => {
-      await testCanister.testStoreSecretHandler(
-        JSON.stringify({
-          workspaceId: 0,
-          secretId: "anthropicSetupToken",
-          secretValue: "setup-token",
-        }),
-        ORG_ADMIN,
-      );
-      const result = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "anthropicSetupToken" }),
-        ORG_ADMIN,
-      );
-      expect(parseResponse(result).success).toBe(true);
-    });
-
     it("should delete a custom:<name> secret successfully", async () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
@@ -372,17 +340,17 @@ describe("DeleteSecretHandler", () => {
       expect(parseResponse(result).success).toBe(true);
     });
 
-    it("should allow workspace admin to delete anthropicApiKey", async () => {
+    it("should allow workspace admin to delete openRouterApiKey", async () => {
       await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "anthropicApiKey",
-          secretValue: "sk-ant-ws",
+          secretId: "openRouterApiKey",
+          secretValue: "sk-or-ws",
         }),
         PRIMARY_OWNER,
       );
       const result = await testCanister.testDeleteSecretHandler(
-        JSON.stringify({ workspaceId: 0, secretId: "anthropicApiKey" }),
+        JSON.stringify({ workspaceId: 0, secretId: "openRouterApiKey" }),
         WORKSPACE_ADMIN_0,
       );
       expect(parseResponse(result).success).toBe(true);

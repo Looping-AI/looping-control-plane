@@ -6,8 +6,6 @@ module {
   public func parseSecretId(s : Text) : ?Types.SecretId {
     switch (s) {
       case ("openRouterApiKey") { ?#openRouterApiKey };
-      case ("anthropicApiKey") { ?#anthropicApiKey };
-      case ("anthropicSetupToken") { ?#anthropicSetupToken };
       case ("slackBotToken") { ?#slackBotToken };
       case ("slackSigningSecret") { ?#slackSigningSecret };
       case _ {

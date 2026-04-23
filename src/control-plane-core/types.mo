@@ -14,8 +14,6 @@ module {
   /// Each variant represents a distinct secret that can be stored per workspace
   public type SecretId = {
     #openRouterApiKey;
-    #anthropicApiKey; // API key variant; only used by runtime agents
-    #anthropicSetupToken; // Subscription long-lived token variant; only used by runtime agents
     #slackBotToken;
     #slackSigningSecret;
     #custom : Text; // admin-defined key name; stored as "custom:<name>" in the map

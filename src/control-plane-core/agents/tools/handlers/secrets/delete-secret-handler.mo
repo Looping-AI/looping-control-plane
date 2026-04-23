@@ -15,7 +15,7 @@ module {
   ///
   /// Authorization:
   ///   - Slack secrets (slackBotToken, slackSigningSecret): requires #IsPrimaryOwner or #IsOrgAdmin
-  ///   - LLM keys (openRouterApiKey): requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+  ///   - Non-platform secrets (openRouterApiKey, custom:<name>): requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
   public func handle(
     secrets : SecretModel.SecretsState,
     uac : SlackAuthMiddleware.UserAuthContext,
@@ -61,7 +61,7 @@ module {
             };
           };
           case (_) {
-            Helpers.buildErrorResponse("Invalid secretId. Must be one of: openRouterApiKey, slackSigningSecret, slackBotToken");
+            Helpers.buildErrorResponse("Invalid secretId. Must be one of: openRouterApiKey, slackBotToken, slackSigningSecret, or custom:<name>");
           };
         };
       };

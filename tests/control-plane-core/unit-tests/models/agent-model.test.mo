@@ -521,7 +521,7 @@ suite(
             allowedChannelIds = Set.empty<Text>();
             executionEngines = [#canister];
             secrets = {
-              allowed = [(1, #openRouterApiKey), (2, #anthropicApiKey)];
+              allowed = [(1, #openRouterApiKey), (2, #custom("tool-key"))];
               overrides = [];
             };
           },
@@ -623,7 +623,7 @@ suite(
             executionEngines = [#canister];
             secrets = {
               allowed = [];
-              overrides = [(#openRouterApiKey, "my-custom-key"), (#anthropicApiKey, "another-key")];
+              overrides = [(#openRouterApiKey, "my-custom-key"), (#custom("alt-key"), "another-key")];
             };
           },
         );

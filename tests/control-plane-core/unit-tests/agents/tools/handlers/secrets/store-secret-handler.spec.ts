@@ -19,7 +19,7 @@ import {
 // This handler:
 //   1. Authorizes the caller via UserAuthContext
 //      - Slack secrets (slackBotToken, slackSigningSecret): #IsPrimaryOwner or #IsOrgAdmin only
-//      - LLM keys (openRouterApiKey, anthropicApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
+//      - LLM keys (openRouterApiKey): #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
 //   2. Validates input: secretId (string enum), secretValue (non-empty string)
 //      workspaceId is extracted from JSON args by the test wrapper and passed as a typed
 //      caller-provided param — workspace existence is enforced at the orchestrator layer.
@@ -122,7 +122,7 @@ describe("StoreSecretHandler", () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "anthropicApiKey",
+          secretId: "custom:org-tool-key",
           secretValue: "sk-openai-test",
         }),
         ORG_ADMIN,
@@ -365,11 +365,11 @@ describe("StoreSecretHandler", () => {
       expect(listResponse.secretIds).toHaveLength(1);
     });
 
-    it("should store an anthropicApiKey successfully", async () => {
+    it("should store a custom:<name> secret using primary owner", async () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "anthropicApiKey",
+          secretId: "custom:org-tool",
           secretValue: "sk-ant-test",
         }),
         PRIMARY_OWNER,
@@ -377,19 +377,6 @@ describe("StoreSecretHandler", () => {
       const response = parseResponse(result);
       expect(response.success).toBe(true);
       expect(response.message).toContain("stored");
-    });
-
-    it("should store an anthropicSetupToken successfully", async () => {
-      const result = await testCanister.testStoreSecretHandler(
-        JSON.stringify({
-          workspaceId: 0,
-          secretId: "anthropicSetupToken",
-          secretValue: "setup-token-value",
-        }),
-        ORG_ADMIN,
-      );
-      const response = parseResponse(result);
-      expect(response.success).toBe(true);
     });
 
     it("should store a custom:<name> secret successfully", async () => {
@@ -405,12 +392,12 @@ describe("StoreSecretHandler", () => {
       expect(response.success).toBe(true);
     });
 
-    it("should allow a workspace admin to store anthropicApiKey", async () => {
+    it("should allow a workspace admin to store openRouterApiKey", async () => {
       const result = await testCanister.testStoreSecretHandler(
         JSON.stringify({
           workspaceId: 0,
-          secretId: "anthropicApiKey",
-          secretValue: "sk-ant-ws-admin",
+          secretId: "openRouterApiKey",
+          secretValue: "sk-or-ws-admin",
         }),
         WORKSPACE_ADMIN_0,
       );

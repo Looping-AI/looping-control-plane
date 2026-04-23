@@ -1,7 +1,6 @@
 import Json "mo:json";
 import { str; obj } "mo:json";
 import Nat "mo:core/Nat";
-import Float "mo:core/Float";
 import ToolTypes "../tools/tool-types";
 
 module {
@@ -57,12 +56,6 @@ module {
       case (#ok(parsed)) {
         switch (Json.get(parsed, field)) {
           case (?#number(#int(n))) {
-            if (n < 0) { #err("'" # field # "' must be non-negative") } else {
-              #ok(Nat.fromInt(n));
-            };
-          };
-          case (?#number(#float(f))) {
-            let n = Float.toInt(f);
             if (n < 0) { #err("'" # field # "' must be non-negative") } else {
               #ok(Nat.fromInt(n));
             };

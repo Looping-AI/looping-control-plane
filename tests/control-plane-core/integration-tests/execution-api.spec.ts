@@ -56,7 +56,7 @@ describe("executionApi – Candid endpoint", () => {
       const result = await actor.testExecutionApi(
         { get: null },
         "/workspace",
-        JSON.stringify({ tokenNonce: "no-such-token" }),
+        JSON.stringify({ envelopeNonce: "no-such-token" }),
       );
       // Service error (not auth) is still #err
       expect("err" in result).toBe(true);
@@ -77,7 +77,7 @@ describe("executionApi – Candid endpoint", () => {
       const result = await actor.testExecutionApi(
         { get: null },
         "/workspace",
-        JSON.stringify({ tokenNonce: "any" }),
+        JSON.stringify({ envelopeNonce: "any" }),
       );
       expect("err" in result).toBe(true);
       if ("err" in result) {
@@ -98,7 +98,7 @@ describe("executionApi – Candid endpoint", () => {
       const result = await actor.testExecutionApi(
         { get: null },
         "/workspace",
-        JSON.stringify({ tokenNonce: nonce }),
+        JSON.stringify({ envelopeNonce: nonce }),
       );
       // Guard passes; workspace 0 exists by default
       expect("ok" in result).toBe(true);
@@ -116,7 +116,7 @@ describe("executionApi – Candid endpoint", () => {
       const result = await actor.testExecutionApi(
         { get: null },
         "/workspace",
-        JSON.stringify({ tokenNonce: nonce }),
+        JSON.stringify({ envelopeNonce: nonce }),
       );
 
       expect("ok" in result).toBe(true);
@@ -127,7 +127,7 @@ describe("executionApi – Candid endpoint", () => {
       }
     });
 
-    it("should return error for a missing tokenNonce", async () => {
+    it("should return error for a missing envelopeNonce", async () => {
       const result = await actor.testExecutionApi(
         { get: null },
         "/workspace",
@@ -140,7 +140,7 @@ describe("executionApi – Candid endpoint", () => {
       const result = await actor.testExecutionApi(
         { get: null },
         "/workspace",
-        JSON.stringify({ tokenNonce: "no-such-token" }),
+        JSON.stringify({ envelopeNonce: "no-such-token" }),
       );
       expect("err" in result).toBe(true);
     });
@@ -158,7 +158,7 @@ describe("executionApi – Candid endpoint", () => {
         { post: null },
         "/execution/complete",
         JSON.stringify({
-          tokenNonce: nonce,
+          envelopeNonce: nonce,
           humanSummary: "Workflow complete.",
           status: "completed",
         }),
@@ -170,7 +170,7 @@ describe("executionApi – Candid endpoint", () => {
         { post: null },
         "/execution/complete",
         JSON.stringify({
-          tokenNonce: nonce,
+          envelopeNonce: nonce,
           humanSummary: "Retry.",
           status: "completed",
         }),
@@ -184,7 +184,7 @@ describe("executionApi – Candid endpoint", () => {
       const result = await actor.testExecutionApi(
         { post: null },
         "/execution/complete",
-        JSON.stringify({ tokenNonce: nonce }),
+        JSON.stringify({ envelopeNonce: nonce }),
       );
       expect("err" in result).toBe(true);
     });
@@ -202,7 +202,7 @@ describe("executionApi – Candid endpoint", () => {
         { post: null },
         "/execution/milestone",
         JSON.stringify({
-          tokenNonce: nonce,
+          envelopeNonce: nonce,
           humanSummary: "Step 1 done.",
         }),
       );
@@ -212,7 +212,7 @@ describe("executionApi – Candid endpoint", () => {
       const followUpResult = await actor.testExecutionApi(
         { get: null },
         "/workspace",
-        JSON.stringify({ tokenNonce: nonce }),
+        JSON.stringify({ envelopeNonce: nonce }),
       );
       expect("ok" in followUpResult).toBe(true);
     });
@@ -223,7 +223,7 @@ describe("executionApi – Candid endpoint", () => {
       const result = await actor.testExecutionApi(
         { post: null },
         "/execution/milestone",
-        JSON.stringify({ tokenNonce: nonce }),
+        JSON.stringify({ envelopeNonce: nonce }),
       );
       expect("err" in result).toBe(true);
     });
@@ -240,7 +240,7 @@ describe("executionApi – Candid endpoint", () => {
       const result = await actor.testExecutionApi(
         { get: null },
         "/no-such-route",
-        JSON.stringify({ tokenNonce: nonce }),
+        JSON.stringify({ envelopeNonce: nonce }),
       );
       expect("err" in result).toBe(true);
     });
