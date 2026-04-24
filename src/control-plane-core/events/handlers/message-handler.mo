@@ -425,6 +425,26 @@ module {
     };
 
     // ── Channel guard ─────────────────────────────────────────────────────────
+    // Helper: post a user-visible error and return a two-step result.
+    // Uses botTokenOpt (already fetched); silently skips the Slack post if no token.
+    func guardReject(errMsg : Text, slackText : Text) : async NormalizedEventTypes.HandlerResult {
+      let guardStep : Types.ProcessingStep = {
+        action = "channel_guard";
+        result = #err(errMsg);
+        timestamp = Time.now();
+      };
+      let slackResult = switch (botTokenOpt) {
+        case (null) { #err("no bot token") };
+        case (?token) {
+          switch (await SlackWrapper.postMessage(token, msg.channel, slackText, msg.threadTs, null)) {
+            case (#ok(_)) { #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
+      };
+      #ok([guardStep, { action = "post_to_slack"; result = slackResult; timestamp = Time.now() }]);
+    };
+
     switch (primaryAgent.category) {
       case (#_system(#admin)) {
         let adminChannelId : ?Text = switch (WorkspaceModel.getWorkspace(ctx.workspaces, primaryAgent.ownedBy)) {
@@ -433,29 +453,26 @@ module {
         };
         let allowedId = switch (adminChannelId) {
           case (null) {
-            return #ok([{
-              action = "channel_guard";
-              result = #err("admin channel not yet configured");
-              timestamp = Time.now();
-            }]);
+            return await guardReject(
+              "admin channel not yet configured",
+              "The admin channel for this workspace has not yet been configured. Use set_workspace_admin_channel to anchor it.",
+            );
           };
           case (?id) { id };
         };
         if (allowedId != msg.channel) {
-          return #ok([{
-            action = "channel_guard";
-            result = #err("channel not admin channel");
-            timestamp = Time.now();
-          }]);
+          return await guardReject(
+            "channel not admin channel",
+            "Agent '" # primaryAgent.config.name # "' can only be invoked from the configured admin channel (" # allowedId # ").",
+          );
         };
       };
       case (_) {
         if (not Set.contains(primaryAgent.config.allowedChannelIds, Text.compare, msg.channel)) {
-          return #ok([{
-            action = "channel_guard";
-            result = #err("channel not in allowlist");
-            timestamp = Time.now();
-          }]);
+          return await guardReject(
+            "channel not in allowlist",
+            "Agent '" # primaryAgent.config.name # "' is not allowed in this channel.",
+          );
         };
       };
     };

@@ -38,7 +38,7 @@ const BOT_TOKEN =
 const OPENROUTER_API_KEY =
   process.env["OPENROUTER_TEST_KEY"] ?? "not-needed-due-to-cassette";
 const DISPATCH_TEST_CHANNEL = "C_DISPATCH_TEST";
-const CASSETTE_TEST_TIMEOUT_MS = 120_000;
+const CASSETTE_TEST_TIMEOUT_MS = 60_000;
 
 describe("MessageHandler Unit Tests", () => {
   let pic: PocketIc;
@@ -739,64 +739,60 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
     await pic.tearDown();
   });
 
-  it(
-    "should post a termination prompt to Slack when MAX_AGENT_ROUNDS is reached",
-    async () => {
-      // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → force-terminate.
-      // Unlike the non-deferred guard test, this deferred version captures both the
-      // round_force_terminated HandlerResult AND the outgoing Slack chat.postMessage call
-      // (the termination prompt) via cassette.
-      const PARENT_TS = "1700000010.000100";
-      const cassetteName =
-        "control-plane-core/unit-tests/events/handlers/message-handler/max-rounds-termination-prompt";
-      const channel = await resolveSpecsChannel(cassetteName);
+  it("should post a termination prompt to Slack when MAX_AGENT_ROUNDS is reached", async () => {
+    // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → force-terminate.
+    // Unlike the non-deferred guard test, this deferred version captures both the
+    // round_force_terminated HandlerResult AND the outgoing Slack chat.postMessage call
+    // (the termination prompt) via cassette.
+    const PARENT_TS = "1700000010.000100";
+    const cassetteName =
+      "control-plane-core/unit-tests/events/handlers/message-handler/max-rounds-termination-prompt";
+    const channel = await resolveSpecsChannel(cassetteName);
 
-      const { result } = await withCassette(
-        pic,
-        cassetteName,
-        () =>
-          testCanister.testMessageHandlerBotBranch(
-            {
-              user: "UBOT001",
-              text: "::unit-test-admin please continue",
-              channel,
-              ts: "1700000020.000100",
-              threadTs: [PARENT_TS] as [string],
-              isBotMessage: true,
-              agentMetadata: [
-                {
-                  event_type: "looping_agent_message",
-                  event_payload: {
-                    parent_agent: "unit-test-admin",
-                    parent_ts: PARENT_TS,
-                    parent_channel: channel,
-                    turn_id: "0_0",
-                  },
-                },
-              ],
-            },
-            BOT_TOKEN,
-            OPENROUTER_API_KEY,
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerBotBranch(
+          {
+            user: "UBOT001",
+            text: "::unit-test-admin please continue",
             channel,
-            PARENT_TS,
-            10n, // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → terminate
-          ),
-        { ticks: 5, maxRounds: 3 },
-      );
+            ts: "1700000020.000100",
+            threadTs: [PARENT_TS] as [string],
+            isBotMessage: true,
+            agentMetadata: [
+              {
+                event_type: "looping_agent_message",
+                event_payload: {
+                  parent_agent: "unit-test-admin",
+                  parent_ts: PARENT_TS,
+                  parent_channel: channel,
+                  turn_id: "0_0",
+                },
+              },
+            ],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+          channel,
+          PARENT_TS,
+          10n, // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → terminate
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
 
-      const response = await result;
-      expect("ok" in response).toBe(true);
-      if ("ok" in response) {
-        // Handler returns round_force_terminated.
-        expect(response.ok).toHaveLength(1);
-        expect(response.ok[0].action).toBe("round_force_terminated");
-        // The cassette should capture the outgoing Slack chat.postMessage for the
-        // termination prompt — verified by the cassette recording containing a POST
-        // to api.slack.com/api/chat.postMessage with the ⚠️ continuation message.
-      }
-    },
-    { timeout: CASSETTE_TEST_TIMEOUT_MS },
-  );
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      // Handler returns round_force_terminated.
+      expect(response.ok).toHaveLength(1);
+      expect(response.ok[0].action).toBe("round_force_terminated");
+      // The cassette should capture the outgoing Slack chat.postMessage for the
+      // termination prompt — verified by the cassette recording containing a POST
+      // to api.slack.com/api/chat.postMessage with the ⚠️ continuation message.
+    }
+  });
 });
 
 // ============================================
@@ -806,8 +802,8 @@ describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
 // adminChannelId is not set (null) or when the message arrives from a channel
 // that is not the configured admin channel.
 //
-// The guard fires after the bot-token check, so both cases still result in a
-// Slack error post via postAgentReply — captured via cassette.
+// The guard fires after the bot-token check and returns both a channel_guard
+// step and a post_to_slack step so the user sees a visible error.
 // ============================================
 
 describe("MessageHandler — admin channel routing guard", () => {
@@ -826,102 +822,94 @@ describe("MessageHandler — admin channel routing guard", () => {
     await pic.tearDown();
   });
 
-  it(
-    "should block admin agent and surface error when adminChannelId is not configured (null)",
-    async () => {
-      // Workspace 0 has no admin channel configured.
-      // The routing guard fires and the error is posted to Slack via postAgentReply.
-      const cassetteName =
-        "control-plane-core/unit-tests/events/handlers/message-handler/admin-guard-null-channel";
-      const channel = await resolveSpecsChannel(cassetteName);
+  it("should block admin agent and surface error when adminChannelId is not configured (null)", async () => {
+    // Workspace 0 has no admin channel configured.
+    // The routing guard fires and returns a channel_guard error step.
+    const cassetteName =
+      "control-plane-core/unit-tests/events/handlers/message-handler/admin-guard-null-channel";
+    const channel = await resolveSpecsChannel(cassetteName);
 
-      const { result } = await withCassette(
-        pic,
-        cassetteName,
-        () =>
-          testCanister.testMessageHandlerAdminChannelBlocked(
-            {
-              user: "U_USER",
-              text: "hello admin",
-              channel,
-              ts: "1700000010.000020",
-              threadTs: [] as [],
-              isBotMessage: false,
-              agentMetadata: [] as [],
-            },
-            BOT_TOKEN,
-            OPENROUTER_API_KEY,
-            [] as [], // null adminChannelOverride — workspace 0 has no admin channel
-          ),
-        { ticks: 5, maxRounds: 3 },
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerAdminChannelBlocked(
+          {
+            user: "U_USER",
+            text: "hello admin",
+            channel,
+            ts: "1700000010.000020",
+            threadTs: [] as [],
+            isBotMessage: false,
+            agentMetadata: [] as [],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+          [] as [], // null adminChannelOverride — workspace 0 has no admin channel
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      const guardStep = response.ok.find(
+        (s: { action: string }) => s.action === "channel_guard",
       );
-
-      const response = await result;
-      expect("ok" in response).toBe(true);
-      if ("ok" in response) {
-        // A "route" step with an error must appear before the Slack post step.
-        const routeStep = response.ok.find(
-          (s: { action: string }) => s.action === "route",
+      expect(guardStep).toBeDefined();
+      if (guardStep && "err" in guardStep.result) {
+        expect(guardStep.result.err).toContain(
+          "admin channel not yet configured",
         );
-        expect(routeStep).toBeDefined();
-        if (routeStep && "err" in routeStep.result) {
-          expect(routeStep.result.err).toContain(
-            "admin channel not yet configured",
-          );
-        }
-        // The error is always surfaced via a Slack post.
-        const lastStep = response.ok[response.ok.length - 1];
-        expect(lastStep.action).toBe("post_to_slack");
       }
-    },
-    { timeout: CASSETTE_TEST_TIMEOUT_MS },
-  );
+      // The error is always surfaced via a Slack post.
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+    }
+  });
 
-  it(
-    "should block admin agent and surface error when message arrives from wrong channel",
-    async () => {
-      // Workspace 0's admin channel is set to "C_ORG_ADMIN_CONFIGURED" but the
-      // message arrives from a different channel (the specs channel).
-      // The routing guard fires and the error is posted to Slack.
-      const cassetteName =
-        "control-plane-core/unit-tests/events/handlers/message-handler/admin-guard-wrong-channel";
-      const channel = await resolveSpecsChannel(cassetteName);
+  it("should block admin agent and surface error when message arrives from wrong channel", async () => {
+    // Workspace 0's admin channel is set to "C_ORG_ADMIN_CONFIGURED" but the
+    // message arrives from a different channel (the specs channel).
+    // The routing guard fires and returns a channel_guard error step.
+    const cassetteName =
+      "control-plane-core/unit-tests/events/handlers/message-handler/admin-guard-wrong-channel";
+    const channel = await resolveSpecsChannel(cassetteName);
 
-      const { result } = await withCassette(
-        pic,
-        cassetteName,
-        () =>
-          testCanister.testMessageHandlerAdminChannelBlocked(
-            {
-              user: "U_USER",
-              text: "hello admin",
-              channel,
-              ts: "1700000010.000021",
-              threadTs: [] as [],
-              isBotMessage: false,
-              agentMetadata: [] as [],
-            },
-            BOT_TOKEN,
-            OPENROUTER_API_KEY,
-            ["C_ORG_ADMIN_CONFIGURED"] as [string], // adminChannelId differs from msg channel
-          ),
-        { ticks: 5, maxRounds: 3 },
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerAdminChannelBlocked(
+          {
+            user: "U_USER",
+            text: "hello admin",
+            channel,
+            ts: "1700000010.000021",
+            threadTs: [] as [],
+            isBotMessage: false,
+            agentMetadata: [] as [],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+          ["C_ORG_ADMIN_CONFIGURED"] as [string], // adminChannelId differs from msg channel
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      const guardStep = response.ok.find(
+        (s: { action: string }) => s.action === "channel_guard",
       );
-
-      const response = await result;
-      expect("ok" in response).toBe(true);
-      if ("ok" in response) {
-        const routeStep = response.ok.find(
-          (s: { action: string }) => s.action === "route",
-        );
-        expect(routeStep).toBeDefined();
-        if (routeStep && "err" in routeStep.result) {
-          expect(routeStep.result.err).toContain("channel not admin channel");
-        }
-        const lastStep = response.ok[response.ok.length - 1];
-        expect(lastStep.action).toBe("post_to_slack");
+      expect(guardStep).toBeDefined();
+      if (guardStep && "err" in guardStep.result) {
+        expect(guardStep.result.err).toContain("channel not admin channel");
       }
-    },
-    { timeout: CASSETTE_TEST_TIMEOUT_MS },
-  );
+      // The error is always surfaced via a Slack post.
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+    }
+  });
 });
