@@ -36,7 +36,120 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ---
 
-### 5.2.1 — HMAC encrypted envelop (JSON format always)
+### 5.2.1 — Workflow-as-Proxy-Tool with Approval Gate
+
+**TL;DR**: Engine becomes the source of truth for a content-hashed **workflow catalog**. Core caches it, filters by scope intersection, and registers each workflow as a normal LLM tool bound to a single generic `WorkflowProxyHandler`. Workflows can declare a non-nullable `coreDirectives` array (today: `approvalRequired`) that core acts on. The agent never sees `dispatch_workflow`, permits, or envelopes — all plumbing. A new `#awaitingApproval` turn state suspends on sensitive operations until the same Slack user replies `approve`.
+
+**Phase 1 — Engine-owned workflow catalog**
+
+- New `src/internal-engine/workflows/workflow-catalog.mo`. JSON wire shape returned by `listWorkflows() : async query Text`:
+  ```
+  { "catalogHash": "<hex SHA-256>",
+    "descriptors": [
+      { "workflowName": "workspace.delete",
+        "description": "...",
+        "parametersJsonSchema": { ... },
+        "requiredScopes": [{"scope":"workspace","access":"write"}],
+        "coreDirectives": [{"type":"approvalRequired"}] },
+      ...
+    ] }
+  ```
+- `coreDirectives` is **always an array** (empty = no directives). Today's only recognized type: `{"type":"approvalRequired"}`. Unknown types ignored for forward compat.
+- Drop the `admin-v1` umbrella. Seed per-capability workflows: `workspace.create`, `workspace.delete` (approval), `workspace.set_admin_channel`, `agents.list`, `agents.register`, `agents.update`, `agents.unregister`, `slack_queue.stats`, `slack_queue.failed`, `session.update_policy`.
+- **Catalog hash** = SHA-256 over canonical JSON (sorted keys, no whitespace, deterministic numbers) using the existing SHA-256 lib. Memoized at engine startup. No manual version bumping.
+- **Hash handshake on `execute()`**: request includes `catalogHash`; engine rejects mismatch with `#staleCatalog`. No catalog data echoed back.
+- Engine has no Slack token — Slack-touching arg validation goes through the Execution API; failures flow back as normal tool failures.
+- **No catalog-hash on `emitComplete`** — single staleness signal = dispatch handshake.
+
+**Phase 2 — Core catalog cache (lazy refresh)** — _parallel with Phase 1_
+
+- New `src/control-plane-core/models/workflow-catalog-model.mo`: `cached : ?{catalogHash, descriptors}`, atomic `replace`. No "stale" intermediate state.
+- New `src/control-plane-core/services/workflow-catalog-service.mo`:
+  - `refreshCatalogue(state, engine)` — fetches via `engine.listWorkflows()`, parses, replaces.
+  - `getCatalogueFilteredByScopes(state, engine, scopeGrants)` — refreshes if empty, then filters by `requiredScopes ⊆ scopeGrants`.
+- `EngineDispatchService.dispatch` handles `#staleCatalog`: refresh + surface synthetic tool error (`"catalog updated; please retry"`); next LLM round rebuilds tool list from fresh cache.
+- Core sends `cached.catalogHash` on every `execute()`.
+
+**Phase 3 — WorkflowProxyHandler & dynamic tool registration** — _depends on 1+2_
+
+- New `src/control-plane-core/agents/tools/handlers/workflow-proxy-handler.mo`: single generic handler bound to every workflow tool.
+- `handle(descriptor, dispatchCtx, envelopeContext, args) : async HandlerOutcome` where `HandlerOutcome = #dispatchSignal | #approvalSignal{renderedArgs}`. Scans `coreDirectives` for `approvalRequired` → `#approvalSignal`, else dispatch immediately.
+- In `admin-agent-loop.mo`, build the LLM tool list dynamically from `getCatalogueFilteredByScopes(...)`, binding each descriptor to a closure over the generic handler.
+- Delete `src/control-plane-core/agents/tools/handlers/dispatch-workflow-handler.mo` and the text-match permit logic.
+- Retire `OperationPermit` envelope field — gating is `scopeGrants` (engine-side) + `coreDirectives` (core-side).
+
+**Phase 4 — Suspend/resume: `#dispatched` and `#awaitingApproval`** — _depends on 3_
+
+- Extend `AgentTurnRecord` in `src/control-plane-core/models/session-model.mo` with `pendingResume : ?ResumeCheckpoint{messages, pendingToolCallId, roundCount, mode, timerId : ?TimerId}` where `ResumeMode = #dispatched{envelopeId, envelopeNonce} | #awaitingApproval{workflowId, renderedArgs, expiresAtNs}`. Stable-safe defaults.
+- Add `#awaitingApproval` to `TurnStatus`.
+- **Dispatch path**: persist checkpoint, mark `#pending`. On `executionComplete`: append synthetic tool message keyed by `pendingToolCallId`, clear `pendingResume`, transition to `#running`, **re-invoke `AgentLoop.process(...)`** with the assembled context — no separate `resume()` entry point. The orchestrator's existing assemble step picks up the new tool-result message naturally.
+- **Approval path**: handler returns `#approvalSignal{renderedArgs}`; loop persists checkpoint, marks `#awaitingApproval`, posts approval prompt to thread.
+- **Approval interception** in `MessageHandler` pre-agent phase:
+  - Same-thread, same `userAuthContext.userId`, exact-match `"approve"` (case-insensitive, trimmed) → dispatch deferred envelope; existing engine-completion path resumes the LLM. Mismatch → synthetic denial → re-invoke `process()`. **Consume the message either way.**
+  - Different user → don't consume; post a thread note ("approval pending for <@original-user>"); let normal new-turn flow proceed.
+- Bound resumes against `MAX_AGENT_ROUNDS`; overflow → `#roundLimitHit`.
+- Drop the "Dispatching to engine..." terminal Slack reply.
+
+**5.2.1.1 — Approval TTL: per-turn timers, cancellable, upgrade-recovered**
+
+- **Per-turn one-shot timer** scheduled at `expiresAtNs` (1 hour after approval prompt). `Timer.setTimer(deadline)` returns a `TimerId` that is **persisted on the turn's `pendingResume.timerId` field**.
+- On approval (or any denial path): **cancel the timer** via `Timer.cancelTimer(timerId)` before transitioning state, so an expired turn never double-fires. Idempotent: cancellation of an already-fired timer is a no-op.
+- On timer fire: re-check the turn status under a guard (must still be `#awaitingApproval`); if still pending, run the same denial path with reason `"approval timed out"`. If status changed (race with user reply), no-op.
+- **Upgrade recovery**: in the actor's `postupgrade` hook, scan all turns with status `#awaitingApproval` and:
+  - For each, re-arm a one-shot timer at `expiresAtNs` (or fire immediately if `expiresAtNs <= now`), then **overwrite `pendingResume.timerId` with the new `TimerId`** (old one is gone after upgrade).
+  - This preserves the cycle-cheap "only fires when needed" property — no periodic polling.
+- `APPROVAL_TTL_NS = 1 hour` in `Constants`.
+- Helper: `src/control-plane-core/timers/approval-timer.mo` exposes `arm(turnId, deadline) : TimerId`, `cancel(timerId)`, and the post-upgrade `recoverPendingApprovals(sessionState)` sweeper that runs **once on startup**, not periodically.
+
+**Verification**
+
+- `icp build control-plane-core` and `icp build internal-engine` clean.
+- `mops test`: catalog model atomic replace; SHA-256 canonical hash stable across runs and across two different construction orders of the same descriptor set; JSON parser tolerates unknown directive types and unknown top-level fields; `getCatalogueFilteredByScopes` intersection logic; approval interception (userId match vs mismatch); timer cancel-then-fire is no-op (idempotency).
+- Cassettes: workflow without `approvalRequired` → engine completes → resumed reply; `workspace.delete` + `approve` → dispatch → resumed reply; + denial → LLM cancels gracefully; + wrong-user reply → original turn untouched, thread note posted; engine `#staleCatalog` → core refreshes → next round sees fresh tools; `workspace.set_admin_channel` with bad channel → engine surfaces tool failure; round-limit guard at `MAX_AGENT_ROUNDS - 1` finalizes as `#roundLimitHit`.
+- Upgrade test: pre-upgrade `#awaitingApproval` turn with `expiresAtNs` in the past → after upgrade, `recoverPendingApprovals` fires the denial immediately. Pre-upgrade with future `expiresAtNs` → timer re-armed, fires at the right moment.
+
+**Decisions locked**
+
+- Per-capability workflows; no `admin-v1`.
+- `workflowName` is the public identifier.
+- `coreDirectives : [Directive]` — non-nullable array; today only `{"type":"approvalRequired"}`; unknown ignored.
+- `listWorkflows()` returns a JSON string body — transport-agnostic parser.
+- Catalog identified by **`catalogHash` (SHA-256 of canonical JSON)** — no manual version bumping.
+- Hash handshake only on `execute()`; mismatch → refresh → synthetic tool error → LLM retries.
+- No "stale" intermediate cache state.
+- Engine has no Slack token.
+- Approval is the sole core-side gate. `OperationPermit` retired.
+- Approval = bare `"approve"`, same `userAuthContext.userId`, TTL 1h.
+- **Per-turn cancellable timers, recovered in `postupgrade`** — cycle-efficient, no periodic polling.
+- **No separate `resume()` entry point**; `AgentLoop.process()` is re-invoked with the updated message history.
+- Same-turn resume; single in-flight workflow per turn.
+
+**Future considerations — batch dispatch**
+
+- **Wait-all** (LLM emits N tool calls; turn resumes when all complete): cheap parallelism, head-of-line blocking, awkward partial-failure UX. Requires barrier on `pendingResume`.
+- **Wait-any with `await_workflow` tool**: max flexibility, multi-suspension lifecycle, orphaned-envelope GC, new prompting idiom.
+- Common prereqs: `pendingResume` becomes a barrier; engine emits stable `envelopeId` in completion; Slack UX handles interleaved progress.
+- Approval × batch: bundled approvals or fail-fast on first denial. Ship single-dispatch first.
+
+**Risks**
+
+- `coreDirectives` parsing must tolerate unknown types (forward compat).
+- Canonical JSON for hashing must be deterministic (sorted keys, no whitespace, fixed number formatting). Unit test asserts identical hash for two different construction orders.
+- `pendingResume` and `#awaitingApproval` need stable-safe defaults.
+- Timer + user-reply race: cancellation is idempotent and the fire-handler re-checks turn status, so a late fire after a user reply is a no-op.
+- `postupgrade` recovery must not double-arm (only scan turns whose status is `#awaitingApproval` and whose `pendingResume.timerId` references the now-invalid pre-upgrade ID).
+- Slack markdown rendering for `renderedArgs` deferred to a later phase.
+
+---
+
+### 5.2.2 - Improve the EnvelopePayload to more sensible fields
+
+- model in secrets?
+- workflow params
+- catalog version
+- overall review
+
+### 5.2.3 — HMAC encrypted envelop (JSON format always)
 
 - on core, generate a private key for the engine and submit it through an inter canister call.
 - on engine, store the secret and ensure request is coming from the owner.
