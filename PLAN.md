@@ -36,6 +36,15 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ---
 
+### 5.2.1 — HMAC encrypted envelop (JSON format always)
+
+- on core, generate a private key for the engine and submit it through an inter canister call.
+- on engine, store the secret and ensure request is coming from the owner.
+- when envelope is generated, it converts to JSON, and then is encrypted in HMAC and sent on the execute call (both the signature and the body).
+- Engine decripts the body, then parses it to Candid, then proceeds as usual.
+
+---
+
 ### 5.3 — Filesystem: Data Model + Admin Tools
 
 **Goal**

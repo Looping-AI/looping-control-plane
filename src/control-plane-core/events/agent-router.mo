@@ -14,6 +14,7 @@ import Types "../types";
 import AgentOrchestrator "../agents/agent-orchestrator";
 import SecretModel "../models/secret-model";
 import SessionModel "../models/session-model";
+import WorkspaceModel "../models/workspace-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import KeyDerivationService "../services/key-derivation-service";
 
@@ -52,6 +53,7 @@ module {
     triggerMessageText : ?Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     keyCache : KeyDerivationService.KeyCache,
+    workspaces : WorkspaceModel.WorkspacesState,
   ) : async RouteResult {
     // Channel guard — split by category:
     // - #admin agents: routing is governed by the agent's workspace's adminChannelId
@@ -139,6 +141,7 @@ module {
       triggerMessageText,
       userAuthContext,
       keyCache,
+      workspaces,
     );
   };
 };

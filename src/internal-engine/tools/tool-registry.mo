@@ -71,11 +71,11 @@ module {
       };
     };
 
-    // Agent tools — require workspace scope (agents are owned by workspaces)
-    if (hasScope(grants, "workspace", #read)) {
+    // Agent tools — require agents scope
+    if (hasScope(grants, "agents", #read)) {
       List.add(tools, listAgentsTool());
       List.add(tools, getAgentTool());
-      if (hasScope(grants, "workspace", #write)) {
+      if (hasScope(grants, "agents", #write)) {
         List.add(tools, registerAgentTool());
         List.add(tools, updateAgentTool());
         List.add(tools, unregisterAgentTool());
@@ -110,6 +110,9 @@ module {
         switch (g, domain) {
           case (#workspace(w), "workspace") {
             accessSatisfies(w.access, minAccess);
+          };
+          case (#agents(a), "agents") {
+            accessSatisfies(a.access, minAccess);
           };
           case (#agent(a), "agent") { accessSatisfies(a.access, minAccess) };
           case (#slackQueue(s), "slackQueue") {

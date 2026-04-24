@@ -732,6 +732,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
       null,
       testSecretsKeyCache,
+      WorkspaceModel.emptyState(),
     );
   };
 
@@ -758,6 +759,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
       null,
       testSecretsKeyCache,
+      WorkspaceModel.emptyState(),
     );
   };
 
@@ -784,6 +786,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
       null,
       testSecretsKeyCache,
+      WorkspaceModel.emptyState(),
     );
   };
 
@@ -845,6 +848,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       triggerPrompt,
       null,
       testSecretsKeyCache,
+      WorkspaceModel.emptyState(),
     );
   };
 
@@ -864,6 +868,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       resolveSlackBotToken = null;
       userAuthContext = null;
       triggerMessageText = null;
+      resolveWorkspaceName = null;
       secrets = null;
       engineDispatch = null;
       envelopeContext = null;
@@ -1785,7 +1790,15 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (null) { null };
       case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
     };
-    await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, args);
+    let resolveWorkspaceName : ?(Nat -> ?Text) = ?(
+      func(id : Nat) : ?Text {
+        switch (WorkspaceModel.getWorkspace(testWorkspacesState, id)) {
+          case (null) { null };
+          case (?r) { ?r.name };
+        };
+      }
+    );
+    await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, resolveWorkspaceName, args);
   };
 
   /// Test the SlackEventIntakeService in isolation.

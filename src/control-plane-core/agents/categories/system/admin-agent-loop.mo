@@ -32,6 +32,7 @@ module {
     resolveSlackBotToken : (Text -> ?Text),
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     keyCache : KeyDerivationService.KeyCache,
+    resolveWorkspaceName : (Nat -> ?Text),
   ) : async Types.AgentOrchestrateResult {
     let instructions = InstructionComposer.compose(
       AgentHelpers.categoryToRole(agent.category, agent.config.name),
@@ -47,6 +48,7 @@ module {
       resolveSlackBotToken = ?(resolveSlackBotToken);
       userAuthContext;
       triggerMessageText;
+      resolveWorkspaceName = ?(resolveWorkspaceName);
       secrets = ?{ state = secrets; keyCache; write = true };
       engineDispatch = ?{
         envelopeState = engineDeps.envelopeState;

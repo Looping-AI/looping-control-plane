@@ -184,10 +184,23 @@ describe("DispatchWorkflowHandler", () => {
       expect(response.error).toContain("delete");
     });
 
-    it("should return dispatched:true when trigger message contains 'delete'", async () => {
+    it("should return dispatched:false when trigger has 'delete' but not the workspace name", async () => {
+      // workspace 1 = "Test Workspace 1"; message must also include the name
       const result = await testCanister.testDispatchWorkflowHandler(
         withDeletePermit(1),
-        trigger("please delete workspace 1"),
+        trigger("please delete"),
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("Test Workspace 1");
+    });
+
+    it("should return dispatched:true when trigger contains 'delete' and the workspace name", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        withDeletePermit(1),
+        trigger("please delete test workspace 1"),
         NO_TOKEN,
         DISPATCH_OK,
       );
@@ -195,15 +208,27 @@ describe("DispatchWorkflowHandler", () => {
       expect(response.dispatched).toBe(true);
     });
 
-    it("should accept trigger message with 'Delete' (case-insensitive)", async () => {
+    it("should be case-insensitive for workspace name confirmation", async () => {
       const result = await testCanister.testDispatchWorkflowHandler(
         withDeletePermit(2),
-        trigger("Delete workspace 2"),
+        trigger("DELETE TEST WORKSPACE 2"),
         NO_TOKEN,
         DISPATCH_OK,
       );
       const response = parseResponse(result);
       expect(response.dispatched).toBe(true);
+    });
+
+    it("should return dispatched:false when workspace does not exist", async () => {
+      const result = await testCanister.testDispatchWorkflowHandler(
+        withDeletePermit(99),
+        trigger("delete something"),
+        NO_TOKEN,
+        DISPATCH_OK,
+      );
+      const response = parseResponse(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.error).toContain("not found");
     });
   });
 

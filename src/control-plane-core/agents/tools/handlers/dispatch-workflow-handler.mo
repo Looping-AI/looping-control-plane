@@ -5,6 +5,7 @@ import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Float "mo:core/Float";
 import Error "mo:core/Error";
+import Nat "mo:core/Nat";
 import AgentModel "../../../models/agent-model";
 import ExecutionTypes "../../../types/execution";
 import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
@@ -37,8 +38,8 @@ module {
     tool_type = "function";
     function = {
       name = "dispatch_workflow";
-      description = ?"Dispatches a workflow to the execution engine for administrative operations. Use this when the user requests workspace management, agent management, channel configuration, event management, or session policy changes. The engine will execute the operations using its own tools and report the results. For most operations, pass an empty permits array. Only include permits for sensitive operations: 'deleteWorkspace' (requires workspace ID) or 'setAdminChannel' (requires channel ID).";
-      parameters = ?"{\"type\":\"object\",\"properties\":{\"workflowId\":{\"type\":\"string\",\"description\":\"The workflow ID to execute. Use 'admin-v1' for administrative operations.\"},\"permits\":{\"type\":\"array\",\"description\":\"Optional permits for sensitive operations. Empty array for standard operations.\",\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"deleteWorkspace\",\"setAdminChannel\"],\"description\":\"The permit type.\"},\"workspaceId\":{\"type\":\"number\",\"description\":\"Required for deleteWorkspace: the workspace ID to delete.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Required for setAdminChannel: the Slack channel ID to set as admin channel.\"}},\"required\":[\"type\"]}}},\"required\":[\"workflowId\"]}";
+      description = ?"Dispatches a workflow to the execution engine for administrative operations. Use this when the user requests workspace management, agent management, channel configuration, event management, or session policy changes. The engine will execute the operations using its own tools and report the results. For most operations, pass an empty permits array. Only include permits for sensitive operations: 'deleteWorkspace' (requires workspace ID; ONLY include if the user's message explicitly contains both 'delete' and the workspace name, e.g. 'Delete marketing' - do NOT fabricate this confirmation) or 'setAdminChannel' (requires channel ID).";
+      parameters = ?"{\"type\":\"object\",\"properties\":{\"workflowId\":{\"type\":\"string\",\"description\":\"The workflow ID to execute. Use 'admin-v1' for administrative operations.\"},\"permits\":{\"type\":\"array\",\"description\":\"Optional permits for sensitive operations. Empty array for standard operations.\",\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"deleteWorkspace\",\"setAdminChannel\"],\"description\":\"The permit type.\"},\"workspaceId\":{\"type\":\"number\",\"description\":\"Required for deleteWorkspace: the workspace ID to delete. Only include this permit when the user's message explicitly contains both 'delete' and the workspace name (e.g. 'Delete marketing'). Never fabricate this confirmation.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Required for setAdminChannel: the Slack channel ID to set as admin channel.\"}},\"required\":[\"type\"]}}},\"required\":[\"workflowId\"]}";
     };
   };
 
@@ -55,6 +56,7 @@ module {
     envelopeContext : EnvelopeContext,
     resolveSlackBotToken : ?(Text -> ?Text),
     triggerMessageText : ?Text,
+    resolveWorkspaceName : ?(Nat -> ?Text),
     args : Text,
   ) : async Text {
     // Parse arguments
@@ -79,7 +81,7 @@ module {
     for (permit in permits.vals()) {
       switch (permit) {
         case (#deleteWorkspace({ workspaceId })) {
-          switch (validateDeleteWorkspacePermit(triggerMessageText, workspaceId)) {
+          switch (validateDeleteWorkspacePermit(triggerMessageText, workspaceId, resolveWorkspaceName)) {
             case (#ok) {};
             case (#err(msg)) { return dispatchError(msg) };
           };
@@ -145,22 +147,37 @@ module {
   // ─── Permit validation ───────────────────────────────────────────────────────
 
   /// Validate #deleteWorkspace permit: the user's trigger message must contain
-  /// "delete" as confirmation. This prevents the LLM from fabricating a delete
-  /// confirmation that the user never typed.
+  /// both "delete" and the workspace name (case-insensitive) as explicit confirmation.
+  /// This prevents the LLM from fabricating a delete confirmation the user never typed.
   private func validateDeleteWorkspacePermit(
     triggerMessageText : ?Text,
-    _workspaceId : Nat,
+    workspaceId : Nat,
+    resolveWorkspaceName : ?(Nat -> ?Text),
   ) : { #ok; #err : Text } {
+    let workspaceName = switch (resolveWorkspaceName) {
+      case (null) {
+        return #err("Cannot validate delete workspace permit: workspace resolver not available");
+      };
+      case (?resolve) {
+        switch (resolve(workspaceId)) {
+          case (null) {
+            return #err("Cannot validate delete workspace permit: workspace " # Nat.toText(workspaceId) # " not found");
+          };
+          case (?name) { name };
+        };
+      };
+    };
     switch (triggerMessageText) {
       case (null) {
         #err("Cannot validate delete workspace permit: no trigger message available");
       };
       case (?text) {
         let lower = Text.toLower(text);
-        if (Text.contains(lower, #text "delete")) {
+        let lowerName = Text.toLower(workspaceName);
+        if (Text.contains(lower, #text "delete") and Text.contains(lower, #text lowerName)) {
           #ok;
         } else {
-          #err("User's message does not contain 'delete' confirmation. Ask the user to explicitly confirm deletion in their message.");
+          #err("User's message must contain both 'delete' and the workspace name '" # workspaceName # "' (e.g. 'Delete " # workspaceName # "'). Ask the user to send that exact confirmation.");
         };
       };
     };

@@ -72,7 +72,7 @@ module {
     // ==========================================
     switch (resources.engineDispatch, resources.envelopeContext) {
       case (?ed, ?ec) {
-        List.add(tools, dispatchWorkflowTool(ed, ec, resources.resolveSlackBotToken, resources.triggerMessageText));
+        List.add(tools, dispatchWorkflowTool(ed, ec, resources.resolveSlackBotToken, resources.triggerMessageText, resources.resolveWorkspaceName));
       };
       case _ {};
     };
@@ -193,6 +193,7 @@ module {
     envelopeContext : DispatchWorkflowHandler.EnvelopeContext,
     resolveSlackBotToken : ?(Text -> ?Text),
     triggerMessageText : ?Text,
+    resolveWorkspaceName : ?(Nat -> ?Text),
   ) : FunctionTool {
     {
       definition = {
@@ -200,7 +201,7 @@ module {
         function = DispatchWorkflowHandler.definition.function;
       };
       handler = func(args : Text) : async Text {
-        await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, args);
+        await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, resolveWorkspaceName, args);
       };
     };
   };

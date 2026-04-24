@@ -295,18 +295,13 @@ persistent actor class OpenOrgBackend() {
   // Subsequent upgrades will wipe these timers; postupgrade re-creates them.
   scheduleAll<system>(func(config : TimerRegistryEntry) : Nat { config.interval });
 
-  // Fetch initial envelope salt — raw_rand requires an async context, so we use a zero-delay timer.
   ignore Timer.setTimer<system>(
     #nanoseconds 0,
     func() : async () {
+      // Fetch initial envelope salt — raw_rand requires an async context, so we use a zero-delay timer.
       executionEnvelopeState.envelopeSalt := await Random.blob();
-    },
-  );
 
-  // Pre-warm the engine canister so the first dispatch doesn't pay the spawn cost.
-  ignore Timer.setTimer<system>(
-    #nanoseconds 0,
-    func() : async () {
+      // Pre-warm the engine canister so the first dispatch doesn't pay the spawn cost.
       ignore await ensureInternalEngine();
     },
   );

@@ -7,6 +7,7 @@ import ExecutionEnvelopeModel "../models/execution-envelope-model";
 import KeyDerivationService "../services/key-derivation-service";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import ContextAssembler "./context-assembler";
+import WorkspaceModel "../models/workspace-model";
 import AdminAgentLoop "./categories/system/admin-agent-loop";
 import OnboardingAgentLoop "./categories/system/onboarding-agent-loop";
 import CustomAgentLoop "./categories/custom/custom-agent-loop";
@@ -30,6 +31,7 @@ module {
     triggerMessageText : ?Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     keyCache : KeyDerivationService.KeyCache,
+    workspaces : WorkspaceModel.WorkspacesState,
   ) : async Types.AgentOrchestrateResult {
     let apiKey = switch (SecretModel.resolveSecret(secrets, agent, agent.ownedBy, #openRouterApiKey, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" })) {
       case (null) {
@@ -60,6 +62,13 @@ module {
       );
     };
 
+    let resolveWorkspaceName : (Nat -> ?Text) = func(id : Nat) : ?Text {
+      switch (WorkspaceModel.getWorkspace(workspaces, id)) {
+        case (null) { null };
+        case (?r) { ?r.name };
+      };
+    };
+
     switch (agentCtx) {
       case (#_system(#admin)) {
         await AdminAgentLoop.process(
@@ -73,6 +82,7 @@ module {
           resolveSlackBotToken,
           userAuthContext,
           keyCache,
+          resolveWorkspaceName,
         );
       };
       case (#_system(#onboarding)) {

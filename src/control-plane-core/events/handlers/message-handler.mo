@@ -387,6 +387,7 @@ module {
       triggerMessageText,
       userAuthContext,
       ctx.keyCache,
+      ctx.workspaces,
     );
   };
 
