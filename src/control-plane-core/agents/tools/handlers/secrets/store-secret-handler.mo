@@ -2,7 +2,6 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Text "mo:core/Text";
 import SecretModel "../../../../models/secret-model";
-import KeyDerivationService "../../../../services/key-derivation-service";
 import SlackAuthMiddleware "../../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
 import SecretParsers "../parsers/secret-parsers";
@@ -20,11 +19,11 @@ module {
   ///   - LLM keys (openRouterApiKey): requires #IsPrimaryOwner, #IsOrgAdmin, or #IsWorkspaceAdmin
   public func handle(
     secrets : SecretModel.SecretsState,
-    keyCache : KeyDerivationService.KeyCache,
+    workspaceKey : [Nat8],
     uac : SlackAuthMiddleware.UserAuthContext,
     workspaceId : Nat,
     args : Text,
-  ) : async Text {
+  ) : Text {
     switch (Json.parse(args)) {
       case (#err(error)) {
         Helpers.buildErrorResponse("Failed to parse arguments: " # debug_show error);
@@ -66,10 +65,7 @@ module {
               return Helpers.buildErrorResponse("Secret cannot be empty.");
             };
 
-            // Derive encryption key for this workspace
-            let encryptionKey = await KeyDerivationService.getOrDeriveKey(keyCache, workspaceId);
-
-            switch (SecretModel.storeSecret(secrets, encryptionKey, workspaceId, secretId, secretValue, { slackUserId = ?uac.slackUserId; agentId = null; operation = "store-secret" })) {
+            switch (SecretModel.storeSecret(secrets, workspaceKey, workspaceId, secretId, secretValue, { slackUserId = ?uac.slackUserId; agentId = null; operation = "store-secret" })) {
               case (#err(msg)) { Helpers.buildErrorResponse(msg) };
               case (#ok(())) {
                 Json.stringify(

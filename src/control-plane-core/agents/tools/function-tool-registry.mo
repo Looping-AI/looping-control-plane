@@ -10,7 +10,6 @@ import GetWorkspaceSecretsHandler "./handlers/secrets/get-workspace-secrets-hand
 import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
 import DispatchWorkflowHandler "./handlers/dispatch-workflow-handler";
 import SecretModel "../../models/secret-model";
-import KeyDerivationService "../../services/key-derivation-service";
 
 module {
   // ============================================
@@ -60,7 +59,7 @@ module {
         List.add(tools, getWorkspaceSecretsTool(sec.state, uac, wsId));
         // Write tools — require write=true
         if (sec.write) {
-          List.add(tools, storeSecretTool(sec.state, sec.keyCache, uac, wsId));
+          List.add(tools, storeSecretTool(sec.state, sec.workspaceKey, uac, wsId));
           List.add(tools, deleteSecretTool(sec.state, uac, wsId));
         };
       };
@@ -143,7 +142,7 @@ module {
   /// Store secret tool — requires secrets resource with write + user identity + workspaceId
   private func storeSecretTool(
     map : SecretModel.SecretsState,
-    keyCache : KeyDerivationService.KeyCache,
+    workspaceKey : [Nat8],
     uac : SlackAuthMiddleware.UserAuthContext,
     workspaceId : Nat,
   ) : FunctionTool {
@@ -157,7 +156,7 @@ module {
         };
       };
       handler = func(args : Text) : async Text {
-        await StoreSecretHandler.handle(map, keyCache, uac, workspaceId, args);
+        StoreSecretHandler.handle(map, workspaceKey, uac, workspaceId, args);
       };
     };
   };

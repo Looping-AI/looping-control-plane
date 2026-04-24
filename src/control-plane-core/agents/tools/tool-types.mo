@@ -1,7 +1,6 @@
 import AgentModel "../../models/agent-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
-import KeyDerivationService "../../services/key-derivation-service";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
 import ExecutionTypes "../../types/execution";
 import InternalEngine "../../../internal-engine/main";
@@ -63,7 +62,7 @@ module {
     // All secrets tools also require workspaceId and userAuthContext.
     secrets : ?{
       state : SecretModel.SecretsState;
-      keyCache : KeyDerivationService.KeyCache;
+      workspaceKey : [Nat8];
       write : Bool;
     };
 

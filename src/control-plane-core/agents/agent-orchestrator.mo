@@ -4,7 +4,6 @@ import ChannelHistoryModel "../models/channel-history-model";
 import AgentModel "../models/agent-model";
 import SessionModel "../models/session-model";
 import ExecutionEnvelopeModel "../models/execution-envelope-model";
-import KeyDerivationService "../services/key-derivation-service";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import ContextAssembler "./context-assembler";
 import WorkspaceModel "../models/workspace-model";
@@ -13,26 +12,26 @@ import OnboardingAgentLoop "./categories/system/onboarding-agent-loop";
 import CustomAgentLoop "./categories/custom/custom-agent-loop";
 
 module {
-  // ─── Orchestration ───────────────────────────────────────────────────────────
+  // ─── Orchestration ───────────────────────────────────────────────────
 
-  public func orchestrateAgentTalk(
+  public func orchestrate(
     agent : AgentModel.AgentRecord,
-    secrets : SecretModel.SecretsState,
-    slackUserId : ?Text,
     channelHistory : ChannelHistoryModel.ChannelHistoryStore,
     channelId : Text,
     threadTs : ?Text,
-    agentCtx : Types.AgentCtx,
-    workspaceKey : [Nat8],
-    orgKey : [Nat8],
+    triggerMessageText : ?Text,
     turnId : Text,
     sessionStores : SessionModel.SessionStores,
-    engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
-    triggerMessageText : ?Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
-    keyCache : KeyDerivationService.KeyCache,
+    slackUserId : ?Text,
+    secrets : SecretModel.SecretsState,
+    workspaceKey : [Nat8],
+    orgKey : [Nat8],
     workspaces : WorkspaceModel.WorkspacesState,
+    engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
   ) : async Types.AgentOrchestrateResult {
+
+    // ── API key ──────────────────────────────────────────────────────────────
     let apiKey = switch (SecretModel.resolveSecret(secrets, agent, agent.ownedBy, #openRouterApiKey, workspaceKey, orgKey, { slackUserId; agentId = ?agent.id; operation = "agent-orchestrator" })) {
       case (null) {
         return #err({
@@ -69,48 +68,45 @@ module {
       };
     };
 
-    switch (agentCtx) {
+    // ── Dispatch to category loop ────────────────────────────────────────────
+    switch (agent.category) {
       case (#_system(#admin)) {
         await AdminAgentLoop.process(
           agent,
-          secrets,
-          apiKey,
           assembled,
-          turnId,
-          engineDeps,
           triggerMessageText,
-          resolveSlackBotToken,
+          turnId,
           userAuthContext,
-          keyCache,
+          apiKey,
+          secrets,
+          workspaceKey,
+          resolveSlackBotToken,
           resolveWorkspaceName,
+          engineDeps,
         );
       };
       case (#_system(#onboarding)) {
         await OnboardingAgentLoop.process(
           agent,
-          secrets,
-          apiKey,
           assembled,
-          turnId,
-          engineDeps,
           triggerMessageText,
-          resolveSlackBotToken,
+          turnId,
           userAuthContext,
-          keyCache,
+          apiKey,
+          resolveSlackBotToken,
+          engineDeps,
         );
       };
       case (#custom) {
         await CustomAgentLoop.process(
           agent,
-          secrets,
-          apiKey,
           assembled,
-          turnId,
-          engineDeps,
           triggerMessageText,
-          resolveSlackBotToken,
+          turnId,
           userAuthContext,
-          keyCache,
+          apiKey,
+          resolveSlackBotToken,
+          engineDeps,
         );
       };
     };

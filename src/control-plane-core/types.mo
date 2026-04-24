@@ -65,12 +65,6 @@ module {
   // Agent Orchestration Types
   // ============================================
 
-  /// Typed per-category context union used by agent routing/orchestration.
-  public type AgentCtx = {
-    #_system : { #admin; #onboarding };
-    #custom;
-  };
-
   /// Engine dispatch dependencies threaded into agent loops.
   public type AgentEngineDeps<EnvelopeState> = {
     envelopeState : EnvelopeState;

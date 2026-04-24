@@ -9,7 +9,6 @@ import SecretModel "../../../models/secret-model";
 import AgentModel "../../../models/agent-model";
 import ExecutionTypes "../../../types/execution";
 import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
-import KeyDerivationService "../../../services/key-derivation-service";
 import InstructionComposer "../../instructions/instruction-composer";
 import AgentHelpers "../../helpers";
 import ContextAssembler "../../context-assembler";
@@ -23,16 +22,16 @@ import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
 module {
   public func process(
     agent : AgentModel.AgentRecord,
-    secrets : SecretModel.SecretsState,
-    apiKey : Text,
     assembled : ContextAssembler.AssembledContext,
-    turnId : Text,
-    engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
     triggerMessageText : ?Text,
-    resolveSlackBotToken : (Text -> ?Text),
+    turnId : Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
-    keyCache : KeyDerivationService.KeyCache,
+    apiKey : Text,
+    secrets : SecretModel.SecretsState,
+    workspaceKey : [Nat8],
+    resolveSlackBotToken : (Text -> ?Text),
     resolveWorkspaceName : (Nat -> ?Text),
+    engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
   ) : async Types.AgentOrchestrateResult {
     let instructions = InstructionComposer.compose(
       AgentHelpers.categoryToRole(agent.category, agent.config.name),
@@ -49,7 +48,7 @@ module {
       userAuthContext;
       triggerMessageText;
       resolveWorkspaceName = ?(resolveWorkspaceName);
-      secrets = ?{ state = secrets; keyCache; write = true };
+      secrets = ?{ state = secrets; workspaceKey; write = true };
       engineDispatch = ?{
         envelopeState = engineDeps.envelopeState;
         internalEngine = engineDeps.internalEngine;

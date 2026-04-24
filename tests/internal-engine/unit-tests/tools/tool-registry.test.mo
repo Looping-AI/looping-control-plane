@@ -14,15 +14,19 @@ import ExecutionTypes "../../../../src/internal-engine/execution-types";
 
 let workspaceRead : ExecutionTypes.ScopeGrant = #workspace { access = #read };
 let workspaceWrite : ExecutionTypes.ScopeGrant = #workspace { access = #write };
+let agentsRead : ExecutionTypes.ScopeGrant = #agents { access = #read };
+let agentsWrite : ExecutionTypes.ScopeGrant = #agents { access = #write };
 let slackQueueRead : ExecutionTypes.ScopeGrant = #slackQueue { access = #read };
 let sessionWrite : ExecutionTypes.ScopeGrant = #session { access = #write };
 
 let noGrants : [ExecutionTypes.ScopeGrant] = [];
 let readOnly : [ExecutionTypes.ScopeGrant] = [workspaceRead];
 let writeAccess : [ExecutionTypes.ScopeGrant] = [workspaceWrite];
+let agentsReadOnly : [ExecutionTypes.ScopeGrant] = [agentsRead];
+let agentsWriteAccess : [ExecutionTypes.ScopeGrant] = [agentsWrite];
 let slackOnly : [ExecutionTypes.ScopeGrant] = [slackQueueRead];
 let sessionOnly : [ExecutionTypes.ScopeGrant] = [sessionWrite];
-let allGrants : [ExecutionTypes.ScopeGrant] = [workspaceWrite, slackQueueRead, sessionWrite];
+let allGrants : [ExecutionTypes.ScopeGrant] = [workspaceWrite, agentsWrite, slackQueueRead, sessionWrite];
 
 func hasName(tools : [ToolRegistry.FunctionTool], name : Text) : Bool {
   Array.any<ToolRegistry.FunctionTool>(
@@ -67,9 +71,9 @@ test(
 // ─────────────────────────────────────────────────────────────────
 
 test(
-  "admin-v1 with workspace read returns 3 tools",
+  "admin-v1 with workspace read returns 1 tool",
   func() {
-    expect.nat(ToolRegistry.getTools("admin-v1", readOnly).size()).equal(3);
+    expect.nat(ToolRegistry.getTools("admin-v1", readOnly).size()).equal(1);
   },
 );
 
@@ -77,20 +81,6 @@ test(
   "admin-v1 with workspace read includes get_workspace",
   func() {
     expect.bool(hasName(ToolRegistry.getTools("admin-v1", readOnly), "get_workspace")).isTrue();
-  },
-);
-
-test(
-  "admin-v1 with workspace read includes list_agents",
-  func() {
-    expect.bool(hasName(ToolRegistry.getTools("admin-v1", readOnly), "list_agents")).isTrue();
-  },
-);
-
-test(
-  "admin-v1 with workspace read includes get_agent",
-  func() {
-    expect.bool(hasName(ToolRegistry.getTools("admin-v1", readOnly), "get_agent")).isTrue();
   },
 );
 
@@ -112,29 +102,79 @@ test(
 // ─────────────────────────────────────────────────────────────────
 
 test(
-  "admin-v1 with workspace write returns 9 tools",
+  "admin-v1 with workspace write returns 4 tools",
   func() {
-    expect.nat(ToolRegistry.getTools("admin-v1", writeAccess).size()).equal(9);
+    expect.nat(ToolRegistry.getTools("admin-v1", writeAccess).size()).equal(4);
   },
 );
 
 test(
-  "admin-v1 with workspace write includes all read tools",
+  "admin-v1 with workspace write includes workspace read tools",
   func() {
     let tools = ToolRegistry.getTools("admin-v1", writeAccess);
     expect.bool(hasName(tools, "get_workspace")).isTrue();
+  },
+);
+
+test(
+  "admin-v1 with workspace write includes workspace write tools",
+  func() {
+    let tools = ToolRegistry.getTools("admin-v1", writeAccess);
+    expect.bool(hasName(tools, "create_workspace")).isTrue();
+    expect.bool(hasName(tools, "delete_workspace")).isTrue();
+    expect.bool(hasName(tools, "set_admin_channel")).isTrue();
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────
+// admin-v1 — agents #read
+// ─────────────────────────────────────────────────────────────────
+
+test(
+  "admin-v1 with agents read returns 2 tools",
+  func() {
+    expect.nat(ToolRegistry.getTools("admin-v1", agentsReadOnly).size()).equal(2);
+  },
+);
+
+test(
+  "admin-v1 with agents read includes list_agents",
+  func() {
+    expect.bool(hasName(ToolRegistry.getTools("admin-v1", agentsReadOnly), "list_agents")).isTrue();
+  },
+);
+
+test(
+  "admin-v1 with agents read includes get_agent",
+  func() {
+    expect.bool(hasName(ToolRegistry.getTools("admin-v1", agentsReadOnly), "get_agent")).isTrue();
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────
+// admin-v1 — agents #write (satisfies read too)
+// ─────────────────────────────────────────────────────────────────
+
+test(
+  "admin-v1 with agents write returns 5 tools",
+  func() {
+    expect.nat(ToolRegistry.getTools("admin-v1", agentsWriteAccess).size()).equal(5);
+  },
+);
+
+test(
+  "admin-v1 with agents write includes agent read tools",
+  func() {
+    let tools = ToolRegistry.getTools("admin-v1", agentsWriteAccess);
     expect.bool(hasName(tools, "list_agents")).isTrue();
     expect.bool(hasName(tools, "get_agent")).isTrue();
   },
 );
 
 test(
-  "admin-v1 with workspace write includes all write tools",
+  "admin-v1 with agents write includes agent write tools",
   func() {
-    let tools = ToolRegistry.getTools("admin-v1", writeAccess);
-    expect.bool(hasName(tools, "create_workspace")).isTrue();
-    expect.bool(hasName(tools, "delete_workspace")).isTrue();
-    expect.bool(hasName(tools, "set_admin_channel")).isTrue();
+    let tools = ToolRegistry.getTools("admin-v1", agentsWriteAccess);
     expect.bool(hasName(tools, "register_agent")).isTrue();
     expect.bool(hasName(tools, "update_agent")).isTrue();
     expect.bool(hasName(tools, "unregister_agent")).isTrue();
@@ -255,7 +295,7 @@ test(
 test(
   "get returns null when scope is insufficient",
   func() {
-    // list_agents requires workspace read; slackOnly has no workspace grant
+    // list_agents requires agents read; slackOnly has no agents grant
     switch (ToolRegistry.get("admin-v1", slackOnly, "list_agents")) {
       case (null) {}; // expected
       case (?_) { expect.bool(false).isTrue() };
@@ -266,7 +306,7 @@ test(
 test(
   "get returns tool when scope is sufficient",
   func() {
-    let found = ToolRegistry.get("admin-v1", readOnly, "list_agents");
+    let found = ToolRegistry.get("admin-v1", agentsReadOnly, "list_agents");
     switch (found) {
       case (null) { expect.bool(false).isTrue() };
       case (?t) {
@@ -279,7 +319,7 @@ test(
 test(
   "get returns write tool when write scope granted",
   func() {
-    let found = ToolRegistry.get("admin-v1", writeAccess, "register_agent");
+    let found = ToolRegistry.get("admin-v1", agentsWriteAccess, "register_agent");
     switch (found) {
       case (null) { expect.bool(false).isTrue() };
       case (?t) {
@@ -292,7 +332,7 @@ test(
 test(
   "get returns null for write tool when only read scope granted",
   func() {
-    switch (ToolRegistry.get("admin-v1", readOnly, "register_agent")) {
+    switch (ToolRegistry.get("admin-v1", agentsReadOnly, "register_agent")) {
       case (null) {}; // expected
       case (?_) { expect.bool(false).isTrue() };
     };
