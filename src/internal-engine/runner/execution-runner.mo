@@ -292,13 +292,13 @@ module {
     totalCost : ?Float,
   ) : ExecutionTypes.ExecutionStats {
     {
-      durationNs = Time.now() - startNs;
-      llmCalls = rounds;
-      toolCalls;
-      inputTokens;
-      outputTokens;
-      model;
-      rounds;
+      durationNs = ?(Time.now() - startNs);
+      llmCalls = ?rounds;
+      toolCalls = ?toolCalls;
+      inputTokens = ?inputTokens;
+      outputTokens = ?outputTokens;
+      model = ?model;
+      rounds = ?rounds;
       estimatedDollarCost = totalCost;
     };
   };

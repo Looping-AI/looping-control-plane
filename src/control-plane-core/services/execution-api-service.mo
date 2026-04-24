@@ -681,12 +681,6 @@ module {
             #ok(Nat.fromInt(n));
           };
         };
-        case (?#number(#float(f))) {
-          let n = Float.toInt(f);
-          if (n < 0) { #err("Invalid '" # key # "'") } else {
-            #ok(Nat.fromInt(n));
-          };
-        };
         case (_) { #err("Missing or invalid '" # key # "' field") };
       };
     };
@@ -732,30 +726,46 @@ module {
     };
 
     private func parseExecutionStats(body : Json.Json) : ExecutionTypes.ExecutionStats {
-      let getIntField = func(key : Text) : Int {
-        switch (Json.get(body, "stats." # key)) {
-          case (?#number(#int(n))) { n };
-          case (?#number(#float(f))) { Float.toInt(f) };
-          case (_) { 0 };
+      let statsObj = switch (Json.get(body, "stats")) {
+        case (?obj) { obj };
+        case (null) {
+          return {
+            durationNs = null;
+            llmCalls = null;
+            toolCalls = null;
+            inputTokens = null;
+            outputTokens = null;
+            model = null;
+            rounds = null;
+            estimatedDollarCost = null;
+          };
         };
       };
-      let getNatField = func(key : Text) : Nat {
-        let v = getIntField(key);
-        if (v < 0) { 0 } else { Nat.fromInt(v) };
+      let getOptInt = func(key : Text) : ?Int {
+        switch (Json.get(statsObj, key)) {
+          case (?#number(#int(n))) { ?n };
+          case (?#number(#float(f))) { ?Float.toInt(f) };
+          case (_) { null };
+        };
       };
-      let model = switch (Json.get(body, "stats.model")) {
-        case (?#string(m)) { m };
-        case (_) { "unknown" };
+      let getOptNat = func(key : Text) : ?Nat {
+        switch (getOptInt(key)) {
+          case (?n) { if (n < 0) { null } else { ?Nat.fromInt(n) } };
+          case (null) { null };
+        };
       };
       {
-        durationNs = getIntField("durationNs");
-        llmCalls = getNatField("llmCalls");
-        toolCalls = getNatField("toolCalls");
-        inputTokens = getNatField("inputTokens");
-        outputTokens = getNatField("outputTokens");
-        model;
-        rounds = getNatField("rounds");
-        estimatedDollarCost = switch (Json.get(body, "stats.estimatedDollarCost")) {
+        durationNs = getOptInt("durationNs");
+        llmCalls = getOptNat("llmCalls");
+        toolCalls = getOptNat("toolCalls");
+        inputTokens = getOptNat("inputTokens");
+        outputTokens = getOptNat("outputTokens");
+        model = switch (Json.get(statsObj, "model")) {
+          case (?#string(m)) { ?m };
+          case (_) { null };
+        };
+        rounds = getOptNat("rounds");
+        estimatedDollarCost = switch (Json.get(statsObj, "estimatedDollarCost")) {
           case (?#number(#float(f))) { ?f };
           case (?#number(#int(i))) { ?Float.fromInt(i) };
           case (_) { null };

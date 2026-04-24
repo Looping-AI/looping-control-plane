@@ -142,10 +142,15 @@ module {
             case (#roundLimitReached) { (#failed, ?"Round limit reached") };
           };
 
-          let turnCost : ?SessionModel.TurnCost = ?{
-            promptTokens = c.stats.inputTokens;
-            completionTokens = c.stats.outputTokens;
-            estimatedDollarCost = c.stats.estimatedDollarCost;
+          let turnCost : ?SessionModel.TurnCost = switch (c.stats.inputTokens, c.stats.outputTokens) {
+            case (?inp, ?out) {
+              ?{
+                promptTokens = inp;
+                completionTokens = out;
+                estimatedDollarCost = c.stats.estimatedDollarCost;
+              };
+            };
+            case (_) { null };
           };
 
           SessionModel.completeTurn(deps.sessionStores, turnId, turnStatus, turnCost, errorSummary);

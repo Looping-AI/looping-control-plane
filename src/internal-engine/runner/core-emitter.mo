@@ -92,13 +92,34 @@ module {
 
   func statsToJson(stats : ExecutionTypes.ExecutionStats) : Json.Json {
     let fields = List.empty<(Text, Json.Json)>();
-    List.add(fields, ("durationNs", int(stats.durationNs)));
-    List.add(fields, ("llmCalls", int(stats.llmCalls)));
-    List.add(fields, ("toolCalls", int(stats.toolCalls)));
-    List.add(fields, ("inputTokens", int(stats.inputTokens)));
-    List.add(fields, ("outputTokens", int(stats.outputTokens)));
-    List.add(fields, ("model", str(stats.model)));
-    List.add(fields, ("rounds", int(stats.rounds)));
+    switch (stats.durationNs) {
+      case (?v) { List.add(fields, ("durationNs", int(v))) };
+      case (null) {};
+    };
+    switch (stats.llmCalls) {
+      case (?v) { List.add(fields, ("llmCalls", int(v))) };
+      case (null) {};
+    };
+    switch (stats.toolCalls) {
+      case (?v) { List.add(fields, ("toolCalls", int(v))) };
+      case (null) {};
+    };
+    switch (stats.inputTokens) {
+      case (?v) { List.add(fields, ("inputTokens", int(v))) };
+      case (null) {};
+    };
+    switch (stats.outputTokens) {
+      case (?v) { List.add(fields, ("outputTokens", int(v))) };
+      case (null) {};
+    };
+    switch (stats.model) {
+      case (?v) { List.add(fields, ("model", str(v))) };
+      case (null) {};
+    };
+    switch (stats.rounds) {
+      case (?v) { List.add(fields, ("rounds", int(v))) };
+      case (null) {};
+    };
     switch (stats.estimatedDollarCost) {
       case (?cost) { List.add(fields, ("estimatedDollarCost", float(cost))) };
       case (null) {};

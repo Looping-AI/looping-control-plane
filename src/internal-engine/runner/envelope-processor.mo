@@ -75,16 +75,16 @@ module {
 
   // ── Private helpers ────────────────────────────────────────────────
 
-  /// Zero-value stats used in the trap path where no execution data is available.
+  /// Null stats used in the trap path where no execution data is available.
   func zeroStats() : ExecutionTypes.ExecutionStats {
     {
-      durationNs = 0;
-      llmCalls = 0;
-      toolCalls = 0;
-      inputTokens = 0;
-      outputTokens = 0;
-      model = "";
-      rounds = 0;
+      durationNs = null;
+      llmCalls = null;
+      toolCalls = null;
+      inputTokens = null;
+      outputTokens = null;
+      model = null;
+      rounds = null;
       estimatedDollarCost = null;
     };
   };

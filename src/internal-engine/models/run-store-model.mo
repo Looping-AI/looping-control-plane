@@ -91,13 +91,13 @@ module {
     envelopeId : Nat,
     status : { #completed; #roundLimitReached },
     stats : {
-      durationNs : Int;
-      llmCalls : Nat;
-      toolCalls : Nat;
-      inputTokens : Nat;
-      outputTokens : Nat;
-      model : Text;
-      rounds : Nat;
+      durationNs : ?Int;
+      llmCalls : ?Nat;
+      toolCalls : ?Nat;
+      inputTokens : ?Nat;
+      outputTokens : ?Nat;
+      model : ?Text;
+      rounds : ?Nat;
       estimatedDollarCost : ?Float;
     },
     steps : [RunTypes.RunStep],

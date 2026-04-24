@@ -1,4 +1,5 @@
 import { test; suite; expect } "mo:test";
+import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
@@ -778,6 +779,41 @@ suite(
         let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
         let r = svc.handleRequest(#post, "/execution/complete", "{\"envelopeNonce\":\"" # nonce # "\",\"status\":\"completed\"}");
         expect.bool(isErr(r)).isTrue();
+      },
+    );
+
+    test(
+      "missing stats object yields all-null stats in the complete effect",
+      func() {
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        // No \"stats\" key at all in the body
+        let r = svc.handleRequest(#post, "/execution/complete", "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
+        expect.bool(isOk(r)).isTrue();
+        let stats = switch (r.asyncEffects[0]) {
+          case (#complete(e)) { e.stats };
+          case (_) { assert false; loop {} };
+        };
+        expect.option(stats.durationNs, Int.toText, Int.equal).isNull();
+        expect.option(stats.llmCalls, Nat.toText, Nat.equal).isNull();
+        expect.option(stats.model, func(v : Text) : Text { v }, Text.equal).isNull();
+      },
+    );
+
+    test(
+      "misconfigured stats field (wrong type) yields null for that field",
+      func() {
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        // rounds is a string instead of a number; durationNs and model are valid
+        let body = "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\",\"stats\":{\"durationNs\":500,\"rounds\":\"not-a-number\",\"model\":\"gpt-4\"}}";
+        let r = svc.handleRequest(#post, "/execution/complete", body);
+        expect.bool(isOk(r)).isTrue();
+        let stats = switch (r.asyncEffects[0]) {
+          case (#complete(e)) { e.stats };
+          case (_) { assert false; loop {} };
+        };
+        expect.option(stats.durationNs, Int.toText, Int.equal).isSome();
+        expect.option(stats.rounds, Nat.toText, Nat.equal).isNull();
+        expect.option(stats.model, func(v : Text) : Text { v }, Text.equal).isSome();
       },
     );
   },

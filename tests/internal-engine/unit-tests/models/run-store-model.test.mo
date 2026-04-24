@@ -49,13 +49,13 @@ func freshRecord(id : Nat) : RunTypes.RunRecord {
 
 func dummyStats() : ExecutionTypes.ExecutionStats {
   {
-    durationNs = 100;
-    llmCalls = 1;
-    toolCalls = 0;
-    inputTokens = 10;
-    outputTokens = 20;
-    model = "test-model";
-    rounds = 1;
+    durationNs = ?100;
+    llmCalls = ?1;
+    toolCalls = ?0;
+    inputTokens = ?10;
+    outputTokens = ?20;
+    model = ?"test-model";
+    rounds = ?1;
     estimatedDollarCost = null;
   };
 };

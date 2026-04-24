@@ -87,13 +87,13 @@ module {
   // ── Execution Stats ────────────────────────────────────────────────
 
   public type ExecutionStats = {
-    durationNs : Int;
-    llmCalls : Nat;
-    toolCalls : Nat;
-    inputTokens : Nat;
-    outputTokens : Nat;
-    model : Text;
-    rounds : Nat;
+    durationNs : ?Int;
+    llmCalls : ?Nat;
+    toolCalls : ?Nat;
+    inputTokens : ?Nat;
+    outputTokens : ?Nat;
+    model : ?Text;
+    rounds : ?Nat;
     estimatedDollarCost : ?Float;
   };
 
