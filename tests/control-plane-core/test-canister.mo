@@ -716,23 +716,21 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   public shared ({ caller }) func testOrchestrateSystemAdminNoApiKey() : async Types.AgentOrchestrateResult {
     assert caller == parent;
-    await AgentOrchestrator.orchestrateAgentTalk(
+    await AgentOrchestrator.orchestrate(
       testAgent(#_system(#admin), "unit-test-admin"),
-      SecretModel.initState(),
-      null,
       ChannelHistoryModel.empty(),
       "C_TEST_CATEGORY",
       null,
-      #_system(#admin),
-      TestHelpers.dummyKey,
-      TestHelpers.dummyKey,
+      null,
       "turn-admin-0",
       SessionModel.emptyStores(),
-      testOrchestratorEngineDeps(),
       null,
       null,
-      testSecretsKeyCache,
+      SecretModel.initState(),
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
       WorkspaceModel.emptyState(),
+      testOrchestratorEngineDeps(),
     );
   };
 
@@ -743,23 +741,21 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
       s;
     };
-    await AgentOrchestrator.orchestrateAgentTalk(
+    await AgentOrchestrator.orchestrate(
       testAgent(#_system(#onboarding), "unit-test-onboarding"),
-      secrets,
-      null,
       ChannelHistoryModel.empty(),
       "C_TEST_CATEGORY",
       null,
-      #_system(#onboarding),
-      TestHelpers.dummyKey,
-      TestHelpers.dummyKey,
+      null,
       "turn-onboarding-0",
       SessionModel.emptyStores(),
-      testOrchestratorEngineDeps(),
       null,
       null,
-      testSecretsKeyCache,
+      secrets,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
       WorkspaceModel.emptyState(),
+      testOrchestratorEngineDeps(),
     );
   };
 
@@ -770,23 +766,21 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
       s;
     };
-    await AgentOrchestrator.orchestrateAgentTalk(
+    await AgentOrchestrator.orchestrate(
       testAgent(#custom, "unit-test-custom"),
-      secrets,
-      null,
       ChannelHistoryModel.empty(),
       "C_TEST_CATEGORY",
       null,
-      #custom,
-      TestHelpers.dummyKey,
-      TestHelpers.dummyKey,
+      null,
       "turn-custom-0",
       SessionModel.emptyStores(),
-      testOrchestratorEngineDeps(),
       null,
       null,
-      testSecretsKeyCache,
+      secrets,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
       WorkspaceModel.emptyState(),
+      testOrchestratorEngineDeps(),
     );
   };
 
@@ -832,23 +826,21 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
     );
     let triggerPrompt : ?Text = if (prompt == "") { null } else { ?prompt };
-    await AgentOrchestrator.orchestrateAgentTalk(
+    await AgentOrchestrator.orchestrate(
       testAgentWithModel(#_system(#admin), "unit-test-admin", model),
-      secrets,
-      null,
       history,
       "C_TEST_CATEGORY",
       null,
-      #_system(#admin),
-      TestHelpers.dummyKey,
-      TestHelpers.dummyKey,
+      triggerPrompt,
       "turn-admin-loop-0",
       SessionModel.emptyStores(),
-      testOrchestratorEngineDeps(),
-      triggerPrompt,
       null,
-      testSecretsKeyCache,
+      null,
+      secrets,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
       WorkspaceModel.emptyState(),
+      testOrchestratorEngineDeps(),
     );
   };
 
@@ -1500,7 +1492,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         };
       };
     };
-    await StoreSecretHandler.handle(testSecretsMap, testSecretsKeyCache, uac, workspaceId, args);
+    StoreSecretHandler.handle(testSecretsMap, TestHelpers.dummyKey, uac, workspaceId, args);
   };
 
   /// Test the GetWorkspaceSecretsHandler in isolation.
