@@ -36,7 +36,7 @@ module {
 
     // ── Execute ────────────────────────────────────────────────────────
     let outcome = try {
-      await ExecutionRunner.run(core, envelope);
+      await ExecutionRunner.run(wrapper, envelope);
     } catch (e : Error) {
       // Trap or unexpected error — mark failed in the store and notify Core
       let errMsg = "Trap: " # Error.message(e);

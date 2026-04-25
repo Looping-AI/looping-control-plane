@@ -37,11 +37,9 @@ module {
   /// marking the run store and emitting the final result to Core.
   /// Caller must wrap this in try/catch for trap safety.
   public func run(
-    core : CoreWrapper.CoreActor,
+    wrapper : CoreWrapper.CoreWrapper,
     envelope : ExecutionTypes.EnvelopePayload,
   ) : async RunTypes.RunOutcome {
-
-    let wrapper = CoreWrapper.CoreWrapper(core, envelope.envelopeNonce);
 
     // Extract API key
     let apiKey = switch (
