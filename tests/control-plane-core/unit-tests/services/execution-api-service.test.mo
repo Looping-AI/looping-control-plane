@@ -439,6 +439,59 @@ suite(
         expect.bool(isErr(r)).isTrue();
       },
     );
+
+    test(
+      "creates agent with explicit executionEngines [canister]",
+      func() {
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"bot\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"],\"executionEngines\":[\"canister\"]}");
+        expect.bool(isOk(r)).isTrue();
+      },
+    );
+
+    test(
+      "creates agent with empty executionEngines []",
+      func() {
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"bot\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"],\"executionEngines\":[]}");
+        expect.bool(isOk(r)).isTrue();
+      },
+    );
+
+    test(
+      "creates agent without executionEngines field defaults to empty",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let svc = mkSvc(store, ws, agents);
+        let createR = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"noengine\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"]}");
+        expect.bool(isOk(createR)).isTrue();
+        // Verify via GET that executionEngines is []
+        let agentId = switch (AgentModel.lookupByName(agents, "noengine")) {
+          case (?r) { r.id };
+          case (null) { assert false; 0 };
+        };
+        let nonce2 = ExecutionEnvelopeModel.issue(store, "2_0", 1, [#agents({ access = #read })], []).nonce;
+        let getR = mkSvc(store, ws, agents).handleRequest(#get, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce2 # "\"}");
+        switch (getR.response) {
+          case (#ok(body)) {
+            expect.bool(Text.contains(body, #text "\"executionEngines\":[]")).isTrue();
+          };
+          case (#err(_)) { expect.bool(false).isTrue() };
+        };
+      },
+    );
+
+    test(
+      "unknown executionEngine string returns error",
+      func() {
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"bot\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"],\"executionEngines\":[\"unknown-engine\"]}");
+        expect.bool(isErr(r)).isTrue();
+      },
+    );
   },
 );
 
@@ -547,6 +600,66 @@ suite(
         // Token is for ws 1
         let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"pwned\"}");
+        expect.bool(isErr(r)).isTrue();
+      },
+    );
+
+    test(
+      "updates executionEngines to [canister, github]",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
+          case (#ok(id)) { id };
+          case (#err(_)) { assert false; 0 };
+        };
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"executionEngines\":[\"canister\",\"github\"]}");
+        expect.bool(isOk(r)).isTrue();
+        switch (AgentModel.lookupById(agents, agentId)) {
+          case (?a) {
+            expect.bool(a.config.executionEngines == [#canister, #github]).isTrue();
+          };
+          case (null) { expect.bool(false).isTrue() };
+        };
+      },
+    );
+
+    test(
+      "updates executionEngines to empty []",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
+          case (#ok(id)) { id };
+          case (#err(_)) { assert false; 0 };
+        };
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"executionEngines\":[]}");
+        expect.bool(isOk(r)).isTrue();
+        switch (AgentModel.lookupById(agents, agentId)) {
+          case (?a) {
+            expect.bool(a.config.executionEngines == []).isTrue();
+          };
+          case (null) { expect.bool(false).isTrue() };
+        };
+      },
+    );
+
+    test(
+      "unknown executionEngine string in update returns error",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let agentId = switch (AgentModel.register(agents, 1, #custom, customCfg)) {
+          case (#ok(id)) { id };
+          case (#err(_)) { assert false; 0 };
+        };
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"executionEngines\":[\"bad-engine\"]}");
         expect.bool(isErr(r)).isTrue();
       },
     );

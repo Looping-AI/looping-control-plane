@@ -358,10 +358,15 @@ module {
           return errorResponse("Missing or invalid 'allowedChannelIds' field");
         };
       };
+      let engines = switch (parseOptionalExecutionEngines(body)) {
+        case (#err(e)) { return errorResponse(e) };
+        case (#ok(null)) { [] };
+        case (#ok(?e)) { e };
+      };
       let config : AgentModel.AgentConfig = {
         name;
         model;
-        executionEngines = [#canister];
+        executionEngines = engines;
         allowedChannelIds = channelSet;
         secrets = { allowed = []; overrides = [] };
       };
@@ -397,7 +402,11 @@ module {
         case (?#string(m)) { ?m };
         case (_) { null };
       };
-      switch (AgentModel.updateById(deps.agentRegistry, agentId, newName, newModel, null, null, null, null)) {
+      let newEngines = switch (parseOptionalExecutionEngines(body)) {
+        case (#err(e)) { return errorResponse(e) };
+        case (#ok(v)) { v };
+      };
+      switch (AgentModel.updateById(deps.agentRegistry, agentId, newName, newModel, newEngines, null, null, null)) {
         case (#ok(_)) { okResponse(null) };
         case (#err(e)) { errorResponse(e) };
       };
@@ -635,13 +644,59 @@ module {
         case (#_system(#onboarding)) { "system:onboarding" };
         case (#custom) { "custom" };
       };
+      let engineItems = List.empty<Json.Json>();
+      for (e in a.config.executionEngines.vals()) {
+        List.add(engineItems, str(executionEngineToText(e)));
+      };
       obj([
         ("id", int(a.id)),
         ("ownedBy", int(a.ownedBy)),
         ("category", str(categoryText)),
         ("name", str(a.config.name)),
         ("model", str(a.config.model)),
+        ("executionEngines", arr(List.toArray(engineItems))),
       ]);
+    };
+
+    // ── ExecutionEngine helpers ─────────────────────────────────────────
+
+    private func executionEngineToText(e : AgentModel.ExecutionEngine) : Text {
+      switch (e) {
+        case (#canister) { "canister" };
+        case (#github) { "github" };
+      };
+    };
+
+    /// Parses an optional "executionEngines" array from the request body.
+    /// - Key absent → #ok(null)  (caller chooses the default)
+    /// - Key present, valid strings → #ok(?engines)
+    /// - Key present, invalid → #err
+    private func parseOptionalExecutionEngines(body : Json.Json) : {
+      #ok : ?[AgentModel.ExecutionEngine];
+      #err : Text;
+    } {
+      switch (Json.get(body, "executionEngines")) {
+        case (null) { #ok(null) };
+        case (?#array(items)) {
+          let engines = List.empty<AgentModel.ExecutionEngine>();
+          for (item in items.vals()) {
+            switch (item) {
+              case (#string("canister")) { List.add(engines, #canister) };
+              case (#string("github")) { List.add(engines, #github) };
+              case (#string(s)) {
+                return #err("Unknown executionEngine value: '" # s # "'");
+              };
+              case (_) {
+                return #err("'executionEngines' must be an array of strings");
+              };
+            };
+          };
+          #ok(?List.toArray(engines));
+        };
+        case (_) {
+          #err("'executionEngines' must be an array");
+        };
+      };
     };
 
     // ── Path parsing ───────────────────────────────────────────────────

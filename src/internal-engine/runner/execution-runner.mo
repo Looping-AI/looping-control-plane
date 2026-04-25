@@ -18,6 +18,7 @@ import Float "mo:core/Float";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import List "mo:core/List";
+import Debug "mo:core/Debug";
 import Error "mo:core/Error";
 import ExecutionTypes "../execution-types";
 import CoreWrapper "../wrappers/core-wrapper";
@@ -257,8 +258,9 @@ module {
                 summarizeToolRound(results),
                 List.toArray(summarizedSteps),
               );
-            } catch (_e : Error) {
+            } catch (e : Error) {
               // Milestone failure is non-fatal — continue execution
+              Debug.print("[execution-runner] Milestone emission failed: " # Error.message(e));
             };
           };
         };

@@ -5,6 +5,7 @@
 
 import { test; expect } "mo:test";
 import Array "mo:core/Array";
+import Text "mo:core/Text";
 import ToolRegistry "../../../../src/internal-engine/tools/tool-registry";
 import ExecutionTypes "../../../../src/internal-engine/execution-types";
 
@@ -367,5 +368,43 @@ test(
     let slackWrite : ExecutionTypes.ScopeGrant = #slackQueue { access = #write };
     let tools = ToolRegistry.getTools("admin-v1", [slackWrite]);
     expect.bool(hasName(tools, "get_slack_queue_stats")).isTrue();
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────
+// Tool schema — executionEngines field
+// ─────────────────────────────────────────────────────────────────
+
+test(
+  "register_agent parameter schema includes executionEngines",
+  func() {
+    switch (ToolRegistry.get("admin-v1", agentsWriteAccess, "register_agent")) {
+      case (null) { expect.bool(false).isTrue() };
+      case (?t) {
+        switch (t.definition.function_.parameters) {
+          case (null) { expect.bool(false).isTrue() };
+          case (?params) {
+            expect.bool(Text.contains(params, #text "executionEngines")).isTrue();
+          };
+        };
+      };
+    };
+  },
+);
+
+test(
+  "update_agent parameter schema includes executionEngines",
+  func() {
+    switch (ToolRegistry.get("admin-v1", agentsWriteAccess, "update_agent")) {
+      case (null) { expect.bool(false).isTrue() };
+      case (?t) {
+        switch (t.definition.function_.parameters) {
+          case (null) { expect.bool(false).isTrue() };
+          case (?params) {
+            expect.bool(Text.contains(params, #text "executionEngines")).isTrue();
+          };
+        };
+      };
+    };
   },
 );

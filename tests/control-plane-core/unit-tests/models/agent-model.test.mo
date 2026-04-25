@@ -215,6 +215,32 @@ suite(
         expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).isOk();
       },
     );
+
+    test(
+      "register accepts empty executionEngines",
+      func() {
+        let state = AgentModel.emptyState();
+        let result = AgentModel.register(
+          state,
+          1,
+          #custom,
+          {
+            name = "no-engine-bot";
+            model = "openai/gpt-o3";
+            allowedChannelIds = Set.singleton<Text>("C_TEST");
+            executionEngines = [];
+            secrets = { allowed = []; overrides = [] };
+          },
+        );
+        expect.result<Nat, Text>(result, resultNatToText, resultNatEqual).isOk();
+        switch (AgentModel.lookupByName(state, "no-engine-bot")) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.bool(r.config.executionEngines == []).equal(true);
+          };
+        };
+      },
+    );
   },
 );
 
@@ -322,6 +348,26 @@ suite(
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
             expect.bool(r.config.executionEngines == [#canister, #github]).equal(true);
+          };
+        };
+      },
+    );
+
+    test(
+      "updates executionEngines to empty array",
+      func() {
+        let state = AgentModel.emptyState();
+        let id = switch (registerSimple(state, "bot", #_system(#admin))) {
+          case (#ok n) n;
+          case (#err _) { expect.bool(false).equal(true); 0 };
+        };
+
+        ignore AgentModel.updateById(state, id, null, null, ?[], null, null, null);
+
+        switch (AgentModel.lookupById(state, id)) {
+          case (null) { expect.bool(false).equal(true) };
+          case (?r) {
+            expect.bool(r.config.executionEngines == []).equal(true);
           };
         };
       },
