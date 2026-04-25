@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "name": "multi-workspace-ws0",
+  "recordedAt": "2026-04-24T12:54:19.477Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"input\":[{\"role\":\"developer\",\"content\":\"{\\\"id\\\":\\\"channel-context\\\",\\\"type\\\":\\\"separator\\\",\\\"value\\\":\\\"Recent messages from this channel:\\\"}\"},{\"role\":\"assistant\",\"content\":\"Hello from workspace ws0\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. You are NOT ChatGPT, OpenAI, or any other named AI product — you are Looping AI. Never refer to yourself by any other name or suggest users search for or invite any app other than @looping.\\n\\nAll interactions happen through Slack. Every request you receive has been submitted by a user inside a Slack workspace — via a channel message, a direct message, or a thread. Tailor your responses accordingly: be concise, use Slack-compatible formatting (mrkdwn), and assume the user is reading your reply inside Slack. Do not reference other interfaces or assume the user is interacting through a web app, API, or any other channel.\\n\\nIf you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.\",\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"store\":false,\"stream\":false,\"tools\":[{\"type\":\"function\",\"name\":\"web_search\",\"description\":\"Performs a web search using the OpenRouter web search plugin. Returns AI-analyzed search results. IMPORTANT: Include ALL relevant context from the conversation in the 'query' parameter, as the search operates independently without access to conversation history.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\"}},\"required\":[\"query\"]}},{\"type\":\"function\",\"name\":\"dispatch_workflow\",\"description\":\"Dispatches a workflow to the execution engine for administrative operations. Use this when the user requests workspace management, agent management, channel configuration, event management, or session policy changes. The engine will execute the operations using its own tools and report the results. For most operations, pass an empty permits array. Only include permits for sensitive operations: 'deleteWorkspace' (requires workspace ID; ONLY include if the user's message explicitly contains both 'delete' and the workspace name, e.g. 'Delete marketing' - do NOT fabricate this confirmation) or 'setAdminChannel' (requires channel ID).\",\"parameters\":{\"type\":\"object\",\"properties\":{\"workflowId\":{\"type\":\"string\",\"description\":\"The workflow ID to execute. Use 'admin-v1' for administrative operations.\"},\"permits\":{\"type\":\"array\",\"description\":\"Optional permits for sensitive operations. Empty array for standard operations.\",\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"deleteWorkspace\",\"setAdminChannel\"],\"description\":\"The permit type.\"},\"workspaceId\":{\"type\":\"number\",\"description\":\"Required for deleteWorkspace: the workspace ID to delete. Only include this permit when the user's message explicitly contains both 'delete' and the workspace name (e.g. 'Delete marketing'). Never fabricate this confirmation.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Required for setAdminChannel: the Slack channel ID to set as admin channel.\"}},\"required\":[\"type\"]}}},\"required\":[\"workflowId\"]}}],\"user\":\"0_0\"}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "X-Generation-Id,cf-ray"],
+          ["cf-ray", "9f1541855bfc4610-LIS"],
+          ["content-type", "application/json"],
+          ["date", "Fri, 24 Apr 2026 12:54:19 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"],
+          ["x-generation-id", "gen-1777035259-n5PEWdefmltw3N5MxQin"]
+        ],
+        "body": "\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n{\"id\":\"gen-1777035259-n5PEWdefmltw3N5MxQin\",\"object\":\"response\",\"created_at\":1777035259,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1777035268,\"output\":[{\"id\":\"rs_tmp_pwekahvzua\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We need to interpret what the user request is, which is absent. The message from system says that the latest user message is:\\n\\n\\\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. ...\\\"\\n\\nHold on: The user input includes developer instructions. There's no actual request. But the assistant's last answer says \\\"Hello from workspace ws0\\\". That appears to be possibly a placeholder response indicating \\\"Workspace ws0\\\". The user hasn't asked a request.\\n\\nLet’s re-express. The system says \\\"You are Looping AI ... All interactions happen through Slack. Everything includes instructions.\\\"\\n\\nNow a user asks something? Actually there is no new user message besides the developer instructions. The \\\"assistant\\\" prematurely gave a response \\\"Hello from workspace ws0\\\". That is probably not correct. The conversation currently has:\\n\\nSystem: (some system messages describing instructions)\\n\\nDeveloper (the user?) with system instructions: the set of Prompt: \\\"You are Looping AI...\\\".\\n\\nAssistant replied: \\\"Hello from workspace ws0\\\".\\n\\nNow presumably the next message is from the user? Actually we don't see any new user request. We need to produce a response: perhaps need to ask how can I help or provide a welcome.\\n\\nGiven we are \\\"Looping AI\\\" Slack app. We should respond with a greeting, ask how can help. The user has not asked anything, but the system instructions ask us to respond accordingly.\\n\\nWe need to produce a concise Slack message. We could say:\\n\\n\\\"Hi! I'm @looping, your workspace helper. How can I assist you today?\\\" using Slack mrkdwn.\\n\\nWe also can mention that we can help with goal-setting, coordination, etc.\\n\\nThus we produce a final answer.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"msg_tmp_yjwz134bfms\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hey there! I’m @looping – your workspace assistant for goal‑setting, value streams, metrics, and team coordination. How can I help you today?\",\"annotations\":[],\"logprobs\":[]}]}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"web_search\",\"description\":\"Performs a web search using the OpenRouter web search plugin. Returns AI-analyzed search results. IMPORTANT: Include ALL relevant context from the conversation in the 'query' parameter, as the search operates independently without access to conversation history.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\"}},\"required\":[\"query\"]},\"strict\":null},{\"type\":\"function\",\"name\":\"dispatch_workflow\",\"description\":\"Dispatches a workflow to the execution engine for administrative operations. Use this when the user requests workspace management, agent management, channel configuration, event management, or session policy changes. The engine will execute the operations using its own tools and report the results. For most operations, pass an empty permits array. Only include permits for sensitive operations: 'deleteWorkspace' (requires workspace ID; ONLY include if the user's message explicitly contains both 'delete' and the workspace name, e.g. 'Delete marketing' - do NOT fabricate this confirmation) or 'setAdminChannel' (requires channel ID).\",\"parameters\":{\"type\":\"object\",\"properties\":{\"workflowId\":{\"type\":\"string\",\"description\":\"The workflow ID to execute. Use 'admin-v1' for administrative operations.\"},\"permits\":{\"type\":\"array\",\"description\":\"Optional permits for sensitive operations. Empty array for standard operations.\",\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"deleteWorkspace\",\"setAdminChannel\"],\"description\":\"The permit type.\"},\"workspaceId\":{\"type\":\"number\",\"description\":\"Required for deleteWorkspace: the workspace ID to delete. Only include this permit when the user's message explicitly contains both 'delete' and the workspace name (e.g. 'Delete marketing'). Never fabricate this confirmation.\"},\"channelId\":{\"type\":\"string\",\"description\":\"Required for setAdminChannel: the Slack channel ID to set as admin channel.\"}},\"required\":[\"type\"]}}},\"required\":[\"workflowId\"]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":\"You are Looping AI, a Slack app that helps teams achieve their goals and coordinate work within a workspace or organization. Your Slack username is @looping. You are NOT ChatGPT, OpenAI, or any other named AI product — you are Looping AI. Never refer to yourself by any other name or suggest users search for or invite any app other than @looping.\\n\\nAll interactions happen through Slack. Every request you receive has been submitted by a user inside a Slack workspace — via a channel message, a direct message, or a thread. Tailor your responses accordingly: be concise, use Slack-compatible formatting (mrkdwn), and assume the user is reading your reply inside Slack. Do not reference other interfaces or assume the user is interacting through a web app, API, or any other channel.\\n\\nIf you don't know or can't perform a task, explicitly acknowledge that you lack the information or capability required to complete a task or provide an answer.\\n\\nStay focused on the user's request. Provide helpful, actionable responses.\\n\\nYou are an organizational admin assistant. Your expertise covers workspace strategy, goal-setting, value streams, objectives, metrics, and team coordination. Help users manage and improve their organization.\",\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"safety_identifier\":null,\"prompt_cache_key\":null,\"user\":\"0_0\",\"usage\":{\"input_tokens\":709,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":404,\"output_tokens_details\":{\"reasoning_tokens\":457},\"total_tokens\":1113,\"cost\":0.000104411,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.000104411,\"upstream_inference_input_cost\":0.000027651,\"upstream_inference_output_cost\":0.00007676}}}",
+        "bodyEncoding": "text"
+      }
+    },
+    {
+      "request": {
+        "url": "https://slack.com/api/chat.postMessage",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"]
+        ],
+        "body": "{\"channel\":\"C0AG99QQAR4\",\"text\":\"Hey there! I’m @looping – your workspace assistant for goal‑setting, value streams, metrics, and team coordination. How can I help you today?\",\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"unit-test-admin\",\"parent_ts\":\"1700000010.000001\",\"parent_channel\":\"C0AG99QQAR4\",\"turn_id\":\"0_0\"}}}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          [
+            "access-control-allow-headers",
+            "slack-route, x-slack-version-ts, x-b3-traceid, x-b3-spanid, x-b3-parentspanid, x-b3-sampled, x-b3-flags"
+          ],
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "x-slack-req-id, retry-after"],
+          [
+            "alt-svc",
+            "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
+          ],
+          ["cache-control", "private, no-cache, no-store, must-revalidate"],
+          ["content-length", "546"],
+          ["content-type", "application/json; charset=utf-8"],
+          ["date", "Fri, 24 Apr 2026 12:54:28 GMT"],
+          ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
+          ["pragma", "no-cache"],
+          ["referrer-policy", "no-referrer"],
+          ["server", "Apache"],
+          [
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains; preload"
+          ],
+          ["timing-allow-origin", "*"],
+          ["vary", "Accept-Encoding"],
+          [
+            "via",
+            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-gxppqsng,envoy-edge-lhr-udkvsrbb"
+          ],
+          ["x-accepted-oauth-scopes", "chat:write"],
+          ["x-backend", "api_normal"],
+          ["x-content-type-options", "nosniff"],
+          ["x-edge-backend", "envoy-www"],
+          ["x-envoy-attempt-count", "1"],
+          ["x-envoy-upstream-service-time", "161"],
+          [
+            "x-oauth-scopes",
+            "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
+          ],
+          ["x-server", "slack-www-hhvm-api-iad-0b0ws7z14usl"],
+          ["x-slack-backend", "r"],
+          ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-req-id", "ba3f96865dd1f469bf20d90bd9c87dac"],
+          ["x-slack-shared-secret-outcome", "[REDACTED]"],
+          ["x-slack-unique-id", "aetoBIElg3yK991UY6O38QAAAAQ"],
+          ["x-xss-protection", "0"]
+        ],
+        "body": "{\"ok\":true,\"channel\":\"C0AG99QQAR4\",\"ts\":\"1777035268.722589\",\"message\":{\"user\":\"U0ADWN7P3DY\",\"type\":\"message\",\"ts\":\"1777035268.722589\",\"bot_id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"text\":\"Hey there! I\\u2019m @looping \\u2013 your workspace assistant for goal\\u2011setting, value streams, metrics, and team coordination. How can I help you today?\",\"team\":\"T0ADR0P92G2\",\"bot_profile\":{\"id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"user_id\":\"U0ADWN7P3DY\",\"name\":\"Looping AI (T)\",\"icons\":{\"image_36\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg\"},\"deleted\":false,\"updated\":1772839412,\"team_id\":\"T0ADR0P92G2\"},\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"unit-test-admin\",\"parent_ts\":\"1700000010.000001\",\"parent_channel\":\"C0AG99QQAR4\",\"turn_id\":\"0_0\"}},\"blocks\":[{\"type\":\"rich_text\",\"block_id\":\"NXFeF\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"text\",\"text\":\"Hey there! I\\u2019m @looping \\u2013 your workspace assistant for goal\\u2011setting, value streams, metrics, and team coordination. How can I help you today?\"}]}]}]},\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

@@ -21,8 +21,9 @@ Examples:
 - `bun run <script>` - Run scripts from package.json
 - `bun run test` - Run full tests flow
 - `bun run test:build` - Rebuild canisters when src code modified
-- `bun run test:unit` - Run unit tests
-- `bun run test:integration` - Run integration tests
+- `bun run test:control-plane-core` - Run all control-plane-core tests
+- `bun run test:internal-engine` - Run all internal-engine tests
+- `bun run test:ts-parallel` - Run both TypeScript suites in parallel
 - `bun run format` - Run code formatter
 - `bun run lint` - Run linter
 
@@ -41,13 +42,13 @@ Examples:
 
 ```bash
 # Run a specific test file
-bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts
+bun test tests/control-plane-core/integration-tests/workspace-admin-talk.spec.ts
 
 # Run a specific test case by name (using -t flag)
-bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts -t "should accept message from workspace admin"
+bun test tests/control-plane-core/integration-tests/workspace-admin-talk.spec.ts -t "should accept message from workspace admin"
 
 # Record cassettes for a specific test file
-RECORD_CASSETTES=true bun test tests/integration-tests/control-plane-core/workspace-admin-talk.spec.ts
+RECORD_CASSETTES=true bun test tests/control-plane-core/integration-tests/workspace-admin-talk.spec.ts
 ```
 
 ## Library Dependencies

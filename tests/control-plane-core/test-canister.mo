@@ -1,0 +1,1848 @@
+import Error "mo:core/Error";
+import Blob "mo:core/Blob";
+import Map "mo:core/Map";
+import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Float "mo:core/Float";
+import Array "mo:core/Array";
+import Set "mo:core/Set";
+import Text "mo:core/Text";
+import Principal "mo:core/Principal";
+import Json "mo:json";
+import { str; obj; bool; int } "mo:json";
+
+import InternalEngine "../../src/internal-engine/main";
+
+import HttpWrapper "../../src/control-plane-core/wrappers/http-wrapper";
+import OpenRouterWrapper "../../src/control-plane-core/wrappers/openrouter-wrapper";
+import SlackWrapper "../../src/control-plane-core/wrappers/slack-wrapper";
+import HttpCertification "../../src/control-plane-core/utilities/http-certification";
+import MessageHandler "../../src/control-plane-core/events/handlers/message-handler";
+import MessageDeletedHandler "../../src/control-plane-core/events/handlers/message-deleted-handler";
+import MessageEditedHandler "../../src/control-plane-core/events/handlers/message-edited-handler";
+import AssistantThreadHandler "../../src/control-plane-core/events/handlers/assistant-thread-handler";
+import TeamJoinHandler "../../src/control-plane-core/events/handlers/team-join-handler";
+import MemberJoinedChannelHandler "../../src/control-plane-core/events/handlers/member-joined-channel-handler";
+import MemberLeftChannelHandler "../../src/control-plane-core/events/handlers/member-left-channel-handler";
+import NormalizedEventTypes "../../src/control-plane-core/events/types/normalized-event-types";
+import SlackAdapter "../../src/control-plane-core/events/slack-adapter";
+
+import StoreSecretHandler "../../src/control-plane-core/agents/tools/handlers/secrets/store-secret-handler";
+import GetWorkspaceSecretsHandler "../../src/control-plane-core/agents/tools/handlers/secrets/get-workspace-secrets-handler";
+import DeleteSecretHandler "../../src/control-plane-core/agents/tools/handlers/secrets/delete-secret-handler";
+import DispatchWorkflowHandler "../../src/control-plane-core/agents/tools/handlers/dispatch-workflow-handler";
+import EngineDispatchService "../../src/control-plane-core/services/engine-dispatch-service";
+import ExecutionTypes "../../src/control-plane-core/types/execution";
+import WeeklyReconciliationRunner "../../src/control-plane-core/timers/weekly-reconciliation-runner";
+import ClearKeyCacheRunner "../../src/control-plane-core/timers/clear-key-cache-runner";
+import ProcessedEventsCleanupRunner "../../src/control-plane-core/timers/processed-events-cleanup-runner";
+import ChannelHistoryPruneRunner "../../src/control-plane-core/timers/channel-history-prune-runner";
+import TurnCleanupRunner "../../src/control-plane-core/timers/turn-cleanup-runner";
+import EngineTopupRunner "../../src/control-plane-core/timers/engine-topup-runner";
+import SlackEventIntakeService "../../src/control-plane-core/services/slack-event-intake-service";
+import ChannelHistoryModel "../../src/control-plane-core/models/channel-history-model";
+import SlackUserModel "../../src/control-plane-core/models/slack-user-model";
+import SlackAuthMiddleware "../../src/control-plane-core/middleware/slack-auth-middleware";
+import WorkspaceModel "../../src/control-plane-core/models/workspace-model";
+import AgentModel "../../src/control-plane-core/models/agent-model";
+import KeyDerivationService "../../src/control-plane-core/services/key-derivation-service";
+import SecretModel "../../src/control-plane-core/models/secret-model";
+import EventStoreModel "../../src/control-plane-core/models/event-store-model";
+import SessionModel "../../src/control-plane-core/models/session-model";
+import ExecutionEnvelopeModel "../../src/control-plane-core/models/execution-envelope-model";
+import ExecutionApiService "../../src/control-plane-core/services/execution-api-service";
+import ExecutionAsyncEffectService "../../src/control-plane-core/services/execution-async-effect-service";
+import EventProcessingContextTypes "../../src/control-plane-core/events/types/event-processing-context";
+import AgentOrchestrator "../../src/control-plane-core/agents/agent-orchestrator";
+import ToolExecutor "../../src/control-plane-core/agents/tools/tool-executor";
+import ToolTypes "../../src/control-plane-core/agents/tools/tool-types";
+import Types "../../src/control-plane-core/types";
+import TestHelpers "./test-helpers";
+
+// ============================================
+// Test Canister
+// ============================================
+
+// IMPORTANT:
+// Never add this canister to dfx or deploy it
+
+shared ({ caller = parent }) persistent actor class TestCanister() = self {
+  // Store for HTTP certification testing
+  var certStore = HttpCertification.initStore();
+
+  // Persistent Slack user state for tests (cache + access change log).
+  // This allows us to verify state changes and audit log entries across handler calls.
+  var slackUsers = SlackUserModel.emptyState();
+
+  // Persistent key cache for testing key derivation mechanics.
+  // Starts empty; tests seed it via testSeedKeyForWorkspace or test methods.
+  var testKeyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache();
+
+  // Pre-seeded workspace state with channel anchors for handler tests.
+  //   Workspace 0: Default (no channel anchors) — from emptyState()
+  //   Workspace 1: adminChannelId = C_ADMIN_CHANNEL
+  //   Workspace 2: adminChannelId = C_ROUND_TRIP_ADMIN
+  let testWorkspacesState : WorkspaceModel.WorkspacesState = do {
+    let s = WorkspaceModel.emptyState();
+    ignore WorkspaceModel.createWorkspace(s, "Test Workspace 1"); // id = 1
+    ignore WorkspaceModel.setAdminChannel(s, 1, "C_ADMIN_CHANNEL");
+    ignore WorkspaceModel.createWorkspace(s, "Test Workspace 2"); // id = 2
+    ignore WorkspaceModel.setAdminChannel(s, 2, "C_ROUND_TRIP_ADMIN");
+    s;
+  };
+
+  // Agent registry state for agent handler tests. Starts empty; tests
+  // register agents through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  let testAgentRegistry = AgentModel.emptyState();
+
+  // Secrets map and key cache for secrets handler tests. Starts empty; tests
+  // store/delete secrets through handler calls and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  // The key cache is pre-seeded with the all-zeros dummy key for workspaces 0, 1, 2
+  // to avoid live Schnorr calls during unit tests.
+  let testSecretsMap = SecretModel.initState();
+  let testSecretsKeyCache : KeyDerivationService.KeyCache = Map.fromArray<Nat, [Nat8]>(
+    [(0, TestHelpers.dummyKey), (1, TestHelpers.dummyKey), (2, TestHelpers.dummyKey)],
+    Nat.compare,
+  );
+
+  // Event store state for event handler tests. Starts empty; tests seed events
+  // through the testSeedFailedEvent helper and state persists within a single
+  // canister lifetime (but each test creates a fresh PocketIC canister).
+  let testEventStore = EventStoreModel.empty();
+
+  // Channel history store for channel-history-prune runner tests.
+  let testChannelHistoryStore = ChannelHistoryModel.empty();
+
+  // Session stores dedicated to turn-cleanup-runner tests.
+  let testCleanupSessionStores = SessionModel.emptyStores();
+
+  // Envelope state paired with testCleanupSessionStores for turn-cleanup-runner tests.
+  let testCleanupEnvelopeState = ExecutionEnvelopeModel.emptyState();
+
+  // Dispatch-path session stores — shared across testMessageHandlerDispatch calls
+  // so testGetTurnStatus can observe turn state after the handler returns.
+  let testDispatchSessionStores = SessionModel.emptyStores();
+
+  // Execution API token store — dedicated store for executionApi endpoint tests.
+  let testExecEnvelopeState = ExecutionEnvelopeModel.emptyState();
+
+  // Internal engine principal for executionApi authorization guard tests.
+  var testInternalEnginePrincipal : ?Principal = null;
+
+  let mockInternalEngine : InternalEngine.InternalEngine = actor (Principal.toText(Principal.fromActor(self))) : InternalEngine.InternalEngine;
+
+  // Execution API service wired up for unit tests.
+  transient let testExecApiService = ExecutionApiService.Service({
+    envelopeState = testExecEnvelopeState;
+    workspaces = testWorkspacesState;
+    agentRegistry = testAgentRegistry;
+    eventStore = testEventStore;
+    sessionStores = testDispatchSessionStores;
+  });
+
+  // Execution async effect end-to-end test state.
+  // Uses AgentModel.defaultState() so agent 0 (workspace-admin, ownedBy=0) is pre-seeded.
+  let testEffectAgentRegistry = AgentModel.defaultState();
+  let testEffectSessionStores = SessionModel.emptyStores();
+  let testEffectEnvelopeState = ExecutionEnvelopeModel.emptyState();
+  transient let testEffectExecApiService = ExecutionApiService.Service({
+    envelopeState = testEffectEnvelopeState;
+    workspaces = testWorkspacesState;
+    agentRegistry = testEffectAgentRegistry;
+    eventStore = testEventStore;
+    sessionStores = testEffectSessionStores;
+  });
+  // Secrets store and key cache for the async-effect service (workspace 0 only).
+  // The dummy key lets the service resolve secrets without a live Schnorr call.
+  let testEffectSecretsState = SecretModel.initState();
+  let testEffectKeyCache : KeyDerivationService.KeyCache = Map.fromArray<Nat, [Nat8]>(
+    [(0, TestHelpers.dummyKey)],
+    Nat.compare,
+  );
+  transient let testEffectAsyncEffectService = ExecutionAsyncEffectService.Service({
+    sessionStores = testEffectSessionStores;
+    agentRegistry = testEffectAgentRegistry;
+    workspaces = testWorkspacesState;
+    secrets = testEffectSecretsState;
+  });
+
+  func testOrchestratorEngineDeps() : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState> {
+    {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      internalEngine = mockInternalEngine;
+    };
+  };
+
+  func testAgentWithModel(category : AgentModel.AgentCategory, name : Text, model : Text) : AgentModel.AgentRecord {
+    let allowedChannelIds = switch (category) {
+      case (#_system(#admin)) { Set.empty<Text>() };
+      case (_) { Set.fromArray(["C_TEST_CATEGORY"], Text.compare) };
+    };
+    {
+      id = 999;
+      ownedBy = 0;
+      category;
+      config = {
+        name;
+        model;
+        executionEngines = [#canister];
+        allowedChannelIds;
+        secrets = { allowed = [(0, #openRouterApiKey)]; overrides = [] };
+      };
+      state = {
+        toolsState = Map.empty<Text, AgentModel.ToolState>();
+      };
+    };
+  };
+
+  func testAgent(category : AgentModel.AgentCategory, name : Text) : AgentModel.AgentRecord {
+    testAgentWithModel(category, name, "openai/gpt-oss-120b");
+  };
+
+  func ensureTestInternalEngine() : async InternalEngine.InternalEngine {
+    mockInternalEngine;
+  };
+
+  public shared ({ caller = _ }) func execute(envelope : ExecutionTypes.EnvelopePayload) : async {
+    #ok;
+    #err : Text;
+  } {
+    let requiredVersion = "v1";
+    let versionOk = switch (envelope.dispatchedVersion) {
+      case (?v) { v == requiredVersion };
+      case (null) { false };
+    };
+    if (not versionOk) {
+      return #err("{\"envelopeVersionRequired\":\"" # requiredVersion # "\"}");
+    };
+
+    let hasApiKey = Array.find<(Text, Text)>(
+      envelope.secrets.apiKeys,
+      func(kv : (Text, Text)) : Bool { kv.0 == "openrouter" },
+    ) != null;
+    if (not hasApiKey) {
+      return #err("Missing 'openrouter' API key in envelope secrets");
+    };
+
+    #ok;
+  };
+
+  // ============================================
+  // Slack Wrapper Test Methods
+  // ============================================
+
+  public shared ({ caller }) func slackGetOrganizationMembers(token : Text) : async {
+    #ok : [SlackWrapper.SlackUser];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.getOrganizationMembers(token);
+  };
+
+  public shared ({ caller }) func slackListChannels(token : Text, types : ?Text) : async {
+    #ok : [SlackWrapper.SlackChannel];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.listChannels(token, types);
+  };
+
+  public shared ({ caller }) func slackGetChannelMembers(token : Text, channel : Text) : async {
+    #ok : [Text];
+    #err : Text;
+  } {
+    assert caller == parent;
+    await SlackWrapper.getChannelMembers(token, channel);
+  };
+
+  // ============================================
+  // HTTP Wrapper Test Methods
+  // ============================================
+
+  public shared ({ caller }) func httpGet(url : Text, headers : [HttpWrapper.HttpHeader]) : async {
+    #ok : (Nat, Text);
+    #err : Text;
+  } {
+    assert caller == parent;
+    await HttpWrapper.get(url, headers);
+  };
+
+  public shared ({ caller }) func httpPost(url : Text, headers : [HttpWrapper.HttpHeader], body : Text) : async {
+    #ok : (Nat, Text);
+    #err : Text;
+  } {
+    assert caller == parent;
+    await HttpWrapper.post(url, headers, body);
+  };
+
+  public shared ({ caller }) func openRouterChat(apiKey : Text, userMessage : Text, model : Text) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    assert caller == parent;
+    await OpenRouterWrapper.chat(apiKey, userMessage, model);
+  };
+
+  public shared ({ caller }) func openRouterReason(
+    apiKey : Text,
+    input : [OpenRouterWrapper.ResponseInputMessage],
+    model : Text,
+    trackId : OpenRouterWrapper.TrackId,
+    instructions : ?Text,
+    temperature : ?Float,
+    tools : ?[OpenRouterWrapper.Tool],
+  ) : async OpenRouterWrapper.ReasonWithToolsResult {
+    assert caller == parent;
+    await OpenRouterWrapper.reason(apiKey, input, model, trackId, instructions, temperature, tools);
+  };
+
+  public shared ({ caller }) func openRouterUseBuiltInTool(
+    apiKey : Text,
+    userMessage : Text,
+    tool : OpenRouterWrapper.BuiltInTool,
+  ) : async {
+    #ok : OpenRouterWrapper.CompoundChatCompletionResponse;
+    #err : Text;
+  } {
+    assert caller == parent;
+    await OpenRouterWrapper.useBuiltInTool(apiKey, userMessage, tool);
+  };
+
+  // ============================================
+  // HTTP Certification Methods
+  // ============================================
+
+  public shared ({ caller }) func httpCertInit() : async () {
+    assert caller == parent;
+    certStore := HttpCertification.initStore();
+  };
+
+  public shared ({ caller }) func httpCertCertifyPath(url : Text) : async () {
+    assert caller == parent;
+    HttpCertification.certifySkipFallbackPath(certStore, url);
+  };
+
+  public query func httpCertGetHeaders(url : Text) : async {
+    #ok : [(Text, Text)];
+    #err : Text;
+  } {
+    try {
+      let headers = HttpCertification.getSkipCertificationHeaders(certStore, url);
+      #ok(headers);
+    } catch (_) {
+      #err("Failed to get headers");
+    };
+  };
+
+  /// Check if a path exists in the MerkleTree and return its details
+  public query func httpCertCheckPath(url : Text) : async {
+    #ok : {
+      exists : Bool;
+      path : [Text];
+      treeHash : Blob;
+    };
+    #err : Text;
+  } {
+    try {
+      let result = HttpCertification.checkPath(certStore, url);
+      #ok(result);
+    } catch (e) {
+      #err("Failed to check path: " # Error.message(e));
+    };
+  };
+
+  // ============================================
+  // Events Handler Test Methods
+  // ============================================
+
+  public shared ({ caller }) func testMessageHandler(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    }
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageHandler.handle(msg, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
+  };
+
+  /// Like testMessageHandler, but pre-seeds the context with a real Slack bot token
+  /// and OpenRouter API key so the full happy-path (LLM call → Slack post) can be exercised
+  /// and captured with the cassette recording system.
+  public shared ({ caller }) func testMessageHandlerWithSecrets(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    openRouterApiKey : Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    // Anchor workspace 0's admin channel to the incoming channel so the admin routing
+    // guard passes. The setAdminChannel call is silently ignored if the channel is
+    // already anchored to another workspace (e.g. C_ADMIN_CHANNEL → workspace 1 in
+    // testWorkspacesState), which is fine for tests that fire before the routing guard.
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
+  };
+
+  /// Like testMessageHandlerWithSecrets, but also pre-seeds the conversation store
+  /// with a parent message that carries a UserAuthContext and optionally seeds
+  /// a delegation-depth chain in the session stores.
+  /// This allows bot-message (isBotMessage: true) tests to exercise delegation
+  /// depth checks and MAX_AGENT_ROUNDS termination logic.
+  ///
+  /// parentChannel     — channel where the parent message lives.
+  /// parentTs          — ts of the parent message (also used as rootTs for a top-level post).
+  /// delegationDepth   — number of turns to chain in sessionStores (0 = no prior delegation).
+  public shared ({ caller }) func testMessageHandlerBotBranch(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    openRouterApiKey : Text,
+    parentChannel : Text,
+    parentTs : Text,
+    delegationDepth : Nat,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    let ctx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]);
+    let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_SEEDED_PARENT";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      adminWorkspaces = Set.empty<Nat>();
+    };
+    ChannelHistoryModel.addMessage(
+      ctx.channelHistory,
+      parentChannel,
+      {
+        ts = parentTs;
+        userAuthContext = null;
+        text = "seeded parent message";
+        agentMetadata = null;
+      },
+      null,
+    );
+    ignore ChannelHistoryModel.updateMessageContext(
+      ctx.channelHistory,
+      parentChannel,
+      parentTs,
+      parentTs,
+      ?parentAuthCtx,
+    );
+    // Seed a delegation chain in the session stores
+    var prevTurnId : ?Text = null;
+    var i = 0;
+    while (i < delegationDepth) {
+      let turn = SessionModel.createTurn(ctx.sessionStores, 0, null, prevTurnId, ?parentAuthCtx);
+      SessionModel.completeTurn(ctx.sessionStores, turn.turnId, #succeeded, null, null);
+      prevTurnId := ?turn.turnId;
+      i += 1;
+    };
+    // Override turn_id only when turns were seeded; otherwise pass msg through unchanged.
+    let adjustedMsg = switch (prevTurnId) {
+      case (null) { msg };
+      case (?tid) {
+        switch (msg.agentMetadata) {
+          case (null) { msg };
+          case (?m) {
+            {
+              user = msg.user;
+              text = msg.text;
+              channel = msg.channel;
+              ts = msg.ts;
+              threadTs = msg.threadTs;
+              isBotMessage = msg.isBotMessage;
+              agentMetadata = ?{
+                event_type = m.event_type;
+                event_payload = {
+                  parent_agent = m.event_payload.parent_agent;
+                  parent_ts = m.event_payload.parent_ts;
+                  parent_channel = m.event_payload.parent_channel;
+                  turn_id = tid;
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+    await MessageHandler.handle(adjustedMsg, ctx);
+  };
+
+  /// Like `testMessageHandlerBotBranch`, but uses `ctxWithOpenRouterOnlySecrets` (no Slack
+  /// bot token) so the `postTerminationIfTokenAvailable` call is a no-op.
+  ///
+  /// Use this for non-deferred guard tests that verify termination logic (e.g.
+  /// MAX_AGENT_ROUNDS delegation depth) without needing a cassette to handle the
+  /// outgoing Slack HTTPS chat.postMessage call.
+  public shared ({ caller }) func testMessageHandlerBotBranchNoSlackToken(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    openRouterApiKey : Text,
+    parentChannel : Text,
+    parentTs : Text,
+    delegationDepth : Nat,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    let ctx = TestHelpers.ctxWithOpenRouterOnlySecrets(slackUsers, testWorkspacesState, openRouterApiKey, [msg.channel]);
+    let parentAuthCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_SEEDED_PARENT";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      adminWorkspaces = Set.empty<Nat>();
+    };
+    ChannelHistoryModel.addMessage(
+      ctx.channelHistory,
+      parentChannel,
+      {
+        ts = parentTs;
+        userAuthContext = null;
+        text = "seeded parent message";
+        agentMetadata = null;
+      },
+      null,
+    );
+    ignore ChannelHistoryModel.updateMessageContext(
+      ctx.channelHistory,
+      parentChannel,
+      parentTs,
+      parentTs,
+      ?parentAuthCtx,
+    );
+    // Seed a delegation chain in the session stores
+    var prevTurnId : ?Text = null;
+    var i = 0;
+    while (i < delegationDepth) {
+      let turn = SessionModel.createTurn(ctx.sessionStores, 0, null, prevTurnId, ?parentAuthCtx);
+      SessionModel.completeTurn(ctx.sessionStores, turn.turnId, #succeeded, null, null);
+      prevTurnId := ?turn.turnId;
+      i += 1;
+    };
+    // Override turn_id only when turns were seeded; otherwise pass msg through unchanged.
+    let adjustedMsg = switch (prevTurnId) {
+      case (null) { msg };
+      case (?tid) {
+        switch (msg.agentMetadata) {
+          case (null) { msg };
+          case (?m) {
+            {
+              user = msg.user;
+              text = msg.text;
+              channel = msg.channel;
+              ts = msg.ts;
+              threadTs = msg.threadTs;
+              isBotMessage = msg.isBotMessage;
+              agentMetadata = ?{
+                event_type = m.event_type;
+                event_payload = {
+                  parent_agent = m.event_payload.parent_agent;
+                  parent_ts = m.event_payload.parent_ts;
+                  parent_channel = m.event_payload.parent_channel;
+                  turn_id = tid;
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+    await MessageHandler.handle(adjustedMsg, ctx);
+  };
+
+  /// Like `testMessageHandlerWithSecrets`, but pre-seeds the context with BOTH a
+  /// `unit-test-admin` (#_system(#admin)) and a `unit-test-custom` (#custom) agent.
+  ///
+  /// Use this variant for primary-agent resolution tests that reference `::unit-test-custom`
+  /// explicitly.  Because `route(#custom, …)` returns a stub error without making any HTTP
+  /// calls, these tests complete quickly with no cassette required.
+  public shared ({ caller }) func testMessageHandlerWithCustomAgent(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    openRouterApiKey : Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndCustom(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
+  };
+
+  /// Like `testMessageHandlerWithCustomAgent`, but uses `TestHelpers.ctxWithSecretsAndCustomNoOpenRouter`
+  /// so the admin route short-circuits at key resolution (#err) without any HTTP outcall.
+  ///
+  /// Use for primary-agent fallback tests on a non-deferred actor where you only need
+  /// to assert that the agent WAS resolved (i.e. primary_agent_skip is NOT emitted).
+  public shared ({ caller }) func testMessageHandlerWithCustomAgentNoOpenRouter(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecretsAndCustomNoOpenRouter(slackUsers, testWorkspacesState, botToken, [msg.channel]));
+  };
+
+  /// Variant of testMessageHandlerWithSecrets designed for admin routing guard tests.
+  ///
+  /// @param adminChannelOverride  — `[channelId]` sets workspace 0's admin channel to
+  ///                                that specific channel (for wrong-channel blocking tests).
+  ///                                `[]` leaves workspace 0 with no admin channel
+  ///                                (for null-adminChannelId blocking tests).
+  ///
+  /// Unlike testMessageHandlerWithSecrets, this function does NOT set workspace 0's
+  /// admin channel to msg.channel. Use it when you want the guard to fire.
+  public shared ({ caller }) func testMessageHandlerAdminChannelBlocked(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    openRouterApiKey : Text,
+    adminChannelOverride : ?Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    switch (adminChannelOverride) {
+      case (?chId) {
+        ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, chId);
+      };
+      case (null) {}; // leave workspace 0 with no admin channel
+    };
+    await MessageHandler.handle(msg, TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]));
+  };
+
+  /// Like testMessageHandlerWithSecrets but uses real (non-todo) engine dispatch stubs:
+  /// - generateEnvelopeId returns "dispatch-test-env-001"
+  /// - dispatchToEngine always returns #ok (mock engine accepts the envelope)
+  ///
+  /// sessionStores is the shared testDispatchSessionStores so that
+  /// testGetTurnStatus can observe turn state after the call.
+  public shared ({ caller }) func testMessageHandlerDispatch(
+    msg : {
+      user : Text;
+      text : Text;
+      channel : Text;
+      ts : Text;
+      threadTs : ?Text;
+      isBotMessage : Bool;
+      agentMetadata : ?Types.AgentMessageMetadata;
+    },
+    botToken : Text,
+    openRouterApiKey : Text,
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, msg.channel);
+    let baseCtx = TestHelpers.ctxWithSecrets(slackUsers, testWorkspacesState, botToken, openRouterApiKey, [msg.channel]);
+    let engine = await ensureTestInternalEngine();
+    let ctx : EventProcessingContextTypes.EventProcessingContext = {
+      secrets = baseCtx.secrets;
+      keyCache = baseCtx.keyCache;
+      channelHistory = baseCtx.channelHistory;
+      agentRegistry = baseCtx.agentRegistry;
+      slackUsers = baseCtx.slackUsers;
+      workspaces = baseCtx.workspaces;
+      eventStore = baseCtx.eventStore;
+      sessionStores = testDispatchSessionStores;
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      internalEngine = engine;
+    };
+    await MessageHandler.handle(msg, ctx);
+  };
+
+  /// Query the status of a turn recorded in testDispatchSessionStores.
+  /// Returns "running", "pending", "succeeded", or "failed"; null if not found.
+  public query func testGetTurnStatus(turnId : Text) : async ?Text {
+    switch (SessionModel.findTurn(testDispatchSessionStores, turnId)) {
+      case (null) { null };
+      case (?turn) {
+        let statusText = switch (turn.status) {
+          case (#running) { "running" };
+          case (#pending) { "pending" };
+          case (#succeeded) { "succeeded" };
+          case (#failed) { "failed" };
+        };
+        ?statusText;
+      };
+    };
+  };
+
+  // ============================================
+  // Agent Orchestrator Category Test Methods
+  // ============================================
+
+  public shared ({ caller }) func testOrchestrateSystemAdminNoApiKey() : async Types.AgentOrchestrateResult {
+    assert caller == parent;
+    await AgentOrchestrator.orchestrate(
+      testAgent(#_system(#admin), "unit-test-admin"),
+      ChannelHistoryModel.empty(),
+      "C_TEST_CATEGORY",
+      null,
+      null,
+      "turn-admin-0",
+      SessionModel.emptyStores(),
+      null,
+      null,
+      SecretModel.initState(),
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      WorkspaceModel.emptyState(),
+      testOrchestratorEngineDeps(),
+    );
+  };
+
+  public shared ({ caller }) func testOrchestrateSystemOnboarding() : async Types.AgentOrchestrateResult {
+    assert caller == parent;
+    let secrets = do {
+      let s = SecretModel.initState();
+      ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
+      s;
+    };
+    await AgentOrchestrator.orchestrate(
+      testAgent(#_system(#onboarding), "unit-test-onboarding"),
+      ChannelHistoryModel.empty(),
+      "C_TEST_CATEGORY",
+      null,
+      null,
+      "turn-onboarding-0",
+      SessionModel.emptyStores(),
+      null,
+      null,
+      secrets,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      WorkspaceModel.emptyState(),
+      testOrchestratorEngineDeps(),
+    );
+  };
+
+  public shared ({ caller }) func testOrchestrateCustom() : async Types.AgentOrchestrateResult {
+    assert caller == parent;
+    let secrets = do {
+      let s = SecretModel.initState();
+      ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
+      s;
+    };
+    await AgentOrchestrator.orchestrate(
+      testAgent(#custom, "unit-test-custom"),
+      ChannelHistoryModel.empty(),
+      "C_TEST_CATEGORY",
+      null,
+      null,
+      "turn-custom-0",
+      SessionModel.emptyStores(),
+      null,
+      null,
+      secrets,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      WorkspaceModel.emptyState(),
+      testOrchestratorEngineDeps(),
+    );
+  };
+
+  /// Run AdminAgentLoop.process with configurable apiKey, model, and prompt.
+  /// Pass apiKey="" to simulate no secret seeded (triggers "No OpenRouter API key" error).
+  /// Pass model="" to trigger an invalid-model error from the LLM wrapper.
+  public shared ({ caller }) func testAdminAgentLoopProcess(
+    apiKey : Text,
+    model : Text,
+    prompt : Text,
+  ) : async Types.AgentOrchestrateResult {
+    assert caller == parent;
+    let secrets = if (apiKey == "") {
+      SecretModel.initState();
+    } else {
+      let s = SecretModel.initState();
+      ignore SecretModel.storeSecret(
+        s,
+        TestHelpers.dummyKey,
+        0,
+        #openRouterApiKey,
+        apiKey,
+        { slackUserId = null; agentId = null; operation = "test-seed" },
+      );
+      s;
+    };
+    let history = ChannelHistoryModel.empty();
+    let authCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_ADMIN_LOOP_TEST";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      adminWorkspaces = Set.empty<Nat>();
+    };
+    ChannelHistoryModel.addMessage(
+      history,
+      "C_TEST_CATEGORY",
+      {
+        ts = "1700000000.000001";
+        userAuthContext = ?authCtx;
+        text = prompt;
+        agentMetadata = null;
+      },
+      null,
+    );
+    let triggerPrompt : ?Text = if (prompt == "") { null } else { ?prompt };
+    await AgentOrchestrator.orchestrate(
+      testAgentWithModel(#_system(#admin), "unit-test-admin", model),
+      history,
+      "C_TEST_CATEGORY",
+      null,
+      triggerPrompt,
+      "turn-admin-loop-0",
+      SessionModel.emptyStores(),
+      null,
+      null,
+      secrets,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      WorkspaceModel.emptyState(),
+      testOrchestratorEngineDeps(),
+    );
+  };
+
+  // ============================================
+  // Tool Executor Test Methods
+  // ============================================
+
+  public shared ({ caller }) func testToolExecutorExecute(
+    apiKey : Text,
+    toolName : Text,
+    args : Text,
+  ) : async [ToolTypes.ToolResult] {
+    assert caller == parent;
+    let resources : ToolTypes.ToolResources = {
+      openRouterApiKey = ?apiKey;
+      workspaceId = null;
+      resolveSlackBotToken = null;
+      userAuthContext = null;
+      triggerMessageText = null;
+      resolveWorkspaceName = null;
+      secrets = null;
+      engineDispatch = null;
+      envelopeContext = null;
+    };
+    await ToolExecutor.execute(
+      resources,
+      [{ callId = "call-1"; toolName; arguments = args }],
+    );
+  };
+
+  public shared ({ caller }) func testToolExecutorFormatFixture() : async Text {
+    assert caller == parent;
+    ToolExecutor.formatResultsForLlm([
+      { callId = "call-1"; result = #success("{\"ok\":true}"); durationMs = 0 },
+      { callId = "call-2"; result = #error("boom"); durationMs = 0 },
+    ]);
+  };
+
+  // ============================================
+  // Execution API Test Methods
+  // ============================================
+
+  /// Sets the internal engine principal used by testExecutionApi's authorization guard.
+  public shared ({ caller }) func testSetInternalEnginePrincipal(p : Principal) : async () {
+    assert caller == parent;
+    testInternalEnginePrincipal := ?p;
+  };
+
+  /// Issues a full-scope execution token directly into testExecEnvelopeState.
+  /// Returns the token nonce.
+  public shared ({ caller }) func testIssueExecutionToken(
+    turnId : Text,
+    workspaceId : Nat,
+  ) : async Text {
+    assert caller == parent;
+    ExecutionEnvelopeModel.issue(
+      testExecEnvelopeState,
+      turnId,
+      workspaceId,
+      [
+        #workspace({ access = #write }),
+        #agents({ access = #write }),
+        #slackQueue({ access = #read }),
+        #session({ access = #write }),
+      ],
+      [],
+    ).nonce;
+  };
+
+  /// Mirrors the production executionApi endpoint for unit tests.
+  /// Applies the engine-principal authorization guard then delegates to testExecApiService.
+  /// Async effects are discarded — this tests the synchronous response only.
+  public shared ({ caller }) func testExecutionApi(
+    method : { #get; #post; #delete },
+    path : Text,
+    body : Text,
+  ) : async { #ok : Text; #err : Text } {
+    switch (testInternalEnginePrincipal) {
+      case (null) {};
+      case (?expected) {
+        if (caller != expected) {
+          return #err("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister");
+        };
+      };
+    };
+    let { response } = testExecApiService.handleRequest(method, path, body);
+    response;
+  };
+
+  // ============================================
+  // Execution Async Effect Test Methods
+  // ============================================
+
+  /// Seed a pending turn in testEffectSessionStores with a Slack sourceRef.
+  /// Returns the generated turnId (format: "{agentId}_{turnNumber}").
+  public shared ({ caller }) func testSeedPendingTurn(
+    agentId : Nat,
+    channelId : Text,
+    ts : Text,
+    threadTs : ?Text,
+  ) : async Text {
+    assert caller == parent;
+    let turn = SessionModel.createTurn(
+      testEffectSessionStores,
+      agentId,
+      ?#slack({ channelId; ts; threadTs }),
+      null,
+      null,
+    );
+    SessionModel.markPending(testEffectSessionStores, turn.turnId);
+    turn.turnId;
+  };
+
+  /// Issues a full-scope execution token into testEffectEnvelopeState.
+  /// Returns the token nonce.
+  public shared ({ caller }) func testIssueEffectToken(
+    turnId : Text,
+    workspaceId : Nat,
+  ) : async Text {
+    assert caller == parent;
+    ExecutionEnvelopeModel.issue(
+      testEffectEnvelopeState,
+      turnId,
+      workspaceId,
+      [
+        #workspace({ access = #write }),
+        #agents({ access = #write }),
+        #slackQueue({ access = #read }),
+        #session({ access = #write }),
+      ],
+      [],
+    ).nonce;
+  };
+
+  /// Call testEffectExecApiService, then synchronously run any async effects
+  /// using the provided botToken (bypasses Schnorr key derivation for unit tests).
+  /// The botToken is seeded into testEffectSecretsState encrypted with the dummy key
+  /// so ExecutionAsyncEffectService can resolve it without a live Schnorr call.
+  public shared ({ caller }) func testRunAsyncEffect(
+    method : { #get; #post; #delete },
+    path : Text,
+    body : Text,
+    botToken : Text,
+  ) : async { #ok : Text; #err : Text } {
+    assert caller == parent;
+    ignore SecretModel.storeSecret(
+      testEffectSecretsState,
+      TestHelpers.dummyKey,
+      0,
+      #slackBotToken,
+      botToken,
+      { slackUserId = null; agentId = null; operation = "test-seed" },
+    );
+    let { response; asyncEffects } = testEffectExecApiService.handleRequest(method, path, body);
+    for (effect in asyncEffects.vals()) {
+      await testEffectAsyncEffectService.processEffect(testEffectKeyCache, effect);
+    };
+    response;
+  };
+
+  /// Query the status of a turn in testEffectSessionStores.
+  public query func testGetEffectTurnStatus(turnId : Text) : async ?Text {
+    switch (SessionModel.findTurn(testEffectSessionStores, turnId)) {
+      case (null) { null };
+      case (?turn) {
+        let statusText = switch (turn.status) {
+          case (#running) { "running" };
+          case (#pending) { "pending" };
+          case (#succeeded) { "succeeded" };
+          case (#failed) { "failed" };
+        };
+        ?statusText;
+      };
+    };
+  };
+
+  public shared ({ caller }) func testMessageDeletedHandler(
+    deleted : {
+      channel : Text;
+      deletedTs : Text;
+    }
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageDeletedHandler.handle(deleted, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
+  };
+
+  public shared ({ caller }) func testMessageEditedHandler(
+    edited : {
+      channel : Text;
+      messageTs : Text;
+      threadTs : ?Text;
+      newText : Text;
+      editedBy : ?Text;
+    }
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MessageEditedHandler.handle(edited, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
+  };
+
+  public shared ({ caller }) func testAssistantThreadEventHandler(
+    thread : {
+      eventType : { #threadStarted; #threadContextChanged };
+      userId : Text;
+      channelId : Text;
+      threadTs : Text;
+      eventTs : Text;
+      context : NormalizedEventTypes.AssistantThreadContext;
+    }
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await AssistantThreadHandler.handle(thread, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
+  };
+
+  public shared ({ caller }) func testTeamJoinHandler(
+    event : {
+      userId : Text;
+      displayName : Text;
+      realName : ?Text;
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      eventTs : Text;
+    }
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await TeamJoinHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
+  };
+
+  public shared ({ caller }) func testMemberJoinedChannelHandler(
+    event : {
+      userId : Text;
+      channelId : Text;
+      channelType : Text;
+      teamId : Text;
+      eventTs : Text;
+    }
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MemberJoinedChannelHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
+  };
+
+  public shared ({ caller }) func testMemberLeftChannelHandler(
+    event : {
+      userId : Text;
+      channelId : Text;
+      channelType : Text;
+      teamId : Text;
+      eventTs : Text;
+    }
+  ) : async NormalizedEventTypes.HandlerResult {
+    assert caller == parent;
+    await MemberLeftChannelHandler.handle(event, TestHelpers.emptyCtx(slackUsers, testWorkspacesState));
+  };
+
+  // ============================================
+  // Slack User Cache Query Methods
+  // ============================================
+
+  /// Serializable version of SlackUserEntry for Candid response
+  public type SlackUserInfo = {
+    slackUserId : Text;
+    displayName : Text;
+    isPrimaryOwner : Bool;
+    isOrgAdmin : Bool;
+    isBot : Bool;
+    adminWorkspaces : [Nat];
+  };
+
+  /// Serializable version of AccessChangeEntry for Candid response.
+  /// `source` is encoded as a plain string: "reconciliation", "manual", or "slackEvent:<eventId>".
+  /// `changeType` is encoded as the variant name (e.g. "orgAdminGranted").
+  /// `workspaceId` is populated only for workspace-scoped change types.
+  public type ChangeLogEntryInfo = {
+    slackUserId : Text;
+    changeType : Text;
+    source : Text;
+    workspaceId : ?Nat;
+  };
+
+  /// Reset the Slack user state (cache + change log) for test isolation.
+  public func resetSlackUserCache() : async () {
+    slackUsers := SlackUserModel.emptyState();
+  };
+
+  /// Get all Slack users currently in the cache
+  public query func getSlackUsers() : async [SlackUserInfo] {
+    let entries = SlackUserModel.listUsers(slackUsers.cache);
+    Array.map<SlackUserModel.SlackUserEntry, SlackUserInfo>(
+      entries,
+      func(entry : SlackUserModel.SlackUserEntry) : SlackUserInfo {
+        let adminIds = SlackUserModel.getAdminWorkspaceIds(entry);
+        {
+          slackUserId = entry.slackUserId;
+          displayName = entry.displayName;
+          isPrimaryOwner = entry.isPrimaryOwner;
+          isOrgAdmin = entry.isOrgAdmin;
+          isBot = entry.isBot;
+          adminWorkspaces = adminIds;
+        };
+      },
+    );
+  };
+
+  /// Look up a specific Slack user by ID
+  public query func getSlackUser(slackUserId : Text) : async ?SlackUserInfo {
+    switch (SlackUserModel.lookupUser(slackUsers.cache, slackUserId)) {
+      case (null) { null };
+      case (?entry) {
+        let adminIds = SlackUserModel.getAdminWorkspaceIds(entry);
+        ?({
+          slackUserId = entry.slackUserId;
+          displayName = entry.displayName;
+          isPrimaryOwner = entry.isPrimaryOwner;
+          isOrgAdmin = entry.isOrgAdmin;
+          isBot = entry.isBot;
+          adminWorkspaces = adminIds;
+        });
+      };
+    };
+  };
+
+  /// Return all access change log entries recorded in the current state.
+  /// Entries are in chronological order (oldest first).
+  public query func getChangeLog() : async [ChangeLogEntryInfo] {
+    let entries = SlackUserModel.getLogsSince(slackUsers, 0);
+    Array.map<SlackUserModel.AccessChangeEntry, ChangeLogEntryInfo>(
+      entries,
+      func(e : SlackUserModel.AccessChangeEntry) : ChangeLogEntryInfo {
+        let changeTypeText = switch (e.changeType) {
+          case (#userAdded) { "userAdded" };
+          case (#userRemoved) { "userRemoved" };
+          case (#orgAdminGranted) { "orgAdminGranted" };
+          case (#orgAdminRevoked) { "orgAdminRevoked" };
+          case (#primaryOwnerGranted) { "primaryOwnerGranted" };
+          case (#primaryOwnerRevoked) { "primaryOwnerRevoked" };
+          case (#workspaceAdminGranted(_)) { "workspaceAdminGranted" };
+          case (#workspaceAdminRevoked(_)) { "workspaceAdminRevoked" };
+        };
+        let wsIdOpt : ?Nat = switch (e.changeType) {
+          case (#workspaceAdminGranted(wsId)) { ?wsId };
+          case (#workspaceAdminRevoked(wsId)) { ?wsId };
+          case (_) { null };
+        };
+        let sourceText = switch (e.source) {
+          case (#reconciliation) { "reconciliation" };
+          case (#slackEvent(eventId)) { "slackEvent:" # eventId };
+          case (#manual) { "manual" };
+        };
+        {
+          slackUserId = e.slackUserId;
+          changeType = changeTypeText;
+          source = sourceText;
+          workspaceId = wsIdOpt;
+        };
+      },
+    );
+  };
+
+  // ============================================
+  // Weekly Reconciliation Service Test Methods
+  // ============================================
+
+  /// Seed a single Slack user into the persistent state for reconciliation tests.
+  public shared ({ caller }) func seedSlackUser(
+    slackUserId : Text,
+    displayName : Text,
+    isPrimaryOwner : Bool,
+    isOrgAdmin : Bool,
+    isBot : Bool,
+  ) : async () {
+    assert caller == parent;
+    SlackUserModel.upsertUser(
+      slackUsers,
+      {
+        slackUserId;
+        displayName;
+        isPrimaryOwner;
+        isOrgAdmin;
+        isBot;
+        adminWorkspaces = Set.empty<Nat>();
+      },
+      #manual,
+    );
+  };
+
+  /// Seed a workspace admin channel membership for a user in the persistent state.
+  /// The user must already exist in the cache (seed via seedSlackUser first).
+  public shared ({ caller }) func seedWorkspaceMembership(
+    slackUserId : Text,
+    workspaceId : Nat,
+  ) : async () {
+    assert caller == parent;
+    ignore SlackUserModel.joinAdminChannel(slackUsers, slackUserId, workspaceId, #manual);
+  };
+
+  /// Run the weekly reconciliation runner against the shared test cache and
+  /// the pre-seeded test workspace state.
+  ///
+  /// @param token               Decrypted Slack bot token (or mock value)
+  /// @param orgAdminChannelId   Optional org-admin channel ID — when provided, sets workspace 0's
+  ///                            adminChannelId before the run so the runner treats it as the org-admin channel
+  public shared ({ caller }) func testWeeklyReconciliationRunner(
+    token : Text,
+    orgAdminChannelId : ?Text,
+  ) : async {
+    #ok : WeeklyReconciliationRunner.ReconciliationSummary;
+    #err : Text;
+  } {
+    assert caller == parent;
+    // Set workspace 0's adminChannelId so the reconciliation runner treats it as the org-admin channel.
+    switch (orgAdminChannelId) {
+      case (null) {};
+      case (?channelId) {
+        ignore WorkspaceModel.setAdminChannel(testWorkspacesState, 0, channelId);
+      };
+    };
+    // Seed the token into testSecretsMap so the runner can resolve it.
+    ignore SecretModel.storeSecret(testSecretsMap, TestHelpers.dummyKey, 0, #slackBotToken, token, { slackUserId = null; agentId = null; operation = "test" });
+    await WeeklyReconciliationRunner.run(
+      testSecretsKeyCache,
+      testSecretsMap,
+      slackUsers,
+      testWorkspacesState,
+    );
+  };
+
+  // ============================================
+  // Timer Runner Test Methods
+  // ============================================
+
+  /// Run the clear-key-cache runner and apply the result to testKeyCache.
+  /// Returns the cache size after the run.
+  public shared ({ caller }) func testClearKeyCacheRunner() : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    assert caller == parent;
+    switch (ClearKeyCacheRunner.run()) {
+      case (#ok(cache)) {
+        testKeyCache := cache;
+        #ok(KeyDerivationService.getCacheSize(testKeyCache));
+      };
+      case (#err(e)) { #err(e) };
+    };
+  };
+
+  /// Run the processed-events-cleanup runner against testEventStore.
+  public shared ({ caller }) func testProcessedEventsCleanupRunner() : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    ProcessedEventsCleanupRunner.run(testEventStore);
+  };
+
+  /// Run the channel-history-prune runner against testChannelHistoryStore.
+  public shared ({ caller }) func testChannelHistoryPruneRunner() : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    ChannelHistoryPruneRunner.run(testChannelHistoryStore);
+  };
+
+  /// Seed a message directly into testChannelHistoryStore for prune runner tests.
+  /// The ts string format must be "SECONDS.MICROSECONDS" (e.g. "1700000000.000001").
+  /// Pass null for threadTs to store as a top-level post.
+  public shared ({ caller }) func testSeedChannelHistoryMessage(
+    channelId : Text,
+    ts : Text,
+    threadTs : ?Text,
+  ) : async () {
+    assert caller == parent;
+    ChannelHistoryModel.addMessage(
+      testChannelHistoryStore,
+      channelId,
+      {
+        ts;
+        userAuthContext = null;
+        text = "test message";
+        agentMetadata = null;
+      },
+      threadTs,
+    );
+  };
+
+  /// Returns the number of top-level timeline entries for the given channel
+  /// in testChannelHistoryStore. Returns 0 if the channel does not exist.
+  public shared query ({ caller }) func testGetChannelHistoryEntryCount(channelId : Text) : async Nat {
+    assert caller == parent;
+    switch (Map.get(testChannelHistoryStore, Text.compare, channelId)) {
+      case (null) { 0 };
+      case (?ch) { Map.size(ch.timeline) };
+    };
+  };
+
+  // ============================================
+  // Turn Cleanup Runner Test Methods
+  // ============================================
+
+  /// Run the turn-cleanup runner against testCleanupSessionStores.
+  /// Returns the number of turns deleted.
+  public shared ({ caller }) func testTurnCleanupRunner() : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    assert caller == parent;
+    TurnCleanupRunner.run(testCleanupSessionStores, testCleanupEnvelopeState);
+  };
+
+  /// Seed a turn into testCleanupSessionStores.
+  /// The turn's startedAtNs is stamped by Time.now() — control the clock
+  /// via pic.setTime() before calling this helper.
+  /// Returns the new turnId.
+  public shared ({ caller }) func testSeedTurn(agentId : Nat) : async Text {
+    assert caller == parent;
+    let turn = SessionModel.createTurn(testCleanupSessionStores, agentId, null, null, null);
+    turn.turnId;
+  };
+
+  /// Returns the number of turns stored for agentId in testCleanupSessionStores.
+  /// Returns 0 when no turns have been seeded for that agent.
+  public shared query ({ caller }) func testGetTurnCount(agentId : Nat) : async Nat {
+    assert caller == parent;
+    switch (SessionModel.getTurnsByAgent(testCleanupSessionStores, agentId)) {
+      case (null) { 0 };
+      case (?turnMap) { Map.size(turnMap) };
+    };
+  };
+
+  /// Append a trace entry to the given turn in testCleanupSessionStores.
+  /// Useful for verifying that the trace GC pass removes entries independently
+  /// of their owning turns.
+  public shared ({ caller }) func testSeedTrace(turnId : Text) : async () {
+    assert caller == parent;
+    SessionModel.appendTrace(testCleanupSessionStores, turnId, #roundLimitHit);
+  };
+
+  /// Returns true when a trace list exists for the given turnId, false otherwise.
+  public shared query ({ caller }) func testHasTrace(turnId : Text) : async Bool {
+    assert caller == parent;
+    switch (SessionModel.getTraces(testCleanupSessionStores, turnId)) {
+      case (null) { false };
+      case (?_) { true };
+    };
+  };
+
+  // ============================================
+  // Engine Topup Runner Test Methods
+  // ============================================
+
+  /// Run the engine-topup runner with the given optional engine principal.
+  /// Pass null to test the "engine not yet spawned" no-op path.
+  /// Pass a principal for a non-existent/uncontrolled canister to test the
+  /// canister_status failure path — the try/catch should return #err.
+  public shared ({ caller }) func testEngineTopupRunner(enginePrincipal : ?Principal) : async {
+    #ok;
+    #err : Text;
+  } {
+    assert caller == parent;
+    await EngineTopupRunner.run(enginePrincipal);
+  };
+
+  // ============================================
+  // Slack Adapter Test Methods
+  // ============================================
+
+  public shared query ({ caller }) func testSlackSignatureVerification(
+    signingSecret : Text,
+    signature : Text,
+    timestamp : Text,
+    body : Text,
+  ) : async Bool {
+    assert caller == parent;
+    SlackAdapter.verifySignature(signingSecret, signature, timestamp, body);
+  };
+
+  public shared query ({ caller }) func testSlackTimestampVerification(timestamp : Text) : async Bool {
+    assert caller == parent;
+    SlackAdapter.verifyTimestamp(timestamp);
+  };
+
+  // ============================================
+  // Key Derivation Service Test Methods
+  // ============================================
+
+  /// Returns the current number of entries in the persistent test key cache.
+  public shared query ({ caller }) func testGetKeyCacheSize() : async Nat {
+    assert caller == parent;
+    KeyDerivationService.getCacheSize(testKeyCache);
+  };
+
+  /// Clears the persistent test key cache, simulating the periodic cache-clearing timer.
+  public shared ({ caller }) func testClearKeyCache() : async () {
+    assert caller == parent;
+    testKeyCache := KeyDerivationService.clearCache();
+  };
+
+  /// Derives and caches the encryption key for a workspace via a live sign_with_schnorr call.
+  /// Requires the canister to be deployed on a subnet with fiduciary (threshold Schnorr) support.
+  public shared ({ caller }) func testSeedKeyForWorkspace(workspaceId : Nat) : async () {
+    assert caller == parent;
+    let key = await KeyDerivationService.deriveKeyFromSchnorr(workspaceId);
+    Map.add(testKeyCache, Nat.compare, workspaceId, key);
+  };
+
+  /// Returns the byte-length of the cached key for the given workspace, or null if not cached.
+  /// Use this to confirm the dummy key has been stored (expected length = 32).
+  public query func testGetCachedKeyLength(workspaceId : Nat) : async ?Nat {
+    switch (Map.get(testKeyCache, Nat.compare, workspaceId)) {
+      case (?key) { ?key.size() };
+      case (null) { null };
+    };
+  };
+
+  // ============================================
+  // Secrets Handler Test Methods
+  //
+  // All secrets handlers run against testSecretsMap (starts empty).
+  // testSecretsKeyCache is pre-seeded with the all-zeros dummy key for
+  // workspaces 0, 1, and 2, avoiding live Schnorr calls.
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Test the StoreSecretHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId, secretId, secretValue }).
+  /// @param auth  Simplified auth context.
+  ///
+  /// Secrets stored here persist for the lifetime of this PocketIC canister
+  /// so subsequent calls to testGetWorkspaceSecretsHandler see them.
+  public shared ({ caller }) func testStoreSecretHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let adminWorkspaces = Set.empty<Nat>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Set.add(adminWorkspaces, Nat.compare, wsId);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      adminWorkspaces;
+    };
+    // Extract workspaceId from JSON args so the handler receives it as a typed param.
+    // The original args string is passed through unchanged — the handler only reads secretId/secretValue.
+    let workspaceId : Nat = switch (Json.parse(args)) {
+      case (#err(_)) {
+        return Json.stringify(obj([("success", bool(false)), ("error", str("Failed to parse arguments"))]), null);
+      };
+      case (#ok(json)) {
+        switch (Json.get(json, "workspaceId")) {
+          case (?#number(#int(n))) { Int.abs(n) };
+          case (?#number(#float(f))) { Int.abs(Float.toInt(f)) };
+          case _ {
+            return Json.stringify(obj([("success", bool(false)), ("error", str("Missing or invalid 'workspaceId'"))]), null);
+          };
+        };
+      };
+    };
+    StoreSecretHandler.handle(testSecretsMap, TestHelpers.dummyKey, uac, workspaceId, args);
+  };
+
+  /// Test the GetWorkspaceSecretsHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId }).
+  /// @param auth  Simplified auth context.
+  public shared ({ caller }) func testGetWorkspaceSecretsHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let adminWorkspaces = Set.empty<Nat>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Set.add(adminWorkspaces, Nat.compare, wsId);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      adminWorkspaces;
+    };
+    // Extract workspaceId from JSON args so the handler receives it as a typed param.
+    let workspaceId : Nat = switch (Json.parse(args)) {
+      case (#err(_)) {
+        return Json.stringify(obj([("success", bool(false)), ("error", str("Failed to parse arguments"))]), null);
+      };
+      case (#ok(json)) {
+        switch (Json.get(json, "workspaceId")) {
+          case (?#number(#int(n))) { Int.abs(n) };
+          case (?#number(#float(f))) { Int.abs(Float.toInt(f)) };
+          case _ {
+            return Json.stringify(obj([("success", bool(false)), ("error", str("Missing or invalid 'workspaceId'"))]), null);
+          };
+        };
+      };
+    };
+    await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, workspaceId, args);
+  };
+
+  /// Test the DeleteSecretHandler in isolation.
+  /// @param args  JSON-encoded tool arguments ({ workspaceId, secretId }).
+  /// @param auth  Simplified auth context.
+  public shared ({ caller }) func testDeleteSecretHandler(
+    args : Text,
+    auth : {
+      isPrimaryOwner : Bool;
+      isOrgAdmin : Bool;
+      workspaceAdminFor : ?Nat;
+    },
+  ) : async Text {
+    assert caller == parent;
+    let adminWorkspaces = Set.empty<Nat>();
+    switch (auth.workspaceAdminFor) {
+      case (?wsId) {
+        Set.add(adminWorkspaces, Nat.compare, wsId);
+      };
+      case (null) {};
+    };
+    let uac : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_TEST_USER";
+      isPrimaryOwner = auth.isPrimaryOwner;
+      isOrgAdmin = auth.isOrgAdmin;
+      adminWorkspaces;
+    };
+    // Extract workspaceId from JSON args so the handler receives it as a typed param.
+    let workspaceId : Nat = switch (Json.parse(args)) {
+      case (#err(_)) {
+        return Json.stringify(obj([("success", bool(false)), ("error", str("Failed to parse arguments"))]), null);
+      };
+      case (#ok(json)) {
+        switch (Json.get(json, "workspaceId")) {
+          case (?#number(#int(n))) { Int.abs(n) };
+          case (?#number(#float(f))) { Int.abs(Float.toInt(f)) };
+          case _ {
+            return Json.stringify(obj([("success", bool(false)), ("error", str("Missing or invalid 'workspaceId'"))]), null);
+          };
+        };
+      };
+    };
+    await DeleteSecretHandler.handle(testSecretsMap, uac, workspaceId, args);
+  };
+
+  // ============================================
+  // Event Store Handler Test Methods
+  //
+  // All event store handlers run against testEventStore (starts empty).
+  // Use testSeedFailedEvent to inject a failed event before calling the handlers.
+  // Each test creates a fresh PocketIC canister so there is no
+  // cross-test state leakage.
+  // ============================================
+
+  /// Seed a failed event into testEventStore for handler tests.
+  /// Enqueues a minimal event then immediately marks it as failed with the given error.
+  public shared ({ caller }) func testSeedFailedEvent(
+    eventId : Text,
+    errorMsg : Text,
+  ) : async () {
+    assert caller == parent;
+    let event : NormalizedEventTypes.Event = {
+      source = #slack;
+      idempotencyKey = eventId;
+      eventId = "slack_" # eventId;
+      timestamp = 0;
+      payload = #message({
+        user = "U_TEST";
+        text = "test";
+        channel = "C_TEST";
+        ts = "1700000000.000001";
+        threadTs = null;
+        isBotMessage = false;
+        agentMetadata = null;
+      });
+      enqueuedAt = 0;
+      claimedAt = null;
+      processedAt = null;
+      failedAt = null;
+      failedError = "";
+      processingLog = [];
+    };
+    ignore EventStoreModel.enqueue(testEventStore, event);
+    EventStoreModel.markFailed(testEventStore, "slack_" # eventId, errorMsg);
+  };
+
+  /// Seed a processed event into testEventStore for cleanup runner tests.
+  /// Enqueues a minimal event then immediately marks it as processed.
+  /// The processedAt timestamp is stamped with Time.now() inside EventStoreModel,
+  /// so call this while pic.setTime() is set to the desired past/present time.
+  public shared ({ caller }) func testSeedProcessedEvent(eventId : Text) : async () {
+    assert caller == parent;
+    let event : NormalizedEventTypes.Event = {
+      source = #slack;
+      idempotencyKey = eventId;
+      eventId = "slack_" # eventId;
+      timestamp = 0;
+      payload = #message({
+        user = "U_TEST";
+        text = "test";
+        channel = "C_TEST";
+        ts = "1700000000.000001";
+        threadTs = null;
+        isBotMessage = false;
+        agentMetadata = null;
+      });
+      enqueuedAt = 0;
+      claimedAt = null;
+      processedAt = null;
+      failedAt = null;
+      failedError = "";
+      processingLog = [];
+    };
+    ignore EventStoreModel.enqueue(testEventStore, event);
+    EventStoreModel.markProcessed(testEventStore, "slack_" # eventId, []);
+  };
+
+  // ============================================
+  // EngineDispatchService Test Methods
+  // ============================================
+
+  /// Test EngineDispatchService.dispatch directly using the pre-spawned testInternalEngine.
+  ///
+  /// @param seedVersion   Pre-seeds knownEngineVersions["internal-engine"] before the call.
+  ///                      null → map starts empty (service defaults to "v1").
+  ///                      e.g. ?"v0" → simulates a stale cached version to exercise negotiation.
+  /// @param includeApiKey Whether to include the "openrouter" key in envelope secrets.
+  ///                      false triggers the engine's API-key error, covering error-propagation
+  ///                      and retry-failure paths.
+  ///
+  /// Returns a flat record so both success and failure expose `knownVersionAfter`,
+  /// which is the value stored in knownEngineVersions after the call (null = no update).
+  public shared ({ caller }) func testEngineDispatchService(
+    seedVersion : ?Text,
+    includeApiKey : Bool,
+  ) : async { dispatched : Bool; error : ?Text; knownVersionAfter : ?Text } {
+    assert caller == parent;
+    let engine = mockInternalEngine;
+    let store = ExecutionEnvelopeModel.emptyState();
+    switch (seedVersion) {
+      case (?v) {
+        Map.add(store.knownEngineVersions, Text.compare, "internal-engine", v);
+      };
+      case null {};
+    };
+    let apiKeys : [(Text, Text)] = if (includeApiKey) {
+      [("openrouter", "test-key"), ("model", "gpt-4")];
+    } else { [("model", "gpt-4")] };
+    let { envelopeId; nonce = envelopeNonce } = ExecutionEnvelopeModel.issue(
+      store,
+      "test-turn-dispatch-0_0",
+      0,
+      [#workspace({ access = #read })],
+      [],
+    );
+    let envelope : ExecutionTypes.EnvelopePayload = {
+      envelopeId;
+      envelopeNonce;
+      dispatchedVersion = null;
+      requestId = "test-turn-dispatch-0_0";
+      agentId = 0;
+      agentName = "test-agent";
+      workspaceId = 0;
+      workflowId = "admin-v1";
+      model = "";
+      messages = [];
+      instructions = "test instructions";
+      constraints = { maxRounds = 1; maxTokenBudget = null };
+      secrets = { apiKeys };
+      scopeGrants = [#workspace({ access = #read })];
+      permits = [];
+    };
+    let knownVersionAfter = func() : ?Text {
+      Map.get(store.knownEngineVersions, Text.compare, "internal-engine");
+    };
+    switch (await EngineDispatchService.dispatch(store, engine, envelope)) {
+      case (#ok) {
+        {
+          dispatched = true;
+          error = null;
+          knownVersionAfter = knownVersionAfter();
+        };
+      };
+      case (#err(e)) {
+        {
+          dispatched = false;
+          error = ?e;
+          knownVersionAfter = knownVersionAfter();
+        };
+      };
+    };
+  };
+
+  // ============================================
+  // Dispatch Workflow Handler Test Methods
+  // ============================================
+
+  /// Test the DispatchWorkflowHandler in isolation.
+  ///
+  /// @param args               JSON-encoded tool arguments ({ workflowId, permits? }).
+  /// @param triggerMessageText The verbatim Slack trigger message text (for permit validation).
+  /// @param botToken           Optional Slack bot token (for setAdminChannel permit validation).
+  /// @param mockDispatchFail   When true, dispatchToEngine returns #err; otherwise #ok.
+  /// Uses a minimal org-admin AgentRecord stub and a fresh ExecutionEnvelopeModel.EnvelopeState.
+  public shared ({ caller }) func testDispatchWorkflowHandler(
+    args : Text,
+    triggerMessageText : ?Text,
+    botToken : ?Text,
+    mockDispatchFail : Bool,
+  ) : async Text {
+    assert caller == parent;
+    let agent : AgentModel.AgentRecord = {
+      id = 0;
+      ownedBy = 0;
+      category = #_system(#admin);
+      config = {
+        name = "test-dispatch-admin";
+        model = "openai/gpt-oss-120b";
+        executionEngines = [#canister];
+        allowedChannelIds = Set.empty<Text>();
+        secrets = { allowed = []; overrides = [] };
+      };
+      state = {
+        toolsState = Map.empty<Text, AgentModel.ToolState>();
+      };
+    };
+    let internalEngine : InternalEngine.InternalEngine = if (mockDispatchFail) {
+      // Use a non-existent canister so execute throws, triggering the handler's error path.
+      actor "aaaaa-aa" : InternalEngine.InternalEngine;
+    } else {
+      mockInternalEngine;
+    };
+    let engineDispatch : DispatchWorkflowHandler.EngineDispatch = {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      internalEngine;
+    };
+    let envelopeContext : DispatchWorkflowHandler.EnvelopeContext = {
+      agent;
+      turnId = "test-turn-0_0";
+      instructions = "Test instructions";
+      messages = [];
+      apiKey = "test-api-key";
+    };
+    let resolveSlackBotToken : ?(Text -> ?Text) = switch (botToken) {
+      case (null) { null };
+      case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
+    };
+    let resolveWorkspaceName : ?(Nat -> ?Text) = ?(
+      func(id : Nat) : ?Text {
+        switch (WorkspaceModel.getWorkspace(testWorkspacesState, id)) {
+          case (null) { null };
+          case (?r) { ?r.name };
+        };
+      }
+    );
+    await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, resolveWorkspaceName, args);
+  };
+
+  /// Test the SlackEventIntakeService in isolation.
+  /// Parses the raw JSON body, normalizes and enqueues the event into testEventStore.
+  /// Returns a plain-text discriminant:
+  ///   "enqueued:<eventId>" — event was normalized and stored
+  ///   "duplicate"          — event already present in the store
+  ///   "skipped:<reason>"   — event was recognized but intentionally dropped
+  ///   "notEventCallback"   — envelope is not an event_callback
+  ///   "parseError:<msg>"   — JSON parsing or validation failed
+  public shared ({ caller }) func testSlackEventIntakeService(body : Text) : async Text {
+    assert caller == parent;
+    switch (SlackEventIntakeService.processEventBody(testEventStore, body)) {
+      case (#enqueued(eventId)) { "enqueued:" # eventId };
+      case (#duplicate) { "duplicate" };
+      case (#skipped(reason)) { "skipped:" # reason };
+      case (#notEventCallback) { "notEventCallback" };
+      case (#parseError(msg)) { "parseError:" # msg };
+    };
+  };
+
+  /// Return event store statistics for test assertions.
+  /// JSON: { "success": true, "unprocessedEvents": N, "processedEvents": N, "failedEvents": N }
+  public shared ({ caller }) func testGetEventStoreStats() : async Text {
+    assert caller == parent;
+    let s = EventStoreModel.sizes(testEventStore);
+    Json.stringify(
+      obj([
+        ("success", bool(true)),
+        ("unprocessedEvents", int(s.unprocessed)),
+        ("processedEvents", int(s.processed)),
+        ("failedEvents", int(s.failed)),
+      ]),
+      null,
+    );
+  };
+};

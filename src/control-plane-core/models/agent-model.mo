@@ -5,6 +5,7 @@ import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 import Types "../types";
+import WorkspaceModel "./workspace-model";
 
 module {
   // ============================================
@@ -19,11 +20,9 @@ module {
 
   /// The execution engines an agent is allowed to use.
   /// Stored as an array on AgentConfig so an agent can support multiple modes.
-  ///   #api      — in-canister LLM loop calling OpenRouter
   ///   #canister — external canister called via envelope/package webhook
   ///   #github   — GitHub Actions workflow triggered via webhook; reply delivered back signed
   public type ExecutionEngine = {
-    #api;
     #canister;
     #github;
   };
@@ -95,6 +94,17 @@ module {
     category : AgentCategory;
     config : AgentConfig;
     state : AgentState;
+  };
+
+  /// Named update fields for `updateById`.
+  /// Each field is optional — pass `null` to leave it unchanged.
+  public type AgentUpdateFields = {
+    name : ?Text;
+    model : ?Text;
+    executionEngines : ?[ExecutionEngine];
+    secretsAllowed : ?[(Nat, Types.SecretId)];
+    secretOverrides : ?[(Types.SecretId, Text)];
+    allowedChannelIds : ?Set.Set<Text>;
   };
 
   /// Type alias for the agent registry state.
@@ -218,11 +228,6 @@ module {
       case (#ok(())) {};
     };
 
-    // Validate that executionEngines is non-empty.
-    if (config.executionEngines.size() == 0) {
-      return #err("executionEngines must contain at least one engine.");
-    };
-
     // For #_system(#admin) agents, allowedChannelIds is always empty — routing is governed by
     // WorkspaceModel.adminChannelId. Silently coerce any provided value to empty set.
     // For all other categories, enforce non-empty.
@@ -287,43 +292,30 @@ module {
 
   /// Update mutable fields of an existing agent by ID.
   ///
-  /// Pass `null` for any field that should remain unchanged.
+  /// Pass an `AgentUpdateFields` record with `null` for any field that should
+  /// remain unchanged.  Using a named record instead of positional nulls makes
+  /// call sites self-documenting and safe against future signature additions.
   /// When updating the name, validates it follows the same rules as registration
   /// and ensures no other agent has the same name (case-insensitive).
   /// Returns `#err` if the agent is not found or validation fails.
   public func updateById(
     state : AgentRegistryState,
     id : Nat,
-    newName : ?Text,
-    newModel : ?Text,
-    newExecutionEngines : ?[ExecutionEngine],
-    newSecretsAllowed : ?[(Nat, Types.SecretId)],
-    newSecretOverrides : ?[(Types.SecretId, Text)],
-    newAllowedChannelIds : ?Set.Set<Text>,
+    updates : AgentUpdateFields,
   ) : Result.Result<Bool, Text> {
     switch (Map.get(state.agentsById, Nat.compare, id)) {
       case (null) {
         #err("Agent with ID " # Nat.toText(id) # " not found.");
       };
       case (?existing) {
-        // Validate newExecutionEngines if provided — must be non-empty.
-        switch (newExecutionEngines) {
-          case (?engines) {
-            if (engines.size() == 0) {
-              return #err("executionEngines must contain at least one engine.");
-            };
-          };
-          case (null) {};
-        };
-
-        // Validate newAllowedChannelIds if provided.
+        // Validate allowedChannelIds if provided.
         // For #_system(#admin) agents, always keep the set empty regardless of what is passed —
         // routing is governed by WorkspaceModel.adminChannelId.
         // For non-system agents, reject any attempt to empty the allowlist.
         switch (existing.category) {
           case (#_system(#admin)) {}; // ignored — enforced below in record construction
           case (_) {
-            switch (newAllowedChannelIds) {
+            switch (updates.allowedChannelIds) {
               case (?s) {
                 if (Set.size(s) == 0) {
                   return #err("allowedChannelIds must contain at least one channel ID; the allowlist cannot be emptied.");
@@ -334,8 +326,8 @@ module {
           };
         };
 
-        // If newName is provided, validate it
-        let finalName = switch (newName) {
+        // If name is provided, validate it
+        let finalName = switch (updates.name) {
           case (null) { existing.config.name };
           case (?name) {
             let normalized = switch (validateAndNormalizeName(name)) {
@@ -358,20 +350,20 @@ module {
           category = existing.category; // immutable — category cannot be changed after creation
           config = {
             name = finalName;
-            model = switch (newModel) {
+            model = switch (updates.model) {
               case (null) { existing.config.model };
               case (?m) { m };
             };
-            executionEngines = switch (newExecutionEngines) {
+            executionEngines = switch (updates.executionEngines) {
               case (null) { existing.config.executionEngines };
               case (?e) { e };
             };
             secrets = {
-              allowed = switch (newSecretsAllowed) {
+              allowed = switch (updates.secretsAllowed) {
                 case (null) { existing.config.secrets.allowed };
                 case (?s) { s };
               };
-              overrides = switch (newSecretOverrides) {
+              overrides = switch (updates.secretOverrides) {
                 case (null) { existing.config.secrets.overrides };
                 case (?o) { o };
               };
@@ -379,7 +371,7 @@ module {
             allowedChannelIds = switch (existing.category) {
               case (#_system(#admin)) { Set.empty<Text>() }; // always empty — router uses WorkspaceModel.adminChannelId
               case (_) {
-                switch (newAllowedChannelIds) {
+                switch (updates.allowedChannelIds) {
                   case (null) { existing.config.allowedChannelIds };
                   case (?s) { s };
                 };
@@ -466,6 +458,12 @@ module {
     null;
   };
 
+  /// Returns true if the agent is the org-level admin:
+  /// category #_system(#admin) AND owned by the org workspace.
+  public func isOrgAdmin(agent : AgentRecord) : Bool {
+    agent.category == #_system(#admin) and WorkspaceModel.isOrgWorkspace(agent.ownedBy);
+  };
+
   /// Count all registered agents with the given category.
   public func countByCategory(state : AgentRegistryState, category : AgentCategory) : Nat {
     var count = 0;
@@ -493,7 +491,7 @@ module {
       {
         name = "workspace-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#api];
+        executionEngines = [#canister];
         allowedChannelIds = Set.empty<Text>(); // #_system(#admin) agents never use allowedChannelIds
         secrets = {
           allowed = [(0, #openRouterApiKey)];

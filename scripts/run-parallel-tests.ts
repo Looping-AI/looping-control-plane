@@ -12,53 +12,43 @@
  */
 
 import { PocketIcServer } from "@dfinity/pic";
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
 
 // ANSI colours — one per test group
 const COLORS = {
-  integration: "\x1b[36m", // cyan
-  "unit:tools": "\x1b[33m", // yellow
-  "unit:not-tools": "\x1b[35m", // magenta
+  "control-plane-core": "\x1b[36m", // cyan
+  "internal-engine": "\x1b[34m", // blue
   reset: "\x1b[0m",
   bold: "\x1b[1m",
   red: "\x1b[31m",
   green: "\x1b[32m",
 };
 
-type GroupName = "integration" | "unit:tools" | "unit:not-tools";
+type GroupName = "control-plane-core" | "internal-engine";
 
 interface TestGroup {
   name: GroupName;
   args: string[];
 }
 
-const UNIT_BASE = "tests/unit-tests/control-plane-core";
-const unitSubdirs = readdirSync(UNIT_BASE, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && d.name !== "tools")
-  .map((d) => join(UNIT_BASE, d.name));
-
 const TEST_GROUPS: TestGroup[] = [
   {
-    name: "integration",
-    args: ["test", "tests/integration-tests"],
+    name: "control-plane-core",
+    args: ["test", "tests/control-plane-core"],
   },
   {
-    name: "unit:tools",
-    args: ["test", "tests/unit-tests/control-plane-core/tools"],
-  },
-  {
-    name: "unit:not-tools",
-    args: ["test", ...unitSubdirs],
+    name: "internal-engine",
+    args: ["test", "tests/internal-engine"],
   },
 ];
+
+const PREFIX_WIDTH = Math.max(...TEST_GROUPS.map((group) => group.name.length));
 
 async function runGroup(
   group: TestGroup,
   env: Record<string, string>,
 ): Promise<{ name: GroupName; exitCode: number }> {
   const color = COLORS[group.name];
-  const prefix = group.name.padEnd(14); // align columns
+  const prefix = group.name.padEnd(PREFIX_WIDTH);
 
   const proc = Bun.spawn(["bun", ...group.args], {
     env,

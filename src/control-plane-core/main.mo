@@ -8,6 +8,7 @@ import Int "mo:core/Int";
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
+import Error "mo:core/Error";
 import Types "./types";
 import AgentModel "./models/agent-model";
 import ChannelHistoryModel "./models/channel-history-model";
@@ -15,7 +16,6 @@ import SlackUserModel "./models/slack-user-model";
 import WorkspaceModel "./models/workspace-model";
 import SecretModel "./models/secret-model";
 import KeyDerivationService "./services/key-derivation-service";
-import McpToolRegistry "./tools/mcp-tool-registry";
 import Constants "./constants";
 import HttpCertification "./utilities/http-certification";
 import EventStoreModel "./models/event-store-model";
@@ -27,8 +27,14 @@ import ProcessedEventsCleanupRunner "./timers/processed-events-cleanup-runner";
 import WeeklyReconciliationRunner "./timers/weekly-reconciliation-runner";
 import ChannelHistoryPruneRunner "./timers/channel-history-prune-runner";
 import TurnCleanupRunner "./timers/turn-cleanup-runner";
+import EngineTopUpRunner "./timers/engine-topup-runner";
 import SlackEventIntakeService "./services/slack-event-intake-service";
 import SessionModel "./models/session-model";
+import Random "mo:core/Random";
+import ExecutionEnvelopeModel "./models/execution-envelope-model";
+import ExecutionApiService "./services/execution-api-service";
+import ExecutionAsyncEffectService "./services/execution-async-effect-service";
+import InternalEngine "../internal-engine/main";
 
 persistent actor class OpenOrgBackend() {
   // ============================================
@@ -41,8 +47,6 @@ persistent actor class OpenOrgBackend() {
   transient var keyCache : KeyDerivationService.KeyCache = KeyDerivationService.clearCache(); // Cache of derived encryption keys per workspace
   var lastClearTimestamp : Int = Time.now(); // Track last time cache was cleared
   let agentRegistry = AgentModel.defaultState(); // Global agent registry state, pre-seeded with the default workspace-admin agent
-  let mcpToolRegistry = McpToolRegistry.empty(); // MCP tools registry (dynamic, runtime configurable)
-
   // Slack user state (cache: Slack user ID → SlackUserEntry; changeLog: audit trail)
   let slackUsers = SlackUserModel.emptyState();
 
@@ -63,10 +67,63 @@ persistent actor class OpenOrgBackend() {
   // Agent session stores (sessions, turns, traces)
   let sessionStores = SessionModel.emptyStores();
 
+  // Envelope state (engine ↔ Core authorization): token store, counter, and entropy salt.
+  // The salt is refreshed on every upgrade via raw_rand (see init/postupgrade timers).
+  let executionEnvelopeState = ExecutionEnvelopeModel.emptyState();
+
+  // Execution API service (instantiated once with all deps captured in class scope)
+  transient let executionApiService = ExecutionApiService.Service({
+    envelopeState = executionEnvelopeState;
+    workspaces;
+    agentRegistry;
+    eventStore;
+    sessionStores;
+  });
+
+  // Execution async-effect service (processes engine results: Slack posts, turn completion)
+  transient let executionAsyncEffectService = ExecutionAsyncEffectService.Service({
+    sessionStores;
+    agentRegistry;
+    workspaces;
+    secrets;
+  });
+
+  // Internal engine canister principal — set when engine is spawned (Phase 6)
+  var internalEnginePrincipal : ?Principal = null;
+
+  // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
+  var internalEngine : ?InternalEngine.InternalEngine = null;
+
+  // Track last engine top-up for the timer runner
+  var lastEngineTopUpTimestamp : Int = Time.now();
+
   // Scheduled timer tracking — transient so it resets on upgrade (matching IC timer wipe).
   // Populated by scheduleAll() during init and postupgrade.
   // Key = Timer.TimerId (unique), value = entry metadata.
   transient let timerSchedule = Map.empty<Nat, { name : Text; expectedRunNs : Int }>();
+
+  // ============================================
+  // Engine Lifecycle
+  // ============================================
+
+  /// Spawn a new engine canister with initial cycles.
+  private func deployInternalEngine() : async InternalEngine.InternalEngine {
+    await (with cycles = Constants.ENGINE_SPAWN_CYCLES) InternalEngine.InternalEngine();
+  };
+
+  /// Ensure the engine canister exists, spawning it lazily on first need.
+  private func ensureInternalEngine() : async InternalEngine.InternalEngine {
+    switch (internalEngine) {
+      case (?e) { e };
+      case null {
+        let e = await deployInternalEngine();
+        internalEngine := ?e;
+        internalEnginePrincipal := ?Principal.fromActor(e);
+        Logger.log(#info, ?"EngineLifecycle", "Engine canister spawned: " # Principal.toText(Principal.fromActor(e)));
+        e;
+      };
+    };
+  };
 
   // ============================================
   // Timer Management
@@ -135,10 +192,19 @@ persistent actor class OpenOrgBackend() {
         getLastRun = func() : Int { lastTurnCleanupTimestamp };
         setLastRun = func(t : Int) { lastTurnCleanupTimestamp := t };
         wrappedRun = func() : async { #ok; #err : Text } {
-          switch (TurnCleanupRunner.run(sessionStores)) {
+          switch (TurnCleanupRunner.run(sessionStores, executionEnvelopeState)) {
             case (#ok(_)) { #ok };
             case (#err(e)) { #err(e) };
           };
+        };
+      },
+      {
+        name = "engine-topup";
+        interval = Constants.SEVEN_DAYS_NS;
+        getLastRun = func() : Int { lastEngineTopUpTimestamp };
+        setLastRun = func(t : Int) { lastEngineTopUpTimestamp := t };
+        wrappedRun = func() : async { #ok; #err : Text } {
+          await EngineTopUpRunner.run(internalEnginePrincipal);
         };
       },
     ];
@@ -202,16 +268,18 @@ persistent actor class OpenOrgBackend() {
 
   // Per-event timer callback factory — returns an async closure that processes one event by ID
   private func makeEventProcessor(eventId : Text) : async () {
+    let e = await ensureInternalEngine();
     let ctx : EventRouter.EventProcessingContext = {
       secrets;
       keyCache;
       channelHistory = channelHistoryStore;
-      mcpToolRegistry;
       agentRegistry;
       slackUsers;
       workspaces;
       eventStore;
       sessionStores;
+      envelopeState = executionEnvelopeState;
+      internalEngine = e;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
@@ -226,6 +294,17 @@ persistent actor class OpenOrgBackend() {
   // Schedule all recurring timers on first install.
   // Subsequent upgrades will wipe these timers; postupgrade re-creates them.
   scheduleAll<system>(func(config : TimerRegistryEntry) : Nat { config.interval });
+
+  ignore Timer.setTimer<system>(
+    #nanoseconds 0,
+    func() : async () {
+      // Fetch initial envelope salt — raw_rand requires an async context, so we use a zero-delay timer.
+      executionEnvelopeState.envelopeSalt := await Random.blob();
+
+      // Pre-warm the engine canister so the first dispatch doesn't pay the spawn cost.
+      ignore await ensureInternalEngine();
+    },
+  );
 
   // System hook called after every upgrade
   system func postupgrade() {
@@ -245,6 +324,41 @@ persistent actor class OpenOrgBackend() {
     // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
     httpCertStore := HttpCertification.initStore();
     certifyHttpEndpoints();
+
+    // Propagate upgrade to engine canister (if spawned).
+    switch (internalEngine) {
+      case (?e) {
+        ignore Timer.setTimer<system>(
+          #seconds 0,
+          func() : async () {
+            try {
+              let upgraded = await (system InternalEngine.InternalEngine)(#upgrade e)();
+              internalEngine := ?upgraded;
+              Logger.log(#info, ?"EngineLifecycle", "Engine canister upgrade propagated");
+            } catch (err) {
+              Logger.log(#error, ?"EngineLifecycle", "Engine upgrade failed: " # Error.message(err));
+            };
+          },
+        );
+      };
+      case null {
+        // Engine not yet spawned — pre-warm so first dispatch is fast.
+        ignore Timer.setTimer<system>(
+          #nanoseconds 0,
+          func() : async () {
+            ignore await ensureInternalEngine();
+          },
+        );
+      };
+    };
+
+    // Refresh envelope salt with new entropy on every upgrade
+    ignore Timer.setTimer<system>(
+      #nanoseconds 0,
+      func() : async () {
+        executionEnvelopeState.envelopeSalt := await Random.blob();
+      },
+    );
   };
 
   // ============================================
@@ -318,6 +432,42 @@ persistent actor class OpenOrgBackend() {
         },
       )
     );
+  };
+
+  // ============================================
+  // Execution API (engine → Core)
+  // ============================================
+
+  /// Single endpoint for engine-to-Core communication.
+  /// The engine sends method + path + JSON body; path encodes the resource and optional ID.
+  /// Transport-level guard: only the internal engine canister principal may call this.
+  public shared ({ caller }) func executionApi(
+    method : { #get; #post; #delete },
+    path : Text,
+    body : Text,
+  ) : async { #ok : Text; #err : Text } {
+    let expected = switch (internalEnginePrincipal) {
+      case (null) {
+        return #err("Unauthorized: engine not yet initialized");
+      };
+      case (?p) { p };
+    };
+    if (caller != expected) {
+      return #err("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister");
+    };
+    let { response; asyncEffects } = executionApiService.handleRequest(method, path, body);
+
+    // Schedule async processing for any async effects produced by the request
+    for (effect in asyncEffects.vals()) {
+      ignore Timer.setTimer<system>(
+        #seconds 0,
+        func() : async () {
+          await executionAsyncEffectService.processEffect(keyCache, effect);
+        },
+      );
+    };
+
+    response;
   };
 
   // ============================================

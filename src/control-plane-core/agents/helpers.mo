@@ -1,6 +1,6 @@
 import Text "mo:core/Text";
 import AgentModel "../models/agent-model";
-import InstructionTypes "../instructions/instruction-types";
+import InstructionTypes "./instructions/instruction-types";
 
 module {
 

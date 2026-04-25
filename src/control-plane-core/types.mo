@@ -1,3 +1,5 @@
+import InternalEngine "../internal-engine/main";
+
 module {
   /// Environment configuration for the bot-agent application
   /// Determines which Schnorr key to use for key derivation and other environment-specific behavior
@@ -12,8 +14,6 @@ module {
   /// Each variant represents a distinct secret that can be stored per workspace
   public type SecretId = {
     #openRouterApiKey;
-    #anthropicApiKey; // API key variant; only used by runtime agents
-    #anthropicSetupToken; // Subscription long-lived token variant; only used by runtime agents
     #slackBotToken;
     #slackSigningSecret;
     #custom : Text; // admin-defined key name; stored as "custom:<name>" in the map
@@ -59,6 +59,29 @@ module {
     action : Text; // e.g. "llm_call", "post_to_slack", "update_channel_history"
     result : { #ok; #err : Text };
     timestamp : Int; // Time.now() when this step completed
+  };
+
+  // ============================================
+  // Agent Orchestration Types
+  // ============================================
+
+  /// Engine dispatch dependencies threaded into agent loops.
+  public type AgentEngineDeps<EnvelopeState> = {
+    envelopeState : EnvelopeState;
+    internalEngine : InternalEngine.InternalEngine;
+  };
+
+  /// Shared result returned by agent orchestration and category loops.
+  public type AgentOrchestrateResult = {
+    #dispatched : { steps : [ProcessingStep] };
+    #ok : {
+      response : Text;
+      steps : [ProcessingStep];
+    };
+    #err : {
+      message : Text;
+      steps : [ProcessingStep];
+    };
   };
 
   // ============================================

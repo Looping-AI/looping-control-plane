@@ -57,9 +57,34 @@ module {
   // Turns with `startedAtNs` older than this are hard-deleted by the turn-cleanup timer.
   public let TURN_CLEANUP_RETENTION_NS : Nat = 7_776_000_000_000_000;
 
+  // Trace cleanup retention — 30 days in nanoseconds (30 * 24 * 60 * 60 * 1_000_000_000)
+  // Traces for turns with `startedAtNs` older than this are deleted independently of the
+  // owning turn, keeping heap usage bounded while turns remain queryable for 90 days.
+  public let TRACE_CLEANUP_RETENTION_NS : Nat = 2_592_000_000_000_000;
+
+  // Envelope cleanup retention — 30 days in nanoseconds (30 * 24 * 60 * 60 * 1_000_000_000)
+  // Envelope records with `createdAtNs` older than this are purged by the weekly cleanup
+  // timer. Kept as a separate constant from TRACE_CLEANUP_RETENTION_NS for independent tuning.
+  public let ENVELOPE_CLEANUP_RETENTION_NS : Nat = 2_592_000_000_000_000;
+
+  // Execution token time-to-live — 60 minutes in nanoseconds (60 * 60 * 1_000_000_000)
+  // Tokens are issued by Core when spawning an engine run and auto-expire after this window.
+  public let EXECUTION_TOKEN_TTL_NS : Int = 3_600_000_000_000;
+
   // Default session policy — token budgets for context-window management.
   // The admin agent can override these per-agent via the update_session_policy tool.
   public let DEFAULT_SUMMARY_TOKEN_BUDGET : Nat = 32768; // 32k
   public let DEFAULT_MAX_TRUNCATED_TOKENS : Nat = 4096; // 4k
+
+  // ── Engine lifecycle ───────────────────────────────────────────────
+
+  // Cycles attached when spawning the engine canister (1 trillion)
+  public let ENGINE_SPAWN_CYCLES : Nat = 1_000_000_000_000;
+
+  // Minimum cycle balance before triggering a top-up (500 billion)
+  public let ENGINE_MIN_CYCLES : Nat = 500_000_000_000;
+
+  // Cycles deposited per top-up (1 trillion)
+  public let ENGINE_TOPUP_CYCLES : Nat = 1_000_000_000_000;
 
 };

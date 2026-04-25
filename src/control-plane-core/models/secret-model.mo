@@ -13,6 +13,7 @@ import Types "../types";
 import Constants "../constants";
 import Encryption "../utilities/encryption";
 import AgentModel "./agent-model";
+import WorkspaceModel "./workspace-model";
 
 module {
   /// Type alias for encrypted secret storage
@@ -87,8 +88,6 @@ module {
   private func secretIdToString(id : Types.SecretId) : Text {
     switch (id) {
       case (#openRouterApiKey) { "openRouterApiKey" };
-      case (#anthropicApiKey) { "anthropicApiKey" };
-      case (#anthropicSetupToken) { "anthropicSetupToken" };
       case (#slackBotToken) { "slackBotToken" };
       case (#slackSigningSecret) { "slackSigningSecret" };
       case (#custom(name)) { "custom:" # name };
@@ -120,7 +119,7 @@ module {
     // Agent-initiated reads are always audited
     if (requester.agentId != null) { return true };
     // Infrastructure reads on workspaces > 0 are always audited
-    if (workspaceId != 0) { return true };
+    if (not WorkspaceModel.isOrgWorkspace(workspaceId)) { return true };
     // Infrastructure reads on workspace 0: suppress high-frequency platform secret lookups
     Array.find<Types.SecretId>(
       Constants.SECRET_AUDIT_EXCLUSIONS,
@@ -371,8 +370,8 @@ module {
     let wsResult = getSecret(state, workspaceKey, workspaceId, targetSecretId, requester);
     if (wsResult != null) { return wsResult };
 
-    // Step 3 — org-level fallback (only when agent is not already on workspace 0)
-    if (workspaceId != 0) {
+    // Step 3 — org-level fallback (only when agent is not already on the org workspace)
+    if (not WorkspaceModel.isOrgWorkspace(workspaceId)) {
       return getSecret(state, orgKey, 0, targetSecretId, requester);
     };
 

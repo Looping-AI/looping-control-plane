@@ -48,6 +48,16 @@ module {
   };
 
   // ============================================
+  // Predicates
+  // ============================================
+
+  /// Returns true if `id` is the org workspace (workspace 0).
+  /// Use this instead of open-coding `== 0` comparisons.
+  public func isOrgWorkspace(id : Nat) : Bool {
+    id == 0;
+  };
+
+  // ============================================
   // Constructors
   // ============================================
 
@@ -113,7 +123,7 @@ module {
   /// These cleanup operations can be quite hard to ensure they are thorough, even with a constantly changing system.
   /// It would need that ALL objects have a delete method and handle fails properly.
   public func deleteWorkspace(state : WorkspacesState, workspaceId : Nat) : Result.Result<(), Text> {
-    if (workspaceId == 0) {
+    if (isOrgWorkspace(workspaceId)) {
       return #err("Workspace 0 (the org workspace) cannot be deleted.");
     };
     switch (Map.get(state.workspaces, Nat.compare, workspaceId)) {
@@ -157,6 +167,37 @@ module {
   /// Returns null if the workspace does not exist.
   public func getWorkspace(state : WorkspacesState, workspaceId : Nat) : ?WorkspaceRecord {
     Map.get(state.workspaces, Nat.compare, workspaceId);
+  };
+
+  /// Rename an existing workspace.
+  /// Returns `#err` if the workspace does not exist, the new name is empty,
+  /// or another workspace already has that name.
+  public func renameWorkspace(state : WorkspacesState, workspaceId : Nat, newName : Text) : Result.Result<(), Text> {
+    if (Text.size(newName) == 0) {
+      return #err("Workspace name cannot be empty.");
+    };
+    switch (Map.get(state.workspaces, Nat.compare, workspaceId)) {
+      case (null) { #err("Workspace not found.") };
+      case (?record) {
+        // Reject if another workspace already has this name
+        for ((_, w) in Map.entries(state.workspaces)) {
+          if (w.id != workspaceId and Text.equal(w.name, newName)) {
+            return #err("A workspace named '" # newName # "' already exists.");
+          };
+        };
+        Map.add(
+          state.workspaces,
+          Nat.compare,
+          workspaceId,
+          {
+            id = record.id;
+            name = newName;
+            adminChannelId = record.adminChannelId;
+          },
+        );
+        #ok(());
+      };
+    };
   };
 
   /// Set the admin channel anchor for a workspace.

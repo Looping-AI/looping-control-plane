@@ -116,6 +116,7 @@ module {
   func statusToText(status : SessionModel.TurnStatus) : Text {
     switch (status) {
       case (#running) { "running" };
+      case (#pending) { "pending" };
       case (#succeeded) { "succeeded" };
       case (#failed) { "failed" };
     };

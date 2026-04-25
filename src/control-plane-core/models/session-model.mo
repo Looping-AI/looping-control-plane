@@ -13,6 +13,7 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
+import Float "mo:core/Float";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Constants "../constants";
@@ -46,12 +47,13 @@ module {
 
   public type TurnStatus = {
     #running;
+    #pending;
     #succeeded;
     #failed;
   };
 
   public type SourceRef = {
-    #slack : { channelId : Text; ts : Text };
+    #slack : { channelId : Text; ts : Text; threadTs : ?Text };
     #github : { runId : Text; workflowId : Text };
     #timer : { timerLabel : Text };
   };
@@ -59,7 +61,7 @@ module {
   public type TurnCost = {
     promptTokens : Nat;
     completionTokens : Nat;
-    estimatedMicroUnits : Nat;
+    estimatedDollarCost : ?Float;
   };
 
   public type TraceDetail = {
@@ -214,9 +216,20 @@ module {
     turn;
   };
 
+  /// Mark a turn as pending (dispatched to engine, awaiting completion).
+  public func markPending(
+    stores : SessionStores,
+    turnId : Text,
+  ) : () {
+    switch (findTurn(stores, turnId)) {
+      case (null) {};
+      case (?turn) { turn.status := #pending };
+    };
+  };
+
   /// Finalize a turn with terminal status, cost, and optional error summary.
-  /// The status must be terminal (#succeeded or #failed), never #running.
-  /// Traps if status is #running (developer error).
+  /// The status must be terminal (#succeeded or #failed), never #running or #pending.
+  /// Traps if status is non-terminal (developer error).
   public func completeTurn(
     stores : SessionStores,
     turnId : Text,
@@ -224,7 +237,7 @@ module {
     cost : ?TurnCost,
     errorSummary : ?Text,
   ) : () {
-    assert status != #running;
+    assert status == #succeeded or status == #failed;
     switch (findTurn(stores, turnId)) {
       case (null) {};
       case (?turn) {
@@ -288,15 +301,41 @@ module {
   // Cleanup
   // ============================================
 
-  /// Hard-delete turns (and their traces) with startedAtNs older than cutoffNs.
+  /// Delete traces for turns whose startedAtNs is older than cutoffNs, without
+  /// removing the turn records themselves (turns live for 90 days; traces for 30).
+  /// Uses greedy early-exit: inner Map<Nat, AgentTurnRecord> iterates in ascending
+  /// turn-number order (monotonically assigned), so the first turn newer than the
+  /// cutoff guarantees all remaining turns in that agent's map are also newer.
+  /// Returns the number of trace entries removed.
+  public func deleteTracesOlderThan(stores : SessionStores, cutoffNs : Int) : Nat {
+    var removed : Nat = 0;
+    for ((_, turnMap) in Map.entries(stores.turns)) {
+      label l for ((_, turn) in Map.entries(turnMap)) {
+        if (turn.startedAtNs < cutoffNs) {
+          switch (Map.get(stores.traces, Text.compare, turn.turnId)) {
+            case (null) {};
+            case (?_) {
+              Map.remove(stores.traces, Text.compare, turn.turnId);
+              removed += 1;
+            };
+          };
+        } else {
+          break l;
+        };
+      };
+    };
+    removed;
+  };
+
+  /// Hard-delete turns with startedAtNs older than cutoffNs.
   /// Uses startedAtNs (never null) rather than completedAtNs, so orphaned
   /// #running turns that never reached a terminal state are also collected.
   /// Pops from minEntry() of each agent's inner Map (ordered by turnNumber,
   /// which is monotonically increasing) until a turn newer than the cutoff is
   /// reached — O(deleted × log n) rather than O(total turns).
-  /// Returns the number of turns deleted.
-  public func deleteTurnsOlderThan(stores : SessionStores, cutoffNs : Int) : Nat {
-    var deleted : Nat = 0;
+  /// Trace deletion is handled independently by deleteTracesOlderThan.
+  public func deleteTurnsOlderThan(stores : SessionStores, cutoffNs : Int) : [Text] {
+    let deletedTurnIds = List.empty<Text>();
     for ((_, turnMap) in Map.entries(stores.turns)) {
       // Collect keys to delete, then remove after scanning
       let toRemove = List.empty<(Nat, Text)>();
@@ -316,11 +355,10 @@ module {
         };
       };
       for ((_, turnId) in List.values(toRemove)) {
-        Map.remove(stores.traces, Text.compare, turnId);
-        deleted += 1;
+        List.add(deletedTurnIds, turnId);
       };
     };
-    deleted;
+    List.toArray(deletedTurnIds);
   };
 
   // ============================================
@@ -354,21 +392,26 @@ module {
       case (?traceList) {
         var promptTokens : Nat = 0;
         var completionTokens : Nat = 0;
-        var estimatedMicroUnits : Nat = 0;
+        var estimatedDollarCost : ?Float = null;
         var hasLlmCalls = false;
         for (entry in List.values(traceList)) {
           switch (entry.detail) {
             case (#llmCall({ cost })) {
               promptTokens += cost.promptTokens;
               completionTokens += cost.completionTokens;
-              estimatedMicroUnits += cost.estimatedMicroUnits;
+              switch (cost.estimatedDollarCost) {
+                case (?c) {
+                  estimatedDollarCost := ?(switch (estimatedDollarCost) { case (?acc) { acc + c }; case null { c } });
+                };
+                case (null) {};
+              };
               hasLlmCalls := true;
             };
             case _ {};
           };
         };
         if (hasLlmCalls) {
-          ?{ promptTokens; completionTokens; estimatedMicroUnits };
+          ?{ promptTokens; completionTokens; estimatedDollarCost };
         } else {
           null;
         };

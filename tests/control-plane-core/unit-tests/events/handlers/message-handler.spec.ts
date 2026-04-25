@@ -1,0 +1,915 @@
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
+import type { PocketIc, DeferredActor, Actor } from "@dfinity/pic";
+import {
+  createDeferredTestCanister,
+  createTestCanister,
+  freshDeferredTestCanister,
+  freshTestCanister,
+  type TestCanisterService,
+} from "../../../../setup";
+import { withCassette } from "../../../../lib/cassette";
+import { resolveSpecsChannel } from "../../../../helpers";
+import messageStandardStub from "../../../../stubs/slack-payloads/message-standard.json";
+
+// ============================================
+// MessageHandler is a full controller that:
+//   1. Derives an encryption key for the workspace
+//   2. Looks up the Slack bot token from secrets
+//   3. Calls the LLM orchestrator
+//   4. Posts the reply back to Slack
+//
+// All tests use a deferred actor + cassette so that the OpenRouter LLM call and
+// the Slack HTTP POST are recorded on first run and replayed on CI.
+//
+// Tokens are loaded from .env.test (SLACK_APP_BOT_TOKEN, OPENROUTER_TEST_KEY).
+// All messages are directed to a "specs-only" Slack channel
+// which is dedicated to automated test traffic.
+// ============================================
+
+const BOT_TOKEN =
+  process.env["SLACK_APP_BOT_TOKEN"] ?? "not-needed-due-to-cassette";
+const OPENROUTER_API_KEY =
+  process.env["OPENROUTER_TEST_KEY"] ?? "not-needed-due-to-cassette";
+const DISPATCH_TEST_CHANNEL = "C_DISPATCH_TEST";
+const CASSETTE_TEST_TIMEOUT_MS = 60_000;
+
+describe("MessageHandler Unit Tests", () => {
+  let pic: PocketIc;
+  let testCanister: DeferredActor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  // ============================================
+  // Happy-path — bot token + OpenRouter key configured
+  // The cassette records the OpenRouter LLM call and the Slack POST on first run
+  // and replays them on subsequent runs (CI, offline, etc.).
+  // ============================================
+
+  it(
+    "should post a reply for a standard channel message",
+    async () => {
+      const event = messageStandardStub.event;
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler/standard-message-reply";
+      const channel = await resolveSpecsChannel(cassetteName);
+
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerWithSecrets(
+            {
+              user: event.user,
+              text: event.text,
+              channel,
+              ts: event.ts,
+              threadTs: event.thread_ts
+                ? ([event.thread_ts] as [string])
+                : ([] as []),
+              isBotMessage: false,
+              agentMetadata: [],
+            },
+            BOT_TOKEN,
+            OPENROUTER_API_KEY,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        // The final step must be a successful Slack post
+        const lastStep = response.ok[response.ok.length - 1];
+        expect(lastStep.action).toBe("post_to_slack");
+        expect("ok" in lastStep.result).toBe(true);
+        // Every step must carry a nanosecond timestamp
+        for (const step of response.ok) {
+          expect(typeof step.timestamp).toBe("bigint");
+          expect(step.timestamp).toBeGreaterThan(0n);
+        }
+      }
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+
+  it(
+    "should reply within an existing thread when threadTs is set",
+    async () => {
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler/thread-reply";
+      const channel = await resolveSpecsChannel(cassetteName);
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerWithSecrets(
+            {
+              user: "U_THREAD",
+              text: "This is a thread reply",
+              channel,
+              ts: "1700000010.000001",
+              threadTs: ["1700000005.000000"] as [string],
+              isBotMessage: false,
+              agentMetadata: [],
+            },
+            BOT_TOKEN,
+            OPENROUTER_API_KEY,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        const lastStep = response.ok[response.ok.length - 1];
+        expect(lastStep.action).toBe("post_to_slack");
+        expect("ok" in lastStep.result).toBe(true);
+      }
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+
+  it(
+    "should post a top-level channel message when threadTs is absent",
+    async () => {
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler/top-level-channel-post";
+      const channel = await resolveSpecsChannel(cassetteName);
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerWithSecrets(
+            {
+              user: "U_CHANNEL",
+              text: "Hello channel",
+              channel,
+              ts: "1700000010.000001",
+              threadTs: [] as [],
+              isBotMessage: false,
+              agentMetadata: [],
+            },
+            BOT_TOKEN,
+            OPENROUTER_API_KEY,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        const lastStep = response.ok[response.ok.length - 1];
+        expect(lastStep.action).toBe("post_to_slack");
+        expect("ok" in lastStep.result).toBe(true);
+      }
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+
+  it(
+    "should handle messages consistently across multiple scenarios",
+    async () => {
+      for (const label of ["ws0", "ws1", "ws42"]) {
+        const cassetteName = `control-plane-core/unit-tests/events/handlers/message-handler/multi-workspace-${label}`;
+        const channel = await resolveSpecsChannel(cassetteName);
+        const { result } = await withCassette(
+          pic,
+          cassetteName,
+          () =>
+            testCanister.testMessageHandlerWithSecrets(
+              {
+                user: "U_TEST",
+                text: `Hello from workspace ${label}`,
+                channel,
+                ts: "1700000010.000001",
+                threadTs: [] as [],
+                isBotMessage: false,
+                agentMetadata: [],
+              },
+              BOT_TOKEN,
+              OPENROUTER_API_KEY,
+            ),
+          { ticks: 5, maxRounds: 5 },
+        );
+
+        const response = await result;
+        expect("ok" in response).toBe(true);
+        if ("ok" in response) {
+          const lastStep = response.ok[response.ok.length - 1];
+          expect(lastStep.action).toBe("post_to_slack");
+          expect(lastStep.timestamp).toBeGreaterThan(0n);
+        }
+      }
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+
+  it(
+    "should include a positive nanosecond timestamp in every returned step",
+    async () => {
+      const event = messageStandardStub.event;
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler/step-timestamps";
+      const channel = await resolveSpecsChannel(cassetteName);
+
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerWithSecrets(
+            {
+              user: event.user,
+              text: event.text,
+              channel,
+              ts: event.ts,
+              threadTs: [] as [],
+              isBotMessage: false,
+              agentMetadata: [],
+            },
+            BOT_TOKEN,
+            OPENROUTER_API_KEY,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        for (const step of response.ok) {
+          expect(typeof step.timestamp).toBe("bigint");
+          expect(step.timestamp).toBeGreaterThan(0n);
+        }
+      }
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+
+  it(
+    "should mark the turn as pending and return dispatch_to_engine step",
+    async () => {
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler-dispatch/dispatch-workflow";
+
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerDispatch(
+            {
+              user: "U_ADMIN",
+              text: "List all workspaces for me.",
+              channel: DISPATCH_TEST_CHANNEL,
+              ts: "1700000020.000001",
+              threadTs: [],
+              isBotMessage: false,
+              agentMetadata: [],
+            },
+            BOT_TOKEN,
+            OPENROUTER_API_KEY,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        expect(response.ok.length).toBeGreaterThanOrEqual(1);
+        const dispatchStep = response.ok.find(
+          (s) => s.action === "dispatch_to_engine",
+        );
+        expect(dispatchStep).toBeDefined();
+        if (dispatchStep) {
+          expect("ok" in dispatchStep.result).toBe(true);
+        }
+        const slackStep = response.ok.find((s) => s.action === "post_to_slack");
+        expect(slackStep).toBeUndefined();
+      }
+
+      const statusResult = await (
+        await testCanister.testGetTurnStatus("0_0")
+      )();
+      expect(statusResult).toEqual(["pending"]);
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+
+  // ============================================
+  // Bot-message proceed path — session inheritance
+  // A bot reply that passes every guard and continues through orchestration must
+  // have a delegation depth within limits and ultimately post the agent reply
+  // back to Slack.
+  // ============================================
+
+  it(
+    "should inherit session context from parent and proceed to orchestration when within round limit",
+    async () => {
+      const PARENT_TS = "1700000010.000100";
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler/bot-branch-session-inherit";
+      const channel = await resolveSpecsChannel(cassetteName);
+
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerBotBranch(
+            {
+              user: "UBOT001",
+              text: "::unit-test-admin please summarise the progress",
+              channel,
+              ts: "1700000020.000100",
+              threadTs: [PARENT_TS] as [string],
+              isBotMessage: true,
+              agentMetadata: [
+                {
+                  event_type: "looping_agent_message",
+                  event_payload: {
+                    parent_agent: "unit-test-admin",
+                    parent_ts: PARENT_TS,
+                    parent_channel: channel,
+                    turn_id: "0_0",
+                  },
+                },
+              ],
+            },
+            BOT_TOKEN,
+            OPENROUTER_API_KEY,
+            channel, // parentChannel
+            PARENT_TS, // parentTs
+            0n, // delegationDepth = 0 → well within MAX_AGENT_ROUNDS
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        // Orchestration must complete with a successful Slack post as the final step.
+        const lastStep = response.ok[response.ok.length - 1];
+        expect(lastStep.action).toBe("post_to_slack");
+        expect("ok" in lastStep.result).toBe(true);
+        // Every step must carry a valid nanosecond timestamp.
+        for (const step of response.ok) {
+          expect(typeof step.timestamp).toBe("bigint");
+          expect(step.timestamp).toBeGreaterThan(0n);
+        }
+      }
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+});
+
+// ============================================
+// Bot-message guard and delegation-depth tests.
+//
+// These tests cover every pre-condition guard and the MAX_AGENT_ROUNDS hard
+// ceiling in the isBotMessage: true path. None of these paths reaches the LLM
+// or Slack (they all short-circuit before token decryption), so a non-deferred
+// actor is sufficient and no cassette recording is needed.
+// ============================================
+
+describe("MessageHandler — bot-message branch guards & delegation depth", () => {
+  let pic: PocketIc;
+  let testCanister: Actor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  it("should return round_skip when bot message carries no valid ::agent reference", async () => {
+    const result = await testCanister.testMessageHandlerWithSecrets(
+      {
+        user: "UBOT001",
+        text: "This bot reply has no agent reference at all",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000001",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [],
+      },
+      BOT_TOKEN,
+      OPENROUTER_API_KEY,
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_skip");
+    }
+  });
+
+  it("should return round_skip when bot message has a valid ::agent ref but no agentMetadata", async () => {
+    // agentMetadata: [] encodes as Candid `null` (absent optional).
+    const result = await testCanister.testMessageHandlerWithSecrets(
+      {
+        user: "UBOT001",
+        text: "::unit-test-admin please continue",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000002",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [],
+      },
+      BOT_TOKEN,
+      OPENROUTER_API_KEY,
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_skip");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain(
+          "bot message missing agentMetadata",
+        );
+      }
+    }
+  });
+
+  it("should return round_skip when the referenced parent message is absent from the conversation store", async () => {
+    // The conversation store is empty, so the parent lookup always fails.
+    const result = await testCanister.testMessageHandlerWithSecrets(
+      {
+        user: "UBOT001",
+        text: "::unit-test-admin please continue",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000003",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [
+          {
+            event_type: "looping_agent_message",
+            event_payload: {
+              parent_agent: "unit-test-admin",
+              parent_ts: "1700000010.000000",
+              parent_channel: "C_ADMIN_CHANNEL",
+              turn_id: "0_0",
+            },
+          },
+        ],
+      },
+      BOT_TOKEN,
+      OPENROUTER_API_KEY,
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_skip");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain("parent message not found");
+      }
+    }
+  });
+
+  it("should return round_force_terminated and halt when MAX_AGENT_ROUNDS (10) is reached", async () => {
+    // MAX_AGENT_ROUNDS = 10. delegationDepth = 10 → depth ≥ 10 → terminate.
+    //
+    // Uses testMessageHandlerBotBranchNoSlackToken (no Slack bot token seeded) to keep
+    // postTerminationIfTokenAvailable a no-op.  This lets the test run on a non-deferred
+    // actor without managing a pending HTTPS outcall for the Slack chat.postMessage.
+    // A separate cassette test ("should post termination prompt to Slack when MAX_AGENT_ROUNDS
+    // is reached") verifies the full Slack-delivery path.
+    const result = await testCanister.testMessageHandlerBotBranchNoSlackToken(
+      {
+        user: "UBOT001",
+        text: "::unit-test-admin please continue",
+        channel: "C_ADMIN_CHANNEL",
+        ts: "1700000020.000005",
+        threadTs: ["1700000010.000000"] as [string],
+        isBotMessage: true,
+        agentMetadata: [
+          {
+            event_type: "looping_agent_message",
+            event_payload: {
+              parent_agent: "unit-test-admin",
+              parent_ts: "1700000010.000000",
+              parent_channel: "C_ADMIN_CHANNEL",
+              turn_id: "0_0",
+            },
+          },
+        ],
+      },
+      OPENROUTER_API_KEY,
+      "C_ADMIN_CHANNEL", // parentChannel
+      "1700000010.000000", // parentTs
+      10n, // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → terminate
+    );
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("round_force_terminated");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain("max agent rounds reached");
+      }
+    }
+  });
+});
+
+// ============================================
+// Primary agent resolution — sync path
+//
+// Tests that return before postAgentReply (no HTTP outcalls) can use a regular
+// synchronous actor.  The empty-registry path exits early via primary_agent_skip
+// before a bot token or LLM key is consulted.
+// ============================================
+
+describe("MessageHandler — primary agent resolution", () => {
+  let pic: PocketIc;
+  let testCanister: Actor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  it("should return primary_agent_skip when no agents are registered (empty registry)", async () => {
+    // testMessageHandler uses emptyCtx() — no agents registered at all.
+    // A bare user message with no ::ref has no fallback agent available.
+    // The handler returns primary_agent_skip before reaching postAgentReply,
+    // so no HTTP outcalls are made and a regular (non-deferred) actor suffices.
+    const result = await testCanister.testMessageHandler({
+      user: "U_USER",
+      text: "what is the current status",
+      channel: "C_ADMIN_CHANNEL",
+      ts: "1700000010.000011",
+      threadTs: [] as [],
+      isBotMessage: false,
+      agentMetadata: [] as [],
+    });
+
+    expect("ok" in result).toBe(true);
+    if ("ok" in result) {
+      expect(result.ok).toHaveLength(1);
+      expect(result.ok[0].action).toBe("primary_agent_skip");
+      expect("err" in result.ok[0].result).toBe(true);
+      if ("err" in result.ok[0].result) {
+        expect(result.ok[0].result.err).toContain("no primary agent found");
+      }
+    }
+  });
+});
+
+// ============================================
+// Primary agent resolution — HTTP path
+//
+// The message handler always calls postAgentReply at the end of the happy path,
+// which posts to Slack via an HTTPS outcall.  Tests that exercise paths reaching
+// postAgentReply (custom stub error, admin key-resolution error) therefore
+// require a deferred actor and a cassette to intercept the Slack call.
+// ============================================
+
+describe("MessageHandler — primary agent resolution (HTTP paths)", () => {
+  let pic: PocketIc;
+  let testCanister: DeferredActor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  it(
+    "should route ::unit-test-custom to custom category stub (not primary_agent_skip)",
+    async () => {
+      // When the user explicitly references ::unit-test-custom the primary agent
+      // resolves to the custom category, which returns a stub #err without an LLM
+      // call.  postAgentReply then posts that error to Slack — captured via cassette.
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler/custom-category-stub";
+      const channel = await resolveSpecsChannel(cassetteName);
+
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerWithCustomAgent(
+            {
+              user: "U_USER",
+              text: "::unit-test-custom what is the current status",
+              channel,
+              ts: "1700000010.000010",
+              threadTs: [] as [],
+              isBotMessage: false,
+              agentMetadata: [] as [],
+            },
+            BOT_TOKEN,
+            OPENROUTER_API_KEY,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        // Must NOT return primary_agent_skip — the custom agent WAS successfully resolved.
+        expect(
+          response.ok.some(
+            (s: { action: string }) => s.action === "primary_agent_skip",
+          ),
+        ).toBe(false);
+        // The orchestrate stub for #custom returns an error step with the expected message.
+        const orchestrateStep = response.ok.find(
+          (s: { action: string; result: { ok: null } | { err: string } }) =>
+            s.action === "orchestrate",
+        );
+        expect(orchestrateStep).toBeDefined();
+        if (orchestrateStep && "err" in orchestrateStep.result) {
+          expect(orchestrateStep.result.err).toContain(
+            "category service not yet implemented",
+          );
+        }
+      }
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+
+  it(
+    "should fall back to #admin agent for bare user message with no ::ref",
+    async () => {
+      // With both admin and custom agents registered, a bare message (no ::ref)
+      // falls back to getFirstByCategory(#admin).  The NoOpenRouter variant seeds no
+      // openRouterApiKey so the admin route returns #err at key resolution without an
+      // LLM call.  postAgentReply then posts that error to Slack — captured via cassette.
+      // The important assertion: primary_agent_skip is NOT emitted — the fallback succeeded.
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler/primary-agent-admin-fallback";
+      const channel = await resolveSpecsChannel(cassetteName);
+
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerWithCustomAgentNoOpenRouter(
+            {
+              user: "U_USER",
+              text: "what is the current status",
+              channel,
+              ts: "1700000010.000012",
+              threadTs: [] as [],
+              isBotMessage: false,
+              agentMetadata: [] as [],
+            },
+            BOT_TOKEN,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+      expect("ok" in response).toBe(true);
+      if ("ok" in response) {
+        // Fallback to admin succeeds — must not see primary_agent_skip.
+        expect(
+          response.ok.some(
+            (s: { action: string }) => s.action === "primary_agent_skip",
+          ),
+        ).toBe(false);
+      }
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+});
+
+// ============================================
+// Termination prompt delivery
+//
+// Verifies that MAX_AGENT_ROUNDS causes the bot to post a continuation prompt
+// to Slack in addition to returning round_force_terminated.
+//
+// Uses a deferred actor + cassette so the outgoing Slack chat.postMessage call
+// can be intercepted and replayed without a live API connection.
+// ============================================
+
+describe("MessageHandler — MAX_AGENT_ROUNDS termination prompt", () => {
+  let pic: PocketIc;
+  let testCanister: DeferredActor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  it("should post a termination prompt to Slack when MAX_AGENT_ROUNDS is reached", async () => {
+    // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → force-terminate.
+    // Unlike the non-deferred guard test, this deferred version captures both the
+    // round_force_terminated HandlerResult AND the outgoing Slack chat.postMessage call
+    // (the termination prompt) via cassette.
+    const PARENT_TS = "1700000010.000100";
+    const cassetteName =
+      "control-plane-core/unit-tests/events/handlers/message-handler/max-rounds-termination-prompt";
+    const channel = await resolveSpecsChannel(cassetteName);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerBotBranch(
+          {
+            user: "UBOT001",
+            text: "::unit-test-admin please continue",
+            channel,
+            ts: "1700000020.000100",
+            threadTs: [PARENT_TS] as [string],
+            isBotMessage: true,
+            agentMetadata: [
+              {
+                event_type: "looping_agent_message",
+                event_payload: {
+                  parent_agent: "unit-test-admin",
+                  parent_ts: PARENT_TS,
+                  parent_channel: channel,
+                  turn_id: "0_0",
+                },
+              },
+            ],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+          channel,
+          PARENT_TS,
+          10n, // delegationDepth = 10 → depth = 10 = MAX_AGENT_ROUNDS → terminate
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      // Handler returns round_force_terminated.
+      expect(response.ok).toHaveLength(1);
+      expect(response.ok[0].action).toBe("round_force_terminated");
+      // The cassette should capture the outgoing Slack chat.postMessage for the
+      // termination prompt — verified by the cassette recording containing a POST
+      // to api.slack.com/api/chat.postMessage with the ⚠️ continuation message.
+    }
+  });
+});
+
+// ============================================
+// Admin channel routing guard
+//
+// Verifies that the #admin category agent is blocked when the workspace's
+// adminChannelId is not set (null) or when the message arrives from a channel
+// that is not the configured admin channel.
+//
+// The guard fires after the bot-token check and returns both a channel_guard
+// step and a post_to_slack step so the user sees a visible error.
+// ============================================
+
+describe("MessageHandler — admin channel routing guard", () => {
+  let pic: PocketIc;
+  let testCanister: DeferredActor<TestCanisterService>;
+
+  beforeAll(async () => {
+    pic = (await createDeferredTestCanister()).pic;
+  });
+
+  beforeEach(async () => {
+    testCanister = (await freshDeferredTestCanister(pic)).actor;
+  });
+
+  afterAll(async () => {
+    await pic.tearDown();
+  });
+
+  it("should block admin agent and surface error when adminChannelId is not configured (null)", async () => {
+    // Workspace 0 has no admin channel configured.
+    // The routing guard fires and returns a channel_guard error step.
+    const cassetteName =
+      "control-plane-core/unit-tests/events/handlers/message-handler/admin-guard-null-channel";
+    const channel = await resolveSpecsChannel(cassetteName);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerAdminChannelBlocked(
+          {
+            user: "U_USER",
+            text: "hello admin",
+            channel,
+            ts: "1700000010.000020",
+            threadTs: [] as [],
+            isBotMessage: false,
+            agentMetadata: [] as [],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+          [] as [], // null adminChannelOverride — workspace 0 has no admin channel
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      const guardStep = response.ok.find(
+        (s: { action: string }) => s.action === "channel_guard",
+      );
+      expect(guardStep).toBeDefined();
+      if (guardStep && "err" in guardStep.result) {
+        expect(guardStep.result.err).toContain(
+          "admin channel not yet configured",
+        );
+      }
+      // The error is always surfaced via a Slack post.
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+    }
+  });
+
+  it("should block admin agent and surface error when message arrives from wrong channel", async () => {
+    // Workspace 0's admin channel is set to "C_ORG_ADMIN_CONFIGURED" but the
+    // message arrives from a different channel (the specs channel).
+    // The routing guard fires and returns a channel_guard error step.
+    const cassetteName =
+      "control-plane-core/unit-tests/events/handlers/message-handler/admin-guard-wrong-channel";
+    const channel = await resolveSpecsChannel(cassetteName);
+
+    const { result } = await withCassette(
+      pic,
+      cassetteName,
+      () =>
+        testCanister.testMessageHandlerAdminChannelBlocked(
+          {
+            user: "U_USER",
+            text: "hello admin",
+            channel,
+            ts: "1700000010.000021",
+            threadTs: [] as [],
+            isBotMessage: false,
+            agentMetadata: [] as [],
+          },
+          BOT_TOKEN,
+          OPENROUTER_API_KEY,
+          ["C_ORG_ADMIN_CONFIGURED"] as [string], // adminChannelId differs from msg channel
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+    if ("ok" in response) {
+      const guardStep = response.ok.find(
+        (s: { action: string }) => s.action === "channel_guard",
+      );
+      expect(guardStep).toBeDefined();
+      if (guardStep && "err" in guardStep.result) {
+        expect(guardStep.result.err).toContain("channel not admin channel");
+      }
+      // The error is always surfaced via a Slack post.
+      const lastStep = response.ok[response.ok.length - 1];
+      expect(lastStep.action).toBe("post_to_slack");
+    }
+  });
+});

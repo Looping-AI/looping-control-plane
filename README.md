@@ -4,9 +4,6 @@ The Looping AI Control Plane — an ICP canister that acts as the agentic contro
 
 Link for backend with Internet Identity login button working: http://127.0.0.1:4943/?canisterId=uzt4z-lp777-77774-qaabq-cai&id=uxrrr-q7777-77774-qaaaq-cai&ii=http://u6s2n-gx777-77774-qaaba-cai.localhost:4943/
 
-Install Lintoko (https://github.com/caffeinelabs/lintoko) with:
-`curl --proto '=https' --tlsv1.2 -LsSf https://github.com/caffeinelabs/lintoko/releases/download/v0.8.0/lintoko-installer.sh | sh`
-
 ### Setting Up the Test Environment File
 
 One environment file is required for running tests and is intentionally excluded from version control (see `.gitignore`). This file contains sensitive credentials needed for API testing.

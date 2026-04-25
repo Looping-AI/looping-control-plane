@@ -13,12 +13,13 @@
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ChannelHistoryModel "../../models/channel-history-model";
-import McpToolRegistry "../../tools/mcp-tool-registry";
 import AgentModel "../../models/agent-model";
 import SlackUserModel "../../models/slack-user-model";
 import WorkspaceModel "../../models/workspace-model";
 import EventStoreModel "../../models/event-store-model";
 import SessionModel "../../models/session-model";
+import ExecutionEnvelopeModel "../../models/execution-envelope-model";
+import InternalEngine "../../../internal-engine/main";
 
 module {
 
@@ -39,8 +40,6 @@ module {
     /// ChannelHistoryModel to add/update/delete messages; the event-driven path is
     /// the only write surface.
     channelHistory : ChannelHistoryModel.ChannelHistoryStore;
-    /// MCP tool registry (org-wide)
-    mcpToolRegistry : McpToolRegistry.McpToolRegistryState;
     /// Global agent registry — used to resolve the active agent for a given category
     agentRegistry : AgentModel.AgentRegistryState;
     /// Slack user state (cache + access change log) — handlers for membership events mutate this directly
@@ -51,5 +50,15 @@ module {
     eventStore : EventStoreModel.EventStoreState;
     /// Agent session stores (sessions, turns, traces)
     sessionStores : SessionModel.SessionStores;
+
+    // ── Engine dispatch ────────────────────────────────────────────────
+
+    /// Envelope state — holds the token store, monotonic counter, and entropy
+    /// salt in one place. Pass this wherever envelope generation is needed.
+    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+
+    /// Pre-resolved internal engine actor. Guaranteed non-null by the time any
+    /// event is processed (pre-warmed at init and postupgrade).
+    internalEngine : InternalEngine.InternalEngine;
   };
 };

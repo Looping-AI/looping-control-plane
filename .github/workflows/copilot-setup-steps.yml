@@ -51,8 +51,3 @@ jobs:
 
       - name: Install Mops packages
         run: mops install
-
-      - name: Install lintoko
-        run: |
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/caffeinelabs/lintoko/releases/download/${LINTOKO_VERSION}/lintoko-installer.sh | sh

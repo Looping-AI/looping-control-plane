@@ -18,6 +18,9 @@
 tests/builds/*
 !tests/builds/.gitkeep
 
+# ai temp files
+*.txt
+
 # rust
 target/
 

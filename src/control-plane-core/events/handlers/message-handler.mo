@@ -11,7 +11,8 @@
 ///              postTerminationIfTokenAvailable — post the ceiling prompt when
 ///                                        the delegation depth limit is hit.
 ///   Phase 1.6  resolvePrimaryAgent     — pick the agent to route to.
-///              dispatchToAgentRouter   — call AgentRouter.route and unpack the result.
+///              channelGuard            — reject messages from channels the agent
+///                                        is not configured for.
 ///              postAgentReply          — post the reply to Slack and emit the final
 ///                                        HandlerResult.
 ///
@@ -21,8 +22,7 @@
 ///   buildReplyMetadata, resolvePrimaryAgent
 ///
 /// Helper inventory (async):
-///   postTerminationIfTokenAvailable, dispatchToAgentRouter,
-///   postAgentReply
+///   postTerminationIfTokenAvailable, postAgentReply
 ///
 /// Note: the bot reply is NOT explicitly stored here — Slack echoes the posted
 /// message back as a bot event, which is stored via the normal incoming-message
@@ -30,6 +30,7 @@
 
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Runtime "mo:core/Runtime";
@@ -39,7 +40,7 @@ import Types "../../types";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ChannelHistoryModel "../../models/channel-history-model";
-import AgentRouter "../agent-router";
+import AgentOrchestrator "../../agents/agent-orchestrator";
 import SlackWrapper "../../wrappers/slack-wrapper";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import AgentRefParser "../../utilities/agent-ref-parser";
@@ -317,74 +318,21 @@ module {
     entry;
   };
 
-  /// Post a user-visible Slack message informing the user that the maximum number
-  /// of session rounds has been reached, and prompting them to reply "continue"
-  /// if they want more.
+  /// Post a termination prompt to Slack — best-effort, silently ignores a missing token.
   ///
   /// This message carries NO `AgentMessageMetadata` — it must not re-trigger
   /// round tracking when Slack echoes it back to our webhook.
-  func postTerminationPrompt(
-    botToken : Text,
-    channel : Text,
-    threadTs : ?Text,
-  ) : async () {
-    let text = "⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.";
-    ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null);
-  };
-
-  /// Post a termination prompt to Slack using the provided bot token.
-  ///
-  /// Used when the MAX_AGENT_ROUNDS ceiling (#skipWithTermination) is reached.
-  /// Best-effort — silently ignores missing tokens.
   func postTerminationIfTokenAvailable(
     botTokenOpt : ?Text,
     channel : Text,
     threadTs : ?Text,
   ) : async () {
-    switch (botTokenOpt) {
-      case (?botToken) {
-        await postTerminationPrompt(botToken, channel, threadTs);
-      };
-      case (null) {};
+    let botToken = switch (botTokenOpt) {
+      case (null) { return };
+      case (?token) { token };
     };
-  };
-
-  /// Dispatch to AgentRouter and unpack the result into (llmSteps, replyText, isError).
-  /// Agent errors are surfaced as reply text prefixed with "[Agent error]" so they
-  /// always get posted to Slack — the user is never left without a visible response.
-  func dispatchToAgentRouter(
-    primaryAgent : AgentModel.AgentRecord,
-    ctx : EventProcessingContextTypes.EventProcessingContext,
-    slackUserId : ?Text,
-    channelId : Text,
-    threadTs : ?Text,
-    agentCtx : AgentRouter.AgentCtx,
-    workspaceKey : [Nat8],
-    orgKey : [Nat8],
-    turnId : Text,
-    agentAdminChannelId : ?Text,
-  ) : async ([Types.ProcessingStep], Text, Bool) {
-    let result = await AgentRouter.route(
-      primaryAgent,
-      ctx.mcpToolRegistry,
-      ctx.secrets,
-      slackUserId,
-      ctx.channelHistory,
-      channelId,
-      threadTs,
-      agentCtx,
-      workspaceKey,
-      orgKey,
-      turnId,
-      ctx.sessionStores,
-      agentAdminChannelId,
-    );
-    switch (result) {
-      case (#err({ message; steps })) {
-        (steps, "[Agent error] " # message, true);
-      };
-      case (#ok({ response; steps })) { (steps, response, false) };
-    };
+    let text = "⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.";
+    ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null);
   };
 
   /// Post the agent reply to Slack and assemble the final HandlerResult.
@@ -476,17 +424,64 @@ module {
       case (?agent) { agent };
     };
 
-    // Resolve the admin channel for the agent's workspace — passed to the router to gate
-    // #admin category agents (dynamic lookup; WorkspaceModel is the single source of truth).
-    let agentAdminChannelId : ?Text = switch (WorkspaceModel.getWorkspace(ctx.workspaces, primaryAgent.ownedBy)) {
-      case (?ws) { ws.adminChannelId };
-      case (null) { null };
+    // ── Channel guard ─────────────────────────────────────────────────────────
+    // Helper: post a user-visible error and return a two-step result.
+    // Uses botTokenOpt (already fetched); silently skips the Slack post if no token.
+    func guardReject(errMsg : Text, slackText : Text) : async NormalizedEventTypes.HandlerResult {
+      let guardStep : Types.ProcessingStep = {
+        action = "channel_guard";
+        result = #err(errMsg);
+        timestamp = Time.now();
+      };
+      let slackResult = switch (botTokenOpt) {
+        case (null) { #err("no bot token") };
+        case (?token) {
+          switch (await SlackWrapper.postMessage(token, msg.channel, slackText, msg.threadTs, null)) {
+            case (#ok(_)) { #ok };
+            case (#err(e)) { #err(e) };
+          };
+        };
+      };
+      #ok([guardStep, { action = "post_to_slack"; result = slackResult; timestamp = Time.now() }]);
+    };
+
+    switch (primaryAgent.category) {
+      case (#_system(#admin)) {
+        let adminChannelId : ?Text = switch (WorkspaceModel.getWorkspace(ctx.workspaces, primaryAgent.ownedBy)) {
+          case (?ws) { ws.adminChannelId };
+          case (null) { null };
+        };
+        let allowedId = switch (adminChannelId) {
+          case (null) {
+            return await guardReject(
+              "admin channel not yet configured",
+              "The admin channel for this workspace has not yet been configured. Use set_workspace_admin_channel to anchor it.",
+            );
+          };
+          case (?id) { id };
+        };
+        if (allowedId != msg.channel) {
+          return await guardReject(
+            "channel not admin channel",
+            "Agent '" # primaryAgent.config.name # "' can only be invoked from the configured admin channel (" # allowedId # ").",
+          );
+        };
+      };
+      case (_) {
+        if (not Set.contains(primaryAgent.config.allowedChannelIds, Text.compare, msg.channel)) {
+          return await guardReject(
+            "channel not in allowlist",
+            "Agent '" # primaryAgent.config.name # "' is not allowed in this channel.",
+          );
+        };
+      };
     };
 
     // ── Create turn ──────────────────────────────────────────────────────────
     let sourceRef : ?SessionModel.SourceRef = ?#slack({
       channelId = msg.channel;
       ts = msg.ts;
+      threadTs = msg.threadTs;
     });
     let turn = SessionModel.createTurn(
       ctx.sessionStores,
@@ -519,44 +514,49 @@ module {
       case (?token) { token };
     };
 
-    // Build the per-category context variant — passes only the data each agent needs.
-    let agentCtx : AgentRouter.AgentCtx = switch (primaryAgent.category) {
-      case (#_system(#admin)) {
-        #_system(#admin({ workspaces = ctx.workspaces; agentRegistry = ctx.agentRegistry; userAuthContext = activeCtxOpt; secrets = ctx.secrets; keyCache = ctx.keyCache; eventStore = ctx.eventStore }));
-      };
-      case (#_system(#onboarding)) { #_system(#onboarding) };
-      case (#custom) { #custom };
-    };
-
-    let (llmSteps, replyText, isAgentError) = await dispatchToAgentRouter(
+    let routeResult = await AgentOrchestrator.orchestrate(
       primaryAgent,
-      ctx,
-      slackUserId,
+      ctx.channelHistory,
       msg.channel,
       msg.threadTs,
-      agentCtx,
+      ?msg.text,
+      turnId,
+      ctx.sessionStores,
+      activeCtxOpt,
+      slackUserId,
+      ctx.secrets,
       encryptionKey,
       orgKey,
-      turnId,
-      agentAdminChannelId,
+      ctx.workspaces,
+      { envelopeState = ctx.envelopeState; internalEngine = ctx.internalEngine },
     );
 
-    // ── Post reply to Slack ───────────────────────────────────────────────────
-    // Always post: both successful LLM content and surfaced agent errors.
-    let (result, slackOk) = await postAgentReply(botToken, msg, replyText, primaryAgent, llmSteps, turnId, ctx.sessionStores);
-
-    // Finalize the turn with aggregated cost.
-    // A failed Slack post means the user never received a reply — mark #failed
-    // even when the LLM step itself succeeded.
-    let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
-    if (isAgentError) {
-      SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?replyText);
-    } else if (not slackOk) {
-      SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?"Slack post failed");
-    } else {
-      SessionModel.completeTurn(ctx.sessionStores, turnId, #succeeded, cost, null);
+    switch (routeResult) {
+      case (#dispatched({ steps })) {
+        // Engine accepted the envelope — mark turn pending.
+        // Response will arrive async via processExecutionAsyncEffect.
+        SessionModel.markPending(ctx.sessionStores, turnId);
+        #ok(steps);
+      };
+      case (#ok({ response; steps })) {
+        // Synchronous response (future non-engine agents)
+        let (result, slackOk) = await postAgentReply(botToken, msg, response, primaryAgent, steps, turnId, ctx.sessionStores);
+        let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
+        if (not slackOk) {
+          SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?"Slack post failed");
+        } else {
+          SessionModel.completeTurn(ctx.sessionStores, turnId, #succeeded, cost, null);
+        };
+        result;
+      };
+      case (#err({ message; steps })) {
+        // Dispatch failure — post error to Slack so user sees something
+        let errorText = "[Agent error] " # message;
+        let (result, _slackOk) = await postAgentReply(botToken, msg, errorText, primaryAgent, steps, turnId, ctx.sessionStores);
+        let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
+        SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?message);
+        result;
+      };
     };
-
-    result;
   };
 };
