@@ -41,6 +41,7 @@ function minimalEnvelope(
     agentId: 0n,
     workspaceId: 0n,
     workflowId: "wf-test",
+    model: "openai/gpt-oss-120b",
     agentName,
     dispatchedVersion: ["v1"],
     instructions: "You are a test assistant.",

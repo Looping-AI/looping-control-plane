@@ -1700,6 +1700,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       agentName = "test-agent";
       workspaceId = 0;
       workflowId = "admin-v1";
+      model = "";
       messages = [];
       instructions = "test instructions";
       constraints = { maxRounds = 1; maxTokenBudget = null };

@@ -9,8 +9,8 @@ module {
 
   // ── Handlers ───────────────────────────────────────────────────────
 
-  /// List all workspaces. → GET /workspace
-  public func listWorkspaces(wrapper : Wrapper, _args : Text) : async Text {
+  /// Get the current workspace. → GET /workspace
+  public func getWorkspace(wrapper : Wrapper, _args : Text) : async Text {
     handleResult(await wrapper.callCore(#get, "/workspace", "{}"));
   };
 

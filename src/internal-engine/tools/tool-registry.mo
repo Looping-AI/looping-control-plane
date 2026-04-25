@@ -63,7 +63,7 @@ module {
 
     // Workspace tools — require workspace scope
     if (hasScope(grants, "workspace", #read)) {
-      List.add(tools, listWorkspacesTool());
+      List.add(tools, getWorkspaceTool());
       if (hasScope(grants, "workspace", #write)) {
         List.add(tools, createWorkspaceTool());
         List.add(tools, deleteWorkspaceTool());
@@ -148,7 +148,7 @@ module {
 
   // ── Workspace tool definitions ─────────────────────────────────────
 
-  private func listWorkspacesTool() : FunctionTool {
+  private func getWorkspaceTool() : FunctionTool {
     {
       definition = {
         tool_type = "function";
@@ -158,7 +158,7 @@ module {
           parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
         };
       };
-      handler = WorkspaceHandlers.listWorkspaces;
+      handler = WorkspaceHandlers.getWorkspace;
     };
   };
 
