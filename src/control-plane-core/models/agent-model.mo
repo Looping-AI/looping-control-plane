@@ -5,6 +5,7 @@ import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
 import Types "../types";
+import WorkspaceModel "./workspace-model";
 
 module {
   // ============================================
@@ -458,9 +459,9 @@ module {
   };
 
   /// Returns true if the agent is the org-level admin:
-  /// category #_system(#admin) AND owned by workspace 0.
+  /// category #_system(#admin) AND owned by the org workspace.
   public func isOrgAdmin(agent : AgentRecord) : Bool {
-    agent.category == #_system(#admin) and agent.ownedBy == 0;
+    agent.category == #_system(#admin) and WorkspaceModel.isOrgWorkspace(agent.ownedBy);
   };
 
   /// Count all registered agents with the given category.

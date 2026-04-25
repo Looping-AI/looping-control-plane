@@ -218,7 +218,7 @@ module {
         case (#ok(ws)) { ws };
       };
       // Only org admin (ws 0) can create new workspaces
-      if (tokenWs != 0) {
+      if (not WorkspaceModel.isOrgWorkspace(tokenWs)) {
         return errorResponse("Only org admin can create workspaces");
       };
       let name = switch (requireString(body, "name")) {
@@ -263,7 +263,7 @@ module {
         case (#ok(ws)) { ws };
       };
       // Only org admin (ws 0) can delete workspaces
-      if (tokenWs != 0) {
+      if (not WorkspaceModel.isOrgWorkspace(tokenWs)) {
         return errorResponse("Only org admin can delete workspaces");
       };
       // Require a matching #deleteWorkspace permit (pre-validated at Core dispatch)
@@ -648,6 +648,36 @@ module {
       for (e in a.config.executionEngines.vals()) {
         List.add(engineItems, str(executionEngineToText(e)));
       };
+      let channelItems = List.empty<Json.Json>();
+      for (ch in Set.toArray(a.config.allowedChannelIds).vals()) {
+        List.add(channelItems, str(ch));
+      };
+      let secretAllowedItems = List.empty<Json.Json>();
+      for ((wsId, sid) in a.config.secrets.allowed.vals()) {
+        let sidText = switch (sid) {
+          case (#openRouterApiKey) { "openRouterApiKey" };
+          case (#slackBotToken) { "slackBotToken" };
+          case (#slackSigningSecret) { "slackSigningSecret" };
+          case (#custom(name)) { "custom:" # name };
+        };
+        List.add(
+          secretAllowedItems,
+          obj([("workspaceId", int(wsId)), ("secretId", str(sidText))]),
+        );
+      };
+      let secretOverrideItems = List.empty<Json.Json>();
+      for ((sid, customName) in a.config.secrets.overrides.vals()) {
+        let sidText = switch (sid) {
+          case (#openRouterApiKey) { "openRouterApiKey" };
+          case (#slackBotToken) { "slackBotToken" };
+          case (#slackSigningSecret) { "slackSigningSecret" };
+          case (#custom(name)) { "custom:" # name };
+        };
+        List.add(
+          secretOverrideItems,
+          obj([("secretId", str(sidText)), ("customKeyName", str(customName))]),
+        );
+      };
       obj([
         ("id", int(a.id)),
         ("ownedBy", int(a.ownedBy)),
@@ -655,6 +685,14 @@ module {
         ("name", str(a.config.name)),
         ("model", str(a.config.model)),
         ("executionEngines", arr(List.toArray(engineItems))),
+        ("allowedChannelIds", arr(List.toArray(channelItems))),
+        (
+          "secrets",
+          obj([
+            ("allowed", arr(List.toArray(secretAllowedItems))),
+            ("overrides", arr(List.toArray(secretOverrideItems))),
+          ]),
+        ),
       ]);
     };
 

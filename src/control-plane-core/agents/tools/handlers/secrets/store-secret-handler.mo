@@ -2,6 +2,7 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Text "mo:core/Text";
 import SecretModel "../../../../models/secret-model";
+import WorkspaceModel "../../../../models/workspace-model";
 import SlackAuthMiddleware "../../../../middleware/slack-auth-middleware";
 import Helpers "../handler-helpers";
 import SecretParsers "../parsers/secret-parsers";
@@ -54,9 +55,9 @@ module {
             };
 
             // Platform secrets are org-level credentials; they must only
-            // be stored on workspace 0. Allowing non-zero workspaces would be
+            // be stored on the org workspace. Allowing non-zero workspaces would be
             // meaningless (those workspaces never read these values).
-            if (SecretModel.isPlatformSecret(secretId) and workspaceId != 0) {
+            if (SecretModel.isPlatformSecret(secretId) and not WorkspaceModel.isOrgWorkspace(workspaceId)) {
               return Helpers.buildErrorResponse("Platform secrets (slackBotToken, slackSigningSecret) can only be set on workspace 0.");
             };
 
