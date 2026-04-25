@@ -23,6 +23,7 @@ func makeEnvelope(id : Nat) : ExecutionTypes.EnvelopePayload {
     instructions = "test";
     messages = [];
     constraints = { maxRounds = 3; maxTokenBudget = null };
+    model = "openai/gpt-oss-120b";
     secrets = { apiKeys = [("openrouter", "key")] };
     scopeGrants = [];
     permits = [];

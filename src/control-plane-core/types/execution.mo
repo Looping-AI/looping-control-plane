@@ -75,6 +75,7 @@ module {
     agentName : Text;
     workspaceId : Nat;
     workflowId : Text;
+    model : Text;
     messages : [ChatMessage];
     instructions : Text;
     constraints : ExecutionConstraints;

@@ -27,6 +27,7 @@ module {
       instructions = "You are a test assistant.";
       messages = [{ role = #user; content = prompt }];
       constraints = { maxRounds = 3; maxTokenBudget = null };
+      model = "openai/gpt-oss-120b";
       secrets = { apiKeys = [("openrouter", "test-key-placeholder")] };
       scopeGrants = [];
       permits = [];

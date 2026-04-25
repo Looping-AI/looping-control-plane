@@ -114,6 +114,7 @@ module {
       agentName = envelopeContext.agent.config.name;
       workspaceId = envelopeContext.agent.ownedBy;
       workflowId;
+      model = envelopeContext.agent.config.model;
       messages = envelopeContext.messages;
       instructions = envelopeContext.instructions;
       constraints = {
@@ -121,7 +122,7 @@ module {
         maxTokenBudget = null;
       };
       secrets = {
-        apiKeys = [("openrouter", envelopeContext.apiKey), ("model", envelopeContext.agent.config.model)];
+        apiKeys = [("openrouter", envelopeContext.apiKey)];
       };
       scopeGrants;
       permits;

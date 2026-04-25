@@ -304,15 +304,8 @@ module {
   };
 
   func resolveModel(envelope : ExecutionTypes.EnvelopePayload) : Text {
-    switch (
-      Array.find<(Text, Text)>(
-        envelope.secrets.apiKeys,
-        func(kv : (Text, Text)) : Bool { kv.0 == "model" },
-      )
-    ) {
-      case (?(_, m)) { m };
-      case (null) { Constants.DEFAULT_LLM_MODEL };
-    };
+    let m = envelope.model;
+    if (m == "") { Constants.DEFAULT_LLM_MODEL } else { m };
   };
 
   func toolNameFromCallId(calls : [LlmWrapper.ToolCall], callId : Text) : Text {
