@@ -1,5 +1,4 @@
 import Json "mo:json";
-import { str } "mo:json";
 import List "mo:core/List";
 import ExecutionTypes "../execution-types";
 
@@ -28,14 +27,21 @@ module {
       path : Text,
       body : Text,
     ) : async { #ok : Text; #err : Text } {
-      let enrichedBody = injectNonce(body, envelopeNonce);
-      await coreActor.executionApi(method, path, enrichedBody);
+      switch (injectNonce(body, envelopeNonce)) {
+        case (#err(e)) { #err(e) };
+        case (#ok(enrichedBody)) {
+          await coreActor.executionApi(method, path, enrichedBody);
+        };
+      };
     };
   };
 
   // ── Nonce injection (private) ──────────────────────────────────────
 
-  private func injectNonce(body : Text, nonce : Text) : Text {
+  private func injectNonce(body : Text, nonce : Text) : {
+    #ok : Text;
+    #err : Text;
+  } {
     switch (Json.parse(body)) {
       case (#ok(#object_(entries))) {
         let fields = List.empty<(Text, Json.Json)>();
@@ -45,11 +51,13 @@ module {
             List.add(fields, (k, v));
           };
         };
-        Json.stringify(#object_(List.toArray(fields)), null);
+        #ok(Json.stringify(#object_(List.toArray(fields)), null));
       };
-      case (_) {
-        // Body is not a valid JSON object — wrap nonce-only
-        Json.stringify(#object_([("envelopeNonce", str(nonce))]), null);
+      case (#ok(_)) {
+        #err("Invalid request: body must be a JSON object");
+      };
+      case (#err(parseError)) {
+        #err("Invalid request: body is not valid JSON (" # Json.errToText(parseError) # ")");
       };
     };
   };
