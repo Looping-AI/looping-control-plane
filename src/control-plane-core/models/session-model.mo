@@ -301,14 +301,39 @@ module {
   // Cleanup
   // ============================================
 
-  /// Hard-delete turns (and their traces) with startedAtNs older than cutoffNs.
+  /// Delete traces for turns whose startedAtNs is older than cutoffNs, without
+  /// removing the turn records themselves (turns live for 90 days; traces for 30).
+  /// Uses greedy early-exit: inner Map<Nat, AgentTurnRecord> iterates in ascending
+  /// turn-number order (monotonically assigned), so the first turn newer than the
+  /// cutoff guarantees all remaining turns in that agent's map are also newer.
+  /// Returns the number of trace entries removed.
+  public func deleteTracesOlderThan(stores : SessionStores, cutoffNs : Int) : Nat {
+    var removed : Nat = 0;
+    for ((_, turnMap) in Map.entries(stores.turns)) {
+      label l for ((_, turn) in Map.entries(turnMap)) {
+        if (turn.startedAtNs < cutoffNs) {
+          switch (Map.get(stores.traces, Text.compare, turn.turnId)) {
+            case (null) {};
+            case (?_) {
+              Map.remove(stores.traces, Text.compare, turn.turnId);
+              removed += 1;
+            };
+          };
+        } else {
+          break l;
+        };
+      };
+    };
+    removed;
+  };
+
+  /// Hard-delete turns with startedAtNs older than cutoffNs.
   /// Uses startedAtNs (never null) rather than completedAtNs, so orphaned
   /// #running turns that never reached a terminal state are also collected.
   /// Pops from minEntry() of each agent's inner Map (ordered by turnNumber,
   /// which is monotonically increasing) until a turn newer than the cutoff is
   /// reached — O(deleted × log n) rather than O(total turns).
-  /// Returns the list of deleted turnIds so callers can GC related records
-  /// (e.g. execution envelopes) in a single coordinated sweep.
+  /// Trace deletion is handled independently by deleteTracesOlderThan.
   public func deleteTurnsOlderThan(stores : SessionStores, cutoffNs : Int) : [Text] {
     let deletedTurnIds = List.empty<Text>();
     for ((_, turnMap) in Map.entries(stores.turns)) {
@@ -330,7 +355,6 @@ module {
         };
       };
       for ((_, turnId) in List.values(toRemove)) {
-        Map.remove(stores.traces, Text.compare, turnId);
         List.add(deletedTurnIds, turnId);
       };
     };

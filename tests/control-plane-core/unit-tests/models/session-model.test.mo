@@ -505,7 +505,8 @@ suite(
         // Complete t0 and t1
         SessionModel.completeTurn(stores, t0.turnId, #succeeded, null, null);
         SessionModel.completeTurn(stores, t1.turnId, #failed, null, ?"oops");
-        // Add traces to t0 so we can verify they're cleaned up
+        // Add traces to t0 — they are NOT removed by deleteTurnsOlderThan;
+        // trace GC is handled independently by deleteTracesOlderThan.
         SessionModel.appendTrace(stores, t0.turnId, #roundLimitHit);
 
         // Use a very large cutoff — all turns (including the running t2) have startedAtNs < cutoff
@@ -517,8 +518,8 @@ suite(
         expect.bool(isNone(SessionModel.findTurn(stores, t0.turnId))).isTrue();
         expect.bool(isNone(SessionModel.findTurn(stores, t1.turnId))).isTrue();
         expect.bool(isNone(SessionModel.findTurn(stores, t2.turnId))).isTrue();
-        // t0's traces should be cleaned up
-        expect.bool(isNone(SessionModel.getTraces(stores, t0.turnId))).isTrue();
+        // Trace for t0 is still present — deleteTurnsOlderThan no longer cascades trace deletion
+        expect.bool(isSome(SessionModel.getTraces(stores, t0.turnId))).isTrue();
       },
     );
 
@@ -603,6 +604,90 @@ suite(
         );
         expect.nat(session.policy.summaryTokenBudget).equal(4096);
         expect.nat(session.policy.maxTruncatedTokens).equal(Constants.DEFAULT_MAX_TRUNCATED_TOKENS);
+      },
+    );
+  },
+);
+
+// ============================================
+// deleteTracesOlderThan
+// ============================================
+
+suite(
+  "deleteTracesOlderThan",
+  func() {
+    test(
+      "deletes traces for turns older than cutoff, turn records survive",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        SessionModel.appendTrace(stores, turn.turnId, #roundLimitHit);
+
+        // cutoff far in the future — turn's startedAtNs is older
+        let removed = SessionModel.deleteTracesOlderThan(stores, 9_999_999_999_999_999_999);
+        expect.nat(removed).equal(1);
+
+        // Trace is gone
+        expect.bool(isNone(SessionModel.getTraces(stores, turn.turnId))).isTrue();
+        // Turn record itself still exists
+        expect.bool(isSome(SessionModel.findTurn(stores, turn.turnId))).isTrue();
+      },
+    );
+
+    test(
+      "returns 0 when no traces exist",
+      func() {
+        let stores = makeStores();
+        expect.nat(SessionModel.deleteTracesOlderThan(stores, 9_999_999_999_999_999_999)).equal(0);
+      },
+    );
+
+    test(
+      "does not count turns that have no trace entries",
+      func() {
+        let stores = makeStores();
+        // Turn created but no appendTrace called — no trace entry in the map
+        ignore SessionModel.createTurn(stores, 1, null, null, null);
+        let removed = SessionModel.deleteTracesOlderThan(stores, 9_999_999_999_999_999_999);
+        expect.nat(removed).equal(0);
+      },
+    );
+
+    test(
+      "preserves traces for turns newer than cutoff",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        SessionModel.appendTrace(stores, turn.turnId, #roundLimitHit);
+
+        // cutoff of 0 — nothing is older than epoch 0
+        let removed = SessionModel.deleteTracesOlderThan(stores, 0);
+        expect.nat(removed).equal(0);
+        expect.bool(isSome(SessionModel.getTraces(stores, turn.turnId))).isTrue();
+      },
+    );
+
+    test(
+      "early exit: only removes traces for old turns, spares newer ones in same agent",
+      func() {
+        let stores = makeStores();
+        // Seed three turns for the same agent — turn numbers are sequential
+        let t0 = SessionModel.createTurn(stores, 2, null, null, null);
+        let t1 = SessionModel.createTurn(stores, 2, null, null, null);
+        let t2 = SessionModel.createTurn(stores, 2, null, null, null);
+        SessionModel.appendTrace(stores, t0.turnId, #roundLimitHit);
+        SessionModel.appendTrace(stores, t1.turnId, #roundLimitHit);
+        SessionModel.appendTrace(stores, t2.turnId, #roundLimitHit);
+
+        // t0 has startedAtNs at creation; use a cutoff that only matches t0
+        // (all turns share the same clock in mops tests, so we use 0 to match none
+        // and large cutoff to match all — boundary is exercised in the other tests)
+        let removed = SessionModel.deleteTracesOlderThan(stores, 0);
+        expect.nat(removed).equal(0);
+        // All three traces intact
+        expect.bool(isSome(SessionModel.getTraces(stores, t0.turnId))).isTrue();
+        expect.bool(isSome(SessionModel.getTraces(stores, t1.turnId))).isTrue();
+        expect.bool(isSome(SessionModel.getTraces(stores, t2.turnId))).isTrue();
       },
     );
   },

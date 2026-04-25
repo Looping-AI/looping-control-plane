@@ -118,4 +118,50 @@ describe("Turn Cleanup Runner Unit Tests", () => {
 
     expect(await testCanister.testGetTurnCount(2n)).toBe(1n);
   });
+
+  it("should delete traces for 30-day-old turns while the turn itself survives", async () => {
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 120 * DAY_MS;
+
+    // Seed a turn at -35 days: older than the 30-day trace window, but within the 90-day turn window.
+    await pic.setTime(now - 35 * DAY_MS);
+    await pic.tick(1);
+    const turnId = await testCanister.testSeedTurn(3n);
+    await testCanister.testSeedTrace(turnId);
+
+    expect(await testCanister.testHasTrace(turnId)).toBe(true);
+
+    // Advance to "now" and run the cleanup.
+    await pic.setTime(now);
+    await pic.tick(1);
+
+    const result = await testCanister.testTurnCleanupRunner();
+    // The turn itself is not deleted (only 35 days old, within the 90-day window).
+    expect(result).toEqual({ ok: 0n });
+
+    expect(await testCanister.testGetTurnCount(3n)).toBe(1n);
+    // Trace should be gone — it crossed the 30-day trace retention window.
+    expect(await testCanister.testHasTrace(turnId)).toBe(false);
+  });
+
+  it("should retain traces for turns younger than 30 days", async () => {
+    const picNowMs = await pic.getTime();
+    const now = picNowMs + 120 * DAY_MS;
+
+    // Seed a turn at -25 days: inside both the 30-day trace and 90-day turn windows.
+    await pic.setTime(now - 25 * DAY_MS);
+    await pic.tick(1);
+    const turnId = await testCanister.testSeedTurn(4n);
+    await testCanister.testSeedTrace(turnId);
+
+    await pic.setTime(now);
+    await pic.tick(1);
+
+    const result = await testCanister.testTurnCleanupRunner();
+    expect(result).toEqual({ ok: 0n });
+
+    expect(await testCanister.testGetTurnCount(4n)).toBe(1n);
+    // Trace should still be present — within the 30-day window.
+    expect(await testCanister.testHasTrace(turnId)).toBe(true);
+  });
 });

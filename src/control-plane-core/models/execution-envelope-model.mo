@@ -7,7 +7,6 @@ import Array "mo:core/Array";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
 import List "mo:core/List";
-import Set "mo:core/Set";
 import Sha256 "mo:sha2/Sha256";
 import ExecutionTypes "../types/execution";
 import Constants "../constants";
@@ -141,15 +140,17 @@ module {
   };
 
   // ── Delete ────────────────────────────────────────────────
-  /// Called by the weekly turn-cleanup timer when turns are hard-deleted,
-  /// so that envelope records are GC'd together with their owning turn.
+  /// Delete all envelope records with createdAtNs older than cutoffNs.
+  /// Called by the weekly cleanup timer to GC envelopes independently of
+  /// turn deletion (envelopes are retained for 30 days, turns for 90 days).
+  /// Full scan is required because the map is keyed by SHA256 nonce (random
+  /// order) — no chronological traversal or early-exit is possible.
   /// Returns the number of envelope records removed.
-  public func deleteByTurnIds(store : EnvelopeState, turnIds : [Text]) : Nat {
+  public func deleteEnvelopesOlderThan(store : EnvelopeState, cutoffNs : Int) : Nat {
     var removed : Nat = 0;
-    let turnIdSet = Set.fromArray<Text>(turnIds, Text.compare);
     let toRemove = List.empty<Text>();
     for ((nonce, record) in Map.entries(store.envelopes)) {
-      if (Set.contains(turnIdSet, Text.compare, record.turnId)) {
+      if (record.createdAtNs < cutoffNs) {
         List.add(toRemove, nonce);
       };
     };

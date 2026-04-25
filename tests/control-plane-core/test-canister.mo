@@ -1370,6 +1370,23 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     };
   };
 
+  /// Append a trace entry to the given turn in testCleanupSessionStores.
+  /// Useful for verifying that the trace GC pass removes entries independently
+  /// of their owning turns.
+  public shared ({ caller }) func testSeedTrace(turnId : Text) : async () {
+    assert caller == parent;
+    SessionModel.appendTrace(testCleanupSessionStores, turnId, #roundLimitHit);
+  };
+
+  /// Returns true when a trace list exists for the given turnId, false otherwise.
+  public shared query ({ caller }) func testHasTrace(turnId : Text) : async Bool {
+    assert caller == parent;
+    switch (SessionModel.getTraces(testCleanupSessionStores, turnId)) {
+      case (null) { false };
+      case (?_) { true };
+    };
+  };
+
   // ============================================
   // Engine Topup Runner Test Methods
   // ============================================

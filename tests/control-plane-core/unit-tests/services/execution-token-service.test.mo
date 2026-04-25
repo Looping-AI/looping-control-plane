@@ -362,3 +362,56 @@ suite(
     );
   },
 );
+
+// ============================================
+// deleteEnvelopesOlderThan
+// ============================================
+
+suite(
+  "deleteEnvelopesOlderThan",
+  func() {
+    test(
+      "returns 0 on empty store",
+      func() {
+        let store = makeStore();
+        expect.nat(ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 1)).equal(0);
+      },
+    );
+
+    test(
+      "removes envelopes with createdAtNs before cutoff and returns count",
+      func() {
+        let store = makeStore();
+        ignore issueBasic(store);
+        ignore issueBasic(store);
+        // Use a cutoff far in the future so createdAtNs (Time.now()) is always older
+        let removed = ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
+        expect.nat(removed).equal(2);
+        expect.nat(store.nextTokenId).equal(2); // counter untouched
+      },
+    );
+
+    test(
+      "preserves envelopes with createdAtNs >= cutoff",
+      func() {
+        let store = makeStore();
+        let nonce = issueBasic(store);
+        // cutoff of 0 — createdAtNs (Time.now(), a positive value) is not < 0, so nothing removed
+        let removed = ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 0);
+        expect.nat(removed).equal(0);
+        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
+      },
+    );
+
+    test(
+      "is idempotent — second call on same store returns 0",
+      func() {
+        let store = makeStore();
+        ignore issueBasic(store);
+        ignore ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
+        let removed2 = ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
+        expect.nat(removed2).equal(0);
+      },
+    );
+  },
+);
