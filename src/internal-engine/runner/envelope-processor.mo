@@ -10,7 +10,7 @@
 
 import Error "mo:core/Error";
 import ExecutionTypes "../execution-types";
-import CoreApi "../wrappers/core-api";
+import CoreWrapper "../wrappers/core-wrapper";
 import RunStoreModel "../models/run-store-model";
 import ExecutionRunner "./execution-runner";
 import CoreEmitter "./core-emitter";
@@ -20,7 +20,7 @@ module {
   /// Process a single enqueued envelope to completion.
   /// Idempotent — if the run has already been claimed or is missing, returns immediately.
   public func process(
-    core : CoreApi.CoreApi,
+    core : CoreWrapper.CoreActor,
     envelopeId : Nat,
     runStore : RunStoreModel.RunStoreState,
   ) : async () {
@@ -32,6 +32,7 @@ module {
     };
 
     let envelope = record.envelope;
+    let wrapper = CoreWrapper.CoreWrapper(core, envelope.envelopeNonce);
 
     // ── Execute ────────────────────────────────────────────────────────
     let outcome = try {
@@ -41,7 +42,7 @@ module {
       let errMsg = "Trap: " # Error.message(e);
       RunStoreModel.markFailed(runStore, envelopeId, errMsg, []);
       let emitResult = try {
-        switch (await CoreEmitter.emitComplete(core, envelope.envelopeNonce, errMsg, [], #failed(errMsg), zeroStats())) {
+        switch (await CoreEmitter.emitComplete(wrapper, errMsg, [], #failed(errMsg), zeroStats())) {
           case (#ok(_)) { #ok };
           case (#err(msg)) { #err(msg) };
         };
@@ -65,7 +66,7 @@ module {
 
     // ── Emit final result to Core ──────────────────────────────────────
     let emitResult = try {
-      switch (await CoreEmitter.emitComplete(core, envelope.envelopeNonce, outcome.humanSummary, outcome.summarizedSteps, outcome.status, outcome.stats)) {
+      switch (await CoreEmitter.emitComplete(wrapper, outcome.humanSummary, outcome.summarizedSteps, outcome.status, outcome.stats)) {
         case (#ok(_)) { #ok };
         case (#err(msg)) { #err(msg) };
       };

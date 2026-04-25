@@ -3,54 +3,54 @@ import { str; obj } "mo:json";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import List "mo:core/List";
-import ToolTypes "../tools/tool-types";
+import CoreWrapper "../wrappers/core-wrapper";
 
 module {
 
-  type CallCore = ToolTypes.CallCore;
+  type Wrapper = CoreWrapper.CoreWrapper;
 
   // ── Handlers ───────────────────────────────────────────────────────
 
   /// List all agents. → GET /agent
-  public func listAgents(callCore : CallCore, _args : Text) : async Text {
-    handleResult(await callCore(#get, "/agent", "{}"));
+  public func listAgents(wrapper : Wrapper, _args : Text) : async Text {
+    handleResult(await wrapper.callCore(#get, "/agent", "{}"));
   };
 
   /// Get an agent by ID. → GET /agent/{id}
-  public func getAgent(callCore : CallCore, args : Text) : async Text {
+  public func getAgent(wrapper : Wrapper, args : Text) : async Text {
     switch (parseNatField(args, "id")) {
       case (#err(e)) { errorJson(e) };
       case (#ok(id)) {
-        handleResult(await callCore(#get, "/agent/" # Nat.toText(id), "{}"));
+        handleResult(await wrapper.callCore(#get, "/agent/" # Nat.toText(id), "{}"));
       };
     };
   };
 
   /// Register a new agent. → POST /agent
   /// Forwards name, model, workspaceId, allowedChannelIds to Core.
-  public func registerAgent(callCore : CallCore, args : Text) : async Text {
-    handleResult(await callCore(#post, "/agent", args));
+  public func registerAgent(wrapper : Wrapper, args : Text) : async Text {
+    handleResult(await wrapper.callCore(#post, "/agent", args));
   };
 
   /// Update an agent by ID. → POST /agent/{id}
   /// Extracts ID from args, forwards remaining fields to Core.
-  public func updateAgent(callCore : CallCore, args : Text) : async Text {
+  public func updateAgent(wrapper : Wrapper, args : Text) : async Text {
     switch (parseNatField(args, "id")) {
       case (#err(e)) { errorJson(e) };
       case (#ok(id)) {
         // Remove "id" from body — Core uses the path param
         let body = removeField(args, "id");
-        handleResult(await callCore(#post, "/agent/" # Nat.toText(id), body));
+        handleResult(await wrapper.callCore(#post, "/agent/" # Nat.toText(id), body));
       };
     };
   };
 
   /// Unregister (delete) an agent by ID. → DELETE /agent/{id}
-  public func unregisterAgent(callCore : CallCore, args : Text) : async Text {
+  public func unregisterAgent(wrapper : Wrapper, args : Text) : async Text {
     switch (parseNatField(args, "id")) {
       case (#err(e)) { errorJson(e) };
       case (#ok(id)) {
-        handleResult(await callCore(#delete, "/agent/" # Nat.toText(id), "{}"));
+        handleResult(await wrapper.callCore(#delete, "/agent/" # Nat.toText(id), "{}"));
       };
     };
   };

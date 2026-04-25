@@ -1,37 +1,37 @@
 import Json "mo:json";
 import { str; obj } "mo:json";
 import Nat "mo:core/Nat";
-import ToolTypes "../tools/tool-types";
+import CoreWrapper "../wrappers/core-wrapper";
 
 module {
 
-  type CallCore = ToolTypes.CallCore;
+  type Wrapper = CoreWrapper.CoreWrapper;
 
   // ── Handlers ───────────────────────────────────────────────────────
 
   /// List all workspaces. → GET /workspace
-  public func listWorkspaces(callCore : CallCore, _args : Text) : async Text {
-    handleResult(await callCore(#get, "/workspace", "{}"));
+  public func listWorkspaces(wrapper : Wrapper, _args : Text) : async Text {
+    handleResult(await wrapper.callCore(#get, "/workspace", "{}"));
   };
 
   /// Create a workspace with the given name. → POST /workspace
-  public func createWorkspace(callCore : CallCore, args : Text) : async Text {
-    handleResult(await callCore(#post, "/workspace", args));
+  public func createWorkspace(wrapper : Wrapper, args : Text) : async Text {
+    handleResult(await wrapper.callCore(#post, "/workspace", args));
   };
 
   /// Delete a workspace by ID. → DELETE /workspace/{id}
-  public func deleteWorkspace(callCore : CallCore, args : Text) : async Text {
+  public func deleteWorkspace(wrapper : Wrapper, args : Text) : async Text {
     switch (parseNatField(args, "workspaceId")) {
       case (#err(e)) { errorJson(e) };
       case (#ok(id)) {
-        handleResult(await callCore(#delete, "/workspace/" # Nat.toText(id), "{}"));
+        handleResult(await wrapper.callCore(#delete, "/workspace/" # Nat.toText(id), "{}"));
       };
     };
   };
 
   /// Set the admin channel for the token's workspace. → POST /workspace/admin-channel
-  public func setWorkspaceAdminChannel(callCore : CallCore, args : Text) : async Text {
-    handleResult(await callCore(#post, "/workspace/admin-channel", args));
+  public func setWorkspaceAdminChannel(wrapper : Wrapper, args : Text) : async Text {
+    handleResult(await wrapper.callCore(#post, "/workspace/admin-channel", args));
   };
 
   // ── Helpers ────────────────────────────────────────────────────────

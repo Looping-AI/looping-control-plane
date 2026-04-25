@@ -9,22 +9,20 @@ import Error "mo:core/Error";
 import Json "mo:json";
 import { str; arr; int; float; bool; obj } "mo:json";
 import ExecutionTypes "../execution-types";
-import CoreApi "../wrappers/core-api";
+import CoreWrapper "../wrappers/core-wrapper";
 
 module {
 
   /// Emit a final completion event to Core.
   /// Called once per execution, after the runner returns its RunOutcome.
   public func emitComplete(
-    core : CoreApi.CoreApi,
-    envelopeNonce : Text,
+    wrapper : CoreWrapper.CoreWrapper,
     humanSummary : Text,
     stepsDetail : [ExecutionTypes.SummarizedStep],
     status : ExecutionTypes.ExecutionStatus,
     stats : ExecutionTypes.ExecutionStats,
   ) : async { #ok : Text; #err : Text } {
     let fields = List.empty<(Text, Json.Json)>();
-    List.add(fields, ("envelopeNonce", str(envelopeNonce)));
     List.add(fields, ("humanSummary", str(humanSummary)));
     List.add(fields, ("stepsDetail", stepsToJson(stepsDetail)));
     List.add(fields, ("status", statusToJson(status)));
@@ -35,7 +33,7 @@ module {
     List.add(fields, ("stats", statsToJson(stats)));
     let body = Json.stringify(obj(List.toArray(fields)), null);
     try {
-      await core.executionApi(#post, "/execution/complete", body);
+      await wrapper.callCore(#post, "/execution/complete", body);
     } catch (e : Error) {
       #err("Failed to emit complete: " # Error.message(e));
     };
@@ -45,21 +43,19 @@ module {
   /// Called from inside the runner after meaningful tool-call rounds.
   /// Non-fatal — the runner catches failures and continues execution.
   public func emitMilestone(
-    core : CoreApi.CoreApi,
-    envelopeNonce : Text,
+    wrapper : CoreWrapper.CoreWrapper,
     humanSummary : Text,
     stepsDetail : [ExecutionTypes.SummarizedStep],
   ) : async { #ok : Text; #err : Text } {
     let body = Json.stringify(
       obj([
-        ("envelopeNonce", str(envelopeNonce)),
         ("humanSummary", str(humanSummary)),
         ("stepsDetail", stepsToJson(stepsDetail)),
       ]),
       null,
     );
     try {
-      await core.executionApi(#post, "/execution/milestone", body);
+      await wrapper.callCore(#post, "/execution/milestone", body);
     } catch (e : Error) {
       #err("Failed to emit milestone: " # Error.message(e));
     };

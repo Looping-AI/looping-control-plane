@@ -20,7 +20,7 @@ import Time "mo:core/Time";
 import List "mo:core/List";
 import Error "mo:core/Error";
 import ExecutionTypes "../execution-types";
-import CoreApi "../wrappers/core-api";
+import CoreWrapper "../wrappers/core-wrapper";
 import LlmWrapper "../wrappers/llm-wrapper";
 import ToolRegistry "../tools/tool-registry";
 import ToolExecutor "../tools/tool-executor";
@@ -36,12 +36,11 @@ module {
   /// marking the run store and emitting the final result to Core.
   /// Caller must wrap this in try/catch for trap safety.
   public func run(
-    core : CoreApi.CoreApi,
+    core : CoreWrapper.CoreActor,
     envelope : ExecutionTypes.EnvelopePayload,
   ) : async RunTypes.RunOutcome {
 
-    let envelopeNonce = envelope.envelopeNonce;
-    let callCore = ToolExecutor.buildCallCore(core, envelopeNonce);
+    let wrapper = CoreWrapper.CoreWrapper(core, envelope.envelopeNonce);
 
     // Extract API key
     let apiKey = switch (
@@ -194,7 +193,7 @@ module {
           let toolStartNs = Time.now();
           let results = try {
             await ToolExecutor.execute(
-              callCore,
+              wrapper,
               envelope.workflowId,
               envelope.scopeGrants,
               calls,
@@ -254,8 +253,7 @@ module {
           if (results.size() >= 2 or hasAnySuccess(results)) {
             try {
               ignore await CoreEmitter.emitMilestone(
-                core,
-                envelopeNonce,
+                wrapper,
                 summarizeToolRound(results),
                 List.toArray(summarizedSteps),
               );

@@ -142,6 +142,14 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ---
 
+#### Comment for batch addressing
+
+- src/internal-engine/tools/tool-executor.mo
+  `for (call in toolCalls.vals()) {`
+  [External deep review] Medium severity: tool batch execution is strictly sequential (await each call). Independent tool calls per round could run concurrently and then be joined, preserving callId mapping while reducing latency.
+
+---
+
 ### 5.2.2 - Improve the EnvelopePayload to more sensible fields
 
 - model in secrets?

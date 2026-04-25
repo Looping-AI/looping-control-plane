@@ -1,21 +1,21 @@
 import Json "mo:json";
 import { str; obj } "mo:json";
-import ToolTypes "../tools/tool-types";
+import CoreWrapper "../wrappers/core-wrapper";
 
 module {
 
-  type CallCore = ToolTypes.CallCore;
+  type Wrapper = CoreWrapper.CoreWrapper;
 
-  // ── Handlers ───────────────────────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────────────
 
   /// Get Slack queue stats. → GET /slack-queue/stats
-  public func getSlackQueueStats(callCore : CallCore, _args : Text) : async Text {
-    handleResult(await callCore(#get, "/slack-queue/stats", "{}"));
+  public func getSlackQueueStats(wrapper : Wrapper, _args : Text) : async Text {
+    handleResult(await wrapper.callCore(#get, "/slack-queue/stats", "{}"));
   };
 
   /// List failed Slack queue events. → GET /slack-queue/failed
-  public func getFailedSlackQueueEvents(callCore : CallCore, _args : Text) : async Text {
-    handleResult(await callCore(#get, "/slack-queue/failed", "{}"));
+  public func getFailedSlackQueueEvents(wrapper : Wrapper, _args : Text) : async Text {
+    handleResult(await wrapper.callCore(#get, "/slack-queue/failed", "{}"));
   };
 
   // ── Helpers ────────────────────────────────────────────────────────

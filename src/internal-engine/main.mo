@@ -4,14 +4,14 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 import ExecutionTypes "./execution-types";
-import CoreApi "./wrappers/core-api";
+import CoreWrapper "./wrappers/core-wrapper";
 import RunHelpers "./runner/run-helpers";
 import RunStoreModel "./models/run-store-model";
 import EnvelopeProcessor "./runner/envelope-processor";
 
 shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
 
-  let core : CoreApi.CoreApi = actor (Principal.toText(coreId));
+  let core : CoreWrapper.CoreActor = actor (Principal.toText(coreId));
 
   // ── Persistent state ───────────────────────────────────────────────
 

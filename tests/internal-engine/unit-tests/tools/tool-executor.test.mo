@@ -1,11 +1,9 @@
 /// Tool Executor — Unit Tests
 ///
-/// Covers the two pure/synchronous helpers:
+/// Covers the pure/synchronous helper:
 ///   • formatResultsForLlm — maps ToolResult → {callId, output, success}
-///   • injectNonce          — injects envelopeNonce into a JSON body string
 
 import { test; expect } "mo:test";
-import Text "mo:core/Text";
 import ToolExecutor "../../../../src/internal-engine/tools/tool-executor";
 
 // ─────────────────────────────────────────────────────────────────
@@ -115,79 +113,5 @@ test(
     let formatted = ToolExecutor.formatResultsForLlm(results);
     expect.text(formatted[0].callId).equal("first");
     expect.text(formatted[1].callId).equal("second");
-  },
-);
-
-// ─────────────────────────────────────────────────────────────────
-// injectNonce
-// ─────────────────────────────────────────────────────────────────
-
-test(
-  "injectNonce: result contains envelopeNonce key",
-  func() {
-    let result = ToolExecutor.injectNonce("{}", "nonce-123");
-    expect.bool(Text.contains(result, #text "envelopeNonce")).isTrue();
-  },
-);
-
-test(
-  "injectNonce: result contains the nonce value",
-  func() {
-    let result = ToolExecutor.injectNonce("{}", "my-secret-nonce");
-    expect.bool(Text.contains(result, #text "my-secret-nonce")).isTrue();
-  },
-);
-
-test(
-  "injectNonce: valid JSON object - original fields are preserved",
-  func() {
-    let result = ToolExecutor.injectNonce("{\"foo\":\"bar\"}", "n1");
-    expect.bool(Text.contains(result, #text "foo")).isTrue();
-    expect.bool(Text.contains(result, #text "bar")).isTrue();
-  },
-);
-
-test(
-  "injectNonce: valid JSON object - nonce and original fields both present",
-  func() {
-    let result = ToolExecutor.injectNonce("{\"key\":\"val\"}", "abc");
-    expect.bool(Text.contains(result, #text "envelopeNonce")).isTrue();
-    expect.bool(Text.contains(result, #text "key")).isTrue();
-  },
-);
-
-test(
-  "injectNonce: invalid JSON body - result still contains nonce",
-  func() {
-    let result = ToolExecutor.injectNonce("not-valid-json", "nonce-xyz");
-    expect.bool(Text.contains(result, #text "envelopeNonce")).isTrue();
-    expect.bool(Text.contains(result, #text "nonce-xyz")).isTrue();
-  },
-);
-
-test(
-  "injectNonce: empty string body treated as invalid JSON - returns nonce-only object",
-  func() {
-    let result = ToolExecutor.injectNonce("", "nonce-abc");
-    expect.bool(Text.contains(result, #text "envelopeNonce")).isTrue();
-    expect.bool(Text.contains(result, #text "nonce-abc")).isTrue();
-  },
-);
-
-test(
-  "injectNonce: JSON array body treated as invalid - returns nonce-only object",
-  func() {
-    // The source only handles #object_ — arrays fall through to the fallback
-    let result = ToolExecutor.injectNonce("[1,2,3]", "my-nonce");
-    expect.bool(Text.contains(result, #text "envelopeNonce")).isTrue();
-    expect.bool(Text.contains(result, #text "my-nonce")).isTrue();
-  },
-);
-
-test(
-  "injectNonce: result is a JSON object (starts with {)",
-  func() {
-    let result = ToolExecutor.injectNonce("{\"x\":1}", "n");
-    expect.bool(Text.startsWith(result, #text "{")).isTrue();
   },
 );

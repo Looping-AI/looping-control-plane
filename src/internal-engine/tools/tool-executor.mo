@@ -2,40 +2,20 @@ import List "mo:core/List";
 import Error "mo:core/Error";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
-import Json "mo:json";
-import { str } "mo:json";
 import ToolTypes "./tool-types";
 import ToolRegistry "./tool-registry";
 import LlmWrapper "../wrappers/llm-wrapper";
-import CoreApi "../wrappers/core-api";
+import CoreWrapper "../wrappers/core-wrapper";
 import ExecutionTypes "../execution-types";
 
 module {
-
-  // ── CallCore builder ───────────────────────────────────────────────
-
-  /// Build a CallCore function that injects the token nonce into every
-  /// request body before forwarding to Core's execution API.
-  public func buildCallCore(
-    core : CoreApi.CoreApi,
-    envelopeNonce : Text,
-  ) : ToolTypes.CallCore {
-    func(
-      method : ExecutionTypes.HttpMethod,
-      path : Text,
-      body : Text,
-    ) : async { #ok : Text; #err : Text } {
-      let enrichedBody = injectNonce(body, envelopeNonce);
-      await core.executionApi(method, path, enrichedBody);
-    };
-  };
 
   // ── Execute ────────────────────────────────────────────────────────
 
   /// Execute all tool calls returned by the LLM.
   /// Returns results in the same order as the input calls.
   public func execute(
-    callCore : ToolTypes.CallCore,
+    wrapper : CoreWrapper.CoreWrapper,
     workflowId : Text,
     scopeGrants : [ExecutionTypes.ScopeGrant],
     toolCalls : [LlmWrapper.ToolCall],
@@ -50,7 +30,7 @@ module {
       ) {
         case (?tool) {
           try {
-            let output = await tool.handler(callCore, call.arguments);
+            let output = await tool.handler(wrapper, call.arguments);
             #success(output);
           } catch (e : Error) {
             #error("Handler error: " # Error.message(e));
@@ -87,25 +67,4 @@ module {
     List.toArray(items);
   };
 
-  // ── Nonce injection ────────────────────────────────────────────────
-
-  /// Inject the envelopeNonce field into a JSON body string.
-  public func injectNonce(body : Text, nonce : Text) : Text {
-    switch (Json.parse(body)) {
-      case (#ok(#object_(entries))) {
-        let fields = List.empty<(Text, Json.Json)>();
-        List.add(fields, ("envelopeNonce", #string(nonce)));
-        for ((k, v) in entries.vals()) {
-          if (k != "envelopeNonce") {
-            List.add(fields, (k, v));
-          };
-        };
-        Json.stringify(#object_(List.toArray(fields)), null);
-      };
-      case (_) {
-        // Body is not a valid JSON object — wrap nonce-only
-        Json.stringify(#object_([("envelopeNonce", str(nonce))]), null);
-      };
-    };
-  };
 };

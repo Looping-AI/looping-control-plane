@@ -258,9 +258,6 @@ module {
           case (?#number(#int(n))) {
             List.add(result, #deleteWorkspace({ workspaceId = Int.abs(n) }));
           };
-          case (?#number(#float(f))) {
-            List.add(result, #deleteWorkspace({ workspaceId = Int.abs(Float.toInt(f)) }));
-          };
           case (_) {};
         };
       } else if (permitType == "setAdminChannel") {

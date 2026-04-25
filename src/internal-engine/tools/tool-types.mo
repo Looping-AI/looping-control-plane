@@ -1,21 +1,11 @@
-import ExecutionTypes "../execution-types";
+import CoreWrapper "../wrappers/core-wrapper";
 
 module {
 
-  // ── CallCore function type ─────────────────────────────────────────
-
-  /// A function that calls Core's execution API.
-  /// Parameters: (method, path, body) where body is JSON without envelopeNonce.
-  /// The implementation injects envelopeNonce automatically before forwarding.
-  public type CallCore = (ExecutionTypes.HttpMethod, Text, Text) -> async {
-    #ok : Text;
-    #err : Text;
-  };
-
   // ── Tool handler type ──────────────────────────────────────────────
 
-  /// Handler function: receives callCore + JSON arguments → returns JSON result.
-  public type ToolHandler = (CallCore, Text) -> async Text;
+  /// Handler function: receives a CoreWrapper + JSON arguments → returns JSON result.
+  public type ToolHandler = (CoreWrapper.CoreWrapper, Text) -> async Text;
 
   // ── Tool call outcome types ────────────────────────────────────────
 

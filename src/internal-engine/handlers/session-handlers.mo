@@ -1,17 +1,17 @@
 import Json "mo:json";
 import { str; obj } "mo:json";
-import ToolTypes "../tools/tool-types";
+import CoreWrapper "../wrappers/core-wrapper";
 
 module {
 
-  type CallCore = ToolTypes.CallCore;
+  type Wrapper = CoreWrapper.CoreWrapper;
 
-  // ── Handlers ───────────────────────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────────────
 
   /// Update session policy for an agent. → POST /session/policy
   /// Body: { "agentId": N, "summaryTokenBudget": N, "maxTruncatedTokens": N }
-  public func updateSessionPolicy(callCore : CallCore, args : Text) : async Text {
-    handleResult(await callCore(#post, "/session/policy", args));
+  public func updateSessionPolicy(wrapper : Wrapper, args : Text) : async Text {
+    handleResult(await wrapper.callCore(#post, "/session/policy", args));
   };
 
   // ── Helpers ────────────────────────────────────────────────────────
