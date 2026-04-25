@@ -406,7 +406,7 @@ module {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(v)) { v };
       };
-      switch (AgentModel.updateById(deps.agentRegistry, agentId, newName, newModel, newEngines, null, null, null)) {
+      switch (AgentModel.updateById(deps.agentRegistry, agentId, { name = newName; model = newModel; executionEngines = newEngines; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null })) {
         case (#ok(_)) { okResponse(null) };
         case (#err(e)) { errorResponse(e) };
       };
