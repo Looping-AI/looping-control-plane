@@ -28,6 +28,7 @@ func makeEnvelope(id : Nat) : ExecutionTypes.EnvelopePayload {
     scopeGrants = [];
     permits = [];
     envelopeNonce = "nonce-" # Nat.toText(id);
+    catalogHash = null;
   };
 };
 

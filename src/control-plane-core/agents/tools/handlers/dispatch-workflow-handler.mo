@@ -127,6 +127,7 @@ module {
       scopeGrants;
       permits;
       envelopeNonce;
+      catalogHash = null; // Phase 2 will populate this once Core fetches and caches the catalog.
     };
 
     try {

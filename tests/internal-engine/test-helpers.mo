@@ -32,6 +32,7 @@ module {
       scopeGrants = [];
       permits = [];
       envelopeNonce = "nonce-" # Nat.toText(envelopeId);
+      catalogHash = null;
     };
   };
 

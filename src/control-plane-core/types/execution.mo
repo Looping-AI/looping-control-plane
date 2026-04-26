@@ -83,6 +83,10 @@ module {
     scopeGrants : [ScopeGrant];
     permits : [OperationPermit];
     envelopeNonce : Text;
+    /// The catalog hash Core received from the engine's listWorkflows() response.
+    /// Must be included on every execute() call. The engine rejects calls where the
+    /// hash is missing or does not match its current catalog.
+    catalogHash : ?Text;
   };
 
   // ── Execution Stats ────────────────────────────────────────────────
