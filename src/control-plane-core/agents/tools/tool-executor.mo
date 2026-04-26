@@ -41,8 +41,7 @@ module {
     let outcome : ToolTypes.ToolCallOutcome = switch (FunctionToolRegistry.get(resources, call.toolName)) {
       case (?tool) {
         try {
-          let output = await tool.handler(call.arguments);
-          #success(output);
+          await tool.handler(call.arguments);
         } catch (e : Error) {
           #error("Handler error: " # Error.message(e));
         };

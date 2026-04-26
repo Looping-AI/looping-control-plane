@@ -49,7 +49,7 @@ function minimalEnvelope(
     constraints: { maxRounds: 3n, maxTokenBudget: [] },
     secrets: { apiKeys: [["openrouter", TEST_API_KEY]] },
     scopeGrants: [],
-    permits: [],
+    catalogHash: [],
     envelopeNonce: `nonce-${envelopeId}`,
   };
 }

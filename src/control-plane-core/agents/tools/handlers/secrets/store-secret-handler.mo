@@ -4,7 +4,7 @@ import Text "mo:core/Text";
 import SecretModel "../../../../models/secret-model";
 import WorkspaceModel "../../../../models/workspace-model";
 import SlackAuthMiddleware "../../../../middleware/slack-auth-middleware";
-import Helpers "../handler-helpers";
+import ToolTypes "../../tool-types";
 import SecretParsers "../parsers/secret-parsers";
 
 module {
@@ -24,10 +24,10 @@ module {
     uac : SlackAuthMiddleware.UserAuthContext,
     workspaceId : Nat,
     args : Text,
-  ) : Text {
+  ) : ToolTypes.ToolCallOutcome {
     switch (Json.parse(args)) {
       case (#err(error)) {
-        Helpers.buildErrorResponse("Failed to parse arguments: " # debug_show error);
+        #error("Failed to parse arguments: " # debug_show error);
       };
       case (#ok(json)) {
         let secretIdOpt = switch (Json.get(json, "secretId")) {
@@ -49,7 +49,7 @@ module {
             };
             switch (SlackAuthMiddleware.authorize(uac, requiredRoles)) {
               case (#err(msg)) {
-                return Helpers.buildErrorResponse("Unauthorized: " # msg);
+                return #error("Unauthorized: " # msg);
               };
               case (#ok(())) {};
             };
@@ -58,32 +58,34 @@ module {
             // be stored on the org workspace. Allowing non-zero workspaces would be
             // meaningless (those workspaces never read these values).
             if (SecretModel.isPlatformSecret(secretId) and not WorkspaceModel.isOrgWorkspace(workspaceId)) {
-              return Helpers.buildErrorResponse("Platform secrets (slackBotToken, slackSigningSecret) can only be set on workspace 0.");
+              return #error("Platform secrets (slackBotToken, slackSigningSecret) can only be set on workspace 0.");
             };
 
             // Validate secret is not empty
             if (Text.trim(secretValue, #char ' ') == "") {
-              return Helpers.buildErrorResponse("Secret cannot be empty.");
+              return #error("Secret cannot be empty.");
             };
 
             switch (SecretModel.storeSecret(secrets, workspaceKey, workspaceId, secretId, secretValue, { slackUserId = ?uac.slackUserId; agentId = null; operation = "store-secret" })) {
-              case (#err(msg)) { Helpers.buildErrorResponse(msg) };
+              case (#err(msg)) { #error(msg) };
               case (#ok(())) {
-                Json.stringify(
-                  obj([
-                    ("success", bool(true)),
-                    ("message", str("Secret stored successfully.")),
-                  ]),
-                  null,
+                #success(
+                  Json.stringify(
+                    obj([
+                      ("success", bool(true)),
+                      ("message", str("Secret stored successfully.")),
+                    ]),
+                    null,
+                  )
                 );
               };
             };
           };
           case (null, _) {
-            Helpers.buildErrorResponse("Invalid secretId. Must be one of: openRouterApiKey, slackSigningSecret, slackBotToken");
+            #error("Invalid secretId. Must be one of: openRouterApiKey, slackSigningSecret, slackBotToken");
           };
           case (_, _) {
-            Helpers.buildErrorResponse("Missing required field: secretValue");
+            #error("Missing required field: secretValue");
           };
         };
       };

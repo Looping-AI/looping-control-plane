@@ -266,10 +266,6 @@ module {
       if (not WorkspaceModel.isOrgWorkspace(tokenWs)) {
         return errorResponse("Only org admin can delete workspaces");
       };
-      // Require a matching #deleteWorkspace permit (pre-validated at Core dispatch)
-      if (not ExecutionEnvelopeModel.hasPermit(deps.envelopeState, envelopeNonce, #deleteWorkspace({ workspaceId }))) {
-        return errorResponse("Missing #deleteWorkspace permit for workspace " # idStr);
-      };
       switch (WorkspaceModel.deleteWorkspace(deps.workspaces, workspaceId)) {
         case (#ok(())) { okResponse(null) };
         case (#err(e)) { errorResponse(e) };
@@ -452,10 +448,6 @@ module {
       let channelId = switch (requireString(body, "channelId")) {
         case (#err(e)) { return errorResponse(e) };
         case (#ok(v)) { v };
-      };
-      // Require a matching #setAdminChannel permit (pre-validated at Core dispatch)
-      if (not ExecutionEnvelopeModel.hasPermit(deps.envelopeState, envelopeNonce, #setAdminChannel({ channelId }))) {
-        return errorResponse("Missing #setAdminChannel permit for channel " # channelId);
       };
       switch (WorkspaceModel.setAdminChannel(deps.workspaces, tokenWs, channelId)) {
         case (#ok(())) { okResponse(null) };

@@ -23,18 +23,7 @@ module {
     #session : { access : ScopeAccess };
   };
 
-  // ── Operation permits (pre-validated sensitive operations) ──────────
-
-  /// Pre-validated authorization for sensitive operations.
-  /// Validated at Core dispatch time (user confirmation, Slack API checks),
-  /// then stored in TokenRecord + ExecutionEnvelope.
-  /// Checked at engine tool level AND execution API level (defense-in-depth).
-  public type OperationPermit = {
-    #deleteWorkspace : { workspaceId : Nat };
-    #setAdminChannel : { channelId : Text };
-  };
-
-  // ── Chat message types (engine-agnostic) ───────────────────────────
+  // ── Chat message types (engine-agnostic) ──────────────────────────────────
 
   public type ChatRole = {
     #user;
@@ -81,7 +70,6 @@ module {
     constraints : ExecutionConstraints;
     secrets : ExecutionSecrets;
     scopeGrants : [ScopeGrant];
-    permits : [OperationPermit];
     envelopeNonce : Text;
     /// The catalog hash Core received from the engine's listWorkflows() response.
     /// Must be included on every execute() call. The engine rejects calls where the

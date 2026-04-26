@@ -1,5 +1,6 @@
 import Json "mo:json";
-import { str; obj } "mo:json";
+import { obj } "mo:json";
+import ToolTypes "../tools/tool-types";
 import CoreWrapper "../wrappers/core-wrapper";
 
 module {
@@ -9,25 +10,21 @@ module {
   // ── Handlers ─────────────────────────────────────────────────
 
   /// Get Slack queue stats. → GET /slack-queue/stats
-  public func getSlackQueueStats(wrapper : Wrapper, _args : Text) : async Text {
+  public func getSlackQueueStats(wrapper : Wrapper, _args : Text) : async ToolTypes.ToolCallOutcome {
     handleResult(await wrapper.callCore(#get, "/slack-queue/stats", "{}"));
   };
 
   /// List failed Slack queue events. → GET /slack-queue/failed
-  public func getFailedSlackQueueEvents(wrapper : Wrapper, _args : Text) : async Text {
+  public func getFailedSlackQueueEvents(wrapper : Wrapper, _args : Text) : async ToolTypes.ToolCallOutcome {
     handleResult(await wrapper.callCore(#get, "/slack-queue/failed", "{}"));
   };
 
   // ── Helpers ────────────────────────────────────────────────────────
 
-  private func handleResult(result : { #ok : Text; #err : Text }) : Text {
+  private func handleResult(result : { #ok : Text; #err : Text }) : ToolTypes.ToolCallOutcome {
     switch (result) {
-      case (#ok(data)) { data };
-      case (#err(e)) { errorJson(e) };
+      case (#ok(data)) { #success(data) };
+      case (#err(e)) { #error(e) };
     };
-  };
-
-  private func errorJson(msg : Text) : Text {
-    Json.stringify(obj([("error", str(msg))]), null);
   };
 };

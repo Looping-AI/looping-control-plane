@@ -30,7 +30,6 @@ module {
       model = "openai/gpt-oss-120b";
       secrets = { apiKeys = [("openrouter", "test-key-placeholder")] };
       scopeGrants = [];
-      permits = [];
       envelopeNonce = "nonce-" # Nat.toText(envelopeId);
       catalogHash = null;
     };

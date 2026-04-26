@@ -61,13 +61,12 @@ func mkSvc(
 /// Issue a token and return (store, ws, agents, svc, nonce).
 func issue(
   grants : [ExecutionTypes.ScopeGrant],
-  permits : [ExecutionTypes.OperationPermit],
   wsId : Nat,
 ) : (ExecutionEnvelopeModel.EnvelopeState, WorkspaceModel.WorkspacesState, AgentModel.AgentRegistryState, ExecutionApiService.Service, Text) {
   let store = ExecutionEnvelopeModel.emptyState();
   let ws = freshWorkspaces();
   let agents = AgentModel.emptyState();
-  let nonce = ExecutionEnvelopeModel.issue(store, "1_0", wsId, grants, permits).nonce;
+  let nonce = ExecutionEnvelopeModel.issue(store, "1_0", wsId, grants).nonce;
   let svc = mkSvc(store, ws, agents);
   (store, ws, agents, svc, nonce);
 };
@@ -116,7 +115,7 @@ suite(
     test(
       "unknown path returns error",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 0);
         let r = svc.handleRequest(#get, "/does-not-exist", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -134,7 +133,7 @@ suite(
     test(
       "returns workspace data for a valid read token (ws 0)",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 0);
         let r = svc.handleRequest(#get, "/workspace", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -143,7 +142,7 @@ suite(
     test(
       "returns workspace data for a valid read token (ws 1)",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         let r = svc.handleRequest(#get, "/workspace", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -152,7 +151,7 @@ suite(
     test(
       "write token also covers read (coversAccess rule)",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 0);
         let r = svc.handleRequest(#get, "/workspace", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -161,7 +160,7 @@ suite(
     test(
       "wrong scope (#agents) is rejected",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #read })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #read })], 0);
         let r = svc.handleRequest(#get, "/workspace", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -179,7 +178,7 @@ suite(
     test(
       "org admin (ws 0) with write scope can create a workspace",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 0);
         let r = svc.handleRequest(#post, "/workspace", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"New WS\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -188,7 +187,7 @@ suite(
     test(
       "non-org-admin (ws 1) cannot create a workspace",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/workspace", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"New WS\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -197,7 +196,7 @@ suite(
     test(
       "read-only token cannot create a workspace",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 0);
         let r = svc.handleRequest(#post, "/workspace", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"New WS\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -206,7 +205,7 @@ suite(
     test(
       "missing name field returns error",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 0);
         let r = svc.handleRequest(#post, "/workspace", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -224,7 +223,7 @@ suite(
     test(
       "write token can rename own workspace (ws 1)",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/workspace/update", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"Renamed\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -233,7 +232,7 @@ suite(
     test(
       "read-only token cannot rename",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         let r = svc.handleRequest(#post, "/workspace/update", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"Renamed\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -242,7 +241,7 @@ suite(
     test(
       "missing name field returns error",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/workspace/update", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -258,45 +257,18 @@ suite(
   "DELETE /workspace/{id}",
   func() {
     test(
-      "org admin + write scope + matching permit can delete ws 1",
+      "org admin + write scope can delete ws 1",
       func() {
-        let permit : ExecutionTypes.OperationPermit = #deleteWorkspace({
-          workspaceId = 1;
-        });
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [permit], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 0);
         let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
     );
 
     test(
-      "missing deleteWorkspace permit is rejected",
+      "non-org-admin token (ws 1) cannot delete",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 0);
-        let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\"}");
-        expect.bool(isErr(r)).isTrue();
-      },
-    );
-
-    test(
-      "permit with wrong workspaceId is rejected",
-      func() {
-        let permit : ExecutionTypes.OperationPermit = #deleteWorkspace({
-          workspaceId = 99;
-        });
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [permit], 0);
-        let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\"}");
-        expect.bool(isErr(r)).isTrue();
-      },
-    );
-
-    test(
-      "non-org-admin token (ws 1) cannot delete even with permit",
-      func() {
-        let permit : ExecutionTypes.OperationPermit = #deleteWorkspace({
-          workspaceId = 1;
-        });
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [permit], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 1);
         let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -305,10 +277,7 @@ suite(
     test(
       "non-numeric workspace id returns error",
       func() {
-        let permit : ExecutionTypes.OperationPermit = #deleteWorkspace({
-          workspaceId = 1;
-        });
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [permit], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 0);
         let r = svc.handleRequest(#delete, "/workspace/abc", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -324,45 +293,18 @@ suite(
   "POST /workspace/admin-channel",
   func() {
     test(
-      "write scope + matching setAdminChannel permit sets admin channel",
+      "write scope sets admin channel",
       func() {
-        let permit : ExecutionTypes.OperationPermit = #setAdminChannel({
-          channelId = "C_ADMIN";
-        });
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [permit], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/workspace/admin-channel", "{\"envelopeNonce\":\"" # nonce # "\",\"channelId\":\"C_ADMIN\"}");
         expect.bool(isOk(r)).isTrue();
       },
     );
 
     test(
-      "missing setAdminChannel permit is rejected",
-      func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 1);
-        let r = svc.handleRequest(#post, "/workspace/admin-channel", "{\"envelopeNonce\":\"" # nonce # "\",\"channelId\":\"C_ANY\"}");
-        expect.bool(isErr(r)).isTrue();
-      },
-    );
-
-    test(
-      "permit channelId mismatch with request channelId is rejected",
-      func() {
-        let permit : ExecutionTypes.OperationPermit = #setAdminChannel({
-          channelId = "C_RIGHT";
-        });
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [permit], 1);
-        let r = svc.handleRequest(#post, "/workspace/admin-channel", "{\"envelopeNonce\":\"" # nonce # "\",\"channelId\":\"C_WRONG\"}");
-        expect.bool(isErr(r)).isTrue();
-      },
-    );
-
-    test(
       "read-only token cannot set admin channel",
       func() {
-        let permit : ExecutionTypes.OperationPermit = #setAdminChannel({
-          channelId = "C_ADMIN";
-        });
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [permit], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         let r = svc.handleRequest(#post, "/workspace/admin-channel", "{\"envelopeNonce\":\"" # nonce # "\",\"channelId\":\"C_ADMIN\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -380,7 +322,7 @@ suite(
     test(
       "agents:read token returns ok (empty list) when no agents registered",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #read })], 1);
         let r = svc.handleRequest(#get, "/agent", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -389,7 +331,7 @@ suite(
     test(
       "agents:write token also covers agents:read",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], 1);
         let r = svc.handleRequest(#get, "/agent", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -398,7 +340,7 @@ suite(
     test(
       "wrong scope (#workspace) is rejected for GET /agent",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         let r = svc.handleRequest(#get, "/agent", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -416,7 +358,7 @@ suite(
     test(
       "agents:write token can create a custom agent",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"bot\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"]}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -425,7 +367,7 @@ suite(
     test(
       "agents:read token cannot create an agent",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #read })], 1);
         let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"bot\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"]}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -434,7 +376,7 @@ suite(
     test(
       "missing name field returns error",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"]}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -443,7 +385,7 @@ suite(
     test(
       "creates agent with explicit executionEngines [canister]",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"bot\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"],\"executionEngines\":[\"canister\"]}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -452,7 +394,7 @@ suite(
     test(
       "creates agent with empty executionEngines []",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"bot\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"],\"executionEngines\":[]}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -464,7 +406,7 @@ suite(
         let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })]).nonce;
         let svc = mkSvc(store, ws, agents);
         let createR = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"noengine\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"]}");
         expect.bool(isOk(createR)).isTrue();
@@ -473,7 +415,7 @@ suite(
           case (?r) { r.id };
           case (null) { assert false; 0 };
         };
-        let nonce2 = ExecutionEnvelopeModel.issue(store, "2_0", 1, [#agents({ access = #read })], []).nonce;
+        let nonce2 = ExecutionEnvelopeModel.issue(store, "2_0", 1, [#agents({ access = #read })]).nonce;
         let getR = mkSvc(store, ws, agents).handleRequest(#get, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce2 # "\"}");
         switch (getR.response) {
           case (#ok(body)) {
@@ -487,7 +429,7 @@ suite(
     test(
       "unknown executionEngine string returns error",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/agent", "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"bot\",\"model\":\"gpt-4\",\"allowedChannelIds\":[\"C_GENERAL\"],\"executionEngines\":[\"unknown-engine\"]}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -512,7 +454,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#get, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -530,7 +472,7 @@ suite(
           case (#err(_)) { assert false; 0 };
         };
         // Token is for ws 1
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#get, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -539,7 +481,7 @@ suite(
     test(
       "non-existent agent id returns error",
       func() {
-        let (_, _, _, svc, nonce) = issue([#agents({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#agents({ access = #read })], 1);
         let r = svc.handleRequest(#get, "/agent/9999", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -564,7 +506,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"renamed\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -580,7 +522,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"renamed\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -598,7 +540,7 @@ suite(
           case (#err(_)) { assert false; 0 };
         };
         // Token is for ws 1
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"name\":\"pwned\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -614,7 +556,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"executionEngines\":[\"canister\",\"github\"]}");
         expect.bool(isOk(r)).isTrue();
         switch (AgentModel.lookupById(agents, agentId)) {
@@ -636,7 +578,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"executionEngines\":[]}");
         expect.bool(isOk(r)).isTrue();
         switch (AgentModel.lookupById(agents, agentId)) {
@@ -658,7 +600,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\",\"executionEngines\":[\"bad-engine\"]}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -683,7 +625,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#delete, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -701,7 +643,7 @@ suite(
           case (#err(_)) { assert false; 0 };
         };
         // Token for ws 1
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #write })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#delete, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -717,7 +659,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#agents({ access = #read })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#delete, "/agent/" # Nat.toText(agentId), "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -735,7 +677,7 @@ suite(
     test(
       "slackQueue:read token returns stats",
       func() {
-        let (_, _, _, svc, nonce) = issue([#slackQueue({ access = #read })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#slackQueue({ access = #read })], 0);
         let r = svc.handleRequest(#get, "/slack-queue/stats", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -744,7 +686,7 @@ suite(
     test(
       "wrong scope (#workspace) is rejected",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 0);
         let r = svc.handleRequest(#get, "/slack-queue/stats", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -762,7 +704,7 @@ suite(
     test(
       "slackQueue:read token returns failed list",
       func() {
-        let (_, _, _, svc, nonce) = issue([#slackQueue({ access = #read })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#slackQueue({ access = #read })], 0);
         let r = svc.handleRequest(#get, "/slack-queue/failed", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -771,7 +713,7 @@ suite(
     test(
       "slackQueue:write also covers slackQueue:read",
       func() {
-        let (_, _, _, svc, nonce) = issue([#slackQueue({ access = #write })], [], 0);
+        let (_, _, _, svc, nonce) = issue([#slackQueue({ access = #write })], 0);
         let r = svc.handleRequest(#get, "/slack-queue/failed", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isOk(r)).isTrue();
       },
@@ -789,7 +731,7 @@ suite(
     test(
       "any valid token emits a #milestone async effect",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         let r = svc.handleRequest(#post, "/execution/milestone", "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"step done\"}");
         expect.bool(isOk(r)).isTrue();
         expect.nat(r.asyncEffects.size()).equal(1);
@@ -808,7 +750,7 @@ suite(
         let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })]).nonce;
         let svc = mkSvc(store, ws, agents);
         ignore svc.handleRequest(#post, "/execution/milestone", "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"step\"}");
         // Token should still be valid after a milestone
@@ -819,7 +761,7 @@ suite(
     test(
       "missing humanSummary returns error",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         let r = svc.handleRequest(#post, "/execution/milestone", "{\"envelopeNonce\":\"" # nonce # "\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -846,7 +788,7 @@ suite(
     test(
       "valid token emits a #complete async effect",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         let r = svc.handleRequest(#post, "/execution/complete", "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
         expect.bool(isOk(r)).isTrue();
         expect.nat(r.asyncEffects.size()).equal(1);
@@ -865,7 +807,7 @@ suite(
         let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })]).nonce;
         let svc = mkSvc(store, ws, agents);
         ignore svc.handleRequest(#post, "/execution/complete", "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
         expect.bool(ExecutionEnvelopeModel.validate(store, nonce, #workspace({ access = #read }))).isFalse();
@@ -878,7 +820,7 @@ suite(
         let store = ExecutionEnvelopeModel.emptyState();
         let ws = freshWorkspaces();
         let agents = AgentModel.emptyState();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#workspace({ access = #read })]).nonce;
         let svc = mkSvc(store, ws, agents);
         ignore svc.handleRequest(#post, "/execution/complete", "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
         let r2 = svc.handleRequest(#post, "/execution/complete", "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
@@ -889,7 +831,7 @@ suite(
     test(
       "missing humanSummary returns error",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         let r = svc.handleRequest(#post, "/execution/complete", "{\"envelopeNonce\":\"" # nonce # "\",\"status\":\"completed\"}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -898,7 +840,7 @@ suite(
     test(
       "missing stats object yields all-null stats in the complete effect",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         // No \"stats\" key at all in the body
         let r = svc.handleRequest(#post, "/execution/complete", "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\"}");
         expect.bool(isOk(r)).isTrue();
@@ -915,7 +857,7 @@ suite(
     test(
       "misconfigured stats field (wrong type) yields null for that field",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #read })], 1);
         // rounds is a string instead of a number; durationNs and model are valid
         let body = "{\"envelopeNonce\":\"" # nonce # "\",\"humanSummary\":\"done\",\"status\":\"completed\",\"stats\":{\"durationNs\":500,\"rounds\":\"not-a-number\",\"model\":\"gpt-4\"}}";
         let r = svc.handleRequest(#post, "/execution/complete", body);
@@ -958,7 +900,7 @@ suite(
           eventStore = EventStoreModel.empty();
           sessionStores = sessions;
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#session({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#session({ access = #write })]).nonce;
         let svc = ExecutionApiService.Service(deps);
         let r = svc.handleRequest(#post, "/session/policy", "{\"envelopeNonce\":\"" # nonce # "\",\"agentId\":" # Nat.toText(agentId) # ",\"summaryTokenBudget\":4096,\"maxTruncatedTokens\":512}");
         expect.bool(isOk(r)).isTrue();
@@ -968,7 +910,7 @@ suite(
     test(
       "wrong scope (#workspace) is rejected for session/policy",
       func() {
-        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], [], 1);
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 1);
         let r = svc.handleRequest(#post, "/session/policy", "{\"envelopeNonce\":\"" # nonce # "\",\"agentId\":0,\"summaryTokenBudget\":4096,\"maxTruncatedTokens\":512}");
         expect.bool(isErr(r)).isTrue();
       },
@@ -985,7 +927,7 @@ suite(
           case (#ok(id)) { id };
           case (#err(_)) { assert false; 0 };
         };
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#session({ access = #write })], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [#session({ access = #write })]).nonce;
         let r = mkSvc(store, ws, agents).handleRequest(#post, "/session/policy", "{\"envelopeNonce\":\"" # nonce # "\",\"agentId\":" # Nat.toText(agentId) # ",\"summaryTokenBudget\":4096,\"maxTruncatedTokens\":512}");
         expect.bool(isErr(r)).isTrue();
       },

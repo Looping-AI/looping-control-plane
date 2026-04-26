@@ -2,16 +2,16 @@ import Json "mo:json";
 import { str; obj; bool; arr; float } "mo:json";
 import List "mo:core/List";
 import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
-import Helpers "./handler-helpers";
+import ToolTypes "../tool-types";
 
 module {
   public func handle(
     apiKey : Text,
     args : Text,
-  ) : async Text {
+  ) : async ToolTypes.ToolCallOutcome {
     switch (Json.parse(args)) {
       case (#err(error)) {
-        Helpers.buildErrorResponse("Failed to parse arguments: " # debug_show error);
+        #error("Failed to parse arguments: " # debug_show error);
       };
       case (#ok(json)) {
         let searchQueryOpt = switch (Json.get(json, "query")) {
@@ -61,25 +61,27 @@ module {
                       case (null) { arr([]) };
                     };
 
-                    return Json.stringify(
-                      obj([
-                        ("success", bool(true)),
-                        ("response", str(message.content)),
-                        ("reasoning", str(switch (message.reasoning) { case (?r) { r }; case (null) { "" } })),
-                        ("search_results", searchResultsJson),
-                      ]),
-                      null,
+                    return #success(
+                      Json.stringify(
+                        obj([
+                          ("success", bool(true)),
+                          ("response", str(message.content)),
+                          ("reasoning", str(switch (message.reasoning) { case (?r) { r }; case (null) { "" } })),
+                          ("search_results", searchResultsJson),
+                        ]),
+                        null,
+                      )
                     );
                   };
                 };
               };
               case (#err(error)) {
-                return Helpers.buildErrorResponse("Web search failed: " # error);
+                return #error("Web search failed: " # error);
               };
             };
           };
           case (null) {
-            return Helpers.buildErrorResponse("Missing required field: query");
+            return #error("Missing required field: query");
           };
         };
       };

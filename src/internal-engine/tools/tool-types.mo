@@ -4,8 +4,8 @@ module {
 
   // ── Tool handler type ──────────────────────────────────────────────
 
-  /// Handler function: receives a CoreWrapper + JSON arguments → returns JSON result.
-  public type ToolHandler = (CoreWrapper.CoreWrapper, Text) -> async Text;
+  /// Handler function: receives a CoreWrapper + JSON arguments → returns structured outcome.
+  public type ToolHandler = (CoreWrapper.CoreWrapper, Text) -> async ToolCallOutcome;
 
   // ── Tool call outcome types ────────────────────────────────────────
 

@@ -30,8 +30,7 @@ module {
       ) {
         case (?tool) {
           try {
-            let output = await tool.handler(wrapper, call.arguments);
-            #success(output);
+            await tool.handler(wrapper, call.arguments);
           } catch (e : Error) {
             #error("Handler error: " # Error.message(e));
           };

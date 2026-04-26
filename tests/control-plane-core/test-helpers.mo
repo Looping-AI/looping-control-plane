@@ -13,6 +13,7 @@ import EventProcessingContextTypes "../../src/control-plane-core/events/types/ev
 import EventStoreModel "../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../src/control-plane-core/models/session-model";
 import InternalEngine "../../src/internal-engine/main";
+import WorkflowCatalogModel "../../src/control-plane-core/models/workflow-catalog-model";
 
 // ============================================
 // Test Helpers
@@ -87,6 +88,7 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
     };
   };
 
@@ -140,6 +142,7 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
     };
   };
 
@@ -192,6 +195,7 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
     };
   };
 
@@ -262,6 +266,7 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
     };
   };
 
@@ -329,6 +334,7 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
     };
   };
 

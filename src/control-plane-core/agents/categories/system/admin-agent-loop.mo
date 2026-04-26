@@ -23,14 +23,14 @@ module {
   public func process(
     agent : AgentModel.AgentRecord,
     assembled : ContextAssembler.AssembledContext,
-    triggerMessageText : ?Text,
+    _triggerMessageText : ?Text,
     turnId : Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     apiKey : Text,
     secrets : SecretModel.SecretsState,
     workspaceKey : [Nat8],
     resolveSlackBotToken : (Text -> ?Text),
-    resolveWorkspaceName : (Nat -> ?Text),
+    _resolveWorkspaceName : (Nat -> ?Text),
     engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
   ) : async Types.AgentOrchestrateResult {
     let instructions = InstructionComposer.compose(
@@ -46,8 +46,6 @@ module {
       workspaceId = ?agent.ownedBy;
       resolveSlackBotToken = ?(resolveSlackBotToken);
       userAuthContext;
-      triggerMessageText;
-      resolveWorkspaceName = ?(resolveWorkspaceName);
       secrets = ?{ state = secrets; workspaceKey; write = true };
       engineDispatch = ?{
         envelopeState = engineDeps.envelopeState;

@@ -21,7 +21,6 @@ module {
     turnId : Text;
     workspaceId : Nat;
     grants : [ExecutionTypes.ScopeGrant];
-    permits : [ExecutionTypes.OperationPermit];
     createdAtNs : Int;
     expiresAtNs : Int;
     var revoked : Bool;
@@ -67,7 +66,6 @@ module {
     turnId : Text,
     workspaceId : Nat,
     grants : [ExecutionTypes.ScopeGrant],
-    permits : [ExecutionTypes.OperationPermit],
   ) : { envelopeId : Nat; nonce : Text } {
     let now = Time.now();
     let envelopeId = store.nextTokenId;
@@ -79,7 +77,6 @@ module {
       turnId;
       workspaceId;
       grants;
-      permits;
       createdAtNs = now;
       expiresAtNs = now + Constants.EXECUTION_TOKEN_TTL_NS;
       var revoked = false;
@@ -195,39 +192,6 @@ module {
       case (#read) { true }; // any access level covers read
       case (#write) { held == #write };
     };
-  };
-
-  // ── Permit checking ────────────────────────────────────────────────
-
-  /// Check if the token identified by `nonce` carries a matching OperationPermit.
-  public func hasPermit(
-    store : EnvelopeState,
-    nonce : Text,
-    required : ExecutionTypes.OperationPermit,
-  ) : Bool {
-    switch (getRecord(store, nonce)) {
-      case (null) { false };
-      case (?record) { permitMatches(record.permits, required) };
-    };
-  };
-
-  private func permitMatches(
-    permits : [ExecutionTypes.OperationPermit],
-    required : ExecutionTypes.OperationPermit,
-  ) : Bool {
-    for (permit in permits.vals()) {
-      let matched = switch (permit, required) {
-        case (#deleteWorkspace(p), #deleteWorkspace(r)) {
-          p.workspaceId == r.workspaceId;
-        };
-        case (#setAdminChannel(p), #setAdminChannel(r)) {
-          p.channelId == r.channelId;
-        };
-        case (_, _) { false };
-      };
-      if (matched) { return true };
-    };
-    false;
   };
 
   // ── Nonce generation ───────────────────────────────────────────────

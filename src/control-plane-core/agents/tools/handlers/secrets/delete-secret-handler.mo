@@ -2,7 +2,7 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import SecretModel "../../../../models/secret-model";
 import SlackAuthMiddleware "../../../../middleware/slack-auth-middleware";
-import Helpers "../handler-helpers";
+import ToolTypes "../../tool-types";
 import SecretParsers "../parsers/secret-parsers";
 
 module {
@@ -21,10 +21,10 @@ module {
     uac : SlackAuthMiddleware.UserAuthContext,
     workspaceId : Nat,
     args : Text,
-  ) : async Text {
+  ) : async ToolTypes.ToolCallOutcome {
     switch (Json.parse(args)) {
       case (#err(error)) {
-        Helpers.buildErrorResponse("Failed to parse arguments: " # debug_show error);
+        #error("Failed to parse arguments: " # debug_show error);
       };
       case (#ok(json)) {
         let secretIdOpt = switch (Json.get(json, "secretId")) {
@@ -42,18 +42,20 @@ module {
             };
             switch (SlackAuthMiddleware.authorize(uac, requiredRoles)) {
               case (#err(msg)) {
-                Helpers.buildErrorResponse("Unauthorized: " # msg);
+                #error("Unauthorized: " # msg);
               };
               case (#ok(())) {
                 switch (SecretModel.deleteSecret(secrets, workspaceId, secretId, { slackUserId = ?uac.slackUserId; agentId = null; operation = "delete-secret" })) {
-                  case (#err(msg)) { Helpers.buildErrorResponse(msg) };
+                  case (#err(msg)) { #error(msg) };
                   case (#ok(())) {
-                    Json.stringify(
-                      obj([
-                        ("success", bool(true)),
-                        ("message", str("Secret deleted successfully.")),
-                      ]),
-                      null,
+                    #success(
+                      Json.stringify(
+                        obj([
+                          ("success", bool(true)),
+                          ("message", str("Secret deleted successfully.")),
+                        ]),
+                        null,
+                      )
                     );
                   };
                 };
@@ -61,7 +63,7 @@ module {
             };
           };
           case (_) {
-            Helpers.buildErrorResponse("Invalid secretId. Must be one of: openRouterApiKey, slackBotToken, slackSigningSecret, or custom:<name>");
+            #error("Invalid secretId. Must be one of: openRouterApiKey, slackBotToken, slackSigningSecret, or custom:<name>");
           };
         };
       };

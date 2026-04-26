@@ -26,7 +26,6 @@ func makeEnvelope(id : Nat) : ExecutionTypes.EnvelopePayload {
     model = "openai/gpt-oss-120b";
     secrets = { apiKeys = [("openrouter", "key")] };
     scopeGrants = [];
-    permits = [];
     envelopeNonce = "nonce-" # Nat.toText(id);
     catalogHash = null;
   };

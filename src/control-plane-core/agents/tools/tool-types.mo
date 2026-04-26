@@ -48,16 +48,6 @@ module {
     // Required for authorization checks in workspace-management write tools.
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
 
-    // The verbatim text of the Slack message that triggered this agent turn.
-    // Set by the agent from channel history before building ToolResources.
-    // Used by destructive operations to verify explicit user confirmation.
-    triggerMessageText : ?Text;
-
-    // Workspace name resolver — returns the name of a workspace by ID.
-    // Used by destructive operations (e.g. deleteWorkspace) to verify the user
-    // confirmed the correct workspace by name.
-    resolveWorkspaceName : ?(Nat -> ?Text);
-
     // Secrets store - if provided, secrets-management tools are available.
     // write=true enables store_secret and delete_secret.
     // All secrets tools also require workspaceId and userAuthContext.

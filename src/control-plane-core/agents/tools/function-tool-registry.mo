@@ -33,7 +33,7 @@ module {
   /// A function tool with definition and implementation
   public type FunctionTool = {
     definition : OpenRouterWrapper.Tool;
-    handler : (Text) -> async Text;
+    handler : (Text) -> async ToolTypes.ToolCallOutcome;
   };
 
   /// Get all registered function tools available for the given resources
@@ -71,7 +71,7 @@ module {
     // ==========================================
     switch (resources.engineDispatch, resources.envelopeContext) {
       case (?ed, ?ec) {
-        List.add(tools, dispatchWorkflowTool(ed, ec, resources.resolveSlackBotToken, resources.triggerMessageText, resources.resolveWorkspaceName));
+        List.add(tools, dispatchWorkflowTool(ed, ec, resources.resolveSlackBotToken));
       };
       case _ {};
     };
@@ -108,7 +108,7 @@ module {
           parameters = ?"{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"The search query with full context. Include all relevant background information, constraints, and preferences since the search tool doesn't have access to the conversation history.\"}},\"required\":[\"query\"]}";
         };
       };
-      handler = func(args : Text) : async Text {
+      handler = func(args : Text) : async ToolTypes.ToolCallOutcome {
         await WebSearchHandler.handle(apiKey, args);
       };
     };
@@ -133,7 +133,7 @@ module {
           parameters = ?"{\"type\":\"object\",\"properties\":{},\"required\":[]}";
         };
       };
-      handler = func(args : Text) : async Text {
+      handler = func(args : Text) : async ToolTypes.ToolCallOutcome {
         await GetWorkspaceSecretsHandler.handle(map, uac, workspaceId, args);
       };
     };
@@ -155,7 +155,7 @@ module {
           parameters = ?"{\"type\":\"object\",\"properties\":{\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"},\"secretValue\":{\"type\":\"string\",\"description\":\"The secret value to encrypt and store.\"}},\"required\":[\"secretId\",\"secretValue\"]}";
         };
       };
-      handler = func(args : Text) : async Text {
+      handler = func(args : Text) : async ToolTypes.ToolCallOutcome {
         StoreSecretHandler.handle(map, workspaceKey, uac, workspaceId, args);
       };
     };
@@ -176,7 +176,7 @@ module {
           parameters = ?"{\"type\":\"object\",\"properties\":{\"secretId\":{\"type\":\"string\",\"description\":\"Standard secret type: openRouterApiKey | slackBotToken | slackSigningSecret. For custom keys use \'custom:<name>\' format.\"}},\"required\":[\"secretId\"]}";
         };
       };
-      handler = func(args : Text) : async Text {
+      handler = func(args : Text) : async ToolTypes.ToolCallOutcome {
         await DeleteSecretHandler.handle(map, uac, workspaceId, args);
       };
     };
@@ -191,16 +191,14 @@ module {
     engineDispatch : DispatchWorkflowHandler.EngineDispatch,
     envelopeContext : DispatchWorkflowHandler.EnvelopeContext,
     resolveSlackBotToken : ?(Text -> ?Text),
-    triggerMessageText : ?Text,
-    resolveWorkspaceName : ?(Nat -> ?Text),
   ) : FunctionTool {
     {
       definition = {
         tool_type = DispatchWorkflowHandler.definition.tool_type;
         function = DispatchWorkflowHandler.definition.function;
       };
-      handler = func(args : Text) : async Text {
-        await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, resolveWorkspaceName, args);
+      handler = func(args : Text) : async ToolTypes.ToolCallOutcome {
+        await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, args);
       };
     };
   };

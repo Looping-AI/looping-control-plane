@@ -1,8 +1,9 @@
 import Json "mo:json";
-import { str; obj } "mo:json";
+import { obj } "mo:json";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import List "mo:core/List";
+import ToolTypes "../tools/tool-types";
 import CoreWrapper "../wrappers/core-wrapper";
 
 module {
@@ -12,14 +13,14 @@ module {
   // ── Handlers ───────────────────────────────────────────────────────
 
   /// List all agents. → GET /agent
-  public func listAgents(wrapper : Wrapper, _args : Text) : async Text {
+  public func listAgents(wrapper : Wrapper, _args : Text) : async ToolTypes.ToolCallOutcome {
     handleResult(await wrapper.callCore(#get, "/agent", "{}"));
   };
 
   /// Get an agent by ID. → GET /agent/{id}
-  public func getAgent(wrapper : Wrapper, args : Text) : async Text {
+  public func getAgent(wrapper : Wrapper, args : Text) : async ToolTypes.ToolCallOutcome {
     switch (parseNatField(args, "id")) {
-      case (#err(e)) { errorJson(e) };
+      case (#err(e)) { #error(e) };
       case (#ok(id)) {
         handleResult(await wrapper.callCore(#get, "/agent/" # Nat.toText(id), "{}"));
       };
@@ -28,15 +29,15 @@ module {
 
   /// Register a new agent. → POST /agent
   /// Forwards name, model, workspaceId, allowedChannelIds to Core.
-  public func registerAgent(wrapper : Wrapper, args : Text) : async Text {
+  public func registerAgent(wrapper : Wrapper, args : Text) : async ToolTypes.ToolCallOutcome {
     handleResult(await wrapper.callCore(#post, "/agent", args));
   };
 
   /// Update an agent by ID. → POST /agent/{id}
   /// Extracts ID from args, forwards remaining fields to Core.
-  public func updateAgent(wrapper : Wrapper, args : Text) : async Text {
+  public func updateAgent(wrapper : Wrapper, args : Text) : async ToolTypes.ToolCallOutcome {
     switch (parseNatField(args, "id")) {
-      case (#err(e)) { errorJson(e) };
+      case (#err(e)) { #error(e) };
       case (#ok(id)) {
         // Remove "id" from body — Core uses the path param
         let body = removeField(args, "id");
@@ -46,9 +47,9 @@ module {
   };
 
   /// Unregister (delete) an agent by ID. → DELETE /agent/{id}
-  public func unregisterAgent(wrapper : Wrapper, args : Text) : async Text {
+  public func unregisterAgent(wrapper : Wrapper, args : Text) : async ToolTypes.ToolCallOutcome {
     switch (parseNatField(args, "id")) {
-      case (#err(e)) { errorJson(e) };
+      case (#err(e)) { #error(e) };
       case (#ok(id)) {
         handleResult(await wrapper.callCore(#delete, "/agent/" # Nat.toText(id), "{}"));
       };
@@ -57,15 +58,11 @@ module {
 
   // ── Helpers ────────────────────────────────────────────────────────
 
-  private func handleResult(result : { #ok : Text; #err : Text }) : Text {
+  private func handleResult(result : { #ok : Text; #err : Text }) : ToolTypes.ToolCallOutcome {
     switch (result) {
-      case (#ok(data)) { data };
-      case (#err(e)) { errorJson(e) };
+      case (#ok(data)) { #success(data) };
+      case (#err(e)) { #error(e) };
     };
-  };
-
-  private func errorJson(msg : Text) : Text {
-    Json.stringify(obj([("error", str(msg))]), null);
   };
 
   private func parseNatField(args : Text, field : Text) : {

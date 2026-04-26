@@ -169,6 +169,13 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     secrets = testEffectSecretsState;
   });
 
+  func outcomeToText(outcome : ToolTypes.ToolCallOutcome) : Text {
+    switch (outcome) {
+      case (#success(t)) { t };
+      case (#error(e)) { e };
+    };
+  };
+
   func testOrchestratorEngineDeps() : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState> {
     {
       envelopeState = ExecutionEnvelopeModel.emptyState();
@@ -691,6 +698,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       sessionStores = testDispatchSessionStores;
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = engine;
+      catalogState = WorkflowCatalogModel.empty();
     };
     await MessageHandler.handle(msg, ctx);
   };
@@ -861,8 +869,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       workspaceId = null;
       resolveSlackBotToken = null;
       userAuthContext = null;
-      triggerMessageText = null;
-      resolveWorkspaceName = null;
       secrets = null;
       engineDispatch = null;
       envelopeContext = null;
@@ -908,7 +914,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         #slackQueue({ access = #read }),
         #session({ access = #write }),
       ],
-      [],
     ).nonce;
   };
 
@@ -973,7 +978,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         #slackQueue({ access = #read }),
         #session({ access = #write }),
       ],
-      [],
     ).nonce;
   };
 
@@ -1511,7 +1515,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         };
       };
     };
-    StoreSecretHandler.handle(testSecretsMap, TestHelpers.dummyKey, uac, workspaceId, args);
+    StoreSecretHandler.handle(testSecretsMap, TestHelpers.dummyKey, uac, workspaceId, args) |> outcomeToText(_);
   };
 
   /// Test the GetWorkspaceSecretsHandler in isolation.
@@ -1554,7 +1558,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         };
       };
     };
-    await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, workspaceId, args);
+    (await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, workspaceId, args)) |> outcomeToText(_);
   };
 
   /// Test the DeleteSecretHandler in isolation.
@@ -1597,7 +1601,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         };
       };
     };
-    await DeleteSecretHandler.handle(testSecretsMap, uac, workspaceId, args);
+    (await DeleteSecretHandler.handle(testSecretsMap, uac, workspaceId, args)) |> outcomeToText(_);
   };
 
   // ============================================
@@ -1708,7 +1712,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       "test-turn-dispatch-0_0",
       0,
       [#workspace({ access = #read })],
-      [],
     );
     let envelope : ExecutionTypes.EnvelopePayload = {
       envelopeId;
@@ -1725,7 +1728,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       constraints = { maxRounds = 1; maxTokenBudget = null };
       secrets = { apiKeys };
       scopeGrants = [#workspace({ access = #read })];
-      permits = [];
+      catalogHash = null;
     };
     let knownVersionAfter = func() : ?Text {
       Map.get(store.knownEngineVersions, Text.compare, "internal-engine");
@@ -1754,14 +1757,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   /// Test the DispatchWorkflowHandler in isolation.
   ///
-  /// @param args               JSON-encoded tool arguments ({ workflowId, permits? }).
-  /// @param triggerMessageText The verbatim Slack trigger message text (for permit validation).
-  /// @param botToken           Optional Slack bot token (for setAdminChannel permit validation).
-  /// @param mockDispatchFail   When true, dispatchToEngine returns #err; otherwise #ok.
+  /// @param args             JSON-encoded tool arguments ({ workflowId }).
+  /// @param botToken         Optional Slack bot token.
+  /// @param mockDispatchFail When true, dispatchToEngine returns #err; otherwise #ok.
   /// Uses a minimal org-admin AgentRecord stub and a fresh ExecutionEnvelopeModel.EnvelopeState.
   public shared ({ caller }) func testDispatchWorkflowHandler(
     args : Text,
-    triggerMessageText : ?Text,
     botToken : ?Text,
     mockDispatchFail : Bool,
   ) : async Text {
@@ -1790,6 +1791,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     let engineDispatch : DispatchWorkflowHandler.EngineDispatch = {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine;
+      catalogState = WorkflowCatalogModel.empty();
     };
     let envelopeContext : DispatchWorkflowHandler.EnvelopeContext = {
       agent;
@@ -1802,15 +1804,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (null) { null };
       case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
     };
-    let resolveWorkspaceName : ?(Nat -> ?Text) = ?(
-      func(id : Nat) : ?Text {
-        switch (WorkspaceModel.getWorkspace(testWorkspacesState, id)) {
-          case (null) { null };
-          case (?r) { ?r.name };
-        };
-      }
-    );
-    await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, resolveWorkspaceName, args);
+    let outcome = await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, args);
+    switch (outcome) {
+      case (#success(t)) { t };
+      case (#error(e)) { e };
+    };
   };
 
   /// Test the SlackEventIntakeService in isolation.

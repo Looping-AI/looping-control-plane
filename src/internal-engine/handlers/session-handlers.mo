@@ -1,5 +1,6 @@
 import Json "mo:json";
-import { str; obj } "mo:json";
+import { obj } "mo:json";
+import ToolTypes "../tools/tool-types";
 import CoreWrapper "../wrappers/core-wrapper";
 
 module {
@@ -10,20 +11,16 @@ module {
 
   /// Update session policy for an agent. → POST /session/policy
   /// Body: { "agentId": N, "summaryTokenBudget": N, "maxTruncatedTokens": N }
-  public func updateSessionPolicy(wrapper : Wrapper, args : Text) : async Text {
+  public func updateSessionPolicy(wrapper : Wrapper, args : Text) : async ToolTypes.ToolCallOutcome {
     handleResult(await wrapper.callCore(#post, "/session/policy", args));
   };
 
-  // ── Helpers ────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────
 
-  private func handleResult(result : { #ok : Text; #err : Text }) : Text {
+  private func handleResult(result : { #ok : Text; #err : Text }) : ToolTypes.ToolCallOutcome {
     switch (result) {
-      case (#ok(data)) { data };
-      case (#err(e)) { errorJson(e) };
+      case (#ok(data)) { #success(data) };
+      case (#err(e)) { #error(e) };
     };
-  };
-
-  private func errorJson(msg : Text) : Text {
-    Json.stringify(obj([("error", str(msg))]), null);
   };
 };
