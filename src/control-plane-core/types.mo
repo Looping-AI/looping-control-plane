@@ -1,4 +1,5 @@
 import InternalEngine "../internal-engine/main";
+import WorkflowCatalogModel "./models/workflow-catalog-model";
 
 module {
   /// Environment configuration for the bot-agent application
@@ -69,6 +70,7 @@ module {
   public type AgentEngineDeps<EnvelopeState> = {
     envelopeState : EnvelopeState;
     internalEngine : InternalEngine.InternalEngine;
+    catalogState : WorkflowCatalogModel.CatalogState;
   };
 
   /// Shared result returned by agent orchestration and category loops.

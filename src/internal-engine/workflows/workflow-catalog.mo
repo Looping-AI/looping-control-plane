@@ -4,7 +4,13 @@ import Json "mo:json";
 import { str; obj; arr } "mo:json";
 import Hashing "./hashing";
 
-/// Workflow catalog — the engine's source of truth for available workflows.
+/// Workflow catalog — the engine's list of available workflows.
+///
+/// IMPORTANT: The shape of each descriptor (fields, directive variants, scope
+/// access strings) is governed by the contract defined in
+/// `src/control-plane-core/types/workflow-catalog.mo`. Core owns the contract;
+/// this file must stay in sync with it. Never add or remove fields here without
+/// a corresponding change to Core's types first.
 ///
 /// ─ Authoring rules ──────────────────────────────────────────────────────────
 ///  • Keep `allDescriptors` in strict alphabetical order by `workflowName`.
@@ -25,12 +31,13 @@ module {
 
   /// A directive Core must act on before dispatching this workflow.
   ///
-  /// #require_("approval") — suspend the turn and prompt the user for confirmation.
+  /// #require("approval") — suspend the turn and prompt the user for confirmation.
   /// #preValidation(rules) — validate one or more args against external systems before dispatch.
   ///
-  /// Unknown variants received from a future engine version are ignored by Core (forward compat).
+  /// Variants must match those defined in Core's `WorkflowCatalog.CoreDirective` type.
+  /// Adding a new variant here requires adding it to Core's type first.
   public type CoreDirective = {
-    #require_ : Text;
+    #require : Text;
     #preValidation : [PreValidationRule];
   };
 
@@ -119,7 +126,7 @@ module {
       description = "Permanently deletes a workspace by ID. This action is irreversible. Workspace 0 (the org workspace) is protected and cannot be deleted.";
       parametersJsonSchema = "{\"type\":\"object\",\"properties\":{\"workspaceId\":{\"type\":\"number\",\"description\":\"ID of the workspace to delete. Must be > 0.\"}},\"required\":[\"workspaceId\"]}";
       requiredScopes = [{ scope = "workspace"; access = "write" }];
-      coreDirectives = [#require_("approval")];
+      coreDirectives = [#require("approval")];
     },
     {
       workflowName = "workspace_get";
@@ -143,7 +150,7 @@ module {
 
   private func directiveToJson(d : CoreDirective) : Json.Json {
     switch (d) {
-      case (#require_(val)) {
+      case (#require(val)) {
         obj([("require", str(val))]);
       };
       case (#preValidation(rules)) {

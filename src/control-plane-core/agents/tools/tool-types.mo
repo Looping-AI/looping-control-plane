@@ -2,6 +2,7 @@ import AgentModel "../../models/agent-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
+import WorkflowCatalogModel "../../models/workflow-catalog-model";
 import ExecutionTypes "../../types/execution";
 import InternalEngine "../../../internal-engine/main";
 
@@ -71,6 +72,7 @@ module {
     engineDispatch : ?{
       envelopeState : ExecutionEnvelopeModel.EnvelopeState;
       internalEngine : InternalEngine.InternalEngine;
+      catalogState : WorkflowCatalogModel.CatalogState;
     };
 
     // Per-turn envelope context needed by dispatch_workflow to build the ExecutionEnvelope.

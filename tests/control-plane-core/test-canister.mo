@@ -50,6 +50,7 @@ import SecretModel "../../src/control-plane-core/models/secret-model";
 import EventStoreModel "../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../src/control-plane-core/models/session-model";
 import ExecutionEnvelopeModel "../../src/control-plane-core/models/execution-envelope-model";
+import WorkflowCatalogModel "../../src/control-plane-core/models/workflow-catalog-model";
 import ExecutionApiService "../../src/control-plane-core/services/execution-api-service";
 import ExecutionAsyncEffectService "../../src/control-plane-core/services/execution-async-effect-service";
 import EventProcessingContextTypes "../../src/control-plane-core/events/types/event-processing-context";
@@ -172,6 +173,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = mockInternalEngine;
+      catalogState = WorkflowCatalogModel.empty();
     };
   };
 

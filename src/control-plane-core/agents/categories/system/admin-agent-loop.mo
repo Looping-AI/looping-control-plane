@@ -52,6 +52,7 @@ module {
       engineDispatch = ?{
         envelopeState = engineDeps.envelopeState;
         internalEngine = engineDeps.internalEngine;
+        catalogState = engineDeps.catalogState;
       };
       envelopeContext = ?{
         agent;

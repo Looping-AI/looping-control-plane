@@ -32,6 +32,7 @@ import SlackEventIntakeService "./services/slack-event-intake-service";
 import SessionModel "./models/session-model";
 import Random "mo:core/Random";
 import ExecutionEnvelopeModel "./models/execution-envelope-model";
+import WorkflowCatalogModel "./models/workflow-catalog-model";
 import ExecutionApiService "./services/execution-api-service";
 import ExecutionAsyncEffectService "./services/execution-async-effect-service";
 import InternalEngine "../internal-engine/main";
@@ -70,6 +71,9 @@ persistent actor class OpenOrgBackend() {
   // Envelope state (engine ↔ Core authorization): token store, counter, and entropy salt.
   // The salt is refreshed on every upgrade via raw_rand (see init/postupgrade timers).
   let executionEnvelopeState = ExecutionEnvelopeModel.emptyState();
+
+  // Workflow catalog cache — lazily populated on first dispatch, refreshed on #staleCatalog.
+  let workflowCatalogState = WorkflowCatalogModel.empty();
 
   // Execution API service (instantiated once with all deps captured in class scope)
   transient let executionApiService = ExecutionApiService.Service({
@@ -280,6 +284,7 @@ persistent actor class OpenOrgBackend() {
       sessionStores;
       envelopeState = executionEnvelopeState;
       internalEngine = e;
+      catalogState = workflowCatalogState;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };

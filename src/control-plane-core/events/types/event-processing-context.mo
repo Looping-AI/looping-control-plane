@@ -19,6 +19,7 @@ import WorkspaceModel "../../models/workspace-model";
 import EventStoreModel "../../models/event-store-model";
 import SessionModel "../../models/session-model";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
+import WorkflowCatalogModel "../../models/workflow-catalog-model";
 import InternalEngine "../../../internal-engine/main";
 
 module {
@@ -60,5 +61,9 @@ module {
     /// Pre-resolved internal engine actor. Guaranteed non-null by the time any
     /// event is processed (pre-warmed at init and postupgrade).
     internalEngine : InternalEngine.InternalEngine;
+
+    /// Workflow catalog cache — lazily populated on first dispatch, refreshed on
+    /// #staleCatalog engine responses. Passed through to the dispatch handler.
+    catalogState : WorkflowCatalogModel.CatalogState;
   };
 };

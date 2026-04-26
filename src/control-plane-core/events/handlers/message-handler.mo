@@ -528,7 +528,11 @@ module {
       encryptionKey,
       orgKey,
       ctx.workspaces,
-      { envelopeState = ctx.envelopeState; internalEngine = ctx.internalEngine },
+      {
+        envelopeState = ctx.envelopeState;
+        internalEngine = ctx.internalEngine;
+        catalogState = ctx.catalogState;
+      },
     );
 
     switch (routeResult) {

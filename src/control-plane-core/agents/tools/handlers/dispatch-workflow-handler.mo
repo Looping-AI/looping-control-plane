@@ -9,6 +9,8 @@ import Nat "mo:core/Nat";
 import AgentModel "../../../models/agent-model";
 import ExecutionTypes "../../../types/execution";
 import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
+import WorkflowCatalogModel "../../../models/workflow-catalog-model";
+import WorkflowCatalogService "../../../services/workflow-catalog-service";
 import Constants "../../../constants";
 import SlackWrapper "../../../wrappers/slack-wrapper";
 import InternalEngine "../../../../internal-engine/main";
@@ -21,6 +23,7 @@ module {
   public type EngineDispatch = {
     envelopeState : ExecutionEnvelopeModel.EnvelopeState;
     internalEngine : InternalEngine.InternalEngine;
+    catalogState : WorkflowCatalogModel.CatalogState;
   };
 
   public type EnvelopeContext = {
@@ -95,7 +98,27 @@ module {
       };
     };
 
-    // All permits validated — build envelope and dispatch
+    // All permits validated — get the catalog hash before building the envelope.
+    // If the cache is empty (first dispatch ever), attempt one refresh.
+    let catalogHash = switch (WorkflowCatalogModel.getHash(engineDispatch.catalogState)) {
+      case (?h) { h };
+      case (null) {
+        switch (await WorkflowCatalogService.refreshCatalogue(engineDispatch.catalogState, engineDispatch.internalEngine)) {
+          case (#err(msg)) {
+            return dispatchError("Failed to fetch workflow catalog: " # msg);
+          };
+          case (#ok) {};
+        };
+        switch (WorkflowCatalogModel.getHash(engineDispatch.catalogState)) {
+          case (?h) { h };
+          case (null) {
+            return dispatchError("Workflow catalog unavailable after refresh attempt");
+          };
+        };
+      };
+    };
+
+    // Build envelope and dispatch
     let scopeGrants = buildScopeGrants(envelopeContext.agent);
 
     let { envelopeId; nonce = envelopeNonce } = ExecutionEnvelopeModel.issue(
@@ -127,7 +150,7 @@ module {
       scopeGrants;
       permits;
       envelopeNonce;
-      catalogHash = null; // Phase 2 will populate this once Core fetches and caches the catalog.
+      catalogHash = ?catalogHash;
     };
 
     try {
@@ -137,6 +160,26 @@ module {
         };
         case (#err(e)) {
           ExecutionEnvelopeModel.revoke(engineDispatch.envelopeState, envelopeNonce);
+          // If the engine signalled a stale catalog, refresh it and surface a retry hint.
+          // The LLM will see this as a tool error and retry the operation on the next round.
+          switch (Json.parse(e)) {
+            case (#ok(errJson)) {
+              switch (Json.get(errJson, "type")) {
+                case (?#string("staleCatalog")) {
+                  switch (await WorkflowCatalogService.refreshCatalogue(engineDispatch.catalogState, engineDispatch.internalEngine)) {
+                    case (#ok) {
+                      return dispatchError("Workflow catalog was updated. Please retry the operation.");
+                    };
+                    case (#err(refreshErr)) {
+                      return dispatchError("Workflow catalog is outdated and could not be refreshed: " # refreshErr);
+                    };
+                  };
+                };
+                case (_) {};
+              };
+            };
+            case (#err(_)) {};
+          };
           dispatchError("Engine dispatch failed: " # e);
         };
       };
