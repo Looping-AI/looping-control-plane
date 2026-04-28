@@ -1,3 +1,5 @@
+import Json "mo:json";
+import { str; obj } "mo:json";
 import List "mo:core/List";
 import Error "mo:core/Error";
 import Int "mo:core/Int";
@@ -32,11 +34,11 @@ module {
           try {
             await tool.handler(wrapper, call.arguments);
           } catch (e : Error) {
-            #error("Handler error: " # Error.message(e));
+            #err(Json.stringify(obj([("type", str("handlerError")), ("message", str("Handler error: " # Error.message(e)))]), null));
           };
         };
         case (null) {
-          #error("Unknown tool: " # call.toolName);
+          #err(Json.stringify(obj([("type", str("unknownTool")), ("message", str("Unknown tool: " # call.toolName))]), null));
         };
       };
 
@@ -58,8 +60,8 @@ module {
     let items = List.empty<{ callId : Text; output : Text; success : Bool }>();
     for (r in results.vals()) {
       let (output, success) = switch (r.result) {
-        case (#success(data)) { (data, true) };
-        case (#error(err)) { ("Error: " # err, false) };
+        case (#ok(data)) { (data, true) };
+        case (#err(err)) { ("Error: " # err, false) };
       };
       List.add(items, { callId = r.callId; output; success });
     };

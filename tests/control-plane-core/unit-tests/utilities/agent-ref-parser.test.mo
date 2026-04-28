@@ -22,7 +22,7 @@ func registerSimple(
         name;
         model = "openai/gpt-oss-120b";
         allowedChannelIds = Set.singleton<Text>("C_TEST");
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         secrets = { allowed = []; overrides = [] };
       },
     )

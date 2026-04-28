@@ -38,7 +38,7 @@ module {
     tool_type = "function";
     function = {
       name = "dispatch_workflow";
-      description = ?"Dispatches a workflow to the execution engine for administrative operations. Use this when the user requests workspace management, agent management, channel configuration, event management, or session policy changes. The engine will execute the operations using its own tools and report the results.";
+      description = ?"Dispatches a workflow to the workflow engine for administrative operations. Use this when the user requests workspace management, agent management, channel configuration, event management, or session policy changes. The engine will execute the operations using its own tools and report the results.";
       parameters = ?"{\"type\":\"object\",\"properties\":{\"workflowId\":{\"type\":\"string\",\"description\":\"The workflow ID to execute. Use 'admin-v1' for administrative operations.\"}},\"required\":[\"workflowId\"]}";
     };
   };
@@ -60,7 +60,7 @@ module {
     // Parse arguments
     let parsed = switch (Json.parse(args)) {
       case (#err(_)) {
-        return dispatchError("Invalid JSON arguments for dispatch_workflow");
+        return dispatchError("parseError", "Invalid JSON arguments for dispatch_workflow");
       };
       case (#ok(json)) { json };
     };
@@ -68,7 +68,7 @@ module {
     let workflowId = switch (Json.get(parsed, "workflowId")) {
       case (?#string(id)) { id };
       case (_) {
-        return dispatchError("Missing or invalid 'workflowId' in dispatch_workflow arguments");
+        return dispatchError("missingField", "Missing or invalid 'workflowId' in dispatch_workflow arguments");
       };
     };
 
@@ -79,14 +79,14 @@ module {
       case (null) {
         switch (await WorkflowCatalogService.refreshCatalogue(engineDispatch.catalogState, engineDispatch.internalEngine)) {
           case (#err(msg)) {
-            return dispatchError("Failed to fetch workflow catalog: " # msg);
+            return dispatchError("catalogError", "Failed to fetch workflow catalog: " # msg);
           };
           case (#ok) {};
         };
         switch (WorkflowCatalogModel.getHash(engineDispatch.catalogState)) {
           case (?h) { h };
           case (null) {
-            return dispatchError("Workflow catalog unavailable after refresh attempt");
+            return dispatchError("catalogError", "Workflow catalog unavailable after refresh attempt");
           };
         };
       };
@@ -128,7 +128,7 @@ module {
     try {
       switch (await EngineDispatchService.dispatch(engineDispatch.envelopeState, engineDispatch.internalEngine, envelope)) {
         case (#ok) {
-          #success(Json.stringify(obj([("dispatched", bool(true))]), null));
+          #ok(Json.stringify(obj([("dispatched", bool(true))]), null));
         };
         case (#err(e)) {
           ExecutionEnvelopeModel.revoke(engineDispatch.envelopeState, envelopeNonce);
@@ -140,10 +140,10 @@ module {
                 case (?#string("staleCatalog")) {
                   switch (await WorkflowCatalogService.refreshCatalogue(engineDispatch.catalogState, engineDispatch.internalEngine)) {
                     case (#ok) {
-                      return dispatchError("Workflow catalog was updated. Please retry the operation.");
+                      return dispatchError("staleCatalog", "Workflow catalog was updated. Please retry the operation.");
                     };
                     case (#err(refreshErr)) {
-                      return dispatchError("Workflow catalog is outdated and could not be refreshed: " # refreshErr);
+                      return dispatchError("catalogError", "Workflow catalog is outdated and could not be refreshed: " # refreshErr);
                     };
                   };
                 };
@@ -152,12 +152,12 @@ module {
             };
             case (#err(_)) {};
           };
-          dispatchError("Engine dispatch failed: " # e);
+          dispatchError("dispatchFailed", "Engine dispatch failed: " # e);
         };
       };
     } catch (e : Error) {
       ExecutionEnvelopeModel.revoke(engineDispatch.envelopeState, envelopeNonce);
-      dispatchError("Engine call failed: " # Error.message(e));
+      dispatchError("dispatchFailed", "Engine call failed: " # Error.message(e));
     };
   };
 
@@ -190,7 +190,7 @@ module {
 
   // ─── Error helper ─────────────────────────────────────────────────────────────
 
-  private func dispatchError(msg : Text) : ToolTypes.ToolCallOutcome {
-    #error(Json.stringify(obj([("dispatched", bool(false)), ("error", str(msg))]), null));
+  private func dispatchError(errType : Text, msg : Text) : ToolTypes.ToolCallOutcome {
+    #err(Json.stringify(obj([("type", str(errType)), ("message", str(msg))]), null));
   };
 };

@@ -3,6 +3,7 @@ import { str; obj; int } "mo:json";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import List "mo:core/List";
+import ToolTypes "../tool-types";
 
 module {
   /// Build a success response JSON string with an id and action
@@ -17,14 +18,16 @@ module {
     );
   };
 
-  /// Build an error response JSON string
-  public func buildErrorResponse(message : Text) : Text {
-    Json.stringify(
-      obj([
-        ("success", #bool(false)),
-        ("error", str(message)),
-      ]),
-      null,
+  /// Build a structured ToolCallOutcome error: {"type":"camelCase","message":"..."}
+  public func makeError(errType : Text, message : Text) : ToolTypes.ToolCallOutcome {
+    #err(
+      Json.stringify(
+        obj([
+          ("type", str(errType)),
+          ("message", str(message)),
+        ]),
+        null,
+      )
     );
   };
 

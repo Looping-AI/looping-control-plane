@@ -123,7 +123,7 @@ module {
       {
         name = "unit-test-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = Set.fromArray(channelIds, Text.compare);
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -176,7 +176,7 @@ module {
       {
         name = "unit-test-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = Set.fromArray(channelIds, Text.compare);
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -230,7 +230,7 @@ module {
       {
         name = "unit-test-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = allowedChannels;
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -247,7 +247,7 @@ module {
       {
         name = "unit-test-custom";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = allowedChannels;
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -300,7 +300,7 @@ module {
       {
         name = "unit-test-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = allowedChannels;
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -315,7 +315,7 @@ module {
       {
         name = "unit-test-custom";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = allowedChannels;
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];

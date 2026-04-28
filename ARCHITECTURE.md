@@ -214,7 +214,7 @@ Agents have one of two execution types:
 - **`#canister`** (implemented): Core orchestrates the turn, issues an execution envelope, and dispatches workflow execution to the internal-engine canister. The engine reports milestones and completion back through `executionApi`, and Core posts/finalizes via async effects.
 - **`#github`** [planned]: Runs remotely through GitHub Coding Agents in an agent-specific repository. The control plane dispatches a workflow run (`workflow_dispatch`) with the session payload, receives a structured result via signed GitHub webhook, then composes and posts the final Slack reply.
 
-`executionEngines` is validated and persisted on agent records today (`#canister | #github`). Runtime branching by engine is currently driven by tool/orchestration flow (`dispatch_workflow`) and will be expanded as `#github` execution lands.
+`workflowEngines` is validated and persisted on agent records today (`#canister | #github`). Runtime branching by engine is currently driven by tool/orchestration flow (`dispatch_workflow`) and will be expanded as `#github` execution lands.
 
 ### Agent Category
 
@@ -357,7 +357,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 ### Agent talk flow — `#github` execution (planned)
 
-1. Message handler receives a normalized message event referencing an agent with `#github` in `executionEngines`.
+1. Message handler receives a normalized message event referencing an agent with `#github` in `workflowEngines`.
 2. Resolves the agent's GitHub repository and workflow from agent runtime configuration.
 3. Resolves required secrets via credential cascade and prepares a signed session payload.
 4. Canister triggers `workflow_dispatch` in the agent repository via GitHub API.
@@ -439,7 +439,7 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo) and [src/in
 
 - **Workspaces**: `Map<workspaceId, WorkspaceRecord>` where `WorkspaceRecord = { id, name, adminChannelId }`. Workspace 0 ("Default") is the org workspace; its `adminChannelId` serves as the org-admin channel anchor — no separate state variable needed.
 - **Slack user cache**: `Map<SlackUserId, SlackUserEntry>` where `SlackUserEntry = { slackUserId, displayName, isPrimaryOwner, isOrgAdmin, workspaceAdminScopes: [workspaceId] }`. Backed by `SlackUserModel`.
-- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, ownedBy, category: AgentCategory, config: AgentConfig, state: AgentState }`. `AgentCategory = { #_system: SystemAgentKind | #custom }`, `SystemAgentKind = { #admin | #onboarding }`. `AgentConfig = { name, model, executionEngines: [ExecutionEngine], allowedChannelIds: Set<Text>, secrets: AgentSecretsConfig }`, `ExecutionEngine = { #canister | #github }`. `AgentState = { toolsState: Map<Text, ToolState> }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
+- **Agent registry**: `AgentRegistryState = { nextId, agentsById: Map<Nat, AgentRecord>, agentsByName: Map<Text, Nat> }` where `AgentRecord = { id, ownedBy, category: AgentCategory, config: AgentConfig, state: AgentState }`. `AgentCategory = { #_system: SystemAgentKind | #custom }`, `SystemAgentKind = { #admin | #onboarding }`. `AgentConfig = { name, model, workflowEngines: [WorkflowEngine], allowedChannelIds: Set<Text>, secrets: AgentSecretsConfig }`, `WorkflowEngine = { #canister | #github }`. `AgentState = { toolsState: Map<Text, ToolState> }`. Dual-index for O(1) lookup by ID or name. File: [src/control-plane-core/models/agent-model.mo](src/control-plane-core/models/agent-model.mo).
 - **Agent session store**: `Map<agentId, AgentSessionRecord>` — one persistent session per agent, with compaction state (summary layers, cursor) and context-budget policy. No separate session ID; the agent ID is the key. File: [src/control-plane-core/models/session-model.mo](src/control-plane-core/models/session-model.mo).
 - **Agent turn store**: `Map<agentId, List<AgentTurnRecord>>` — append-only turn log per agent. Each turn has a deterministic `turnId` (`"{agentId}_{turnNumber}"`), execution status, source ref, delegation lineage (`triggerTurnId`), user auth context snapshot, cost, and Slack reply ts list.
 - **Turn trace store**: `Map<turnId, List<TurnTraceEntry>>` — immutable, append-only trace per turn. Each entry is a self-contained `TraceDetail` variant (`#llmCall`, `#toolCall`, `#slackPost`, etc.) with per-entry cost on LLM calls. Truncated fields (`truncatedContent`, `truncatedOutput`) are pre-computed at write time; raw originals always retained. Context assembly uses raw fields for turns < 1h old, truncated fields for older turns. Hard deletion after 3 months.
@@ -531,7 +531,7 @@ Agents are stored in a persistent registry with dual indexes (`agentsById: Map<N
 - `category`: `AgentCategory = { #_system : SystemAgentKind | #custom }` where `SystemAgentKind = { #admin | #onboarding }`. Determines the available tool catalogue and prompt strategy. Immutable after creation.
 - `config.name`: kebab-case identifier, must be unique and match the `::name` syntax. Stored lower-cased; lookups are case-insensitive.
 - `config.model`: OpenRouter model string (e.g. `"openai/gpt-oss-120b"`).
-- `config.executionEngines`: `[ExecutionEngine]` where `ExecutionEngine = { #canister | #github }`. Non-empty list of execution engines this agent is permitted to use. `#canister` = internal-engine workflow dispatch path; `#github` = GitHub Actions workflow dispatch (planned).
+- `config.workflowEngines`: `[WorkflowEngine]` where `WorkflowEngine = { #canister | #github }`. Non-empty list of workflow engines this agent is permitted to use. `#canister` = internal-engine workflow dispatch path; `#github` = GitHub Actions workflow dispatch (planned).
 - `config.allowedChannelIds`: `Set<Text>` — Slack channel allowlist. Must be non-empty for `#custom` agents; always empty for `#_system(#admin)` (routing governed by `WorkspaceModel.adminChannelId`).
 - `config.secrets.allowed`: explicit whitelist of `(workspaceId, SecretId)` pairs this agent may access.
 - `config.secrets.overrides`: `[(targetSecretId, customKeyName)]` — agent-level credential override; see [Credential Cascade](#credential-cascade).
@@ -703,7 +703,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 - **Embedding indexes**: maintain searchable embeddings for memory records, core files, and Store documents. Index updates happen asynchronously when source documents change.
 - **Tool scoping**: keep grants/permits and userAuthContext checks aligned across control plane and runtime engines.
 - **Category tools**: formalize per-category tool contracts and stricter runtime subsets while preserving `toolsState` telemetry.
-- **Broader LLM tool surface**: additional file/memory/store/browser/MCP patterns remain planned once execution-engine contracts stabilize.
+- **Broader LLM tool surface**: additional file/memory/store/browser/MCP patterns remain planned once workflow-engine contracts stabilize.
 - **Interactive Messages** (future): support for `block_actions` and `view_submission` payloads in the Slack adapter.
 - Agents empowered with:
   - LLM internal tools (function calling).
@@ -774,6 +774,18 @@ Pattern follows `SlackUserModel`'s `AccessChangeLog` (source-tagged, retention-b
 - Track spend/usage independently from policy so forks can swap billing models.
 - Use conservative defaults: allowlists, per-workspace limits, and approvals for risky tools.
 - Agent round tracking provides a natural cost boundary: the progressive classifier after round 10 ensures escalating scrutiny on long-running chains.
+
+## Tool Output Contract
+
+All tool handlers (`ToolCallOutcome`) and the `executionApi` endpoint share a common response contract:
+
+- **`#ok : Text`** — a structured JSON string containing meaningful result data.
+- **`#err : Text`** — a structured JSON string of the form `{"type":"camelCaseIdentifier","message":"Human readable sentence."}`.
+  - `type`: a stable, programmatic camelCase identifier (e.g. `"parseError"`, `"unauthorized"`, `"missingField"`).
+  - `message`: a human-readable sentence describing what went wrong.
+  - Plain strings are **never** acceptable in `#err` payloads.
+
+The variant names `#ok`/`#err` align with the ICP `Result` pattern (not `#success`/`#error`).
 
 ## Error Handling and Retries [planned]
 

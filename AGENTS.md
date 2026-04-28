@@ -120,6 +120,16 @@ Steps:
 
 - **Model function parameter order**: all model functions must place the state/collection parameter **first**. This aligns with `mo:core` idioms (e.g. `Map.get(map, compare, key)`) and makes partial application natural.
 
+### Tool and ExecutionApi Response Contract
+
+All tool handlers (`ToolCallOutcome`) and the `executionApi` endpoint must produce structured JSON responses:
+
+- **`#ok : Text`** — a meaningful JSON result. Never include a `"success": true` wrapper key.
+- **`#err : Text`** — always `{"type":"camelCaseIdentifier","message":"Human readable sentence."}`. **Never a plain string.**
+  - `type`: stable programmatic camelCase identifier (e.g. `"parseError"`, `"unauthorized"`, `"missingField"`).
+  - `message`: human-readable sentence.
+- Variant names are `#ok`/`#err` (not `#success`/`#error`) to align with the ICP `Result` pattern.
+
 ### Guard Rails vs Service Logic
 
 **Guard rails (authentication, authorization, validation)** must be implemented at the **controller level (main.mo)**, not buried inside service functions.

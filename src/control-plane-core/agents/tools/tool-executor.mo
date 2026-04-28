@@ -1,3 +1,5 @@
+import Json "mo:json";
+import { str; obj } "mo:json";
 import List "mo:core/List";
 import Error "mo:core/Error";
 import Int "mo:core/Int";
@@ -43,12 +45,12 @@ module {
         try {
           await tool.handler(call.arguments);
         } catch (e : Error) {
-          #error("Handler error: " # Error.message(e));
+          #err(Json.stringify(obj([("type", str("handlerError")), ("message", str("Handler error: " # Error.message(e)))]), null));
         };
       };
       case (null) {
         // Unknown tool
-        #error("Unknown tool: " # call.toolName);
+        #err(Json.stringify(obj([("type", str("unknownTool")), ("message", str("Unknown tool: " # call.toolName))]), null));
       };
     };
     let durationMs : Nat = Int.abs(Time.now() - startNs) / 1_000_000;
@@ -62,10 +64,10 @@ module {
     for (result in results.vals()) {
       output #= "Tool call " # result.callId # " result:\n";
       switch (result.result) {
-        case (#success(data)) {
+        case (#ok(data)) {
           output #= data # "\n\n";
         };
-        case (#error(err)) {
+        case (#err(err)) {
           output #= "Error: " # err # "\n\n";
         };
       };

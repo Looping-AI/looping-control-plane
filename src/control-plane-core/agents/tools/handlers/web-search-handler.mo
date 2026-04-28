@@ -1,8 +1,9 @@
 import Json "mo:json";
-import { str; obj; bool; arr; float } "mo:json";
+import { str; obj; arr; float } "mo:json";
 import List "mo:core/List";
 import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
 import ToolTypes "../tool-types";
+import HandlerHelpers "./handler-helpers";
 
 module {
   public func handle(
@@ -11,7 +12,7 @@ module {
   ) : async ToolTypes.ToolCallOutcome {
     switch (Json.parse(args)) {
       case (#err(error)) {
-        #error("Failed to parse arguments: " # debug_show error);
+        HandlerHelpers.makeError("parseError", "Failed to parse arguments: " # debug_show error);
       };
       case (#ok(json)) {
         let searchQueryOpt = switch (Json.get(json, "query")) {
@@ -61,10 +62,9 @@ module {
                       case (null) { arr([]) };
                     };
 
-                    return #success(
+                    return #ok(
                       Json.stringify(
                         obj([
-                          ("success", bool(true)),
                           ("response", str(message.content)),
                           ("reasoning", str(switch (message.reasoning) { case (?r) { r }; case (null) { "" } })),
                           ("search_results", searchResultsJson),
@@ -76,12 +76,12 @@ module {
                 };
               };
               case (#err(error)) {
-                return #error("Web search failed: " # error);
+                return HandlerHelpers.makeError("searchFailed", "Web search failed: " # error);
               };
             };
           };
           case (null) {
-            return #error("Missing required field: query");
+            return HandlerHelpers.makeError("missingField", "Missing required field: query");
           };
         };
       };

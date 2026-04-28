@@ -38,7 +38,7 @@ module {
       // 1. Parse JSON body
       let parsed = switch (Json.parse(body)) {
         case (#err(_)) {
-          return result(errorResponse("Invalid JSON in request body"), asyncEffects);
+          return result(errorResponse("parseError", "Invalid JSON in request body."), asyncEffects);
         };
         case (#ok(json)) { json };
       };
@@ -47,7 +47,7 @@ module {
       let envelopeNonce = switch (Json.get(parsed, "envelopeNonce")) {
         case (?#string(n)) { n };
         case (_) {
-          return result(errorResponse("Missing or invalid 'envelopeNonce'"), asyncEffects);
+          return result(errorResponse("missingField", "Missing or invalid 'envelopeNonce'."), asyncEffects);
         };
       };
 
@@ -70,7 +70,7 @@ module {
             case (#get, "agent") { handleAgentList(envelopeNonce) };
             case (#post, "agent") { handleAgentCreate(envelopeNonce, parsed) };
 
-            case _ { errorResponse("Not found: " # path) };
+            case _ { errorResponse("routeNotFound", "Not found: " # path) };
           };
         };
 
@@ -87,7 +87,9 @@ module {
                 case "admin-channel" {
                   handleSetAdminChannel(envelopeNonce, parsed);
                 };
-                case _ { errorResponse("Not found: POST /workspace/" # seg1) };
+                case _ {
+                  errorResponse("routeNotFound", "Not found: POST /workspace/" # seg1);
+                };
               };
             };
             case (#delete, "workspace") {
@@ -108,7 +110,9 @@ module {
               switch (seg1) {
                 case "stats" { handleSlackQueueStats(envelopeNonce) };
                 case "failed" { handleSlackQueueFailedList(envelopeNonce) };
-                case _ { errorResponse("Not found: GET /slack-queue/" # seg1) };
+                case _ {
+                  errorResponse("routeNotFound", "Not found: GET /slack-queue/" # seg1);
+                };
               };
             };
 
@@ -121,7 +125,9 @@ module {
                 case "complete" {
                   handleEventComplete(envelopeNonce, asyncEffects, parsed);
                 };
-                case _ { errorResponse("Not found: POST /execution/" # seg1) };
+                case _ {
+                  errorResponse("routeNotFound", "Not found: POST /execution/" # seg1);
+                };
               };
             };
 
@@ -132,15 +138,15 @@ module {
                   handleSessionPolicy(envelopeNonce, parsed);
                 };
                 case _ {
-                  errorResponse("Not found: POST /session/" # seg1);
+                  errorResponse("routeNotFound", "Not found: POST /session/" # seg1);
                 };
               };
             };
-            case _ { errorResponse("Not found: " # path) };
+            case _ { errorResponse("routeNotFound", "Not found: " # path) };
           };
         };
 
-        case _ { errorResponse("Not found: " # path) };
+        case _ { errorResponse("routeNotFound", "Not found: " # path) };
       };
 
       result(response, asyncEffects);
@@ -161,12 +167,12 @@ module {
     private func requireScope(
       envelopeNonce : Text,
       grant : ExecutionTypes.ScopeGrant,
-    ) : { #ok : Nat; #err : Text } {
+    ) : { #ok : Nat; #err : (Text, Text) } {
       switch (checkGrant(envelopeNonce, grant)) {
         case (#err(e)) { #err(e) };
         case (#ok) {
           switch (getTokenWorkspaceId(envelopeNonce)) {
-            case (null) { #err("Invalid or expired token") };
+            case (null) { #err("invalidToken", "Invalid or expired token.") };
             case (?ws) { #ok(ws) };
           };
         };
@@ -179,12 +185,12 @@ module {
     private func requireOwnedAgent(
       tokenWs : Nat,
       agentId : Nat,
-    ) : { #ok : AgentModel.AgentRecord; #err : Text } {
+    ) : { #ok : AgentModel.AgentRecord; #err : (Text, Text) } {
       switch (AgentModel.lookupById(deps.agentRegistry, agentId)) {
-        case (null) { #err("Agent not found") };
+        case (null) { #err("agentNotFound", "Agent not found.") };
         case (?a) {
           if (a.ownedBy != tokenWs) {
-            #err("Workspace boundary violation: agent not owned by token workspace");
+            #err("forbidden", "Workspace boundary violation: agent not owned by token workspace.");
           } else {
             #ok(a);
           };
@@ -200,11 +206,13 @@ module {
       #err : Text;
     } {
       let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #read }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       switch (WorkspaceModel.getWorkspace(deps.workspaces, tokenWs)) {
-        case (null) { errorResponse("Workspace not found") };
+        case (null) {
+          errorResponse("workspaceNotFound", "Workspace not found.");
+        };
         case (?w) { okResponse(?workspaceRecordToJson(w)) };
       };
     };
@@ -214,39 +222,38 @@ module {
       #err : Text;
     } {
       let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #write }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       // Only org admin (ws 0) can create new workspaces
       if (not WorkspaceModel.isOrgWorkspace(tokenWs)) {
-        return errorResponse("Only org admin can create workspaces");
+        return errorResponse("forbidden", "Only org admin can create workspaces.");
       };
       let name = switch (requireString(body, "name")) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(v)) { v };
       };
       switch (WorkspaceModel.createWorkspace(deps.workspaces, name)) {
         case (#ok(id)) { okResponse(?int(id)) };
-        case (#err(e)) { errorResponse(e) };
+        case (#err(e)) { errorResponse("operationFailed", e) };
       };
     };
 
-    /// Updates the token's own workspace.
     private func handleWorkspaceUpdate(envelopeNonce : Text, body : Json.Json) : {
       #ok : Text;
       #err : Text;
     } {
       let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #write }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       let newName = switch (requireString(body, "name")) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(v)) { v };
       };
       switch (WorkspaceModel.renameWorkspace(deps.workspaces, tokenWs, newName)) {
         case (#ok(())) { okResponse(null) };
-        case (#err(e)) { errorResponse(e) };
+        case (#err(e)) { errorResponse("operationFailed", e) };
       };
     };
 
@@ -255,20 +262,22 @@ module {
       #err : Text;
     } {
       let workspaceId = switch (Nat.fromText(idStr)) {
-        case (null) { return errorResponse("Invalid workspace id: " # idStr) };
+        case (null) {
+          return errorResponse("invalidId", "Invalid workspace id: " # idStr # ".");
+        };
         case (?id) { id };
       };
       let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #write }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       // Only org admin (ws 0) can delete workspaces
       if (not WorkspaceModel.isOrgWorkspace(tokenWs)) {
-        return errorResponse("Only org admin can delete workspaces");
+        return errorResponse("forbidden", "Only org admin can delete workspaces.");
       };
       switch (WorkspaceModel.deleteWorkspace(deps.workspaces, workspaceId)) {
         case (#ok(())) { okResponse(null) };
-        case (#err(e)) { errorResponse(e) };
+        case (#err(e)) { errorResponse("operationFailed", e) };
       };
     };
 
@@ -279,7 +288,7 @@ module {
       #err : Text;
     } {
       let tokenWs = switch (requireScope(envelopeNonce, #agents({ access = #read }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       let agents = AgentModel.listAgents(deps.agentRegistry);
@@ -298,7 +307,9 @@ module {
       #err : Text;
     } {
       let agentId = switch (Nat.fromText(idStr)) {
-        case (null) { return errorResponse("Invalid agent id: " # idStr) };
+        case (null) {
+          return errorResponse("invalidId", "Invalid agent id: " # idStr # ".");
+        };
         case (?id) { id };
       };
       // Admins (agents:read) can get any agent in their workspace.
@@ -307,14 +318,16 @@ module {
         not validateScope(envelopeNonce, #agents({ access = #read })) and
         not validateScope(envelopeNonce, #agent({ id = agentId; access = #read }))
       ) {
-        return errorResponse("Token does not grant access to agent:" # idStr);
+        return errorResponse("forbidden", "Token does not grant access to agent " # idStr # ".");
       };
       let tokenWs = switch (getTokenWorkspaceId(envelopeNonce)) {
-        case (null) { return errorResponse("Invalid or expired token") };
+        case (null) {
+          return errorResponse("invalidToken", "Invalid or expired token.");
+        };
         case (?ws) { ws };
       };
       let agent = switch (requireOwnedAgent(tokenWs, agentId)) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(a)) { a };
       };
       okResponse(?agentRecordToJson(agent));
@@ -325,15 +338,15 @@ module {
       #err : Text;
     } {
       let tokenWs = switch (requireScope(envelopeNonce, #agents({ access = #write }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       let name = switch (requireString(body, "name")) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(v)) { v };
       };
       let model = switch (requireString(body, "model")) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(v)) { v };
       };
       // workspaceId is implicit from token — NOT accepted in body
@@ -344,31 +357,31 @@ module {
             switch (item) {
               case (#string(s)) { Set.add(set, Text.compare, s) };
               case _ {
-                return errorResponse("'allowedChannelIds' must be an array of strings");
+                return errorResponse("invalidValue", "'allowedChannelIds' must be an array of strings.");
               };
             };
           };
           set;
         };
         case (_) {
-          return errorResponse("Missing or invalid 'allowedChannelIds' field");
+          return errorResponse("missingField", "Missing or invalid 'allowedChannelIds' field.");
         };
       };
-      let engines = switch (parseOptionalExecutionEngines(body)) {
-        case (#err(e)) { return errorResponse(e) };
+      let engines = switch (parseOptionalWorkflowEngines(body)) {
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(null)) { [] };
         case (#ok(?e)) { e };
       };
       let config : AgentModel.AgentConfig = {
         name;
         model;
-        executionEngines = engines;
+        workflowEngines = engines;
         allowedChannelIds = channelSet;
         secrets = { allowed = []; overrides = [] };
       };
       switch (AgentModel.register(deps.agentRegistry, tokenWs, #custom, config)) {
         case (#ok(id)) { okResponse(?int(id)) };
-        case (#err(e)) { errorResponse(e) };
+        case (#err(e)) { errorResponse("operationFailed", e) };
       };
     };
 
@@ -377,17 +390,19 @@ module {
       #err : Text;
     } {
       let agentId = switch (Nat.fromText(idStr)) {
-        case (null) { return errorResponse("Invalid agent id: " # idStr) };
+        case (null) {
+          return errorResponse("invalidId", "Invalid agent id: " # idStr # ".");
+        };
         case (?id) { id };
       };
       // 1. Check scope authorization
       let tokenWs = switch (requireScope(envelopeNonce, #agents({ access = #write }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       // 2. Check agent ownership (workspace boundary)
       switch (requireOwnedAgent(tokenWs, agentId)) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(_)) {};
       };
       let newName = switch (Json.get(body, "name")) {
@@ -398,13 +413,13 @@ module {
         case (?#string(m)) { ?m };
         case (_) { null };
       };
-      let newEngines = switch (parseOptionalExecutionEngines(body)) {
-        case (#err(e)) { return errorResponse(e) };
+      let newEngines = switch (parseOptionalWorkflowEngines(body)) {
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(v)) { v };
       };
-      switch (AgentModel.updateById(deps.agentRegistry, agentId, { name = newName; model = newModel; executionEngines = newEngines; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null })) {
+      switch (AgentModel.updateById(deps.agentRegistry, agentId, { name = newName; model = newModel; workflowEngines = newEngines; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null })) {
         case (#ok(_)) { okResponse(null) };
-        case (#err(e)) { errorResponse(e) };
+        case (#err(e)) { errorResponse("operationFailed", e) };
       };
     };
 
@@ -415,22 +430,24 @@ module {
       #err : Text;
     } {
       let agentId = switch (Nat.fromText(idStr)) {
-        case (null) { return errorResponse("Invalid agent id: " # idStr) };
+        case (null) {
+          return errorResponse("invalidId", "Invalid agent id: " # idStr # ".");
+        };
         case (?id) { id };
       };
       // 1. Check scope authorization
       let tokenWs = switch (requireScope(envelopeNonce, #agents({ access = #write }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       // 2. Check agent ownership (workspace boundary)
       switch (requireOwnedAgent(tokenWs, agentId)) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(_)) {};
       };
       switch (AgentModel.unregisterById(deps.agentRegistry, agentId)) {
         case (#ok(_)) { okResponse(null) };
-        case (#err(e)) { errorResponse(e) };
+        case (#err(e)) { errorResponse("operationFailed", e) };
       };
     };
 
@@ -442,16 +459,16 @@ module {
       #err : Text;
     } {
       let tokenWs = switch (requireScope(envelopeNonce, #workspace({ access = #write }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       let channelId = switch (requireString(body, "channelId")) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(v)) { v };
       };
       switch (WorkspaceModel.setAdminChannel(deps.workspaces, tokenWs, channelId)) {
         case (#ok(())) { okResponse(null) };
-        case (#err(e)) { errorResponse(e) };
+        case (#err(e)) { errorResponse("operationFailed", e) };
       };
     };
 
@@ -462,7 +479,7 @@ module {
       #err : Text;
     } {
       switch (checkGrant(envelopeNonce, #slackQueue({ access = #read }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok) {};
       };
       let stats = EventStoreModel.sizes(deps.eventStore);
@@ -474,7 +491,7 @@ module {
       #err : Text;
     } {
       switch (checkGrant(envelopeNonce, #slackQueue({ access = #read }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok) {};
       };
       let failed = EventStoreModel.listFailed(deps.eventStore);
@@ -498,24 +515,24 @@ module {
       #err : Text;
     } {
       let tokenWs = switch (requireScope(envelopeNonce, #session({ access = #write }))) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(ws)) { ws };
       };
       let agentIdNum = switch (parsePositiveNat(body, "agentId")) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(n)) { n };
       };
       // Workspace boundary: can only update session policy for own agents
       switch (requireOwnedAgent(tokenWs, agentIdNum)) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(_)) {};
       };
       let summaryBudget = switch (parsePositiveNat(body, "summaryTokenBudget")) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(n)) { n };
       };
       let maxTruncated = switch (parsePositiveNat(body, "maxTruncatedTokens")) {
-        case (#err(e)) { return errorResponse(e) };
+        case (#err(t, m)) { return errorResponse(t, m) };
         case (#ok(n)) { n };
       };
       let policy : SessionModel.SessionPolicy = {
@@ -525,7 +542,7 @@ module {
       if (SessionModel.updateSessionPolicy(deps.sessionStores, agentIdNum, policy)) {
         okResponse(null);
       } else {
-        errorResponse("Failed to update session policy");
+        errorResponse("updateFailed", "Failed to update session policy.");
       };
     };
 
@@ -540,12 +557,16 @@ module {
       #err : Text;
     } {
       let record = switch (ExecutionEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
-        case (null) { return errorResponse("Invalid or expired token") };
+        case (null) {
+          return errorResponse("invalidToken", "Invalid or expired token.");
+        };
         case (?r) { r };
       };
       let humanSummary = switch (Json.get(body, "humanSummary")) {
         case (?#string(s)) { s };
-        case (_) { return errorResponse("Missing 'humanSummary' field") };
+        case (_) {
+          return errorResponse("missingField", "Missing 'humanSummary' field.");
+        };
       };
       let stepsDetail = parseStepsDetail(body);
       List.add(
@@ -569,12 +590,16 @@ module {
       #err : Text;
     } {
       let record = switch (ExecutionEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
-        case (null) { return errorResponse("Invalid or expired token") };
+        case (null) {
+          return errorResponse("invalidToken", "Invalid or expired token.");
+        };
         case (?r) { r };
       };
       let humanSummary = switch (Json.get(body, "humanSummary")) {
         case (?#string(s)) { s };
-        case (_) { return errorResponse("Missing 'humanSummary' field") };
+        case (_) {
+          return errorResponse("missingField", "Missing 'humanSummary' field.");
+        };
       };
       let stepsDetail = parseStepsDetail(body);
       let status = parseExecutionStatus(body);
@@ -613,8 +638,11 @@ module {
       };
     };
 
-    private func errorResponse(message : Text) : { #ok : Text; #err : Text } {
-      #err(message);
+    private func errorResponse(errType : Text, message : Text) : {
+      #ok : Text;
+      #err : Text;
+    } {
+      #err(Json.stringify(obj([("type", str(errType)), ("message", str(message))]), null));
     };
 
     // ── Serialization helpers ──────────────────────────────────────────
@@ -637,8 +665,8 @@ module {
         case (#custom) { "custom" };
       };
       let engineItems = List.empty<Json.Json>();
-      for (e in a.config.executionEngines.vals()) {
-        List.add(engineItems, str(executionEngineToText(e)));
+      for (e in a.config.workflowEngines.vals()) {
+        List.add(engineItems, str(workflowEngineToText(e)));
       };
       let channelItems = List.empty<Json.Json>();
       for (ch in Set.toArray(a.config.allowedChannelIds).vals()) {
@@ -676,7 +704,7 @@ module {
         ("category", str(categoryText)),
         ("name", str(a.config.name)),
         ("model", str(a.config.model)),
-        ("executionEngines", arr(List.toArray(engineItems))),
+        ("workflowEngines", arr(List.toArray(engineItems))),
         ("allowedChannelIds", arr(List.toArray(channelItems))),
         (
           "secrets",
@@ -688,43 +716,39 @@ module {
       ]);
     };
 
-    // ── ExecutionEngine helpers ─────────────────────────────────────────
+    // ── WorkflowEngine helpers ───────────────────────────────────────────────────
 
-    private func executionEngineToText(e : AgentModel.ExecutionEngine) : Text {
+    private func workflowEngineToText(e : AgentModel.WorkflowEngine) : Text {
       switch (e) {
         case (#canister) { "canister" };
         case (#github) { "github" };
       };
     };
 
-    /// Parses an optional "executionEngines" array from the request body.
-    /// - Key absent → #ok(null)  (caller chooses the default)
-    /// - Key present, valid strings → #ok(?engines)
-    /// - Key present, invalid → #err
-    private func parseOptionalExecutionEngines(body : Json.Json) : {
-      #ok : ?[AgentModel.ExecutionEngine];
-      #err : Text;
+    private func parseOptionalWorkflowEngines(body : Json.Json) : {
+      #ok : ?[AgentModel.WorkflowEngine];
+      #err : (Text, Text);
     } {
-      switch (Json.get(body, "executionEngines")) {
+      switch (Json.get(body, "workflowEngines")) {
         case (null) { #ok(null) };
         case (?#array(items)) {
-          let engines = List.empty<AgentModel.ExecutionEngine>();
+          let engines = List.empty<AgentModel.WorkflowEngine>();
           for (item in items.vals()) {
             switch (item) {
               case (#string("canister")) { List.add(engines, #canister) };
               case (#string("github")) { List.add(engines, #github) };
               case (#string(s)) {
-                return #err("Unknown executionEngine value: '" # s # "'");
+                return #err("invalidValue", "Unknown workflowEngine value: '" # s # "'.");
               };
               case (_) {
-                return #err("'executionEngines' must be an array of strings");
+                return #err("invalidValue", "'workflowEngines' must be an array of strings.");
               };
             };
           };
           #ok(?List.toArray(engines));
         };
         case (_) {
-          #err("'executionEngines' must be an array");
+          #err("invalidValue", "'workflowEngines' must be an array.");
         };
       };
     };
@@ -747,26 +771,30 @@ module {
     /// Extracts a required string field from a JSON body object.
     private func requireString(body : Json.Json, key : Text) : {
       #ok : Text;
-      #err : Text;
+      #err : (Text, Text);
     } {
       switch (Json.get(body, key)) {
         case (?#string(v)) { #ok(v) };
-        case (_) { #err("Missing '" # key # "' field") };
+        case (_) { #err("missingField", "Missing '" # key # "' field.") };
       };
     };
 
     /// Extracts a required non-negative number field and returns it as Nat.
     private func parsePositiveNat(body : Json.Json, key : Text) : {
       #ok : Nat;
-      #err : Text;
+      #err : (Text, Text);
     } {
       switch (Json.get(body, key)) {
         case (?#number(#int(n))) {
-          if (n < 0) { #err("Invalid '" # key # "'") } else {
+          if (n < 0) {
+            #err("invalidValue", "Invalid '" # key # "': must be non-negative.");
+          } else {
             #ok(Nat.fromInt(n));
           };
         };
-        case (_) { #err("Missing or invalid '" # key # "' field") };
+        case (_) {
+          #err("missingField", "Missing or invalid '" # key # "' field.");
+        };
       };
     };
 
@@ -878,13 +906,13 @@ module {
       };
     };
 
-    /// Checks a scope grant, returning #ok or a derived error message on failure.
+    /// Checks a scope grant, returning #ok or a derived error tuple on failure.
     private func checkGrant(
       envelopeNonce : Text,
       grant : ExecutionTypes.ScopeGrant,
-    ) : { #ok; #err : Text } {
+    ) : { #ok; #err : (Text, Text) } {
       if (validateScope(envelopeNonce, grant)) { #ok } else {
-        #err("Token does not grant " # grantText(grant));
+        #err("unauthorized", "Token does not grant " # grantText(grant) # ".");
       };
     };
     private func validateScope(

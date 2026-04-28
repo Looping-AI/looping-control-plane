@@ -72,7 +72,7 @@ func makeAgentOnWorkspace(wsId : Nat) : AgentModel.AgentRecord {
       name = "test-agent";
       model = "openai/gpt-oss-120b";
       allowedChannelIds = Set.singleton<Text>("C_TEST");
-      executionEngines = [#canister];
+      workflowEngines = [#canister];
       secrets = {
         allowed = [(wsId, #openRouterApiKey)];
         overrides = [];
@@ -402,7 +402,7 @@ func makeAgentWithOverrides(secretOverrides : [(Types.SecretId, Text)]) : AgentM
       name = "test-agent";
       model = "openai/gpt-oss-120b";
       allowedChannelIds = Set.singleton<Text>("C_TEST");
-      executionEngines = [#canister];
+      workflowEngines = [#canister];
       secrets = {
         allowed = [(1, #openRouterApiKey)];
         overrides = secretOverrides;

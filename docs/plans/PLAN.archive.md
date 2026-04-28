@@ -1106,14 +1106,14 @@ Add a per-agent Slack channel allowlist (`allowedChannelIds`) to the agent model
 
 ---
 
-~~### 5.2 — Execution Engines + Effect Applicator~~
+~~### 5.2 — Workflow Engines + Effect Applicator~~
 
 **Goal**
 
-Introduce the Execution Engine abstraction — a clean boundary between _deciding what to execute_ (envelope construction), _executing it_ (engine dispatch), and _applying the results_ (effect application). Refactor the current inline LLM-loop-to-Slack-post pipeline into three phases:
+Introduce the Workflow Engine abstraction — a clean boundary between _deciding what to execute_ (envelope construction), _executing it_ (engine dispatch), and _applying the results_ (effect application). Refactor the current inline LLM-loop-to-Slack-post pipeline into three phases:
 
 1. **Envelope construction** — The orchestrator assembles a typed `ExecutionEnvelope`: fully assembled messages, instructions, execution constraints, and resolved credentials. The envelope is a data-only payload — it never contains code references, tool executors, or LLM wrappers. Think of it as the JSON body of an HTTP POST request.
-2. **Engine dispatch** — The envelope is handed to the selected execution engine. For `#internal` (this PR), the engine is a self-contained module that runs the multi-round LLM tool loop in-canister. The engine owns its own tool registry, LLM model selection, and execution strategy — the control plane does not dictate these. It returns a sealed `ExecutionPackage`: complete trace, final response, aggregated stats, and terminal status.
+2. **Engine dispatch** — The envelope is handed to the selected workflow engine. For `#internal` (this PR), the engine is a self-contained module that runs the multi-round LLM tool loop in-canister. The engine owns its own tool registry, LLM model selection, and execution strategy — the control plane does not dictate these. It returns a sealed `ExecutionPackage`: complete trace, final response, aggregated stats, and terminal status.
 3. **Effect application** — The `EffectApplicator` receives the Package and executes all post-execution side effects: persisting traces, posting the Slack reply, finalizing the turn, and emitting follow-up events.
 
 Only the `#internal` engine is implemented in this PR (in-canister LLM loop, mirroring the existing flow). The abstraction makes `#canister` and external engines pluggable in future PRs without touching the orchestrator or applicator.
@@ -1122,13 +1122,13 @@ Only the `#internal` engine is implemented in this PR (in-canister LLM loop, mir
 
 - The LLM tool loop lives inside `org-admin-agent.mo` (`process()`) — it directly calls OpenRouter, executes tools, appends traces to the session model, and hands the response back to the message handler which posts the Slack reply.
 - No separation between execution and side effects: LLM calls, tool calls, trace writes, and Slack posting are interleaved across the message handler and agent module.
-- `config.executionEngines` exists in the agent record but only `#canister` is functionally used, with no engine interface.
+- `config.workflowEngines` exists in the agent record but only `#canister` is functionally used, with no engine interface.
 - `agent-orchestrator.mo` is a pass-through: scopes workspace data, decrypts secrets, delegates to the agent module.
 - Context assembly (`context-assembler.mo`) and instruction composition (`instruction-composer.mo`) are coupled to the admin agent code path.
 
 **Desired State**
 
-- **`ExecutionEnvelope`** — Typed, self-contained, data-only input to any execution engine:
+- **`ExecutionEnvelope`** — Typed, self-contained, data-only input to any workflow engine:
   - `envelopeVersion : Nat` — schema version of this envelope format. The engine may reject envelopes it doesn't support and reply with the version it expects, enabling auto-corrective version negotiation.
   - `requestId : Text` — correlates the envelope to its package.
   - `agentId : Nat`, `agentName : Text`, `workspaceId : Nat`.
@@ -1140,7 +1140,7 @@ Only the `#internal` engine is implemented in this PR (in-canister LLM loop, mir
 
   The envelope does **not** contain tool definitions, LLM model selection, or agent category. Those are the engine's responsibility — each `workflowId` encapsulates a specific combination of tools, model, and execution strategy managed entirely by the engine.
 
-- **`ExecutionPackage`** — Typed, self-contained output from any execution engine:
+- **`ExecutionPackage`** — Typed, self-contained output from any workflow engine:
   - `packageVersion : Nat` — schema version of this package format. The control plane tracks the latest `packageVersion` received per engine so it knows which format to parse.
   - `requestId : Text` — matches the envelope's `requestId`.
   - `status : { #completed; #failed : Text; #roundLimitReached }`.
@@ -1173,7 +1173,7 @@ Only the `#internal` engine is implemented in this PR (in-canister LLM loop, mir
   - External HTTP engines (future): HMAC-SHA256 on the package payload with a pre-shared secret between the control plane and the external engine instance.
 
 - **Envelope/Package version negotiation**:
-  - The control plane tracks, per execution engine, the latest `envelopeVersion` it sends and the latest `packageVersion` it has received.
+  - The control plane tracks, per workflow engine, the latest `envelopeVersion` it sends and the latest `packageVersion` it has received.
   - If an external engine rejects an envelope (e.g., schema too old or too new), it replies with the `envelopeVersion` it expects in the rejection body. The control plane records this and retries with the requested version. This allows engines to evolve independently — different engines can be at different envelope versions at the same time.
   - Similarly, the `packageVersion` field in every Package tells the control plane which schema to use for parsing. The control plane maintains parsers for all supported versions.
   - For `#internal`, version negotiation is compile-time — the engine and control plane share the same type definitions and always agree.
@@ -1183,9 +1183,9 @@ Only the `#internal` engine is implemented in this PR (in-canister LLM loop, mir
 - **The `#internal` engine is pure.** Only `main.mo` owns the persistent data structures. The envelope is assembled from static copies of state (messages, instructions, credentials) and passed as params to the engine. Since the engine receives copies — not references to `main.mo`'s data — any mutations the engine makes to its local params do not affect the canister's persistent state. All persistent side effects flow exclusively through the Effect Applicator after the engine returns the Package. This is the same guarantee an external engine provides by design (it can't reach the canister's state), achieved here through Motoko's value semantics.
 - **The engine owns tools, model selection, and execution strategy via workflows.** The control plane tells the engine _what_ to do (instructions, context, constraints) and _which workflow_ to use (`workflowId`). The engine decides _how_ that workflow executes: which LLM to call, which tools to register, how to orchestrate the loop. For `#internal`, each workflow ID maps to a specific tool set + model combination. This means the tool registry, tool executor, and LLM wrapper live inside the engine module — they are not imported from the core codebase by the orchestrator.
 - **Workflow versioning enables safe evolution.** An engine can introduce `"admin-v1.1"` alongside `"admin-v1"` without any control plane changes. The control plane sees the new ID in `availableWorkflows`, starts A/B testing, and gradually shifts traffic based on observed performance (cost, speed, user reviews). When the old version is retired, the engine drops it from the catalog and the control plane stops using it. No coordinated deploys, no breaking changes.
-- **No trace mitigation needed for mid-execution traps.** If the engine traps (e.g., an HTTP outcall fails), local state from that IC message is rolled back and no Package is returned. From the Effect Applicator's perspective, no Package means no effects applied — the turn was never updated. The control plane's trace will show "envelope sent" (the dispatch happened) but no package received. Each execution engine is responsible for its own internal logging; the control plane does not attempt to recover partial engine state.
+- **No trace mitigation needed for mid-execution traps.** If the engine traps (e.g., an HTTP outcall fails), local state from that IC message is rolled back and no Package is returned. From the Effect Applicator's perspective, no Package means no effects applied — the turn was never updated. The control plane's trace will show "envelope sent" (the dispatch happened) but no package received. Each workflow engine is responsible for its own internal logging; the control plane does not attempt to recover partial engine state.
 - **The Package is the atomic observability unit.** Every LLM call, tool call, and decision is captured in `package.trace`. The applicator uses this to build the Slack thread trace (the primary human-facing audit log). No separate trace-writing path exists outside the applicator.
-- **Engine selection is trivial in this PR.** Only `#internal` exists. The orchestrator selects based on `agent.config.executionEngines[0]`, and uses the only available workflow from the engine's catalog. Future PRs add engine selection logic and workflow-level A/B testing.
+- **Engine selection is trivial in this PR.** Only `#internal` exists. The orchestrator selects based on `agent.config.workflowEngines[0]`, and uses the only available workflow from the engine's catalog. Future PRs add engine selection logic and workflow-level A/B testing.
 - **Envelope construction owns all context assembly.** The envelope contains fully assembled messages — the engine never reaches back into session model or channel history. This makes the engine portable: the same `#internal` engine implementation works regardless of what assembled the envelope, and a future external engine receives a self-contained payload.
 - **No `EngineContext` — the engine is fully self-contained.** The `#internal` engine module contains its own tool registry, tool executor, and LLM wrapper. It does not import these from the core codebase. The envelope carries everything the engine needs as data (messages, instructions, constraints, secrets, workflowId). For external engines, this is natural (the envelope is a POST body). For `#internal`, this means the engine module is a self-contained folder with no imports from `tools/`, `services/`, or `wrappers/` — only from `types/execution.mo` for the shared Envelope/Package types.
 - **Versioned envelope and package formats.** `envelopeVersion` and `packageVersion` enable independent evolution of the control plane and its engines. An engine can reject an envelope version it doesn't support and tell the control plane which version to send. The control plane can parse any `packageVersion` it has seen. For `#internal` this is compile-time agreement; for external engines it enables rolling upgrades without coordinated deploys.
@@ -1193,7 +1193,7 @@ Only the `#internal` engine is implemented in this PR (in-canister LLM loop, mir
 **Source Steps**
 
 1. New file: `types/execution.mo` — `ExecutionEnvelope` (with `envelopeVersion`, `workflowId`), `ExecutionPackage` (with `packageVersion`, `availableWorkflows`), `ExecutionStats`, `PackageStatus`, `ExecutionConstraints` types. Minimal, no behavior — pure type definitions shared between the orchestrator and all engines.
-2. New directory + file: `engines/internal/internal-execution-engine.mo` — `execute(envelope) → async ExecutionPackage`. Self-contained module with its own tool registry, tool executor, and LLM wrapper (OpenRouter). No imports from `tools/`, `services/`, or `wrappers/`. Reads `envelope.workflowId` to select the tool set + model. Calls OpenRouter, handles `#toolCalls`, accumulates traces in a local buffer, iterates up to `constraints.maxRounds`, seals the Package (including `availableWorkflows`) on completion/failure/round-limit. Initial workflows: `"admin-v1"` (admin tool set), `"onboarding-v1"` (stub, returns not-yet-implemented).
+2. New directory + file: `engines/internal/internal-workflow-engine.mo` — `execute(envelope) → async ExecutionPackage`. Self-contained module with its own tool registry, tool executor, and LLM wrapper (OpenRouter). No imports from `tools/`, `services/`, or `wrappers/`. Reads `envelope.workflowId` to select the tool set + model. Calls OpenRouter, handles `#toolCalls`, accumulates traces in a local buffer, iterates up to `constraints.maxRounds`, seals the Package (including `availableWorkflows`) on completion/failure/round-limit. Initial workflows: `"admin-v1"` (admin tool set), `"onboarding-v1"` (stub, returns not-yet-implemented).
 3. New file: `services/effect-applicator.mo` — `apply(processingContext, package) → async Result<(), Text>`. Writes `package.trace` to session model. Posts `package.response` to Slack via `SlackWrapper.postMessage`. Updates turn status (`#completed`/`#failed`) and cost aggregates. Emits follow-up events if needed.
 4. Refactor `orchestrators/agent-orchestrator.mo` — Replace the direct `adminAgent.process()` call with: (a) assemble `ExecutionEnvelope` (context + instructions + constraints + secrets + workflowId from cached catalog), (b) dispatch envelope to selected engine, (c) update local workflow catalog from `package.availableWorkflows`, (d) pass Package to Effect Applicator.
 5. Refactor `agents/admin/org-admin-agent.mo` — Transform `process()` into envelope assembly logic that returns an `ExecutionEnvelope`. What remains in the orchestrator path: instruction composition via `InstructionComposer`, context assembly via `ContextAssembler`, secret resolution, workflow selection from cached catalog. Tool assembly and LLM wrapper move into the `#internal` engine module.
@@ -1203,7 +1203,7 @@ Only the `#internal` engine is implemented in this PR (in-canister LLM loop, mir
 **Test Steps**
 
 - Unit test (execution): construct Envelope and Package values, verify all fields are correctly typed and accessible.
-- Unit test (internal-execution-engine): mock LLM to return `#textResponse` → Package has `#completed` status with response. Mock LLM to return `#toolCalls` then `#textResponse` → Package trace contains both `#llmCall` and `#toolCall` entries in order. Mock LLM to loop `maxRounds` times → Package has `#roundLimitReached` status. Mock LLM to error → Package has `#failed` status with error message. Verify engine selects tools and model based on `workflowId` without external input. Verify `availableWorkflows` is always populated in the Package.
+- Unit test (internal-workflow-engine): mock LLM to return `#textResponse` → Package has `#completed` status with response. Mock LLM to return `#toolCalls` then `#textResponse` → Package trace contains both `#llmCall` and `#toolCall` entries in order. Mock LLM to loop `maxRounds` times → Package has `#roundLimitReached` status. Mock LLM to error → Package has `#failed` status with error message. Verify engine selects tools and model based on `workflowId` without external input. Verify `availableWorkflows` is always populated in the Package.
 - Unit test (workflow catalog): send envelope with unknown `workflowId` → engine returns `#failed` with error + `availableWorkflows` listing valid IDs. Send envelope with valid `workflowId` → Package includes full `availableWorkflows` catalog.
 - Unit test (effect-applicator): given Package with N trace entries → all N entries written to session model. Given Package with response text → `SlackWrapper.postMessage` called with correct channel/thread/content. Given Package with `#failed` status → turn marked as failed.
 - Unit test (purity): pass an envelope to the engine, verify that the original envelope data is unchanged after execution (static copy guarantee).

@@ -171,8 +171,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   func outcomeToText(outcome : ToolTypes.ToolCallOutcome) : Text {
     switch (outcome) {
-      case (#success(t)) { t };
-      case (#error(e)) { e };
+      case (#ok(t)) { t };
+      case (#err(e)) { e };
     };
   };
 
@@ -196,7 +196,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       config = {
         name;
         model;
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds;
         secrets = { allowed = [(0, #openRouterApiKey)]; overrides = [] };
       };
@@ -882,8 +882,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   public shared ({ caller }) func testToolExecutorFormatFixture() : async Text {
     assert caller == parent;
     ToolExecutor.formatResultsForLlm([
-      { callId = "call-1"; result = #success("{\"ok\":true}"); durationMs = 0 },
-      { callId = "call-2"; result = #error("boom"); durationMs = 0 },
+      { callId = "call-1"; result = #ok("{\"ok\":true}"); durationMs = 0 },
+      { callId = "call-2"; result = #err("boom"); durationMs = 0 },
     ]);
   };
 
@@ -1774,7 +1774,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       config = {
         name = "test-dispatch-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = Set.empty<Text>();
         secrets = { allowed = []; overrides = [] };
       };
@@ -1806,8 +1806,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     };
     let outcome = await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, args);
     switch (outcome) {
-      case (#success(t)) { t };
-      case (#error(e)) { e };
+      case (#ok(t)) { t };
+      case (#err(e)) { e };
     };
   };
 

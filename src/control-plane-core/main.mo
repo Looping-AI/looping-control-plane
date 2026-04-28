@@ -453,12 +453,12 @@ persistent actor class OpenOrgBackend() {
   ) : async { #ok : Text; #err : Text } {
     let expected = switch (internalEnginePrincipal) {
       case (null) {
-        return #err("Unauthorized: engine not yet initialized");
+        return #err("{\"type\":\"engineNotInitialized\",\"message\":\"Unauthorized: engine not yet initialized.\"}");
       };
       case (?p) { p };
     };
     if (caller != expected) {
-      return #err("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister");
+      return #err("{\"type\":\"unauthorized\",\"message\":\"Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister.\"}");
     };
     let { response; asyncEffects } = executionApiService.handleRequest(method, path, body);
 

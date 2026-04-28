@@ -157,12 +157,12 @@ module {
   private func toolResultsContainDispatchSignal(toolResults : [ToolTypes.ToolResult]) : Bool {
     for (toolResult in toolResults.vals()) {
       switch (toolResult.result) {
-        case (#success(output)) {
+        case (#ok(output)) {
           if (isDispatchSignal(output)) {
             return true;
           };
         };
-        case (#error(_)) {};
+        case (#err(_)) {};
       };
     };
     false;

@@ -227,7 +227,7 @@ module {
         function_ = {
           name = "register_agent";
           description = ?"Registers a new custom agent in the current workspace. The name must be unique, lowercase, start with a letter, and contain only letters, digits, and hyphens.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'workspace-helper').\"},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b).\"},\"allowedChannelIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"description\":\"Slack channel IDs where this agent is permitted to run.\"},\"executionEngines\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"canister\",\"github\"]},\"description\":\"Execution engine(s) this agent may use. Defaults to [] (none) if omitted.\"}},\"required\":[\"name\",\"model\",\"allowedChannelIds\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"Agent identifier (kebab-case, e.g. 'workspace-helper').\"},\"model\":{\"type\":\"string\",\"description\":\"OpenRouter model string (e.g. openai/gpt-oss-120b).\"},\"allowedChannelIds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1,\"description\":\"Slack channel IDs where this agent is permitted to run.\"},\"workflowEngines\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"canister\",\"github\"]},\"description\":\"Workflow engine(s) this agent may use. Defaults to [] (none) if omitted.\"}},\"required\":[\"name\",\"model\",\"allowedChannelIds\"]}";
         };
       };
       handler = AgentHandlers.registerAgent;
@@ -241,7 +241,7 @@ module {
         function_ = {
           name = "update_agent";
           description = ?"Updates an existing agent's configuration. Provide the agent 'id' and only the fields you want to change; omitted fields are left unchanged.";
-          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"model\":{\"type\":\"string\",\"description\":\"New OpenRouter model string (optional).\"},\"executionEngines\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"canister\",\"github\"]},\"description\":\"New execution engines (optional). Omit to leave unchanged.\"}},\"required\":[\"id\"]}";
+          parameters = ?"{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"ID of the agent to update.\"},\"name\":{\"type\":\"string\",\"description\":\"New agent name (optional).\"},\"model\":{\"type\":\"string\",\"description\":\"New OpenRouter model string (optional).\"},\"workflowEngines\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"canister\",\"github\"]},\"description\":\"New workflow engines (optional). Omit to leave unchanged.\"}},\"required\":[\"id\"]}";
         };
       };
       handler = AgentHandlers.updateAgent;

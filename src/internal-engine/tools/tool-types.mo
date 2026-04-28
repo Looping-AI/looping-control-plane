@@ -11,8 +11,8 @@ module {
 
   /// Outcome of a single tool call
   public type ToolCallOutcome = {
-    #success : Text; // JSON result string
-    #error : Text; // Error message
+    #ok : Text; // JSON result string
+    #err : Text; // Structured JSON error: {"type":"camelCase","message":"..."}
   };
 
   /// Result from executing a single tool call

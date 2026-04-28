@@ -20,8 +20,8 @@ module {
 
   /// Outcome of a tool call execution
   public type ToolCallOutcome = {
-    #success : Text; // JSON string result
-    #error : Text; // Error message
+    #ok : Text; // JSON string result
+    #err : Text; // Structured JSON error: {"type":"camelCase","message":"..."}
   };
 
   // ============================================

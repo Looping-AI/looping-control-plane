@@ -1,5 +1,6 @@
 import Json "mo:json";
 import { obj } "mo:json";
+import { str } "mo:json";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
 import List "mo:core/List";
@@ -20,7 +21,7 @@ module {
   /// Get an agent by ID. → GET /agent/{id}
   public func getAgent(wrapper : Wrapper, args : Text) : async ToolTypes.ToolCallOutcome {
     switch (parseNatField(args, "id")) {
-      case (#err(e)) { #error(e) };
+      case (#err(e)) { #err(e) };
       case (#ok(id)) {
         handleResult(await wrapper.callCore(#get, "/agent/" # Nat.toText(id), "{}"));
       };
@@ -37,7 +38,7 @@ module {
   /// Extracts ID from args, forwards remaining fields to Core.
   public func updateAgent(wrapper : Wrapper, args : Text) : async ToolTypes.ToolCallOutcome {
     switch (parseNatField(args, "id")) {
-      case (#err(e)) { #error(e) };
+      case (#err(e)) { #err(e) };
       case (#ok(id)) {
         // Remove "id" from body — Core uses the path param
         let body = removeField(args, "id");
@@ -49,7 +50,7 @@ module {
   /// Unregister (delete) an agent by ID. → DELETE /agent/{id}
   public func unregisterAgent(wrapper : Wrapper, args : Text) : async ToolTypes.ToolCallOutcome {
     switch (parseNatField(args, "id")) {
-      case (#err(e)) { #error(e) };
+      case (#err(e)) { #err(e) };
       case (#ok(id)) {
         handleResult(await wrapper.callCore(#delete, "/agent/" # Nat.toText(id), "{}"));
       };
@@ -60,8 +61,8 @@ module {
 
   private func handleResult(result : { #ok : Text; #err : Text }) : ToolTypes.ToolCallOutcome {
     switch (result) {
-      case (#ok(data)) { #success(data) };
-      case (#err(e)) { #error(e) };
+      case (#ok(data)) { #ok(data) };
+      case (#err(e)) { #err(e) };
     };
   };
 
@@ -70,21 +71,29 @@ module {
     #err : Text;
   } {
     switch (Json.parse(args)) {
-      case (#err(_)) { #err("Invalid JSON arguments") };
+      case (#err(_)) {
+        #err(Json.stringify(obj([("type", str("parseError")), ("message", str("Invalid JSON arguments."))]), null));
+      };
       case (#ok(parsed)) {
         switch (Json.get(parsed, field)) {
           case (?#number(#int(n))) {
-            if (n < 0) { #err("'" # field # "' must be non-negative") } else {
+            if (n < 0) {
+              #err(Json.stringify(obj([("type", str("invalidValue")), ("message", str("'" # field # "' must be non-negative."))]), null));
+            } else {
               #ok(Nat.fromInt(n));
             };
           };
           case (?#number(#float(f))) {
             let n = Float.toInt(f);
-            if (n < 0) { #err("'" # field # "' must be non-negative") } else {
+            if (n < 0) {
+              #err(Json.stringify(obj([("type", str("invalidValue")), ("message", str("'" # field # "' must be non-negative."))]), null));
+            } else {
               #ok(Nat.fromInt(n));
             };
           };
-          case (_) { #err("Missing or invalid '" # field # "' field") };
+          case (_) {
+            #err(Json.stringify(obj([("type", str("missingField")), ("message", str("Missing or invalid '" # field # "' field."))]), null));
+          };
         };
       };
     };

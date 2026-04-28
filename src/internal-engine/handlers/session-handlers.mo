@@ -19,8 +19,8 @@ module {
 
   private func handleResult(result : { #ok : Text; #err : Text }) : ToolTypes.ToolCallOutcome {
     switch (result) {
-      case (#ok(data)) { #success(data) };
-      case (#err(e)) { #error(e) };
+      case (#ok(data)) { #ok(data) };
+      case (#err(e)) { #err(e) };
     };
   };
 };

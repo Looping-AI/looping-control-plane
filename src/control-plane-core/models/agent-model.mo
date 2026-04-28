@@ -18,11 +18,11 @@ module {
     #onboarding; // handles direct messages to the Slack App — stub, planned
   };
 
-  /// The execution engines an agent is allowed to use.
+  /// The workflow engines an agent is allowed to use.
   /// Stored as an array on AgentConfig so an agent can support multiple modes.
   ///   #canister — external canister called via envelope/package webhook
   ///   #github   — GitHub Actions workflow triggered via webhook; reply delivered back signed
-  public type ExecutionEngine = {
+  public type WorkflowEngine = {
     #canister;
     #github;
   };
@@ -57,7 +57,7 @@ module {
   /// Static configuration for an agent.
   ///   name              — kebab-case identifier, must be unique and match the `::name` syntax.
   ///   model             — OpenRouter model string used for LLM calls (e.g. "openai/gpt-oss-120b").
-  ///   executionEngines  — list of engines this agent is permitted to use (non-empty).
+  ///   workflowEngines   — list of engines this agent is permitted to use (non-empty).
   ///   allowedChannelIds — set of Slack channel IDs where non-admin agents may run.
   ///                       Must be non-empty for non-admin agents; cannot be emptied after registration.
   ///                       For #_system(#admin) agents this set is always empty; routing is governed by
@@ -66,7 +66,7 @@ module {
   public type AgentConfig = {
     name : Text;
     model : Text;
-    executionEngines : [ExecutionEngine];
+    workflowEngines : [WorkflowEngine];
     allowedChannelIds : Set.Set<Text>;
     secrets : AgentSecretsConfig;
   };
@@ -86,7 +86,7 @@ module {
   ///   category — determines the available tool catalogue and prompt strategy.
   ///              #_system(#admin) and #_system(#onboarding) are managed by the system.
   ///              #custom is user-defined, registered via register_agent tool.
-  ///   config   — static agent configuration (name, model, executionEngines, channels, secrets).
+  ///   config   — static agent configuration (name, model, workflowEngines, channels, secrets).
   ///   state    — mutable runtime state (tool usage counters and knowHow).
   public type AgentRecord = {
     id : Nat;
@@ -101,7 +101,7 @@ module {
   public type AgentUpdateFields = {
     name : ?Text;
     model : ?Text;
-    executionEngines : ?[ExecutionEngine];
+    workflowEngines : ?[WorkflowEngine];
     secretsAllowed : ?[(Nat, Types.SecretId)];
     secretOverrides : ?[(Types.SecretId, Text)];
     allowedChannelIds : ?Set.Set<Text>;
@@ -262,7 +262,7 @@ module {
       config = {
         name = normalized;
         model = config.model;
-        executionEngines = config.executionEngines;
+        workflowEngines = config.workflowEngines;
         allowedChannelIds = effectiveAllowedChannelIds;
         secrets = config.secrets;
       };
@@ -354,8 +354,8 @@ module {
               case (null) { existing.config.model };
               case (?m) { m };
             };
-            executionEngines = switch (updates.executionEngines) {
-              case (null) { existing.config.executionEngines };
+            workflowEngines = switch (updates.workflowEngines) {
+              case (null) { existing.config.workflowEngines };
               case (?e) { e };
             };
             secrets = {
@@ -491,7 +491,7 @@ module {
       {
         name = "workspace-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = Set.empty<Text>(); // #_system(#admin) agents never use allowedChannelIds
         secrets = {
           allowed = [(0, #openRouterApiKey)];
@@ -526,7 +526,7 @@ module {
   public type AgentConfigView = {
     name : Text;
     model : Text;
-    executionEngines : [ExecutionEngine];
+    workflowEngines : [WorkflowEngine];
     allowedChannelIds : [Text];
     secrets : AgentSecretsConfigView;
   };
@@ -556,7 +556,7 @@ module {
       config = {
         name = record.config.name;
         model = record.config.model;
-        executionEngines = record.config.executionEngines;
+        workflowEngines = record.config.workflowEngines;
         allowedChannelIds = Set.toArray(record.config.allowedChannelIds);
         secrets = {
           allowed = record.config.secrets.allowed;
