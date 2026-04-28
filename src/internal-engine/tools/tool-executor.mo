@@ -18,7 +18,7 @@ module {
   /// Returns results in the same order as the input calls.
   public func execute(
     wrapper : CoreWrapper.CoreWrapper,
-    workflowId : Text,
+    workflowName : Text,
     scopeGrants : [ExecutionTypes.ScopeGrant],
     toolCalls : [LlmWrapper.ToolCall],
   ) : async [ToolTypes.ToolResult] {
@@ -28,7 +28,7 @@ module {
       let startNs = Time.now();
 
       let outcome : ToolTypes.ToolCallOutcome = switch (
-        ToolRegistry.get(workflowId, scopeGrants, call.toolName)
+        ToolRegistry.get(workflowName, scopeGrants, call.toolName)
       ) {
         case (?tool) {
           try {

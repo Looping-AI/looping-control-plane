@@ -40,7 +40,7 @@ function minimalEnvelope(
     requestId: `req-test-${envelopeId}`,
     agentId: 0n,
     workspaceId: 0n,
-    workflowId: "wf-test",
+    workflowName: "wf-test",
     model: "openai/gpt-oss-120b",
     agentName,
     dispatchedVersion: ["v1"],

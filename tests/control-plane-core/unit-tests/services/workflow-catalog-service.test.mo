@@ -22,7 +22,7 @@ test(
   "parseListWorkflowsResponse parses valid JSON correctly",
   func() {
     switch (WorkflowCatalogService.parseListWorkflowsResponse(validJson)) {
-      case (#err(e)) { expect.bool(false).isTrue() /* fail: # e */ };
+      case (#err(_)) { expect.bool(false).isTrue() /* fail: # e */ };
       case (#ok({ catalogHash; descriptors })) {
         expect.text(catalogHash).equal("abc123");
         expect.nat(descriptors.size()).equal(1);
@@ -42,7 +42,7 @@ test(
     "\"requiredScopes\":[{\"access\":\"write\",\"scope\":\"workspace\"}]," #
     "\"coreDirectives\":[{\"require\":\"approval\"}]}]}";
     switch (WorkflowCatalogService.parseListWorkflowsResponse(json)) {
-      case (#err(e)) { expect.bool(false).isTrue() };
+      case (#err(_)) { expect.bool(false).isTrue() };
       case (#ok(result)) {
         let descriptors = result.descriptors;
         expect.nat(descriptors[0].coreDirectives.size()).equal(1);

@@ -6,7 +6,6 @@ import SessionModel "../models/session-model";
 import ExecutionEnvelopeModel "../models/execution-envelope-model";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import ContextAssembler "./context-assembler";
-import WorkspaceModel "../models/workspace-model";
 import AdminAgentLoop "./categories/system/admin-agent-loop";
 import OnboardingAgentLoop "./categories/system/onboarding-agent-loop";
 import CustomAgentLoop "./categories/custom/custom-agent-loop";
@@ -27,7 +26,6 @@ module {
     secrets : SecretModel.SecretsState,
     workspaceKey : [Nat8],
     orgKey : [Nat8],
-    workspaces : WorkspaceModel.WorkspacesState,
     engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
   ) : async Types.AgentOrchestrateResult {
 
@@ -61,27 +59,18 @@ module {
       );
     };
 
-    let resolveWorkspaceName : (Nat -> ?Text) = func(id : Nat) : ?Text {
-      switch (WorkspaceModel.getWorkspace(workspaces, id)) {
-        case (null) { null };
-        case (?r) { ?r.name };
-      };
-    };
-
     // ── Dispatch to category loop ────────────────────────────────────────────
     switch (agent.category) {
       case (#_system(#admin)) {
         await AdminAgentLoop.process(
           agent,
           assembled,
-          triggerMessageText,
           turnId,
           userAuthContext,
           apiKey,
           secrets,
           workspaceKey,
           resolveSlackBotToken,
-          resolveWorkspaceName,
           engineDeps,
         );
       };

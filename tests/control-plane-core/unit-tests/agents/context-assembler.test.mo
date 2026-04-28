@@ -8,7 +8,6 @@ import ContextAssembler "../../../../src/control-plane-core/agents/context-assem
 import ChannelHistoryModel "../../../../src/control-plane-core/models/channel-history-model";
 import Constants "../../../../src/control-plane-core/constants";
 import SessionModel "../../../../src/control-plane-core/models/session-model";
-import SlackUserModel "../../../../src/control-plane-core/models/slack-user-model";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 

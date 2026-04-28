@@ -49,11 +49,11 @@ func buildTestCache() : SlackUserModel.SlackUserCache {
   SlackUserModel.upsertUser(state, orgAdmin2Entry, #manual);
 
   // Workspace Admins: joined the admin-channel anchor
-  var wsAdmin1Entry = SlackUserModel.newEntry(workspaceAdmin1, "Dave (WS Admin)", false, false, false);
+  let wsAdmin1Entry = SlackUserModel.newEntry(workspaceAdmin1, "Dave (WS Admin)", false, false, false);
   SlackUserModel.upsertUser(state, wsAdmin1Entry, #manual);
   ignore SlackUserModel.joinAdminChannel(state, workspaceAdmin1, 0, #manual);
 
-  var wsAdmin2Entry = SlackUserModel.newEntry(workspaceAdmin2, "Eve (WS Admin)", false, false, false);
+  let wsAdmin2Entry = SlackUserModel.newEntry(workspaceAdmin2, "Eve (WS Admin)", false, false, false);
   SlackUserModel.upsertUser(state, wsAdmin2Entry, #manual);
   ignore SlackUserModel.joinAdminChannel(state, workspaceAdmin2, 1, #manual);
 

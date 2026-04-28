@@ -527,7 +527,6 @@ module {
       ctx.secrets,
       encryptionKey,
       orgKey,
-      ctx.workspaces,
       {
         envelopeState = ctx.envelopeState;
         internalEngine = ctx.internalEngine;

@@ -30,7 +30,8 @@ import SlackAdapter "../../src/control-plane-core/events/slack-adapter";
 import StoreSecretHandler "../../src/control-plane-core/agents/tools/handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "../../src/control-plane-core/agents/tools/handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "../../src/control-plane-core/agents/tools/handlers/secrets/delete-secret-handler";
-import DispatchWorkflowHandler "../../src/control-plane-core/agents/tools/handlers/dispatch-workflow-handler";
+import WorkflowEngineHandler "../../src/control-plane-core/agents/tools/handlers/workflow-engine-handler";
+import WorkflowCatalogTypes "../../src/control-plane-core/types/workflow-catalog";
 import EngineDispatchService "../../src/control-plane-core/services/engine-dispatch-service";
 import ExecutionTypes "../../src/control-plane-core/types/execution";
 import WeeklyReconciliationRunner "../../src/control-plane-core/timers/weekly-reconciliation-runner";
@@ -739,7 +740,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       SecretModel.initState(),
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
-      WorkspaceModel.emptyState(),
       testOrchestratorEngineDeps(),
     );
   };
@@ -764,7 +764,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       secrets,
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
-      WorkspaceModel.emptyState(),
       testOrchestratorEngineDeps(),
     );
   };
@@ -789,7 +788,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       secrets,
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
-      WorkspaceModel.emptyState(),
       testOrchestratorEngineDeps(),
     );
   };
@@ -849,7 +847,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       secrets,
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
-      WorkspaceModel.emptyState(),
       testOrchestratorEngineDeps(),
     );
   };
@@ -1721,7 +1718,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       agentId = 0;
       agentName = "test-agent";
       workspaceId = 0;
-      workflowId = "admin-v1";
+      workflowName = "admin-v1";
       model = "";
       messages = [];
       instructions = "test instructions";
@@ -1755,13 +1752,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Dispatch Workflow Handler Test Methods
   // ============================================
 
-  /// Test the DispatchWorkflowHandler in isolation.
+  /// Test the WorkflowEngineHandler in isolation.
   ///
-  /// @param args             JSON-encoded tool arguments ({ workflowId }).
-  /// @param botToken         Optional Slack bot token.
-  /// @param mockDispatchFail When true, dispatchToEngine returns #err; otherwise #ok.
+  /// Builds a minimal descriptor with no coreDirectives and dispatches using the provided args.
+  /// @param args             JSON-encoded tool arguments (workflow-specific).
+  /// @param botToken         Optional Slack bot token (unused when no preValidation directives).
+  /// @param mockDispatchFail When true, dispatch returns #err; otherwise #ok.
   /// Uses a minimal org-admin AgentRecord stub and a fresh ExecutionEnvelopeModel.EnvelopeState.
-  public shared ({ caller }) func testDispatchWorkflowHandler(
+  public shared ({ caller }) func testWorkflowEngineHandler(
     args : Text,
     botToken : ?Text,
     mockDispatchFail : Bool,
@@ -1788,12 +1786,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     } else {
       mockInternalEngine;
     };
-    let engineDispatch : DispatchWorkflowHandler.EngineDispatch = {
+    let engineDispatch : ToolTypes.EngineDispatch = {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine;
       catalogState = WorkflowCatalogModel.empty();
     };
-    let envelopeContext : DispatchWorkflowHandler.EnvelopeContext = {
+    let envelopeContext : ToolTypes.EnvelopeContext = {
       agent;
       turnId = "test-turn-0_0";
       instructions = "Test instructions";
@@ -1804,7 +1802,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (null) { null };
       case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
     };
-    let outcome = await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, args);
+    let descriptor : WorkflowCatalogTypes.WorkflowDescriptor = {
+      workflowName = "admin-v1";
+      description = "Administrative operations";
+      parametersJsonSchema = "{\"type\":\"object\"}";
+      requiredScopes = [];
+      coreDirectives = [];
+    };
+    let outcome = await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, args);
     switch (outcome) {
       case (#ok(t)) { t };
       case (#err(e)) { e };

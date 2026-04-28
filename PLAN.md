@@ -118,31 +118,6 @@ B.5 — Delete `dispatch-workflow-handler.mo`:
 
 ---
 
-**Phase B.5 — Tool output contract** _(parallel with Phase B, same commit)_
-
-**Goal**
-
-Enforce a consistent tool output convention across all handlers and document it in `ARCHITECTURE.md`.
-
-**Convention**
-
-- `#success(text)` — `text` is meaningful result data only. For simple confirmations, a plain human-readable string is fine. For structured results, use a JSON object containing only semantically useful fields. Never include a redundant `"success": true` wrapper — the `#success` variant is already the success signal.
-- `#error(text)` — `text` is a plain human-readable error message string. Never wrap it in a JSON object. The `#error` variant is the failure signal; the text is for the LLM to read and act on.
-
-**Source Steps**
-
-1. `web-search-handler.mo`: remove `"success": true` from `#success` output.
-2. `store-secret-handler.mo`, `get-workspace-secrets-handler.mo`, `delete-secret-handler.mo`: remove `"success": true` from `#success` outputs.
-3. `workflow-engine-handler.mo`: follows convention from day one — `#error(msg)` directly, no JSON wrapper.
-4. `ARCHITECTURE.md`: add "Tool Output Contract" under Architecture Principles.
-
-**Test Steps**
-
-- `icp build control-plane-core` + `bun run test:build` clean.
-- `mops test` — all pass.
-
----
-
 **Phase C — Suspend/resume + `ApprovalModel`** _(depends on Phase B)_
 
 - New `models/approval-model.mo`:

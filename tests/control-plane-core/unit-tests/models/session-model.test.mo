@@ -4,7 +4,6 @@ import Map "mo:core/Map";
 import Set "mo:core/Set";
 import SessionModel "../../../../src/control-plane-core/models/session-model";
 import Constants "../../../../src/control-plane-core/constants";
-import SlackUserModel "../../../../src/control-plane-core/models/slack-user-model";
 
 // ============================================
 // Helpers

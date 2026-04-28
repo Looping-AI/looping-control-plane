@@ -64,7 +64,7 @@ module {
     };
 
     let model = resolveModel(envelope);
-    let tools = ToolRegistry.getDefinitions(envelope.workflowId, envelope.scopeGrants);
+    let tools = ToolRegistry.getDefinitions(envelope.workflowName, envelope.scopeGrants);
     let toolsArg : ?[LlmWrapper.Tool] = if (tools.size() > 0) { ?tools } else {
       null;
     };
@@ -193,7 +193,7 @@ module {
           let results = try {
             await ToolExecutor.execute(
               wrapper,
-              envelope.workflowId,
+              envelope.workflowName,
               envelope.scopeGrants,
               calls,
             );

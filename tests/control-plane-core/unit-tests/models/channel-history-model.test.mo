@@ -1,11 +1,7 @@
 import { test; suite; expect } "mo:test";
 import Map "mo:core/Map";
-import Nat "mo:core/Nat";
-import Set "mo:core/Set";
 import Text "mo:core/Text";
 import ChannelHistoryModel "../../../../src/control-plane-core/models/channel-history-model";
-import SlackAuthMiddleware "../../../../src/control-plane-core/middleware/slack-auth-middleware";
-import SlackUserModel "../../../../src/control-plane-core/models/slack-user-model";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,19 +12,6 @@ func agentMsg(ts : Text, text : Text) : ChannelHistoryModel.ChannelMessage {
 
 func isSome<A>(x : ?A) : Bool { switch x { case null false; case _ true } };
 func isNone<A>(x : ?A) : Bool { switch x { case null true; case _ false } };
-
-/// Build a minimal UserAuthContext for round-context tests.
-func makeRoundCtx(userId : Text, roundCount : Nat, forceTerminated : Bool) : SlackAuthMiddleware.UserAuthContext {
-  {
-    slackUserId = userId;
-    isPrimaryOwner = false;
-    isOrgAdmin = false;
-    adminWorkspaces = Set.empty<Nat>();
-    roundCount;
-    forceTerminated;
-    parentRef = null;
-  };
-};
 
 // ── empty ─────────────────────────────────────────────────────────────────────
 

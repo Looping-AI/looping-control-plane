@@ -22,10 +22,10 @@ module {
 
   /// Get all tools available for the given workflow and scope grants.
   public func getTools(
-    workflowId : Text,
+    workflowName : Text,
     scopeGrants : [ExecutionTypes.ScopeGrant],
   ) : [FunctionTool] {
-    switch (workflowId) {
+    switch (workflowName) {
       case "admin-v1" { getAdminTools(scopeGrants) };
       case _ { [] };
     };
@@ -33,23 +33,23 @@ module {
 
   /// Get all tool definitions (for passing to LLM API).
   public func getDefinitions(
-    workflowId : Text,
+    workflowName : Text,
     scopeGrants : [ExecutionTypes.ScopeGrant],
   ) : [LlmWrapper.Tool] {
     Array.map<FunctionTool, LlmWrapper.Tool>(
-      getTools(workflowId, scopeGrants),
+      getTools(workflowName, scopeGrants),
       func(t : FunctionTool) : LlmWrapper.Tool { t.definition },
     );
   };
 
   /// Lookup a single tool by name.
   public func get(
-    workflowId : Text,
+    workflowName : Text,
     scopeGrants : [ExecutionTypes.ScopeGrant],
     name : Text,
   ) : ?FunctionTool {
     Array.find<FunctionTool>(
-      getTools(workflowId, scopeGrants),
+      getTools(workflowName, scopeGrants),
       func(t : FunctionTool) : Bool { t.definition.function_.name == name },
     );
   };

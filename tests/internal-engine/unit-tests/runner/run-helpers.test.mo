@@ -17,7 +17,7 @@ func makeEnvelope(id : Nat) : ExecutionTypes.EnvelopePayload {
     requestId = "req-" # Nat.toText(id);
     agentId = 0;
     workspaceId = 0;
-    workflowId = "wf-test";
+    workflowName = "wf-test";
     agentName = "test-agent";
     dispatchedVersion = ?"v1";
     instructions = "test";

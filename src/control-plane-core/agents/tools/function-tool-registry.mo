@@ -4,11 +4,14 @@ import Nat "mo:core/Nat";
 import OpenRouterWrapper "../../wrappers/openrouter-wrapper";
 import ToolTypes "./tool-types";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
+import AgentHelpers "../helpers";
 import WebSearchHandler "./handlers/web-search-handler";
 import StoreSecretHandler "./handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "./handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "./handlers/secrets/delete-secret-handler";
-import DispatchWorkflowHandler "./handlers/dispatch-workflow-handler";
+import WorkflowEngineHandler "./handlers/workflow-engine-handler";
+import WorkflowCatalogService "../../services/workflow-catalog-service";
+import WorkflowCatalogTypes "../../types/workflow-catalog";
 import SecretModel "../../models/secret-model";
 
 module {
@@ -67,11 +70,20 @@ module {
     };
 
     // ==========================================
-    // DISPATCH WORKFLOW TOOL - requires engineDispatch + envelopeContext
+    // WORKFLOW ENGINE TOOLS - requires engineDispatch + envelopeContext
+    // One tool per permitted workflow descriptor, built dynamically from the catalog.
     // ==========================================
     switch (resources.engineDispatch, resources.envelopeContext) {
       case (?ed, ?ec) {
-        List.add(tools, dispatchWorkflowTool(ed, ec, resources.resolveSlackBotToken));
+        switch (ed.catalogState.cached) {
+          case (?{ descriptors; catalogHash = _ }) {
+            let grants = AgentHelpers.buildScopeGrants(ec.agent);
+            for (descriptor in WorkflowCatalogService.filterByScopes(descriptors, grants).vals()) {
+              List.add(tools, workflowTool(descriptor, ed, ec, resources.resolveSlackBotToken));
+            };
+          };
+          case (null) {}; // catalog not yet loaded — pre-loaded by admin-agent-loop before getAll
+        };
       };
       case _ {};
     };
@@ -183,22 +195,28 @@ module {
   };
 
   // ============================================
-  // DISPATCH WORKFLOW TOOL IMPLEMENTATION
+  // WORKFLOW ENGINE TOOL IMPLEMENTATION
   // ============================================
 
-  /// Dispatch workflow tool — requires engineDispatch + envelopeContext resources.
-  private func dispatchWorkflowTool(
-    engineDispatch : DispatchWorkflowHandler.EngineDispatch,
-    envelopeContext : DispatchWorkflowHandler.EnvelopeContext,
+  /// One tool per workflow descriptor — name, description, and JSON schema come
+  /// directly from the descriptor; dispatch is handled by WorkflowEngineHandler.
+  private func workflowTool(
+    descriptor : WorkflowCatalogTypes.WorkflowDescriptor,
+    engineDispatch : ToolTypes.EngineDispatch,
+    envelopeContext : ToolTypes.EnvelopeContext,
     resolveSlackBotToken : ?(Text -> ?Text),
   ) : FunctionTool {
     {
       definition = {
-        tool_type = DispatchWorkflowHandler.definition.tool_type;
-        function = DispatchWorkflowHandler.definition.function;
+        tool_type = "function";
+        function = {
+          name = descriptor.workflowName;
+          description = ?descriptor.description;
+          parameters = ?descriptor.parametersJsonSchema;
+        };
       };
       handler = func(args : Text) : async ToolTypes.ToolCallOutcome {
-        await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, args);
+        await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, args);
       };
     };
   };

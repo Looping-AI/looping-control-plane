@@ -18,21 +18,26 @@ import ToolExecutor "../../tools/tool-executor";
 import ToolTypes "../../tools/tool-types";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
+import WorkflowCatalogService "../../../services/workflow-catalog-service";
 
 module {
   public func process(
     agent : AgentModel.AgentRecord,
     assembled : ContextAssembler.AssembledContext,
-    _triggerMessageText : ?Text,
     turnId : Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     apiKey : Text,
     secrets : SecretModel.SecretsState,
     workspaceKey : [Nat8],
     resolveSlackBotToken : (Text -> ?Text),
-    _resolveWorkspaceName : (Nat -> ?Text),
     engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
   ) : async Types.AgentOrchestrateResult {
+    // Eager catalog pre-load: ensure the catalog is available before tools are built.
+    // If the catalog is already cached from a prior turn, this is a no-op.
+    if (engineDeps.catalogState.cached == null) {
+      ignore await WorkflowCatalogService.refreshCatalogue(engineDeps.catalogState, engineDeps.internalEngine);
+    };
+
     let instructions = InstructionComposer.compose(
       AgentHelpers.categoryToRole(agent.category, agent.config.name),
       [],

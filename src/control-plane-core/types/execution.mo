@@ -63,7 +63,7 @@ module {
     agentId : Nat;
     agentName : Text;
     workspaceId : Nat;
-    workflowId : Text;
+    workflowName : Text;
     model : Text;
     messages : [ChatMessage];
     instructions : Text;

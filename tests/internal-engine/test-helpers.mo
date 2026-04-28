@@ -21,7 +21,7 @@ module {
       requestId = "req-test-" # Nat.toText(envelopeId);
       agentId = 0;
       workspaceId = 0;
-      workflowId = "wf-test";
+      workflowName = "wf-test";
       agentName;
       dispatchedVersion = ?"v1";
       instructions = "You are a test assistant.";

@@ -25,6 +25,28 @@ module {
   };
 
   // ============================================
+  // Engine Dispatch Types
+  // ============================================
+
+  /// Engine dispatch resources — envelope state, pre-resolved engine actor, and catalog state.
+  /// Passed to workflow tools so they can issue envelopes and dispatch to the engine.
+  public type EngineDispatch = {
+    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+    internalEngine : InternalEngine.InternalEngine;
+    catalogState : WorkflowCatalogModel.CatalogState;
+  };
+
+  /// Per-turn envelope context needed to build an ExecutionEnvelope.
+  /// Carries agent identity, conversation state, and LLM credentials.
+  public type EnvelopeContext = {
+    agent : AgentModel.AgentRecord;
+    turnId : Text;
+    instructions : Text;
+    messages : [ExecutionTypes.ChatMessage];
+    apiKey : Text;
+  };
+
+  // ============================================
   // Function Tool Resources
   // ============================================
 
@@ -57,22 +79,12 @@ module {
       write : Bool;
     };
 
-    // Engine dispatch resources — if provided, dispatch_workflow tool is available.
+    // Engine dispatch resources — if provided, workflow engine tools are available.
     // Carries the envelope state (token store + counter + salt) and the pre-resolved engine actor.
-    engineDispatch : ?{
-      envelopeState : ExecutionEnvelopeModel.EnvelopeState;
-      internalEngine : InternalEngine.InternalEngine;
-      catalogState : WorkflowCatalogModel.CatalogState;
-    };
+    engineDispatch : ?EngineDispatch;
 
-    // Per-turn envelope context needed by dispatch_workflow to build the ExecutionEnvelope.
+    // Per-turn envelope context needed by workflow tools to build the ExecutionEnvelope.
     // Requires engineDispatch to also be set.
-    envelopeContext : ?{
-      agent : AgentModel.AgentRecord;
-      turnId : Text;
-      instructions : Text;
-      messages : [ExecutionTypes.ChatMessage];
-      apiKey : Text;
-    };
+    envelopeContext : ?EnvelopeContext;
   };
 };
