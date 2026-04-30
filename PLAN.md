@@ -118,35 +118,256 @@ B.5 — Delete `dispatch-workflow-handler.mo`:
 
 ---
 
-**Phase C — Suspend/resume + `ApprovalModel`** _(depends on Phase B)_
+**Phase C.a — Dispatch-Resume** _(depends on Phase B)_
 
-- New `models/approval-model.mo`:
-  - `ApprovalState { var counter : Nat; var approvalSalt : Blob; approvals : Map<Text, ApprovalRecord> }`.
-  - `ApprovalRecord { code; workflowName; renderedArgs; workspaceId; agentId; requestedAt; var status : { #pending; #approved; #used; #expired } }`.
-  - Code generation: `makeNonce(approvalSalt, counter, now)` — same algorithm as envelope nonce, separate salt + counter. Unpredictable; not guessable by iteration.
-  - `request(state, ...)`, `approve(state, code)`, `validate(state, code, workflowName)` (marks `#used`).
-- `WorkflowEngineHandler.handle()` — replace Phase B interim stub:
-  - `#require("approval")`, no `approvalCode` in args: `ApprovalModel.request()` → post Slack approval message → `#success("{\"dispatched\":false,\"approvalRequired\":true,\"approvalCode\":\"<nonce>\"}")`.
-  - `#require("approval")`, `approvalCode` present: `ApprovalModel.validate()` → `#error(msg)` or proceed to dispatch.
-- `approvalState` added to persistent state in `main.mo`; threaded through `ToolResources.engineDispatch`.
-- Extend `AgentTurnRecord` with `pendingResume : ?ResumeCheckpoint { messages; pendingToolCallId; roundCount; mode; timerId : ?TimerId }` where `ResumeMode = #dispatched { envelopeId; envelopeNonce } | #awaitingApproval { workflowName; renderedArgs; approvalCode; expiresAtNs }`. Stable-safe defaults.
-- Add `#awaitingApproval` to `TurnStatus`.
-- **Dispatch path**: persist checkpoint, mark `#pending`. On `executionComplete`: append synthetic tool message keyed by `pendingToolCallId`, clear `pendingResume`, transition to `#running`, re-invoke `AdminAgentLoop.process(...)` — no separate `resume()` entry point.
-- **Approval path**: handler returns dispatch-suspended `#success`; loop persists checkpoint, marks `#awaitingApproval`, posts Slack Block Kit approval message.
-- **Approval interception** in `MessageHandler` pre-agent phase: same-thread + same `userId` + `approve <code>` (case-insensitive, trimmed) → `ApprovalModel.approve()` → resume turn. Mismatch → deny → re-invoke `process()`. Consume message either way. Different user → post thread note; let normal new-turn flow proceed.
-- **Phase C.1 prerequisite**: add `block_actions` routing branch in `http_request_update` for Slack interactive message button clicks (currently future — must be implemented here).
-- Bound resumes against `MAX_AGENT_ROUNDS`; overflow → `#roundLimitHit`.
+**Goal**
+
+Replace the current dispatch-and-terminate behavior: when the admin loop dispatches a workflow it now _suspends_ with a checkpoint. When the engine posts `executionComplete`, the loop resumes as a continuation of the same LLM conversation, with the full engine result injected as the tool result so the LLM can reason about next steps.
+
+**Current State**
+
+- `adminLoop` detects `dispatched:true` in tool results → returns `#dispatched`.
+- `message-handler.mo` marks the turn `#pending`.
+- `ExecutionAsyncEffectService.processEffect()` on `#complete` → posts `humanSummary` to Slack, marks turn `#succeeded`. Turn ends; no LLM continuation.
+
+**Desired State**
+
+- When `adminLoop` detects the dispatch signal it captures `SuspensionData` and returns `#dispatched { suspension }`.
+- `message-handler.mo` sets `turn.status := #awaitingWorkflow(suspension)` (no separate model function; status is the checkpoint).
+- `ExecutionAsyncEffectService.processEffect()` on `#complete`:
+  - Pattern-match `turn.status`: `case (#awaitingWorkflow(suspension))`: build synthetic tool result JSON → call `resumeAdminTurn` closure → handle result (post to Slack + complete turn on `#ok`/`#err`).
+  - All other statuses: current behavior (post `humanSummary`, mark `#succeeded`).
+- `AdminAgentLoop.process()` accepts an optional `resumeOverride : ?{ messages : [ResponseInputMessage]; startRound : Nat }`. If provided, skip `ContextAssembler` and use those messages, starting the loop counter at `startRound`. If null, normal context assembly at round 0.
+
+**Synthetic tool result JSON** (injected at resume, keyed by `pendingToolCallId`):
+
+```json
+{
+  "status": "completed | failed | roundLimitReached",
+  "humanSummary": "...",
+  "stepsDetail": [{ "tool": "...", "summary": "...", "success": true }],
+  "stats": { "durationNs": ..., "llmCalls": ..., "inputTokens": ..., "outputTokens": ..., "estimatedDollarCost": ... }
+}
+```
+
+**New types**
+
+```motoko
+// session-model.mo
+public type SuspensionData = {
+  messages : [OpenRouterWrapper.ResponseInputMessage]; // full accumulated message history at suspension
+  pendingToolCallId : Text; // call ID of the dispatching tool call (needed because a round may have multiple tool calls, only one of which dispatched the workflow)
+  roundCount : Nat; // loop counter at suspension — enforces MAX_AGENT_ROUNDS across the resume boundary
+};
+
+// TurnStatus: bare #pending removed; suspension data lives in var status directly.
+public type TurnStatus = {
+  #running;
+  #awaitingWorkflow : SuspensionData; // dispatched to engine; C.b adds #awaitingApproval
+  #succeeded;
+  #failed;
+};
+
+```
+
+`AgentTurnRecord`: **no new field**. `var status` already carries the suspension data inside `#awaitingWorkflow`. `ResumeMode` type is not introduced — it's encoded in the `TurnStatus` variant itself.
+
+`AgentOrchestrateResult.#dispatched` is extended:
+
+```motoko
+#dispatched : { steps : [ProcessingStep]; suspension : SuspensionData };
+
+```
+
+**Source Steps**
+
+C.a.1 — `session-model.mo`: add `SuspensionData` type; replace bare `#pending` in `TurnStatus` with `#awaitingWorkflow : SuspensionData`. No new field on `AgentTurnRecord`; no checkpoint helper functions.
+
+C.a.2 — `types.mo`: extend `AgentOrchestrateResult.#dispatched` with `suspension : SuspensionData`.
+
+C.a.3 — `admin-agent-loop.mo`:
+
+- `process()` signature: add `resumeOverride : ?{ messages : [ResponseInputMessage]; startRound : Nat }`. If provided, skip `ContextAssembler`, use those messages + `startRound`.
+- `adminLoop`: when dispatch signal detected, build `SuspensionData { messages = List.toArray(inputHistory); pendingToolCallId = <callId of the dispatching ToolCall>; roundCount = rounds }`. Return `#dispatched { steps; suspension }`.
+
+C.a.4 — `message-handler.mo`: on `#dispatched { suspension }` → `turn.status := #awaitingWorkflow(suspension)`. No separate model function call; the status itself is the checkpoint.
+
+C.a.5 — `execution-async-effect-service.mo`:
+
+- `ServiceDeps` gets `resumeAdminTurn : (turnId : Text, syntheticResult : Text) -> async Types.AgentOrchestrateResult`.
+- In `processEffect` for `#complete`: pattern-match `turn.status` — `case (#awaitingWorkflow(suspension))`: build synthetic tool result JSON from `humanSummary`, `stepsDetail`, `status`, `stats`; call `deps.resumeAdminTurn(turnId, syntheticResult)`; handle result (post to Slack + complete turn on `#ok`/`#err`, post error + `#failed` on `#err`). All other statuses: current behavior (post `humanSummary`, mark `#succeeded`).
+
+C.a.6 — `agent-orchestrator.mo`: thread `sessionStores` into `AdminAgentLoop.process(...)` call; pass `resumeOverride = null` (fresh start always from orchestrator).
+
+C.a.7 — `main.mo`: build `resumeAdminTurn` closure capturing all stable state; inject into `executionAsyncEffectService`. The closure: looks up agent + turn, pattern-matches `turn.status` to extract `suspension`, derives API key + workspace key, constructs `resumeOverride = ?{ messages = suspension.messages ++ [syntheticToolResultMsg]; startRound = suspension.roundCount }`, calls `AdminAgentLoop.process(...)`.
+
+**Test Steps**
+
+- `icp build control-plane-core` clean after C.a.1–C.a.7.
+- Unit test `session-model`: `TurnStatus` round-trip with `#awaitingWorkflow(SuspensionData)` — set and read back via `turn.status`.
+- Unit test `admin-agent-loop` (mock engine): dispatch → `#dispatched { suspension }` where `suspension` carries correct `messages`, `pendingToolCallId`, `roundCount = 1`.
+- Integration test: dispatch workflow → engine completes → admin loop resumes → LLM generates final response → `#succeeded`. Verify `stepsDetail` appears in synthetic tool result passed to the LLM.
+- `mops test` — all pass. `bun run tsc --noEmit` + `bun run format` before commit.
 
 ---
 
-**5.2.1.1 — Approval TTL: per-turn timers, cancellable, upgrade-recovered** _(depends on Phase C)_
+**Phase C.b — Approval Gate** _(depends on Phase C.a)_
+
+**Goal**
+
+When a workflow has `#require("approval")` in `coreDirectives` and the agent calls it without an approval code, the handler suspends the turn (posting an approval prompt to Slack), the agent waits, and the original requester can approve it by replying `approve <code>` in the thread. On approval, the workflow is re-dispatched transparently and the LLM continues as if dispatch was immediate.
+
+**UX**: Text-reply only in this phase (`approve <64-char-hex>`). Block Kit buttons and expired-button UX are deferred to 5.2.1.1.
+
+**Current State (after C.a)**
+
+- `WorkflowEngineHandler.handle()` has an interim stub: returns `#err("approvalRequired", ...)` when `approvalCode` is absent. Phase B decision.
+- `TurnStatus` has `#running`, `#pending`, `#succeeded`, `#failed` — no approval state.
+- `AdminAgentLoop` has no concept of an approval-suspended result.
+- `MessageHandler` has no pre-agent interception logic.
+
+**Desired State**
+
+- `WorkflowEngineHandler.handle()` — replace interim stub for `#require("approval")` without `approvalCode`:
+  1. Call `ApprovalModel.request(approvalState, ...)` → returns a 64-char hex code.
+  2. Build `renderedArgs` = pretty-printed JSON of the tool args (all fields, indented).
+  3. Post Slack text message to the turn's channel + thread: `"Workflow \`<workflowName>\` requires approval.\nArguments:\n\`\`\`<renderedArgs>\`\`\`\nReply with \`approve <code>\` to proceed.\nApproval code: \`<code>\`"`.
+  4. Return `#ok("{\"dispatched\":false,\"approvalRequired\":true,\"approvalCode\":\"<code>\"}")`.
+- `adminLoop` detects `approvalRequired:true` signal → captures `SuspensionData` and returns `#awaitingApproval { suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId }`.
+- `message-handler.mo` on `#awaitingApproval`: sets `turn.status := #awaitingApproval({ suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId })` directly.
+- `MessageHandler.handle()` pre-agent interception (after round context, before new turn creation): if message text matches `approve\s+([a-f0-9]{64})` (case-insensitive, trimmed, with or without `::agentname` prefix stripped):
+  - Look up code in `ctx.approvalState` via `ApprovalModel.findByCode(ctx.approvalState, code)`.
+  - If not found or `#expired`/`#used`: post error `"Invalid or expired approval code. Please request the agent to run the workflow again."` → return (consume message, no new turn).
+  - If found and different `userId`: post `"Only the user who requested this approval can approve it."` → return (consume message, no new turn).
+  - If found and same `userId`: call `ApprovalModel.validate(...)` → marks `#used`. Call `resumeApprovalTurn(ctx, turnId, approvalRecord)` — see below.
+  - Non-approval messages: normal flow (no change).
+- `resumeApprovalTurn` (private helper in `message-handler.mo`):
+  1. Look up turn from `sessionStores`; extract `suspension` from `turn.status` (pattern-match `#awaitingApproval({ suspension; ... })`).
+  2. Derive workspace key + API key (same derivation as normal agent turn).
+  3. Look up workflow `descriptor` by `workflowName` from `ctx.catalogState`; if not found, post error + mark turn `#failed`.
+  4. Inject `approvalCode` into `originalToolArgs` JSON → new args string.
+  5. Call `WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, newArgs)`.
+  6. If `#err`: post error to Slack, mark turn `#failed`, return.
+  7. If `#ok({dispatched: true})`: format as tool result; construct `resumeOverride = ?{ messages = suspension.messages ++ [syntheticMsg]; startRound = suspension.roundCount }`. Call `AdminAgentLoop.process(...)` with `resumeOverride`. Handle `#dispatched { suspension }` (set `turn.status := #awaitingWorkflow(suspension)`) and `#ok`/`#err` normally.
+
+**New types**
+
+```motoko
+// session-model.mo — extend TurnStatus (C.b adds the #awaitingApproval variant)
+// No ResumeMode type; the variant itself encodes the mode.
+public type TurnStatus = {
+  #running;
+  #awaitingWorkflow : SuspensionData; // dispatched to engine (from C.a)
+  #awaitingApproval : {
+    // waiting for human approval
+    suspension : SuspensionData; // common resume fields (messages, pendingToolCallId, roundCount)
+    workflowName : Text;
+    approvalCode : Text;
+    originalToolArgs : Text; // exact JSON args the LLM passed (do not normalize)
+    requestedByUserId : Text;
+  };
+  #succeeded;
+  #failed;
+};
+
+// approval-model.mo (new file)
+public type ApprovalStatus = { #pending; #used; #expired };
+
+public type ApprovalRecord = {
+  code : Text;
+  workflowName : Text;
+  renderedArgs : Text;
+  workspaceId : Nat;
+  agentId : Nat;
+  turnId : Text;
+  requestedByUserId : Text;
+  requestedAt : Int;
+  var status : ApprovalStatus;
+};
+
+public type ApprovalState = {
+  var counter : Nat;
+  var approvalSalt : Blob;
+  approvals : Map.Map<Text, ApprovalRecord>; // keyed by code
+};
+
+```
+
+Model functions (state parameter first per Motoko conventions):
+
+- `request(state, workflowName, renderedArgs, workspaceId, agentId, turnId, requestedByUserId) : Text` — generates code via `makeNonce(state.approvalSalt, state.counter, now)`, creates record, increments counter, returns code.
+- `findByCode(state, code) : ?ApprovalRecord` — lookup.
+- `validate(state, code, requestedByUserId) : Result<ApprovalRecord, Text>` — checks record exists, status is `#pending`, userId matches → marks `#used`, returns record.
+- `expire(state, code)` — marks `#expired` (called by TTL timer in 5.2.1.1).
+
+`AgentOrchestrateResult` gains:
+
+```motoko
+#awaitingApproval : {
+  steps : [ProcessingStep];
+  suspension : SuspensionData;
+  workflowName : Text;
+  approvalCode : Text;
+  originalToolArgs : Text;
+  requestedByUserId : Text;
+};
+
+```
+
+**`ToolResources.engineDispatch`** gets `approvalState : ApprovalModel.ApprovalState`.
+
+`EventProcessingContext` gets `approvalState : ApprovalModel.ApprovalState`.
+
+`WorkflowEngineHandler.handle()` signature: add `approvalState : ApprovalModel.ApprovalState` and `slackChannelId : Text` + `slackThreadTs : ?Text` (for posting the approval message). These come from `ToolResources.envelopeContext` (add fields there) and `ToolResources.engineDispatch`.
+
+**Source Steps**
+
+C.b.1 — New `models/approval-model.mo`: `ApprovalState`, `ApprovalRecord`, `ApprovalStatus` types; `request`, `findByCode`, `validate`, `expire` functions.
+
+C.b.2 — `session-model.mo`: add `#awaitingApproval { suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId }` variant to `TurnStatus`. No `markAwaitingApproval` model function — message-handler sets `turn.status` directly.
+
+C.b.3 — `types.mo`: add `#awaitingApproval : { steps; suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId }` to `AgentOrchestrateResult`.
+
+C.b.4 — `tool-types.mo`: add `approvalState : ApprovalModel.ApprovalState` to `ToolResources.engineDispatch`; add `slackChannelId : Text` + `slackThreadTs : ?Text` to `EnvelopeContext`.
+
+C.b.5 — `workflow-engine-handler.mo`: replace interim `#require("approval")` stub with the real flow: `ApprovalModel.request()`, build `renderedArgs` (JSON pretty-print), post Slack message, return `#ok({dispatched:false, approvalRequired:true, approvalCode})`.
+
+C.b.6 — `admin-agent-loop.mo`: detect `approvalRequired:true` signal; capture `SuspensionData { messages; pendingToolCallId; roundCount }`; return `#awaitingApproval { steps; suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId }`. Also: thread `approvalState` through `ToolResources.engineDispatch` and `slackChannelId`/`slackThreadTs` through `EnvelopeContext`.
+
+C.b.7 — `message-handler.mo`:
+
+- Handle `#awaitingApproval` result: `turn.status := #awaitingApproval({ suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId })`.
+- Add `approve <code>` interception (before new turn creation): parse, `ApprovalModel.findByCode`, user check, `ApprovalModel.validate`, call `resumeApprovalTurn`.
+- Add private `resumeApprovalTurn` helper (steps described in Desired State above).
+
+C.b.8 — `events/types/event-processing-context.mo`: add `approvalState : ApprovalModel.ApprovalState`.
+
+C.b.9 — `main.mo`: add `approvalState : ApprovalModel.ApprovalState` to persistent state (with `approvalSalt` refreshed on upgrade via `raw_rand`, same pattern as `envelopeSalt`); wire `approvalState` into `EventProcessingContext` and `executionAsyncEffectService` deps.
+
+C.b.10 — `agent-orchestrator.mo` + `admin-agent-loop.mo`: thread `approvalState`, `slackChannelId`, `slackThreadTs` into `process()`.
+
+**Test Steps**
+
+- `icp build control-plane-core` clean after each step.
+- Unit test `approval-model`: `request` → `findByCode` round-trip. `validate` happy path → marks `#used`. `validate` wrong userId → error. `validate` already `#used` code → error. `expire` → marks `#expired`. `validate` expired code → error.
+- Unit test `workflow-engine-handler` (mock Slack + ApprovalModel): `#require("approval")`, no code → `#ok({approvalRequired:true, approvalCode})` + Slack message posted. `#require("approval")`, valid code + valid `ApprovalModel.validate` → proceeds to dispatch.
+- Unit test `admin-agent-loop` (mock handler): approval signal → `#awaitingApproval` carrying `SuspensionData` with correct `messages`, `pendingToolCallId`, `roundCount`. Dispatch following approval resume → `#dispatched`.
+- Unit test `message-handler` (approve interception): valid `approve <code>` from correct user → `resumeApprovalTurn` called. Valid code but wrong user → error posted, no turn created. Invalid/used code → error posted, no turn created. Non-approval message → normal turn flow.
+- `mops test` — all pass. `bun run tsc --noEmit` + `bun run format` before commit.
+
+---
+
+**5.2.1.1 — Approval TTL: per-turn timers, Block Kit, cancellable, upgrade-recovered** _(depends on Phase C.b)_
 
 - `APPROVAL_TTL_NS = 1 hour` in `Constants`.
-- Per-turn one-shot timer at `expiresAtNs`. `TimerId` persisted on `pendingResume.timerId`.
-- On approval (or any denial): cancel timer before state transition. Cancellation of an already-fired timer is a no-op.
-- On timer fire: re-check status under guard; if still `#awaitingApproval`, run denial path with reason `"approval timed out"`. If status changed (race), no-op.
-- `postupgrade` recovery: scan turns with `#awaitingApproval`; re-arm timer at `expiresAtNs` (or fire immediately if already past); overwrite `pendingResume.timerId` with new `TimerId`.
-- New `src/control-plane-core/timers/approval-timer.mo`: `arm(turnId, deadline) : TimerId`, `cancel(timerId)`, `recoverPendingApprovals(sessionState)` — runs once on startup, not periodically.
+- `TurnStatus.#awaitingApproval` extended with `expiresAtNs : Int` (set to `requestedAt + APPROVAL_TTL_NS`) and `var timerId : ?Timer.TimerId`.
+- `ApprovalRecord` extended with `expiresAtNs : Int` (set at `request()` time).
+- Per-turn one-shot timer scheduled at `expiresAtNs`. `TimerId` stored in `turn.status.timerId`.
+- On approval or denial: cancel timer before state transition (`Timer.cancelTimer`; cancelling an already-fired timer is a no-op).
+- On timer fire: re-check `turn.status` under guard; if still `#awaitingApproval` → run denial path with reason `"approval timed out"`, post Slack message. If status already changed (race with user reply), no-op.
+- `postupgrade` recovery: scan turns with `#awaitingApproval`; re-arm timer at `expiresAtNs` (or fire immediately if already past); overwrite stale `timerId` in `turn.status`.
+- New `src/control-plane-core/timers/approval-timer.mo`: `arm(turnId, deadline) : TimerId`, `cancel(timerId)`, `recoverPendingApprovals(sessionStores)` — runs once in `postupgrade`, not periodically.
+- **Block Kit**: replace the text-only Slack message from Phase C.b with a Block Kit message containing an `Approve` button (action `approve_workflow`) and a `Deny` button (action `deny_workflow`). Add `block_actions` routing branch in `http_request_update` (with HMAC verification of the Slack interactive payload); route to `BlockActionsHandler` which calls `ApprovalModel.validate()` or denial path, then `resumeApprovalTurn`.
 
 ---
 
@@ -160,24 +381,34 @@ B.5 — Delete `dispatch-workflow-handler.mo`:
 - `#require("approval")` is the approval gate — lives in `coreDirectives`. No separate `requiresApproval` field on descriptor.
 - Approval code = `makeNonce(approvalSalt, approvalCounter, now)` — same algorithm as envelope nonce, separate salt + counter.
 - `#err(text)` in `ToolCallOutcome` → structured JSON `{"type":"camelCase","message":"..."}`, never plain string. `#ok(text)` → meaningful result data, no redundant `"success": true`. Variant names are `#ok`/`#err` (not `#success`/`#error`) to align with the ICP `Result` pattern.
-- Approval interception: same-thread, same `userId`, `approve <code>` literal.
-- Per-turn cancellable timers, recovered in `postupgrade` — cycle-efficient, no periodic polling.
-- No separate `resume()` entry point; `AdminAgentLoop.process()` re-invoked with updated message history.
+- Approval interception: parse `approve <code>` (case-insensitive, with or without `::agentname` prefix stripped) → look up code in `ApprovalModel` by code → no secondary index needed, the record carries `turnId` + `requestedByUserId`.
+- Wrong code from correct user → post error, keep turn `#awaitingApproval`.
+- Different user sends approval message → post error, consume message, no new turn created.
+- Block Kit buttons deferred to 5.2.1.1; Phase C.b is text-reply only (`approve <64-char-hex>`).
+- Per-turn cancellable timers (TTL), recovered in `postupgrade` — deferred to 5.2.1.1.
+- No separate `resume()` entry point; `AdminAgentLoop.process()` accepts `resumeOverride : ?{ messages; startRound }` — null for fresh start, set for both dispatch-resume and approval-resume.
 - Same-turn resume; single in-flight workflow per turn.
+- Dispatch-resume always fires: engine result is always injected as a tool result and the loop continues; the LLM decides the next step.
+- `renderedArgs` in `ApprovalRecord` is pretty-printed JSON of the tool args (deterministic, no extra LLM call).
+- Approval-resume is transparent to the LLM: the approval interlude does not appear in the message history. The LLM sees the original tool call followed by `{dispatched: true}` (from the re-executed handler after approval), then the engine result on C.a resume.
+- `SuspensionData` carries `messages`, `pendingToolCallId`, and `roundCount`. Messages are not reconstructible from the trace (the trace is observability data, not an LLM replay log). `pendingToolCallId` is not derivable from messages because a round may contain multiple tool calls. `roundCount` is kept explicit to correctly enforce `MAX_AGENT_ROUNDS` across the resume boundary.
+- `TurnStatus` encodes suspension data directly in its variants (`#awaitingWorkflow : SuspensionData`, `#awaitingApproval : { suspension; ... }`). No separate `ResumeMode` type; no `pendingResume` field on `AgentTurnRecord`.
 
 **Future considerations — batch dispatch**
 
-- **Wait-all** (LLM emits N tool calls; turn resumes when all complete): cheap parallelism, head-of-line blocking, awkward partial-failure UX. Requires barrier on `pendingResume`.
+- **Wait-all** (LLM emits N tool calls; turn resumes when all complete): cheap parallelism, head-of-line blocking, awkward partial-failure UX. Requires a barrier counter in `TurnStatus`.
 - **Wait-any with `await_workflow` tool**: max flexibility, multi-suspension lifecycle, orphaned-envelope GC, new prompting idiom.
-- Common prereqs: `pendingResume` becomes a barrier; engine emits stable `envelopeId` in completion; Slack UX handles interleaved progress.
+- Common pre requests: `TurnStatus` becomes a barrier; engine emits stable `envelopeId` in completion; Slack UX handles interleaved progress.
 - Approval × batch: bundled approvals or fail-fast on first denial. Ship single-dispatch first.
 
 **Risks**
 
 - `coreDirectives` parsing must tolerate unknown variants (forward compat).
-- `pendingResume` and `#awaitingApproval` need stable-safe defaults.
-- Timer + user-reply race: cancellation is idempotent; fire-handler re-checks turn status — late fire after user reply is a no-op.
-- `postupgrade` recovery must not double-arm (only scan `#awaitingApproval` turns; overwrite stale `timerId`).
+- `#awaitingWorkflow` and `#awaitingApproval` are new `TurnStatus` variants — no stable migration needed since nothing is in production. The bare `#pending` variant is removed.
+- `approvalSalt` in `ApprovalState` must be seeded (same `raw_rand` pattern as `envelopeSalt`); zero salt weakens nonce unpredictability.
+- Approval-resume re-executes the handler synchronously in `MessageHandler` — if the engine dispatch itself fails, the turn must be marked `#failed` with a user-visible error.
+- Catalog may be stale at approval-resume time: the handler re-uses the catalog in `ctx.catalogState`; if the catalog was invalidated between the original call and the approval, the handler returns `#err(staleCatalog)` and the turn must be marked `#failed` (user must retry from scratch).
+- `originalToolArgs` in `#awaitingApproval` must be the exact JSON string the LLM passed; do not normalize or re-serialize to avoid breaking the handler's arg parsing.
 - `approvalCode` unpredictability relies on nonce construction; never use sequential IDs.
 
 ---
@@ -202,7 +433,7 @@ B.5 — Delete `dispatch-workflow-handler.mo`:
 - on core, generate a private key for the engine and submit it through an inter canister call.
 - on engine, store the secret and ensure request is coming from the owner.
 - when envelope is generated, it converts to JSON, and then is encrypted in HMAC and sent on the execute call (both the signature and the body).
-- Engine decripts the body, then parses it to Candid, then proceeds as usual.
+- Engine decrypts the body, then parses it to Candid, then proceeds as usual.
 
 ---
 
