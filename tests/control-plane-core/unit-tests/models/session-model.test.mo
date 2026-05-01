@@ -129,39 +129,45 @@ suite(
 );
 
 // ============================================
-// markPending
+// awaitingWorkflow (replaces markPending)
 // ============================================
 
 suite(
-  "markPending",
+  "awaitingWorkflow",
   func() {
     test(
-      "transitions a running turn to pending",
+      "transitions a running turn to #awaitingWorkflow",
       func() {
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
         expect.bool(turn.status == #running).isTrue();
-        SessionModel.markPending(stores, turn.turnId);
-        expect.bool(turn.status == #pending).isTrue();
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_abc";
+          roundCount = 2;
+        };
+        turn.status := #awaitingWorkflow(dummySuspension);
+        switch (turn.status) {
+          case (#awaitingWorkflow(s)) {
+            expect.bool(s.pendingToolCallId == "call_abc").isTrue();
+            expect.bool(s.roundCount == 2).isTrue();
+          };
+          case (_) { expect.bool(false).isTrue() }; // unreachable: expected #awaitingWorkflow
+        };
       },
     );
 
     test(
-      "no-ops silently for unknown turnId",
-      func() {
-        let stores = makeStores();
-        // Should not trap
-        SessionModel.markPending(stores, "999_999");
-      },
-    );
-
-    test(
-      "pending turn can be finalized with completeTurn",
+      "awaitingWorkflow turn can be finalized with completeTurn",
       func() {
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
-        SessionModel.markPending(stores, turn.turnId);
-        expect.bool(turn.status == #pending).isTrue();
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_xyz";
+          roundCount = 1;
+        };
+        turn.status := #awaitingWorkflow(dummySuspension);
         SessionModel.completeTurn(stores, turn.turnId, #succeeded, null, null);
         expect.bool(turn.status == #succeeded).isTrue();
         expect.bool(turn.completedAtNs != null).isTrue();
@@ -169,11 +175,16 @@ suite(
     );
 
     test(
-      "pending turn can be finalized as failed",
+      "awaitingWorkflow turn can be finalized as failed",
       func() {
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
-        SessionModel.markPending(stores, turn.turnId);
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_xyz";
+          roundCount = 1;
+        };
+        turn.status := #awaitingWorkflow(dummySuspension);
         SessionModel.completeTurn(stores, turn.turnId, #failed, null, ?"engine error");
         expect.bool(turn.status == #failed).isTrue();
         expect.bool(turn.errorSummary == ?"engine error").isTrue();

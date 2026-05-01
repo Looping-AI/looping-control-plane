@@ -7,6 +7,7 @@ import Json "mo:json";
 import Types "../../../types";
 import SecretModel "../../../models/secret-model";
 import AgentModel "../../../models/agent-model";
+import SessionModel "../../../models/session-model";
 import ExecutionTypes "../../../types/execution";
 import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
 import InstructionComposer "../../instructions/instruction-composer";
@@ -31,6 +32,10 @@ module {
     workspaceKey : [Nat8],
     resolveSlackBotToken : (Text -> ?Text),
     engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
+    resumeOverride : ?{
+      messages : [OpenRouterWrapper.ResponseInputMessage];
+      startRound : Nat;
+    },
   ) : async Types.AgentOrchestrateResult {
     // Eager catalog pre-load: ensure the catalog is available before tools are built.
     // If the catalog is already cached from a prior turn, this is a no-op.
@@ -44,7 +49,18 @@ module {
       [],
     );
 
-    let chatMessages = messagesToChat(assembled.messages);
+    let (initialMessages, startRound) = switch (resumeOverride) {
+      case (?override) {
+        // Resume: use the provided message history and start the loop counter from the saved round.
+        (override.messages, override.startRound);
+      };
+      case (null) {
+        // Fresh start: assemble context from session history.
+        (assembled.messages, 0);
+      };
+    };
+
+    let chatMessages = messagesToChat(initialMessages);
 
     let toolResources : ToolTypes.ToolResources = {
       openRouterApiKey = ?apiKey;
@@ -73,7 +89,8 @@ module {
       apiKey,
       agent.config.model,
       instructions,
-      assembled.messages,
+      initialMessages,
+      startRound,
       #workspaceAgent(agent.ownedBy, agent.id),
       toolsOpt,
       toolResources,
@@ -85,12 +102,13 @@ module {
     model : Text,
     instructions : Text,
     initialInput : [OpenRouterWrapper.ResponseInputMessage],
+    startRound : Nat,
     trackId : OpenRouterWrapper.TrackId,
     toolDefinitions : ?[OpenRouterWrapper.Tool],
     toolResources : ToolTypes.ToolResources,
   ) : async Types.AgentOrchestrateResult {
     let inputHistory = List.fromArray<OpenRouterWrapper.ResponseInputMessage>(initialInput);
-    var rounds : Nat = 0;
+    var rounds : Nat = startRound;
 
     label loop_ loop {
       if (rounds >= Constants.MAX_AGENT_ROUNDS) {
@@ -135,13 +153,21 @@ module {
 
           let toolResults = await ToolExecutor.execute(toolResources, calls);
 
-          if (toolResultsContainDispatchSignal(toolResults)) {
-            let step : Types.ProcessingStep = {
-              action = "dispatch_to_engine";
-              result = #ok;
-              timestamp = Time.now();
+          switch (findDispatchingCall(toolResults)) {
+            case (?pendingToolCallId) {
+              let suspension : SessionModel.SuspensionData = {
+                messages = List.toArray(inputHistory);
+                pendingToolCallId;
+                roundCount = rounds;
+              };
+              let step : Types.ProcessingStep = {
+                action = "dispatch_to_engine";
+                result = #ok;
+                timestamp = Time.now();
+              };
+              return #dispatched({ steps = [step]; suspension });
             };
-            return #dispatched({ steps = [step] });
+            case (null) {};
           };
 
           let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
@@ -159,18 +185,20 @@ module {
     });
   };
 
-  private func toolResultsContainDispatchSignal(toolResults : [ToolTypes.ToolResult]) : Bool {
+  /// Find the callId of the tool call that produced a dispatch signal, if any.
+  /// Returns the callId of the first dispatching call found.
+  private func findDispatchingCall(toolResults : [ToolTypes.ToolResult]) : ?Text {
     for (toolResult in toolResults.vals()) {
       switch (toolResult.result) {
         case (#ok(output)) {
           if (isDispatchSignal(output)) {
-            return true;
+            return ?toolResult.callId;
           };
         };
         case (#err(_)) {};
       };
     };
-    false;
+    null;
   };
 
   private func isDispatchSignal(output : Text) : Bool {

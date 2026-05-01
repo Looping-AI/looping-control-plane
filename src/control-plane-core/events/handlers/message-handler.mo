@@ -535,10 +535,13 @@ module {
     );
 
     switch (routeResult) {
-      case (#dispatched({ steps })) {
-        // Engine accepted the envelope — mark turn pending.
+      case (#dispatched({ steps; suspension })) {
+        // Engine accepted the envelope — suspend the turn with the checkpoint.
         // Response will arrive async via processExecutionAsyncEffect.
-        SessionModel.markPending(ctx.sessionStores, turnId);
+        switch (SessionModel.findTurn(ctx.sessionStores, turnId)) {
+          case (?turn) { turn.status := #awaitingWorkflow(suspension) };
+          case (null) {};
+        };
         #ok(steps);
       };
       case (#ok({ response; steps })) {

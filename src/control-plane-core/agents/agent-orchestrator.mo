@@ -72,6 +72,7 @@ module {
           workspaceKey,
           resolveSlackBotToken,
           engineDeps,
+          null, // resumeOverride: null for fresh start from orchestrator
         );
       };
       case (#_system(#onboarding)) {

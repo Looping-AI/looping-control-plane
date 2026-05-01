@@ -1,5 +1,6 @@
 import InternalEngine "../internal-engine/main";
 import WorkflowCatalogModel "./models/workflow-catalog-model";
+import OpenRouterWrapper "./wrappers/openrouter-wrapper";
 
 module {
   /// Environment configuration for the bot-agent application
@@ -73,9 +74,25 @@ module {
     catalogState : WorkflowCatalogModel.CatalogState;
   };
 
+  /// Suspension data captured when an agent turn is suspended waiting for an async workflow result.
+  /// Stored inside TurnStatus so the checkpoint is co-located with the turn state.
+  public type SuspensionData = {
+    /// Full LLM conversation history at the point of suspension.
+    /// Cannot be reconstructed from traces (traces are observability data, not LLM replay logs).
+    messages : [OpenRouterWrapper.ResponseInputMessage];
+    /// Call ID of the specific tool call that dispatched the workflow.
+    /// Required because a single LLM round may emit multiple tool calls; we need the exact one.
+    pendingToolCallId : Text;
+    /// Loop round counter at suspension — used to enforce MAX_AGENT_ROUNDS across the resume boundary.
+    roundCount : Nat;
+  };
+
   /// Shared result returned by agent orchestration and category loops.
   public type AgentOrchestrateResult = {
-    #dispatched : { steps : [ProcessingStep] };
+    #dispatched : {
+      steps : [ProcessingStep];
+      suspension : SuspensionData;
+    };
     #ok : {
       response : Text;
       steps : [ProcessingStep];

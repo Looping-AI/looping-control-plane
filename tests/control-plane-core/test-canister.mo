@@ -168,6 +168,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     agentRegistry = testEffectAgentRegistry;
     workspaces = testWorkspacesState;
     secrets = testEffectSecretsState;
+    resumeAdminTurn = func(_ : Text, _ : SessionModel.SuspensionData, _ : Text) : async Types.AgentOrchestrateResult {
+      #err({
+        message = "resumeAdminTurn not supported in test canister";
+        steps = [];
+      });
+    };
   });
 
   func outcomeToText(outcome : ToolTypes.ToolCallOutcome) : Text {
@@ -705,14 +711,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   };
 
   /// Query the status of a turn recorded in testDispatchSessionStores.
-  /// Returns "running", "pending", "succeeded", or "failed"; null if not found.
+  /// Returns "running", "awaitingWorkflow", "succeeded", or "failed"; null if not found.
   public query func testGetTurnStatus(turnId : Text) : async ?Text {
     switch (SessionModel.findTurn(testDispatchSessionStores, turnId)) {
       case (null) { null };
       case (?turn) {
         let statusText = switch (turn.status) {
           case (#running) { "running" };
-          case (#pending) { "pending" };
+          case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
           case (#succeeded) { "succeeded" };
           case (#failed) { "failed" };
         };
@@ -954,7 +960,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
       null,
     );
-    SessionModel.markPending(testEffectSessionStores, turn.turnId);
+    turn.status := #awaitingWorkflow({
+      messages = [];
+      pendingToolCallId = "test-call-id";
+      roundCount = 0;
+    });
     turn.turnId;
   };
 
@@ -1011,7 +1021,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (?turn) {
         let statusText = switch (turn.status) {
           case (#running) { "running" };
-          case (#pending) { "pending" };
+          case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
           case (#succeeded) { "succeeded" };
           case (#failed) { "failed" };
         };

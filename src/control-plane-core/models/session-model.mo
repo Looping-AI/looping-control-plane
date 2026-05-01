@@ -17,6 +17,7 @@ import Float "mo:core/Float";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Constants "../constants";
+import Types "../types";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 
 module {
@@ -45,9 +46,13 @@ module {
     var policy : SessionPolicy;
   };
 
+  /// Suspension data captured when a turn is suspended waiting for an async workflow result.
+  /// Stored inside TurnStatus so the checkpoint is co-located with the turn state.
+  public type SuspensionData = Types.SuspensionData;
+
   public type TurnStatus = {
     #running;
-    #pending;
+    #awaitingWorkflow : SuspensionData; // dispatched to engine, waiting for #complete
     #succeeded;
     #failed;
   };
@@ -214,17 +219,6 @@ module {
     };
     Map.add(turnMap, Nat.compare, turnNumber, turn);
     turn;
-  };
-
-  /// Mark a turn as pending (dispatched to engine, awaiting completion).
-  public func markPending(
-    stores : SessionStores,
-    turnId : Text,
-  ) : () {
-    switch (findTurn(stores, turnId)) {
-      case (null) {};
-      case (?turn) { turn.status := #pending };
-    };
   };
 
   /// Finalize a turn with terminal status, cost, and optional error summary.

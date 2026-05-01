@@ -36,6 +36,9 @@ import WorkflowCatalogModel "./models/workflow-catalog-model";
 import ExecutionApiService "./services/execution-api-service";
 import ExecutionAsyncEffectService "./services/execution-async-effect-service";
 import InternalEngine "../internal-engine/main";
+import AdminAgentLoop "./agents/categories/system/admin-agent-loop";
+import ContextAssembler "./agents/context-assembler";
+import OpenRouterWrapper "./wrappers/openrouter-wrapper";
 
 persistent actor class OpenOrgBackend() {
   // ============================================
@@ -84,19 +87,102 @@ persistent actor class OpenOrgBackend() {
     sessionStores;
   });
 
+  // Internal engine canister principal — set when engine is spawned (Phase 6)
+  var internalEnginePrincipal : ?Principal = null;
+
+  // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
+  var internalEngine : ?InternalEngine.InternalEngine = null;
+
+  // Resume closure: called by executionAsyncEffectService when a completed engine result
+  // is ready and the turn is #awaitingWorkflow. Injects the synthetic tool result into
+  // the LLM conversation and resumes the admin agent loop as a continuation.
+  transient let resumeAdminTurn : (turnId : Text, suspension : SessionModel.SuspensionData, syntheticToolResult : Text) -> async Types.AgentOrchestrateResult = func(turnId : Text, suspension : SessionModel.SuspensionData, syntheticToolResult : Text) : async Types.AgentOrchestrateResult {
+    let turn = switch (SessionModel.findTurn(sessionStores, turnId)) {
+      case (?t) { t };
+      case null {
+        return #err({
+          message = "resumeAdminTurn: turn not found: " # turnId;
+          steps = [];
+        });
+      };
+    };
+
+    let agent = switch (AgentModel.lookupById(agentRegistry, turn.agentId)) {
+      case (?a) { a };
+      case null {
+        return #err({
+          message = "resumeAdminTurn: agent not found: " # Nat.toText(turn.agentId);
+          steps = [];
+        });
+      };
+    };
+
+    let engine = switch (internalEngine) {
+      case (?e) { e };
+      case null {
+        return #err({
+          message = "resumeAdminTurn: internal engine not initialized";
+          steps = [];
+        });
+      };
+    };
+
+    let orgKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
+    let workspaceKey = await KeyDerivationService.getOrDeriveKey(keyCache, agent.ownedBy);
+
+    let apiKey = switch (SecretModel.resolveSecret(secrets, agent, agent.ownedBy, #openRouterApiKey, workspaceKey, orgKey, { slackUserId = null; agentId = ?agent.id; operation = "resume-admin-turn" })) {
+      case (null) {
+        return #err({
+          message = "No OpenRouter API key for agent resume.";
+          steps = [];
+        });
+      };
+      case (?key) { key };
+    };
+
+    let resolveSlackBotToken : (Text -> ?Text) = func(operation : Text) : ?Text {
+      SecretModel.resolvePlatformSecret(secrets, orgKey, null, #slackBotToken, { slackUserId = null; agentId = null; operation });
+    };
+
+    // Format the synthetic result using the same convention as ToolExecutor.formatResultsForLlm.
+    let syntheticMsg : OpenRouterWrapper.ResponseInputMessage = {
+      role = #assistant;
+      content = "Tool call " # suspension.pendingToolCallId # " result:\n" # syntheticToolResult # "\n\n";
+    };
+
+    let resumeMessages = Array.concat(suspension.messages, [syntheticMsg]);
+
+    let dummyAssembled : ContextAssembler.AssembledContext = {
+      messages = resumeMessages;
+      stats = { summaryTokens = 0; rawTurnsIncluded = 0; channelSnippets = 0 };
+    };
+
+    await AdminAgentLoop.process(
+      agent,
+      dummyAssembled,
+      turnId,
+      turn.userAuthContext,
+      apiKey,
+      secrets,
+      workspaceKey,
+      resolveSlackBotToken,
+      {
+        envelopeState = executionEnvelopeState;
+        internalEngine = engine;
+        catalogState = workflowCatalogState;
+      },
+      ?{ messages = resumeMessages; startRound = suspension.roundCount },
+    );
+  };
+
   // Execution async-effect service (processes engine results: Slack posts, turn completion)
   transient let executionAsyncEffectService = ExecutionAsyncEffectService.Service({
     sessionStores;
     agentRegistry;
     workspaces;
     secrets;
+    resumeAdminTurn;
   });
-
-  // Internal engine canister principal — set when engine is spawned (Phase 6)
-  var internalEnginePrincipal : ?Principal = null;
-
-  // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
-  var internalEngine : ?InternalEngine.InternalEngine = null;
 
   // Track last engine top-up for the timer runner
   var lastEngineTopUpTimestamp : Int = Time.now();

@@ -116,7 +116,7 @@ module {
   func statusToText(status : SessionModel.TurnStatus) : Text {
     switch (status) {
       case (#running) { "running" };
-      case (#pending) { "pending" };
+      case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
       case (#succeeded) { "succeeded" };
       case (#failed) { "failed" };
     };
