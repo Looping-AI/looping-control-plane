@@ -80,7 +80,7 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
       case (null) { false };
     };
     if (not versionOk) {
-      return #err("{\"envelopeVersionRequired\":\"" # envelopeVersion # "\"}");
+      return #err(Json.stringify(obj([("envelopeVersionRequired", str(envelopeVersion))]), null));
     };
 
     // Catalog hash check — Core must always send the hash it received from listWorkflows().

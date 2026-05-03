@@ -52,10 +52,11 @@ import EventStoreModel "../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../src/control-plane-core/models/session-model";
 import ExecutionEnvelopeModel "../../src/control-plane-core/models/execution-envelope-model";
 import WorkflowCatalogModel "../../src/control-plane-core/models/workflow-catalog-model";
+import ApprovalModel "../../src/control-plane-core/models/approval-model";
 import ExecutionApiService "../../src/control-plane-core/services/execution-api-service";
 import ExecutionAsyncEffectService "../../src/control-plane-core/services/execution-async-effect-service";
 import EventProcessingContextTypes "../../src/control-plane-core/events/types/event-processing-context";
-import AgentOrchestrator "../../src/control-plane-core/agents/agent-orchestrator";
+import AgentRunner "../../src/control-plane-core/agents/agent-runner";
 import ToolExecutor "../../src/control-plane-core/agents/tools/tool-executor";
 import ToolTypes "../../src/control-plane-core/agents/tools/tool-types";
 import Types "../../src/control-plane-core/types";
@@ -706,6 +707,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = engine;
       catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
     };
     await MessageHandler.handle(msg, ctx);
   };
@@ -719,6 +721,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         let statusText = switch (turn.status) {
           case (#running) { "running" };
           case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
+          case (#awaitingApproval(_)) { "awaitingApproval" };
           case (#succeeded) { "succeeded" };
           case (#failed) { "failed" };
         };
@@ -733,10 +736,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   public shared ({ caller }) func testOrchestrateSystemAdminNoApiKey() : async Types.AgentOrchestrateResult {
     assert caller == parent;
-    await AgentOrchestrator.orchestrate(
+    await AgentRunner.start(
       testAgent(#_system(#admin), "unit-test-admin"),
       ChannelHistoryModel.empty(),
-      "C_TEST_CATEGORY",
       null,
       null,
       "turn-admin-0",
@@ -747,6 +749,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
       testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
     );
   };
 
@@ -757,10 +760,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
       s;
     };
-    await AgentOrchestrator.orchestrate(
+    await AgentRunner.start(
       testAgent(#_system(#onboarding), "unit-test-onboarding"),
       ChannelHistoryModel.empty(),
-      "C_TEST_CATEGORY",
       null,
       null,
       "turn-onboarding-0",
@@ -771,6 +773,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
       testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
     );
   };
 
@@ -781,10 +784,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
       s;
     };
-    await AgentOrchestrator.orchestrate(
+    await AgentRunner.start(
       testAgent(#custom, "unit-test-custom"),
       ChannelHistoryModel.empty(),
-      "C_TEST_CATEGORY",
       null,
       null,
       "turn-custom-0",
@@ -795,6 +797,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
       testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
     );
   };
 
@@ -840,10 +843,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
     );
     let triggerPrompt : ?Text = if (prompt == "") { null } else { ?prompt };
-    await AgentOrchestrator.orchestrate(
+    await AgentRunner.start(
       testAgentWithModel(#_system(#admin), "unit-test-admin", model),
       history,
-      "C_TEST_CATEGORY",
       null,
       triggerPrompt,
       "turn-admin-loop-0",
@@ -854,6 +856,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
       testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
     );
   };
 
@@ -872,6 +875,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       workspaceId = null;
       resolveSlackBotToken = null;
       userAuthContext = null;
+      sourceRef = null;
       secrets = null;
       engineDispatch = null;
       envelopeContext = null;
@@ -1022,6 +1026,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         let statusText = switch (turn.status) {
           case (#running) { "running" };
           case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
+          case (#awaitingApproval(_)) { "awaitingApproval" };
           case (#succeeded) { "succeeded" };
           case (#failed) { "failed" };
         };
@@ -1800,6 +1805,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine;
       catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
     };
     let envelopeContext : ToolTypes.EnvelopeContext = {
       agent;
@@ -1819,7 +1825,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       requiredScopes = [];
       coreDirectives = [];
     };
-    let outcome = await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, args);
+    let outcome = await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, "", null, args);
     switch (outcome) {
       case (#ok(t)) { t };
       case (#err(e)) { e };

@@ -35,10 +35,11 @@ import ExecutionEnvelopeModel "./models/execution-envelope-model";
 import WorkflowCatalogModel "./models/workflow-catalog-model";
 import ExecutionApiService "./services/execution-api-service";
 import ExecutionAsyncEffectService "./services/execution-async-effect-service";
+import ApprovalModel "./models/approval-model";
 import InternalEngine "../internal-engine/main";
-import AdminAgentLoop "./agents/categories/system/admin-agent-loop";
-import ContextAssembler "./agents/context-assembler";
-import OpenRouterWrapper "./wrappers/openrouter-wrapper";
+import AgentRunner "./agents/agent-runner";
+import Json "mo:json";
+import { str; obj } "mo:json";
 
 persistent actor class OpenOrgBackend() {
   // ============================================
@@ -78,6 +79,9 @@ persistent actor class OpenOrgBackend() {
   // Workflow catalog cache — lazily populated on first dispatch, refreshed on #staleCatalog.
   let workflowCatalogState = WorkflowCatalogModel.empty();
 
+  // Approval gate state — holds pending approval codes for workflow approval gate.
+  let approvalState = ApprovalModel.emptyState();
+
   // Execution API service (instantiated once with all deps captured in class scope)
   transient let executionApiService = ExecutionApiService.Service({
     envelopeState = executionEnvelopeState;
@@ -93,85 +97,22 @@ persistent actor class OpenOrgBackend() {
   // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
   var internalEngine : ?InternalEngine.InternalEngine = null;
 
-  // Resume closure: called by executionAsyncEffectService when a completed engine result
-  // is ready and the turn is #awaitingWorkflow. Injects the synthetic tool result into
-  // the LLM conversation and resumes the admin agent loop as a continuation.
+  // Resume closure: delegates to AgentRunner.resume so this closure stays thin.
   transient let resumeAdminTurn : (turnId : Text, suspension : SessionModel.SuspensionData, syntheticToolResult : Text) -> async Types.AgentOrchestrateResult = func(turnId : Text, suspension : SessionModel.SuspensionData, syntheticToolResult : Text) : async Types.AgentOrchestrateResult {
-    let turn = switch (SessionModel.findTurn(sessionStores, turnId)) {
-      case (?t) { t };
-      case null {
-        return #err({
-          message = "resumeAdminTurn: turn not found: " # turnId;
-          steps = [];
-        });
-      };
-    };
-
-    let agent = switch (AgentModel.lookupById(agentRegistry, turn.agentId)) {
-      case (?a) { a };
-      case null {
-        return #err({
-          message = "resumeAdminTurn: agent not found: " # Nat.toText(turn.agentId);
-          steps = [];
-        });
-      };
-    };
-
-    let engine = switch (internalEngine) {
-      case (?e) { e };
-      case null {
-        return #err({
-          message = "resumeAdminTurn: internal engine not initialized";
-          steps = [];
-        });
-      };
-    };
-
-    let orgKey = await KeyDerivationService.getOrDeriveKey(keyCache, 0);
-    let workspaceKey = await KeyDerivationService.getOrDeriveKey(keyCache, agent.ownedBy);
-
-    let apiKey = switch (SecretModel.resolveSecret(secrets, agent, agent.ownedBy, #openRouterApiKey, workspaceKey, orgKey, { slackUserId = null; agentId = ?agent.id; operation = "resume-admin-turn" })) {
-      case (null) {
-        return #err({
-          message = "No OpenRouter API key for agent resume.";
-          steps = [];
-        });
-      };
-      case (?key) { key };
-    };
-
-    let resolveSlackBotToken : (Text -> ?Text) = func(operation : Text) : ?Text {
-      SecretModel.resolvePlatformSecret(secrets, orgKey, null, #slackBotToken, { slackUserId = null; agentId = null; operation });
-    };
-
-    // Format the synthetic result using the same convention as ToolExecutor.formatResultsForLlm.
-    let syntheticMsg : OpenRouterWrapper.ResponseInputMessage = {
-      role = #assistant;
-      content = "Tool call " # suspension.pendingToolCallId # " result:\n" # syntheticToolResult # "\n\n";
-    };
-
-    let resumeMessages = Array.concat(suspension.messages, [syntheticMsg]);
-
-    let dummyAssembled : ContextAssembler.AssembledContext = {
-      messages = resumeMessages;
-      stats = { summaryTokens = 0; rawTurnsIncluded = 0; channelSnippets = 0 };
-    };
-
-    await AdminAgentLoop.process(
-      agent,
-      dummyAssembled,
-      turnId,
-      turn.userAuthContext,
-      apiKey,
-      secrets,
-      workspaceKey,
-      resolveSlackBotToken,
+    await AgentRunner.resume(
       {
+        sessionStores;
+        agentRegistry;
+        secrets;
+        internalEngine;
         envelopeState = executionEnvelopeState;
-        internalEngine = engine;
         catalogState = workflowCatalogState;
+        approvalState;
       },
-      ?{ messages = resumeMessages; startRound = suspension.roundCount },
+      keyCache,
+      turnId,
+      suspension,
+      syntheticToolResult,
     );
   };
 
@@ -371,6 +312,7 @@ persistent actor class OpenOrgBackend() {
       envelopeState = executionEnvelopeState;
       internalEngine = e;
       catalogState = workflowCatalogState;
+      approvalState;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
@@ -391,6 +333,9 @@ persistent actor class OpenOrgBackend() {
     func() : async () {
       // Fetch initial envelope salt — raw_rand requires an async context, so we use a zero-delay timer.
       executionEnvelopeState.envelopeSalt := await Random.blob();
+
+      // Refresh approval salt with fresh entropy on install.
+      approvalState.approvalSalt := await Random.blob();
 
       // Pre-warm the engine canister so the first dispatch doesn't pay the spawn cost.
       ignore await ensureInternalEngine();
@@ -448,6 +393,14 @@ persistent actor class OpenOrgBackend() {
       #nanoseconds 0,
       func() : async () {
         executionEnvelopeState.envelopeSalt := await Random.blob();
+      },
+    );
+
+    // Refresh approval salt with new entropy on every upgrade
+    ignore Timer.setTimer<system>(
+      #nanoseconds 0,
+      func() : async () {
+        approvalState.approvalSalt := await Random.blob();
       },
     );
   };
@@ -539,12 +492,12 @@ persistent actor class OpenOrgBackend() {
   ) : async { #ok : Text; #err : Text } {
     let expected = switch (internalEnginePrincipal) {
       case (null) {
-        return #err("{\"type\":\"engineNotInitialized\",\"message\":\"Unauthorized: engine not yet initialized.\"}");
+        return #err(Json.stringify(obj([("type", str("engineNotInitialized")), ("message", str("Unauthorized: engine not yet initialized."))]), null));
       };
       case (?p) { p };
     };
     if (caller != expected) {
-      return #err("{\"type\":\"unauthorized\",\"message\":\"Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister.\"}");
+      return #err(Json.stringify(obj([("type", str("unauthorized")), ("message", str("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister."))]), null));
     };
     let { response; asyncEffects } = executionApiService.handleRequest(method, path, body);
 

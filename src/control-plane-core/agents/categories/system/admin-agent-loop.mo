@@ -8,6 +8,7 @@ import Types "../../../types";
 import SecretModel "../../../models/secret-model";
 import AgentModel "../../../models/agent-model";
 import SessionModel "../../../models/session-model";
+import ApprovalModel "../../../models/approval-model";
 import ExecutionTypes "../../../types/execution";
 import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
 import InstructionComposer "../../instructions/instruction-composer";
@@ -32,6 +33,8 @@ module {
     workspaceKey : [Nat8],
     resolveSlackBotToken : (Text -> ?Text),
     engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
+    approvalState : ApprovalModel.ApprovalState,
+    sourceRef : ?SessionModel.SourceRef,
     resumeOverride : ?{
       messages : [OpenRouterWrapper.ResponseInputMessage];
       startRound : Nat;
@@ -72,7 +75,9 @@ module {
         envelopeState = engineDeps.envelopeState;
         internalEngine = engineDeps.internalEngine;
         catalogState = engineDeps.catalogState;
+        approvalState;
       };
+      sourceRef;
       envelopeContext = ?{
         agent;
         turnId;
@@ -153,6 +158,35 @@ module {
 
           let toolResults = await ToolExecutor.execute(toolResources, calls);
 
+          // ── Approval signal check (before dispatch) ───────────────────────────
+          switch (findApprovalCall(toolResults, calls)) {
+            case (?(pendingToolCallId, approvalCode, workflowName, originalToolArgs)) {
+              let suspension : SessionModel.SuspensionData = {
+                messages = List.toArray(inputHistory);
+                pendingToolCallId;
+                roundCount = rounds;
+              };
+              let step : Types.ProcessingStep = {
+                action = "awaiting_approval";
+                result = #ok;
+                timestamp = Time.now();
+              };
+              let requestedByUserId = switch (toolResources.userAuthContext) {
+                case (?ctx) { ctx.slackUserId };
+                case (null) { "" };
+              };
+              return #awaitingApproval({
+                steps = [step];
+                suspension;
+                workflowName;
+                approvalCode;
+                originalToolArgs;
+                requestedByUserId;
+              });
+            };
+            case (null) {};
+          };
+
           switch (findDispatchingCall(toolResults)) {
             case (?pendingToolCallId) {
               let suspension : SessionModel.SuspensionData = {
@@ -183,6 +217,46 @@ module {
       message = "Core agent loop reached max rounds (" # Nat.toText(Constants.MAX_AGENT_ROUNDS) # ")";
       steps = [];
     });
+  };
+
+  /// Find a tool call that produced an approval signal, correlating it back to the original call
+  /// to extract workflowName and originalToolArgs.
+  /// Returns (callId, approvalCode, workflowName, originalToolArgs) for the first approvalRequired result.
+  private func findApprovalCall(
+    toolResults : [ToolTypes.ToolResult],
+    calls : [OpenRouterWrapper.ToolCall],
+  ) : ?(Text, Text, Text, Text) {
+    for (toolResult in toolResults.vals()) {
+      switch (toolResult.result) {
+        case (#ok(output)) {
+          switch (extractApprovalCode(output)) {
+            case (?approvalCode) {
+              // Correlate callId -> original call to get workflowName and args
+              for (call in calls.vals()) {
+                if (call.callId == toolResult.callId) {
+                  return ?(toolResult.callId, approvalCode, call.toolName, call.arguments);
+                };
+              };
+            };
+            case (null) {};
+          };
+        };
+        case (#err(_)) {};
+      };
+    };
+    null;
+  };
+
+  private func extractApprovalCode(output : Text) : ?Text {
+    switch (Json.parse(output)) {
+      case (#ok(json)) {
+        switch (Json.get(json, "approvalRequired"), Json.get(json, "approvalCode")) {
+          case (?#bool(true), ?#string(code)) { ?code };
+          case _ { null };
+        };
+      };
+      case _ { null };
+    };
   };
 
   /// Find the callId of the tool call that produced a dispatch signal, if any.

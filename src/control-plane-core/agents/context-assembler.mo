@@ -117,6 +117,7 @@ module {
     switch (status) {
       case (#running) { "running" };
       case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
+      case (#awaitingApproval(_)) { "awaitingApproval" };
       case (#succeeded) { "succeeded" };
       case (#failed) { "failed" };
     };

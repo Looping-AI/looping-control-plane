@@ -1,23 +1,10 @@
 import Json "mo:json";
-import { str; obj; int } "mo:json";
-import Nat "mo:core/Nat";
+import { str; obj } "mo:json";
 import Int "mo:core/Int";
 import List "mo:core/List";
 import ToolTypes "../tool-types";
 
 module {
-  /// Build a success response JSON string with an id and action
-  public func buildSuccessResponse(id : Nat, action : Text) : Text {
-    Json.stringify(
-      obj([
-        ("success", #bool(true)),
-        ("id", int(id)),
-        ("action", str(action)),
-      ]),
-      null,
-    );
-  };
-
   /// Build a structured ToolCallOutcome error: {"type":"camelCase","message":"..."}
   public func makeError(errType : Text, message : Text) : ToolTypes.ToolCallOutcome {
     #err(

@@ -13,6 +13,7 @@ import WorkflowEngineHandler "./handlers/workflow-engine-handler";
 import WorkflowCatalogService "../../services/workflow-catalog-service";
 import WorkflowCatalogTypes "../../types/workflow-catalog";
 import SecretModel "../../models/secret-model";
+import SessionModel "../../models/session-model";
 
 module {
   // ============================================
@@ -78,8 +79,12 @@ module {
         switch (ed.catalogState.cached) {
           case (?{ descriptors; catalogHash = _ }) {
             let grants = AgentHelpers.buildScopeGrants(ec.agent);
+            let uid = switch (resources.userAuthContext) {
+              case (?uac) { uac.slackUserId };
+              case (null) { "" };
+            };
             for (descriptor in WorkflowCatalogService.filterByScopes(descriptors, grants).vals()) {
-              List.add(tools, workflowTool(descriptor, ed, ec, resources.resolveSlackBotToken));
+              List.add(tools, workflowTool(descriptor, ed, ec, resources.resolveSlackBotToken, uid, resources.sourceRef));
             };
           };
           case (null) {}; // catalog not yet loaded — pre-loaded by admin-agent-loop before getAll
@@ -205,6 +210,8 @@ module {
     engineDispatch : ToolTypes.EngineDispatch,
     envelopeContext : ToolTypes.EnvelopeContext,
     resolveSlackBotToken : ?(Text -> ?Text),
+    requestedByUserId : Text,
+    sourceRef : ?SessionModel.SourceRef,
   ) : FunctionTool {
     {
       definition = {
@@ -216,7 +223,7 @@ module {
         };
       };
       handler = func(args : Text) : async ToolTypes.ToolCallOutcome {
-        await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, args);
+        await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, requestedByUserId, sourceRef, args);
       };
     };
   };

@@ -211,7 +211,7 @@ C.a.7 — `main.mo`: build `resumeAdminTurn` closure capturing all stable state;
 
 ---
 
-**Phase C.b — Approval Gate** _(depends on Phase C.a)_
+~~**Phase C.b — Approval Gate** _(depends on Phase C.a)_ ✅ COMPLETE~~
 
 **Goal**
 
@@ -219,36 +219,27 @@ When a workflow has `#require("approval")` in `coreDirectives` and the agent cal
 
 **UX**: Text-reply only in this phase (`approve <64-char-hex>`). Block Kit buttons and expired-button UX are deferred to 5.2.1.1.
 
-**Current State (after C.a)**
-
-- `WorkflowEngineHandler.handle()` has an interim stub: returns `#err("approvalRequired", ...)` when `approvalCode` is absent. Phase B decision.
-- `TurnStatus` has `#running`, `#pending`, `#succeeded`, `#failed` — no approval state.
-- `AdminAgentLoop` has no concept of an approval-suspended result.
-- `MessageHandler` has no pre-agent interception logic.
-
-**Desired State**
+**Implemented State**
 
 - `WorkflowEngineHandler.handle()` — replace interim stub for `#require("approval")` without `approvalCode`:
   1. Call `ApprovalModel.request(approvalState, ...)` → returns a 64-char hex code.
   2. Build `renderedArgs` = pretty-printed JSON of the tool args (all fields, indented).
   3. Post Slack text message to the turn's channel + thread: `"Workflow \`<workflowName>\` requires approval.\nArguments:\n\`\`\`<renderedArgs>\`\`\`\nReply with \`approve <code>\` to proceed.\nApproval code: \`<code>\`"`.
   4. Return `#ok("{\"dispatched\":false,\"approvalRequired\":true,\"approvalCode\":\"<code>\"}")`.
+- `WorkflowEngineHandler.handle()` with an `approvalCode` now accepts only a code already consumed by `ApprovalModel.validate(...)` and correlated to the same turn, workflow, agent, workspace, and requester.
 - `adminLoop` detects `approvalRequired:true` signal → captures `SuspensionData` and returns `#awaitingApproval { suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId }`.
 - `message-handler.mo` on `#awaitingApproval`: sets `turn.status := #awaitingApproval({ suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId })` directly.
 - `MessageHandler.handle()` pre-agent interception (after round context, before new turn creation): if message text matches `approve\s+([a-f0-9]{64})` (case-insensitive, trimmed, with or without `::agentname` prefix stripped):
-  - Look up code in `ctx.approvalState` via `ApprovalModel.findByCode(ctx.approvalState, code)`.
-  - If not found or `#expired`/`#used`: post error `"Invalid or expired approval code. Please request the agent to run the workflow again."` → return (consume message, no new turn).
-  - If found and different `userId`: post `"Only the user who requested this approval can approve it."` → return (consume message, no new turn).
-  - If found and same `userId`: call `ApprovalModel.validate(...)` → marks `#used`. Call `resumeApprovalTurn(ctx, turnId, approvalRecord)` — see below.
+  - Calls `ApprovalModel.validate(...)` to verify the code is pending and belongs to the requester; on success the code is marked `#used` before any await.
+  - Delegates to `ApprovalDispatchService.dispatchApproved(...)`.
   - Non-approval messages: normal flow (no change).
-- `resumeApprovalTurn` (private helper in `message-handler.mo`):
-  1. Look up turn from `sessionStores`; extract `suspension` from `turn.status` (pattern-match `#awaitingApproval({ suspension; ... })`).
-  2. Derive workspace key + API key (same derivation as normal agent turn).
-  3. Look up workflow `descriptor` by `workflowName` from `ctx.catalogState`; if not found, post error + mark turn `#failed`.
-  4. Inject `approvalCode` into `originalToolArgs` JSON → new args string.
-  5. Call `WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, newArgs)`.
-  6. If `#err`: post error to Slack, mark turn `#failed`, return.
-  7. If `#ok({dispatched: true})`: format as tool result; construct `resumeOverride = ?{ messages = suspension.messages ++ [syntheticMsg]; startRound = suspension.roundCount }`. Call `AdminAgentLoop.process(...)` with `resumeOverride`. Handle `#dispatched { suspension }` (set `turn.status := #awaitingWorkflow(suspension)`) and `#ok`/`#err` normally.
+- `ApprovalDispatchService.dispatchApproved(...)` is intentionally narrow:
+  1. Look up the suspended turn and verify it is still `#awaitingApproval`.
+  2. Verify the consumed approval record matches the suspended workflow metadata.
+  3. Inject `approvalCode` into the original tool args.
+  4. Call `WorkflowEngineHandler.handle(...)` to reuse catalog checks, pre-validation, envelope issuance, and engine dispatch.
+  5. On `dispatched:true`, set `turn.status := #awaitingWorkflow(suspension)`.
+  6. It does **not** resume the LLM. The existing `ExecutionAsyncEffectService` resumes the LLM only when the engine sends the real workflow completion result.
 
 **New types**
 
@@ -420,6 +411,14 @@ C.b.10 — `agent-orchestrator.mo` + `admin-agent-loop.mo`: thread `approvalStat
   [External deep review] Medium severity: tool batch execution is strictly sequential (await each call). Independent tool calls per round could run concurrently and then be joined, preserving callId mapping while reducing latency.
 
 ---
+
+### 5.2.2.1 - Review Execution naming, consider Workflow
+
+In a previous refactor, have changed from "Execution" (Engine) concept to "Workflow" (Engine) concept.
+
+But am realizing some sibling concepts are still to be renamed, like ExecutionEnvelope, should be WorkflowEnvelope : "src/control-plane-core/models/execution-envelope-model.mo".
+
+Instead of ExecutionAPI it should be workflowAPI (endpoint and service), etc...
 
 ### 5.2.2 - Improve the EnvelopePayload to more sensible fields
 

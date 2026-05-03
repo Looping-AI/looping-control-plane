@@ -2,14 +2,17 @@ import Json "mo:json";
 import { str; obj; bool } "mo:json";
 import Error "mo:core/Error";
 import AgentHelpers "../../../agents/helpers";
+import JsonPretty "../../../utilities/json-pretty";
 import ExecutionTypes "../../../types/execution";
 import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
 import WorkflowCatalogModel "../../../models/workflow-catalog-model";
 import WorkflowCatalogService "../../../services/workflow-catalog-service";
 import WorkflowCatalogTypes "../../../types/workflow-catalog";
+import ApprovalModel "../../../models/approval-model";
 import Constants "../../../constants";
 import SlackWrapper "../../../wrappers/slack-wrapper";
 import EngineDispatchService "../../../services/engine-dispatch-service";
+import SessionModel "../../../models/session-model";
 import ToolTypes "../tool-types";
 
 module {
@@ -19,7 +22,9 @@ module {
   /// Dispatch a single workflow descriptor to the engine.
   ///
   /// Processes coreDirectives before any envelope is issued:
-  ///   #require("approval") — interim stub: rejects if approvalCode is absent.
+  ///   #require("approval") — if approvalCode absent: generates code, posts Slack prompt,
+  ///     returns #ok({dispatched:false,approvalRequired:true,approvalCode}).
+  ///     If approvalCode present: proceeds to dispatch.
   ///   #preValidation(rules) — validates slack_channel_exists rules via SlackWrapper.
   ///
   /// Returns #ok("{\"dispatched\":true}") on success so the orchestrator can
@@ -30,6 +35,8 @@ module {
     engineDispatch : ToolTypes.EngineDispatch,
     envelopeContext : ToolTypes.EnvelopeContext,
     resolveSlackBotToken : ?(Text -> ?Text),
+    requestedByUserId : Text,
+    sourceRef : ?SessionModel.SourceRef,
     args : Text,
   ) : async ToolTypes.ToolCallOutcome {
     // 1. Parse arguments
@@ -45,12 +52,41 @@ module {
       switch (directive) {
         case (#require("approval")) {
           switch (Json.get(parsed, "approvalCode")) {
-            case (?#string(_)) {}; // approval code present — proceed
+            case (?#string(code)) {
+              if (not isAcceptedApprovalCode(engineDispatch.approvalState, code, descriptor, envelopeContext, requestedByUserId)) {
+                return handlerError("invalidApprovalCode", "Approval code has not been accepted for this workflow.");
+              };
+            };
             case (_) {
-              return handlerError(
-                "approvalRequired",
-                "This workflow requires user approval. Reply with 'approve <code>' in this thread to confirm.",
+              // No approval code: generate one, post Slack prompt, return approval signal.
+              let renderedArgs = JsonPretty.prettyPrint(parsed, 0);
+              let approvalCode = ApprovalModel.request(
+                engineDispatch.approvalState,
+                descriptor.workflowName,
+                renderedArgs,
+                envelopeContext.agent.ownedBy,
+                envelopeContext.agent.id,
+                envelopeContext.turnId,
+                requestedByUserId,
               );
+              let slackMsg = "Workflow `" # descriptor.workflowName # "` requires approval.\nArguments:\n```\n" # renderedArgs # "\n```\nReply with `approve " # approvalCode # "` to proceed.";
+              switch (resolveSlackBotToken) {
+                case (?resolve) {
+                  switch (resolve("approval/" # descriptor.workflowName)) {
+                    case (?token) {
+                      switch (sourceRef) {
+                        case (?#slack({ channelId; ts = _; threadTs })) {
+                          ignore await SlackWrapper.postMessage(token, channelId, slackMsg, threadTs, null);
+                        };
+                        case (_) {}; // non-Slack source — approval prompt cannot be posted
+                      };
+                    };
+                    case (null) {}; // no token — code still returned, Slack message skipped
+                  };
+                };
+                case (null) {}; // no resolver — same fallback
+              };
+              return #ok(Json.stringify(obj([("dispatched", bool(false)), ("approvalRequired", bool(true)), ("approvalCode", str(approvalCode))]), null));
             };
           };
         };
@@ -190,5 +226,28 @@ module {
 
   private func handlerError(errType : Text, msg : Text) : ToolTypes.ToolCallOutcome {
     #err(Json.stringify(obj([("type", str(errType)), ("message", str(msg))]), null));
+  };
+
+  private func isAcceptedApprovalCode(
+    approvalState : ApprovalModel.ApprovalState,
+    code : Text,
+    descriptor : WorkflowCatalogTypes.WorkflowDescriptor,
+    envelopeContext : ToolTypes.EnvelopeContext,
+    requestedByUserId : Text,
+  ) : Bool {
+    switch (ApprovalModel.findByCode(approvalState, code)) {
+      case null { false };
+      case (?record) {
+        if (record.workflowName != descriptor.workflowName) return false;
+        if (record.turnId != envelopeContext.turnId) return false;
+        if (record.workspaceId != envelopeContext.agent.ownedBy) return false;
+        if (record.agentId != envelopeContext.agent.id) return false;
+        if (record.requestedByUserId != requestedByUserId) return false;
+        switch (record.status) {
+          case (#used) { true };
+          case (_) { false };
+        };
+      };
+    };
   };
 };

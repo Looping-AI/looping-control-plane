@@ -20,6 +20,7 @@ import EventStoreModel "../../models/event-store-model";
 import SessionModel "../../models/session-model";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
 import WorkflowCatalogModel "../../models/workflow-catalog-model";
+import ApprovalModel "../../models/approval-model";
 import InternalEngine "../../../internal-engine/main";
 
 module {
@@ -65,5 +66,8 @@ module {
     /// Workflow catalog cache — lazily populated on first dispatch, refreshed on
     /// #staleCatalog engine responses. Passed through to the dispatch handler.
     catalogState : WorkflowCatalogModel.CatalogState;
+
+    /// Approval gate state — holds pending approval codes for workflow approval gate.
+    approvalState : ApprovalModel.ApprovalState;
   };
 };

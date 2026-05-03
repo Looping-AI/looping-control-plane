@@ -53,6 +53,14 @@ module {
   public type TurnStatus = {
     #running;
     #awaitingWorkflow : SuspensionData; // dispatched to engine, waiting for #complete
+    #awaitingApproval : {
+      // waiting for human approval of a workflow call
+      suspension : SuspensionData;
+      workflowName : Text;
+      approvalCode : Text;
+      originalToolArgs : Text; // exact JSON args from the LLM — do not normalize
+      requestedByUserId : Text;
+    };
     #succeeded;
     #failed;
   };

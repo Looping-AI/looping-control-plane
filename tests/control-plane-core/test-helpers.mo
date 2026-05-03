@@ -14,6 +14,7 @@ import EventStoreModel "../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../src/control-plane-core/models/session-model";
 import InternalEngine "../../src/internal-engine/main";
 import WorkflowCatalogModel "../../src/control-plane-core/models/workflow-catalog-model";
+import ApprovalModel "../../src/control-plane-core/models/approval-model";
 
 // ============================================
 // Test Helpers
@@ -89,6 +90,7 @@ module {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
     };
   };
 
@@ -143,6 +145,7 @@ module {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
     };
   };
 
@@ -196,6 +199,7 @@ module {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
     };
   };
 
@@ -267,6 +271,7 @@ module {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
     };
   };
 
@@ -335,6 +340,7 @@ module {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
     };
   };
 

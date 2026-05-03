@@ -1,8 +1,10 @@
 import AgentModel "../../models/agent-model";
+import SessionModel "../../models/session-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
 import WorkflowCatalogModel "../../models/workflow-catalog-model";
+import ApprovalModel "../../models/approval-model";
 import ExecutionTypes "../../types/execution";
 import InternalEngine "../../../internal-engine/main";
 
@@ -28,16 +30,17 @@ module {
   // Engine Dispatch Types
   // ============================================
 
-  /// Engine dispatch resources — envelope state, pre-resolved engine actor, and catalog state.
+  /// Engine dispatch resources — envelope state, pre-resolved engine actor, catalog state, and approval state.
   /// Passed to workflow tools so they can issue envelopes and dispatch to the engine.
   public type EngineDispatch = {
     envelopeState : ExecutionEnvelopeModel.EnvelopeState;
     internalEngine : InternalEngine.InternalEngine;
     catalogState : WorkflowCatalogModel.CatalogState;
+    approvalState : ApprovalModel.ApprovalState;
   };
 
   /// Per-turn envelope context needed to build an ExecutionEnvelope.
-  /// Carries agent identity, conversation state, and LLM credentials.
+  /// All fields map directly onto EnvelopePayload fields — nothing else.
   public type EnvelopeContext = {
     agent : AgentModel.AgentRecord;
     turnId : Text;
@@ -69,6 +72,12 @@ module {
     // Slack user identity of the user who triggered this agent turn.
     // Required for authorization checks in workspace-management write tools.
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
+
+    // Source reference for the turn (Slack channel + ts + threadTs).
+    // Used by workflow tools that need to post back to the originating thread
+    // (e.g. approval prompt). Separate from EnvelopeContext because it is not
+    // part of the engine payload.
+    sourceRef : ?SessionModel.SourceRef;
 
     // Secrets store - if provided, secrets-management tools are available.
     // write=true enables store_secret and delete_secret.
