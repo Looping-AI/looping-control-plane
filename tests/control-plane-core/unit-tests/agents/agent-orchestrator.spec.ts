@@ -36,7 +36,7 @@ describe("AgentOrchestrator", () => {
     expect("err" in result).toBe(true);
     if ("err" in result) {
       expect(result.err.message).toContain(
-        "No OpenRouter API key found for agent talk",
+        "No OpenRouter API key found for agent",
       );
       expect(result.err.steps).toEqual([]);
     }

@@ -59,8 +59,8 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     await pic.tearDown();
   });
 
-  it("milestone: should post to Slack and leave turn #pending", async () => {
-    // Seed a pending turn (no HTTP outcalls — tick and await manually)
+  it("milestone: should post to Slack and leave turn #awaitingWorkflow", async () => {
+    // Seed an #awaitingWorkflow turn (no HTTP outcalls — tick and await manually)
     const turnIdThunk = await testCanister.testSeedPendingTurn(
       AGENT_ID,
       EFFECT_CHANNEL,
@@ -98,14 +98,15 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     const response = await result;
     expect("ok" in response).toBe(true);
 
-    // Milestone does NOT complete the turn — it must still be #pending
+    // Milestone does NOT complete the turn — it must stay #awaitingWorkflow
     const status = await (await testCanister.testGetEffectTurnStatus(turnId))();
-    expect(status).toEqual(["pending"]);
+    expect(status).toEqual(["awaitingWorkflow"]);
   });
 
   it("complete: should post to Slack and mark turn #succeeded", async () => {
-    // Seed a pending turn
-    const turnIdThunk = await testCanister.testSeedPendingTurn(
+    // Seed a #running turn so processEffect takes the normal completion path
+    // (not the resume branch, which requires a live resumeAdminTurn callback).
+    const turnIdThunk = await testCanister.testSeedRunningTurn(
       AGENT_ID,
       EFFECT_CHANNEL,
       EFFECT_TS,

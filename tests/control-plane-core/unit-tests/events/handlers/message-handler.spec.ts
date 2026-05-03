@@ -262,7 +262,7 @@ describe("MessageHandler Unit Tests", () => {
   );
 
   it(
-    "should mark the turn as pending and return dispatch_to_engine step",
+    "should mark the turn as awaitingWorkflow and return dispatch_to_engine step",
     async () => {
       const cassetteName =
         "control-plane-core/unit-tests/events/handlers/message-handler-dispatch/dispatch-workflow";
@@ -306,7 +306,7 @@ describe("MessageHandler Unit Tests", () => {
       const statusResult = await (
         await testCanister.testGetTurnStatus("0_0")
       )();
-      expect(statusResult).toEqual(["pending"]);
+      expect(statusResult).toEqual(["awaitingWorkflow"]);
     },
     { timeout: CASSETTE_TEST_TIMEOUT_MS },
   );

@@ -12,6 +12,7 @@ import Json "mo:json";
 import { str; obj; bool; int } "mo:json";
 
 import InternalEngine "../../src/internal-engine/main";
+import WorkflowCatalog "../../src/internal-engine/workflows/workflow-catalog";
 
 import HttpWrapper "../../src/control-plane-core/wrappers/http-wrapper";
 import OpenRouterWrapper "../../src/control-plane-core/wrappers/openrouter-wrapper";
@@ -186,10 +187,17 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   };
 
   func testOrchestratorEngineDeps() : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState> {
+    // Pre-seed the catalog with the real internal-engine descriptors so that
+    // admin-agent-loop sees the full tool list without needing a live self-call
+    // to listWorkflows(). This mirrors production behaviour where Core has already
+    // fetched the catalog at least once.
+    let catalog = WorkflowCatalogModel.empty();
+    let catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+    WorkflowCatalogModel.replace(catalog, catalogHash, WorkflowCatalog.allDescriptors);
     {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = mockInternalEngine;
-      catalogState = WorkflowCatalogModel.empty();
+      catalogState = catalog;
     };
   };
 
@@ -221,6 +229,16 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   func ensureTestInternalEngine() : async InternalEngine.InternalEngine {
     mockInternalEngine;
+  };
+
+  /// Implements the InternalEngine.InternalEngine interface so mockInternalEngine
+  /// (cast to this canister) can serve the workflow catalog to admin-agent-loop.
+  public shared func listWorkflows() : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    let catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+    #ok(WorkflowCatalog.listWorkflowsJson(catalogHash));
   };
 
   public shared ({ caller = _ }) func execute(envelope : ExecutionTypes.EnvelopePayload) : async {
@@ -707,7 +725,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       sessionStores = testDispatchSessionStores;
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = engine;
-      catalogState = WorkflowCatalogModel.empty();
+      catalogState = {
+        // Pre-seed the catalog so admin-agent-loop can build workflow tools
+        // without making a live listWorkflows() call inside the test tick budget.
+        var cached = ?{
+          catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+          descriptors = WorkflowCatalog.allDescriptors;
+        };
+      };
       approvalState = ApprovalModel.emptyState();
       armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
         0;
@@ -850,7 +875,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     await AgentRunner.start(
       testAgentWithModel(#_system(#admin), "unit-test-admin", model),
       history,
-      null,
+      ?#slack({
+        channelId = "C_TEST_CATEGORY";
+        ts = "1700000000.000001";
+        threadTs = null;
+      }),
       triggerPrompt,
       "turn-admin-loop-0",
       SessionModel.emptyStores(),
@@ -953,6 +982,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // ============================================
 
   /// Seed a pending turn in testEffectSessionStores with a Slack sourceRef.
+  /// The turn is set to #awaitingWorkflow so it is ready for engine completion.
   /// Returns the generated turnId (format: "{agentId}_{turnNumber}").
   public shared ({ caller }) func testSeedPendingTurn(
     agentId : Nat,
@@ -973,6 +1003,28 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       pendingToolCallId = "test-call-id";
       roundCount = 0;
     });
+    turn.turnId;
+  };
+
+  /// Seed a #running turn in testEffectSessionStores with a Slack sourceRef.
+  /// Use this when testing the normal (non-resume) completion path where the
+  /// turn is not awaiting a workflow engine result.
+  /// Returns the generated turnId (format: "{agentId}_{turnNumber}").
+  public shared ({ caller }) func testSeedRunningTurn(
+    agentId : Nat,
+    channelId : Text,
+    ts : Text,
+    threadTs : ?Text,
+  ) : async Text {
+    assert caller == parent;
+    let turn = SessionModel.createTurn(
+      testEffectSessionStores,
+      agentId,
+      ?#slack({ channelId; ts; threadTs }),
+      null,
+      null,
+    );
+    // Leave status as #running (the default from createTurn)
     turn.turnId;
   };
 
