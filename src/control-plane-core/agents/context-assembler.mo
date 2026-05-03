@@ -203,7 +203,10 @@ module {
       if (turn.turnId == currentTurnId) { continue scanLoop };
 
       // Skip running turns (incomplete)
-      if (turn.status == #running) { continue scanLoop };
+      switch (turn.status) {
+        case (#running) { continue scanLoop };
+        case (_) {};
+      };
 
       // Respect compaction boundary
       switch (session.compaction.lastCompactedTurnId) {

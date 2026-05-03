@@ -336,24 +336,6 @@ module {
     ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null);
   };
 
-  func parseApprovalCode(text : Text) : ?Text {
-    if (not Text.startsWith(text, #text("approve "))) {
-      return null;
-    };
-    if (Text.size(text) != 72) {
-      return null;
-    };
-    var index = 0;
-    var code = "";
-    for (char in text.chars()) {
-      if (index >= 8) {
-        code #= Text.fromChar(char);
-      };
-      index += 1;
-    };
-    ?code;
-  };
-
   // ─── Public entry point ──────────────────────────────────────────────────────
 
   public func handle(
@@ -459,53 +441,6 @@ module {
       };
     };
 
-    // ── Approve interception ─────────────────────────────────────────────────
-    // If the message text is exactly `approve <64-char-code>`, intercept before creating a new turn.
-    if (not msg.isBotMessage) {
-      switch (parseApprovalCode(msg.text)) {
-        case (null) {};
-        case (?codeToken) {
-          let slackUserId = msg.user;
-          switch (ApprovalModel.validate(ctx.approvalState, codeToken, slackUserId)) {
-            case (#err(errMsg)) {
-              switch (botTokenOpt) {
-                case (?token) {
-                  ignore await SlackWrapper.postMessage(token, msg.channel, errMsg, msg.threadTs, null);
-                };
-                case (null) {};
-              };
-              return #ok([{
-                action = "approval_rejected";
-                result = #err(errMsg);
-                timestamp = Time.now();
-              }]);
-            };
-            case (#ok(approval)) {
-              let dispatchResult = await AgentRunner.resumeWithApproval(
-                {
-                  sessionStores = ctx.sessionStores;
-                  agentRegistry = ctx.agentRegistry;
-                  secrets = ctx.secrets;
-                  internalEngine = ?ctx.internalEngine;
-                  envelopeState = ctx.envelopeState;
-                  catalogState = ctx.catalogState;
-                  approvalState = ctx.approvalState;
-                },
-                ctx.keyCache,
-                approval,
-                slackUserId,
-                botTokenOpt,
-              );
-              switch (dispatchResult) {
-                case (#ok(steps)) { return #ok(steps) };
-                case (#err({ steps; message = _ })) { return #ok(steps) };
-              };
-            };
-          };
-        };
-      };
-    };
-
     // ── Create turn ──────────────────────────────────────────────────────────
     let sourceRef : ?SessionModel.SourceRef = ?#slack({
       channelId = msg.channel;
@@ -569,6 +504,53 @@ module {
       threadTs = msg.threadTs;
       metadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent, turnId);
     };
-    #ok(await TurnCompletionService.apply({ sessionStores = ctx.sessionStores }, turnId, routeResult, slackCtx));
+    let steps = await TurnCompletionService.apply(
+      { sessionStores = ctx.sessionStores; approvalState = ctx.approvalState },
+      turnId,
+      routeResult,
+      slackCtx,
+    );
+
+    // Arm a per-turn TTL timer for any turn that just entered #awaitingApproval.
+    // We do this here (not inside TurnCompletionService) so that the async
+    // armApprovalTimer closure — which calls Timer.setTimer<system> — runs in an
+    // async context that has <system> capability.
+    switch (routeResult) {
+      case (#awaitingApproval(_)) {
+        switch (SessionModel.findTurn(ctx.sessionStores, turnId)) {
+          case (?turn) {
+            switch (turn.status) {
+              case (#awaitingApproval(data)) {
+                let resumeDeps : AgentRunner.ResumeDeps = {
+                  sessionStores = ctx.sessionStores;
+                  agentRegistry = ctx.agentRegistry;
+                  secrets = ctx.secrets;
+                  internalEngine = ?ctx.internalEngine;
+                  envelopeState = ctx.envelopeState;
+                  catalogState = ctx.catalogState;
+                  approvalState = ctx.approvalState;
+                };
+                let onExpire = func() : async () {
+                  await AgentRunner.resumeWithDenial(
+                    resumeDeps,
+                    ctx.keyCache,
+                    turnId,
+                    "approval timed out",
+                    botTokenOpt,
+                  );
+                };
+                let newTimerId = await ctx.armApprovalTimer(data.expiresAtNs, onExpire);
+                data.timerId := ?newTimerId;
+              };
+              case _ {};
+            };
+          };
+          case null {};
+        };
+      };
+      case _ {};
+    };
+
+    #ok(steps);
   };
 };

@@ -21,6 +21,7 @@ import SessionModel "../../models/session-model";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
 import WorkflowCatalogModel "../../models/workflow-catalog-model";
 import ApprovalModel "../../models/approval-model";
+import Timer "mo:core/Timer";
 import InternalEngine "../../../internal-engine/main";
 
 module {
@@ -69,5 +70,10 @@ module {
 
     /// Approval gate state — holds pending approval codes for workflow approval gate.
     approvalState : ApprovalModel.ApprovalState;
+
+    /// Arm a per-turn approval TTL timer. Returns async Timer.TimerId so the closure
+    /// body is async — async bodies always have <system>, letting them call
+    /// Timer.setTimer<system> without threading a <system> parameter through modules.
+    armApprovalTimer : (expiresAtNs : Int, callback : () -> async ()) -> async Timer.TimerId;
   };
 };

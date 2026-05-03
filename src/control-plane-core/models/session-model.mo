@@ -16,6 +16,8 @@ import Int "mo:core/Int";
 import Float "mo:core/Float";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
+import Timer "mo:core/Timer";
+import Runtime "mo:core/Runtime";
 import Constants "../constants";
 import Types "../types";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
@@ -60,6 +62,8 @@ module {
       approvalCode : Text;
       originalToolArgs : Text; // exact JSON args from the LLM — do not normalize
       requestedByUserId : Text;
+      expiresAtNs : Int; // Time.now() + APPROVAL_TTL_NS, set when approval is requested
+      var timerId : ?Timer.TimerId; // one-shot TTL timer id; null until armed
     };
     #succeeded;
     #failed;
@@ -239,7 +243,12 @@ module {
     cost : ?TurnCost,
     errorSummary : ?Text,
   ) : () {
-    assert status == #succeeded or status == #failed;
+    switch (status) {
+      case (#succeeded or #failed) {};
+      case (_) {
+        Runtime.trap("completeTurn: status must be terminal (#succeeded or #failed)");
+      };
+    };
     switch (findTurn(stores, turnId)) {
       case (null) {};
       case (?turn) {

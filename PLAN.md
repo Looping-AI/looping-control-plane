@@ -348,17 +348,115 @@ C.b.10 — `agent-orchestrator.mo` + `admin-agent-loop.mo`: thread `approvalStat
 
 ---
 
-**5.2.1.1 — Approval TTL: per-turn timers, Block Kit, cancellable, upgrade-recovered** _(depends on Phase C.b)_
+### 5.2.1.1 — Approval TTL: per-turn timers, Block Kit, cancellable, upgrade-recovered _(depends on Phase C.b)_
 
-- `APPROVAL_TTL_NS = 1 hour` in `Constants`.
-- `TurnStatus.#awaitingApproval` extended with `expiresAtNs : Int` (set to `requestedAt + APPROVAL_TTL_NS`) and `var timerId : ?Timer.TimerId`.
-- `ApprovalRecord` extended with `expiresAtNs : Int` (set at `request()` time).
-- Per-turn one-shot timer scheduled at `expiresAtNs`. `TimerId` stored in `turn.status.timerId`.
-- On approval or denial: cancel timer before state transition (`Timer.cancelTimer`; cancelling an already-fired timer is a no-op).
-- On timer fire: re-check `turn.status` under guard; if still `#awaitingApproval` → run denial path with reason `"approval timed out"`, post Slack message. If status already changed (race with user reply), no-op.
-- `postupgrade` recovery: scan turns with `#awaitingApproval`; re-arm timer at `expiresAtNs` (or fire immediately if already past); overwrite stale `timerId` in `turn.status`.
-- New `src/control-plane-core/timers/approval-timer.mo`: `arm(turnId, deadline) : TimerId`, `cancel(timerId)`, `recoverPendingApprovals(sessionStores)` — runs once in `postupgrade`, not periodically.
-- **Block Kit**: replace the text-only Slack message from Phase C.b with a Block Kit message containing an `Approve` button (action `approve_workflow`) and a `Deny` button (action `deny_workflow`). Add `block_actions` routing branch in `http_request_update` (with HMAC verification of the Slack interactive payload); route to `BlockActionsHandler` which calls `ApprovalModel.validate()` or denial path, then `resumeApprovalTurn`.
+**Goal**
+
+Harden the approval gate with a 1-hour TTL (per-turn cancellable timer, recovered after upgrade), interactive Block Kit buttons (Approve / Deny) replacing the plain-text prompt, HMAC verification applied to interactive payloads (event callbacks already verified), and a denial path that resumes the LLM with a denial signal so it can acknowledge and react.
+
+**Current State**
+
+- `WorkflowEngineHandler.handle()` posts a plain-text Slack message with the code and `approve <code>` instructions.
+- Approval interception is text-only (`approve <code>` in a Slack reply); no button-based path.
+- `TurnStatus.#awaitingApproval` has no TTL, no `timerId`.
+- `ApprovalRecord` has no `expiresAtNs`.
+- No per-turn cancellable timer; no `postupgrade` recovery for pending approvals.
+- `http_request_update` handles `event_callback` and `url_verification` only; HMAC is already applied to event callbacks via `SlackAdapter.verifySignature`. No `block_actions` routing exists.
+- `AgentRunner` has `resumeWithApproval` but no `resumeWithDenial`.
+- `SlackWrapper.postMessage` accepts `text : Text` only; no `blocks` parameter.
+- `SlackAdapter.parseEnvelope` handles JSON bodies only; not URL-encoded `payload=...` bodies.
+
+**Desired State**
+
+- `APPROVAL_TTL_NS : Int = 3_600_000_000_000` in `constants.mo`.
+- `ApprovalRecord.expiresAtNs : Int` set to `requestedAt + APPROVAL_TTL_NS` inside `request()`.
+- `TurnStatus.#awaitingApproval` carries two new fields: `expiresAtNs : Int` and `var timerId : ?Timer.TimerId`.
+- Approval prompt posted as a Block Kit message (section block with workflow name, rendered args, and text-fallback `approve <code>` instructions; actions block with `Approve` (primary) and `Deny` (danger) buttons, both with `value = approvalCode`). Text-reply path (`approve <code>` in `message-handler.mo`) is preserved alongside buttons.
+- Per-turn one-shot timer armed when turn enters `#awaitingApproval`. `timerId` stored in `turn.status`.
+- Timer cancellation before any status transition (button click or text-reply approval, denial, or expiry race guard).
+- Timer fire: re-check `turn.status` under guard; if still `#awaitingApproval` → run denial path (resume LLM with `{denied:true, reason:"approval timed out"}`), post thread message "Approval request expired.". If status already changed, no-op.
+- `block_actions` routing in `http_request_update`. Interactive payloads hit the same canister URL as event callbacks; differentiated by body format (`payload=<url-encoded-json>` vs JSON). HMAC applied to both.
+- New `BlockActionsHandler` handles `approve_workflow` and `deny_workflow` actions:
+  - Actor check: `slackUserId == approval.requestedByUserId` OR `Set.contains(userAuthCtx.adminWorkspaces, agent.ownedBy)`. Note: workspace admins (of the agent's owning workspace), not org admins.
+  - Approve: `ApprovalModel.validate` (marks `#used` synchronously), cancel timer, fire-and-forget `resumeWithApproval`. Returns `{"replace_original":true,"text":"✅ Approved by <userId>."}` in HTTP response.
+  - Deny: `ApprovalModel.expire`, cancel timer, fire-and-forget `resumeWithDenial("user denied")`. Returns `{"replace_original":true,"text":"🚫 Denied by <userId>."}` in HTTP response.
+  - Already-used/expired code → returns "This approval request has already been processed." (no state change).
+  - Unauthorized actor → returns "You are not authorized to approve or deny this workflow." (no state change).
+- `AgentRunner.resumeWithDenial`: builds synthetic tool result `{dispatched:false,denied:true,reason:<reason>}`, splices into suspension messages at `pendingToolCallId`, resumes `AdminAgentLoop.process()`.
+- `postupgrade` recovery: in `main.mo`'s `timerRegistry()`, scan all `#awaitingApproval` turns, re-arm one-shot timer at `expiresAtNs` (zero-delay if past), overwrite stale `timerId` in `turn.status`.
+
+**New / modified types**
+
+```motoko
+// constants.mo
+APPROVAL_TTL_NS : Int = 3_600_000_000_000; // 1 hour
+
+// approval-model.mo — ApprovalRecord gains:
+expiresAtNs : Int; // set in request() as requestedAt + APPROVAL_TTL_NS
+
+// session-model.mo — TurnStatus.#awaitingApproval gains:
+expiresAtNs : Int;
+var timerId : ?Timer.TimerId;
+
+```
+
+**Source Steps**
+
+1. **`constants.mo`**: Add `APPROVAL_TTL_NS : Int = 3_600_000_000_000`.
+
+2. **`approval-model.mo`**: Add `expiresAtNs : Int` to `ApprovalRecord`. In `request()`, set `expiresAtNs = requestedAt + Constants.APPROVAL_TTL_NS`.
+
+3. **`session-model.mo`**: Add `expiresAtNs : Int` and `var timerId : ?Timer.TimerId` to the record inside `#awaitingApproval`. Update every pattern-match and construction site.
+
+4. **`agent-runner.mo`**: Add `resumeWithDenial(deps, keyCache, suspension, turnId, reason, botTokenOpt) : async DispatchResult`:
+   - Guard: turn must be `#awaitingApproval`.
+   - Build synthetic tool result JSON: `{dispatched:false,denied:true,reason:reason}` for `suspension.pendingToolCallId`.
+   - Mark turn `#running`. Resume `AdminAgentLoop.process(...)` with `resumeOverride = ?{messages = suspension.messages ++ [toolResultMsg]; startRound = suspension.roundCount}`.
+   - On `#ok`/`#error`: complete turn, post to Slack. Caller is responsible for cancelling the timer before calling this.
+
+5. **New `timers/approval-timer.mo`**:
+   - `arm(expiresAtNs : Int, callback : () -> async ()) : Timer.TimerId` — computes `delay = max(0, expiresAtNs - Time.now())`, calls `Timer.setTimer(#nanoseconds(delay), callback)`, returns `TimerId`.
+   - `cancel(timerId : Timer.TimerId)` — calls `Timer.cancelTimer(timerId)` (no-op if already fired).
+
+6. **`slack-wrapper.mo`**: Add optional `blocks : ?Text` parameter to `postMessage`. When non-null, serialize the `blocks` JSON array in the request body alongside (or replacing) `text`.
+
+7. **`workflow-engine-handler.mo`**: Replace plain-text Slack message with Block Kit message. Build blocks JSON containing a section block (workflow name, rendered args, `approve <code>` text fallback) and an actions block (Approve primary button, Deny danger button; both `value = approvalCode`). Call `SlackWrapper.postMessage` with the `blocks` param. No other changes to the return value.
+
+8. **`message-handler.mo`**:
+   - On `#awaitingApproval` result: look up `expiresAtNs` from `ApprovalModel.findByCode(approvalState, approvalCode)`, set `turn.status := #awaitingApproval({..., expiresAtNs, timerId = null})`, arm timer via `ApprovalTimer.arm(expiresAtNs, onExpire)` where `onExpire` is a closure calling `AgentRunner.resumeWithDenial(...)`, then set `turn.status.timerId := ?timerId`.
+   - In text-reply approval interception path (before `AgentRunner.resumeWithApproval`): extract `timerId` from `turn.status.#awaitingApproval` and call `ApprovalTimer.cancel(timerId)`.
+
+9. **`slack-adapter.mo`** (or `wrappers/slack-adapter.mo`): Extend `parseEnvelope` to detect a `payload=` prefix on the body. Percent-decode the value, parse as JSON, check `"type":"block_actions"`, and return a new `#block_actions : BlockActionsPayload` variant. Add `BlockActionsPayload` type: `{ userId : Text; workspaceId : Text; actionId : Text; actionValue : Text; messageTs : Text; channelId : Text }` (extracted from the nested interactive payload JSON).
+
+10. **New `events/handlers/block-actions-handler.mo`**:
+    - `handle(payload : SlackAdapter.BlockActionsPayload, deps : BlockActionsDeps) : async Text` (returns message-update JSON string for HTTP response body).
+    - Guard: `actionId` must be `approve_workflow` or `deny_workflow`; otherwise return `""`.
+    - Look up approval record by `actionValue` (the approval code). Not found → return error text.
+    - If `status != #pending` → return "This approval request has already been processed."
+    - Actor check: `payload.userId == approval.requestedByUserId` OR `Set.contains(SlackAuthMiddleware.buildFromCache(slackUsers, payload.userId).adminWorkspaces, agent.ownedBy)`. Fail → return "You are not authorized...".
+    - `approve_workflow`: `ApprovalModel.validate` (sync), cancel timer, `ignore Timer.setTimer(#nanoseconds(0), approvalResumeCb)`. Return `{"replace_original":true,"text":"✅ Approved by <userId>."}`.
+    - `deny_workflow`: `ApprovalModel.expire` (sync), cancel timer, `ignore Timer.setTimer(#nanoseconds(0), denialResumeCb)` with reason `"user denied"`. Return `{"replace_original":true,"text":"🚫 Denied by <userId>."}`.
+
+11. **`main.mo`**:
+    - `http_request_update`: after `SlackAdapter.parseEnvelope`, add `#block_actions` branch. The existing HMAC check already covers it (happens after the parse branch). Route to `BlockActionsHandler.handle(...)`; return 200 with `Content-Type: application/json` and message-update JSON body.
+    - `timerRegistry()` (or a zero-delay `postupgrade` timer): iterate all turns via `SessionModel`; for each `#awaitingApproval(data)` turn, call `ApprovalTimer.arm(data.expiresAtNs, onExpire)` with a closure built from the turn ID, and set `data.timerId := ?newTimerId`. This overwrites stale pre-upgrade `timerId`s.
+
+**Test Steps**
+
+- `icp build control-plane-core` clean after each step.
+- Unit test `approval-model`: `request()` sets `expiresAtNs = requestedAt + APPROVAL_TTL_NS`.
+- Unit test `approval-timer`: `arm` with future deadline returns `TimerId`. `arm` with past deadline uses zero-delay (still returns `TimerId`). `cancel` is a no-op after firing.
+- Unit test `session-model`: `#awaitingApproval` round-trip with `expiresAtNs` and `var timerId`; `timerId` mutates in place via pattern-match binding.
+- Unit test `agent-runner` (mock loop): `resumeWithDenial` injects `{denied:true, reason:"..."}` tool result, loop resumes, turn marked complete.
+- Unit test `block-actions-handler`:
+  - `approve_workflow` from original requester → `#used`, timer cancelled, approve resume scheduled, returns "replace_original" JSON.
+  - `deny_workflow` from workspace admin of `agent.ownedBy` → denial resume scheduled.
+  - Org admin (not workspace admin) → unauthorized error.
+  - Already-used code → "already processed" response, no state change.
+  - Unknown `actionId` → returns `""` (ignored).
+- Unit test `slack-adapter`: body `payload=<url-encoded-json>` → parses to `#block_actions` with correct `userId`, `actionId`, `actionValue`.
+- Integration test: approval workflow → Block Kit message posted with Approve/Deny buttons. `block_actions` payload with `approve_workflow` → `resumeWithApproval` fires → turn completes. `block_actions` with `deny_workflow` → `resumeWithDenial` fires → LLM acknowledges denial. Short-TTL integration test → timer fires → denial with "approval timed out" reason → LLM resumes. Text-reply `approve <code>` still works alongside buttons.
+- `mops test` — all pass. `bun run tsc --noEmit` + `bun run format` before commit.
 
 ---
 

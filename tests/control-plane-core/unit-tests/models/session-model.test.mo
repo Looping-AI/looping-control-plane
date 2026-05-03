@@ -80,7 +80,7 @@ suite(
         let turn = SessionModel.createTurn(stores, 1, null, null, ?makeDummyAuthCtx());
         expect.text(turn.turnId).equal("1_0");
         expect.nat(turn.agentId).equal(1);
-        expect.bool(turn.status == #running).isTrue();
+        expect.bool(switch (turn.status) { case (#running) true; case _ false }).isTrue();
         expect.bool(turn.triggerTurnId == null).isTrue();
         expect.bool(turn.cost == null).isTrue();
         expect.bool(turn.errorSummary == null).isTrue();
@@ -140,7 +140,7 @@ suite(
       func() {
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
-        expect.bool(turn.status == #running).isTrue();
+        expect.bool(switch (turn.status) { case (#running) true; case _ false }).isTrue();
         let dummySuspension : SessionModel.SuspensionData = {
           messages = [];
           pendingToolCallId = "call_abc";
@@ -169,7 +169,7 @@ suite(
         };
         turn.status := #awaitingWorkflow(dummySuspension);
         SessionModel.completeTurn(stores, turn.turnId, #succeeded, null, null);
-        expect.bool(turn.status == #succeeded).isTrue();
+        expect.bool(switch (turn.status) { case (#succeeded) true; case _ false }).isTrue();
         expect.bool(turn.completedAtNs != null).isTrue();
       },
     );
@@ -186,7 +186,7 @@ suite(
         };
         turn.status := #awaitingWorkflow(dummySuspension);
         SessionModel.completeTurn(stores, turn.turnId, #failed, null, ?"engine error");
-        expect.bool(turn.status == #failed).isTrue();
+        expect.bool(switch (turn.status) { case (#failed) true; case _ false }).isTrue();
         expect.bool(turn.errorSummary == ?"engine error").isTrue();
       },
     );
@@ -211,7 +211,7 @@ suite(
           estimatedDollarCost = ?0.0002;
         };
         SessionModel.completeTurn(stores, turn.turnId, #succeeded, ?cost, null);
-        expect.bool(turn.status == #succeeded).isTrue();
+        expect.bool(switch (turn.status) { case (#succeeded) true; case _ false }).isTrue();
         expect.bool(turn.completedAtNs != null).isTrue();
         expect.bool(turn.cost == ?cost).isTrue();
         expect.bool(turn.errorSummary == null).isTrue();
@@ -224,7 +224,7 @@ suite(
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
         SessionModel.completeTurn(stores, turn.turnId, #failed, null, ?"something broke");
-        expect.bool(turn.status == #failed).isTrue();
+        expect.bool(switch (turn.status) { case (#failed) true; case _ false }).isTrue();
         expect.bool(turn.errorSummary == ?"something broke").isTrue();
       },
     );

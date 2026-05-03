@@ -169,6 +169,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     agentRegistry = testEffectAgentRegistry;
     workspaces = testWorkspacesState;
     secrets = testEffectSecretsState;
+    approvalState = ApprovalModel.emptyState();
     resumeAdminTurn = func(_ : Text, _ : SessionModel.SuspensionData, _ : Text) : async Types.AgentOrchestrateResult {
       #err({
         message = "resumeAdminTurn not supported in test canister";
@@ -708,6 +709,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       internalEngine = engine;
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in integration tests
     };
     await MessageHandler.handle(msg, ctx);
   };

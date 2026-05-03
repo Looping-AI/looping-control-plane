@@ -36,6 +36,7 @@ import WorkflowCatalogModel "./models/workflow-catalog-model";
 import ExecutionApiService "./services/execution-api-service";
 import ExecutionAsyncEffectService "./services/execution-async-effect-service";
 import ApprovalModel "./models/approval-model";
+import ApprovalTimer "./timers/approval-timer";
 import InternalEngine "../internal-engine/main";
 import AgentRunner "./agents/agent-runner";
 import Json "mo:json";
@@ -122,6 +123,7 @@ persistent actor class OpenOrgBackend() {
     agentRegistry;
     workspaces;
     secrets;
+    approvalState;
     resumeAdminTurn;
   });
 
@@ -300,6 +302,16 @@ persistent actor class OpenOrgBackend() {
   // Per-event timer callback factory — returns an async closure that processes one event by ID
   private func makeEventProcessor(eventId : Text) : async () {
     let e = await ensureInternalEngine();
+    // Async body → <system> is implicitly available here.
+    // armApprovalTimer returns async Timer.TimerId so its closure body is also
+    // async → Timer.setTimer<system> can be called without threading <system> through modules.
+    let armApprovalTimer = func(expiresAtNs : Int, cb : () -> async ()) : async Timer.TimerId {
+      let now = Time.now();
+      let delayNs : Nat = if (expiresAtNs > now) {
+        Int.toNat(expiresAtNs - now);
+      } else { 0 };
+      Timer.setTimer<system>(#nanoseconds(delayNs), cb);
+    };
     let ctx : EventRouter.EventProcessingContext = {
       secrets;
       keyCache;
@@ -313,6 +325,7 @@ persistent actor class OpenOrgBackend() {
       internalEngine = e;
       catalogState = workflowCatalogState;
       approvalState;
+      armApprovalTimer;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
@@ -401,6 +414,40 @@ persistent actor class OpenOrgBackend() {
       #nanoseconds 0,
       func() : async () {
         approvalState.approvalSalt := await Random.blob();
+      },
+    );
+
+    // Re-arm TTL timers for any turns still awaiting approval after upgrade.
+    // Runs in a zero-delay timer so the postupgrade hook returns fast — the IC
+    // wipes all timers on upgrade but this callback fires immediately after.
+    // async body → <system> is available → ApprovalTimer.arm<system> works.
+    ignore Timer.setTimer<system>(
+      #nanoseconds 0,
+      func() : async () {
+        for ((_agentId, agentTurns) in Map.entries(sessionStores.turns)) {
+          for ((_turnNum, turn) in Map.entries(agentTurns)) {
+            switch (turn.status) {
+              case (#awaitingApproval(data)) {
+                let tId = turn.turnId;
+                let resumeDeps : AgentRunner.ResumeDeps = {
+                  sessionStores;
+                  agentRegistry;
+                  secrets;
+                  internalEngine;
+                  envelopeState = executionEnvelopeState;
+                  catalogState = workflowCatalogState;
+                  approvalState;
+                };
+                let onExpire = func() : async () {
+                  await AgentRunner.resumeWithDenial(resumeDeps, keyCache, tId, "approval timed out", null);
+                };
+                let newTimerId = ApprovalTimer.arm<system>(data.expiresAtNs, onExpire);
+                data.timerId := ?newTimerId;
+              };
+              case _ {};
+            };
+          };
+        };
       },
     );
   };

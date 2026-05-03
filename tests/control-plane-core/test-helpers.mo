@@ -91,6 +91,9 @@ module {
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 
@@ -146,6 +149,9 @@ module {
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 
@@ -200,6 +206,9 @@ module {
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 
@@ -272,6 +281,9 @@ module {
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 
@@ -341,6 +353,9 @@ module {
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 

@@ -11,8 +11,10 @@
 ///             delegates here.
 
 import Array "mo:core/Array";
+import Int "mo:core/Int";
 import Json "mo:json";
 import Error "mo:core/Error";
+import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Types "../types";
 import AgentModel "../models/agent-model";
@@ -25,6 +27,7 @@ import ExecutionTypes "../types/execution";
 import WorkflowCatalogModel "../models/workflow-catalog-model";
 import WorkflowCatalogTypes "../types/workflow-catalog";
 import TurnContextService "../services/turn-context-service";
+import TurnCompletionService "../services/turn-completion-service";
 import KeyDerivationService "../services/key-derivation-service";
 import WorkflowCatalogService "../services/workflow-catalog-service";
 import ContextAssembler "context-assembler";
@@ -38,6 +41,7 @@ import WorkflowEngineHandler "tools/handlers/workflow-engine-handler";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 import OpenRouterWrapper "../wrappers/openrouter-wrapper";
 import SlackWrapper "../wrappers/slack-wrapper";
+import Logger "../utilities/logger";
 import InternalEngine "../../internal-engine/main";
 
 module {
@@ -499,6 +503,132 @@ module {
 
   private func dispatchStep(action : Text, result : { #ok; #err : Text }) : Types.ProcessingStep {
     { action; result; timestamp = Time.now() };
+  };
+
+  // ── resumeWithDenial ───────────────────────────────────────────────────────────────────────
+
+  /// Resume the admin agent loop after a workflow approval was denied or timed out.
+  /// Injects a synthetic denial tool result so the LLM can acknowledge and react.
+  ///
+  /// Called from the TTL expiry timer or from block-actions-handler (via a zero-delay
+  /// timer to stay within Slack's 3-second interactive-payload response window).
+  /// The timer must be cancelled by the caller BEFORE calling this function.
+  public func resumeWithDenial(
+    deps : ResumeDeps,
+    keyCache : KeyDerivationService.KeyCache,
+    turnId : Text,
+    reason : Text,
+    botTokenOpt : ?Text,
+  ) : async () {
+    let engine = switch (deps.internalEngine) {
+      case (?e) { e };
+      case null {
+        Logger.log(#error, ?"AgentRunner", "resumeWithDenial: engine not initialized for turn " # turnId);
+        ignore failTurnNoPost(deps, turnId, "Internal engine not initialized at denial resume.");
+        return;
+      };
+    };
+
+    let resolveDeps = {
+      sessionStores = deps.sessionStores;
+      agentRegistry = deps.agentRegistry;
+      secrets = deps.secrets;
+    };
+
+    let ctx = switch (await TurnContextService.asyncResolve(resolveDeps, keyCache, turnId, null)) {
+      case (#err({ message; stage = _ })) {
+        Logger.log(#error, ?"AgentRunner", "resumeWithDenial context failed for turn " # turnId # ": " # message);
+        ignore failTurnNoPost(deps, turnId, message);
+        return;
+      };
+      case (#ok(c)) { c };
+    };
+    let syncCtx = TurnContextService.syncResolve(resolveDeps, ctx, turnId);
+
+    // Race guard: if the turn is no longer awaiting approval (concurrent button click),
+    // the denial has already been handled — no-op.
+    let suspension = switch (syncCtx.turn.status) {
+      case (#awaitingApproval(data)) { data.suspension };
+      case (_) { return };
+    };
+
+    let botToken = switch (botTokenOpt) {
+      case (?t) { t };
+      case null {
+        switch (syncCtx.resolveSlackBotToken("denial_resume")) {
+          case (?t) { t };
+          case null {
+            ignore failTurnNoPost(deps, turnId, "No Slack bot token for denial resume.");
+            return;
+          };
+        };
+      };
+    };
+
+    // Build a synthetic denial tool result for the LLM to react to.
+    // Strip any double quotes from reason to keep the JSON valid without a parser.
+    let safeReason = Text.replace(Text.replace(reason, #text "\"", "'"), #text "\\", "");
+    let syntheticResult = "{\"dispatched\":false,\"denied\":true,\"reason\":\"" # safeReason # "\"}";
+    let syntheticMsg : OpenRouterWrapper.ResponseInputMessage = {
+      role = #assistant;
+      content = "Tool call " # suspension.pendingToolCallId # " result:\n" # syntheticResult # "\n\n";
+    };
+
+    let resumeMessages = Array.concat(suspension.messages, [syntheticMsg]);
+    syncCtx.turn.status := #running;
+
+    let loopResult = try {
+      await AdminAgentLoop.process(
+        syncCtx.agent,
+        {
+          messages = resumeMessages;
+          stats = {
+            summaryTokens = 0;
+            rawTurnsIncluded = 0;
+            channelSnippets = 0;
+          };
+        },
+        turnId,
+        syncCtx.turn.userAuthContext,
+        ctx.apiKey,
+        deps.secrets,
+        ctx.workspaceKey,
+        syncCtx.resolveSlackBotToken,
+        {
+          envelopeState = deps.envelopeState;
+          internalEngine = engine;
+          catalogState = deps.catalogState;
+        },
+        deps.approvalState,
+        ctx.sourceRef,
+        ?{ messages = resumeMessages; startRound = suspension.roundCount },
+      );
+    } catch (err : Error) {
+      ignore await failTurn(deps, turnId, ?botToken, ctx.channelId, ctx.threadTs, "Denial resume failed: " # Error.message(err));
+      return;
+    };
+
+    // Build reply metadata for the Slack post.
+    let (parentTs, parentChannel) = switch (ctx.sourceRef) {
+      case (?#slack({ channelId; ts; threadTs = _ })) { (ts, channelId) };
+      case _ { ("", ctx.channelId) };
+    };
+    let metadata : ?Types.AgentMessageMetadata = ?{
+      event_type = "looping_agent_message";
+      event_payload = {
+        parent_agent = syncCtx.agent.config.name;
+        parent_ts = parentTs;
+        parent_channel = parentChannel;
+        turn_id = turnId;
+      };
+    };
+
+    ignore await TurnCompletionService.apply(
+      { sessionStores = deps.sessionStores; approvalState = deps.approvalState },
+      turnId,
+      loopResult,
+      { botToken; channelId = ctx.channelId; threadTs = ctx.threadTs; metadata },
+    );
   };
 
 };

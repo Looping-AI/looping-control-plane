@@ -6,6 +6,7 @@ import SessionModel "../models/session-model";
 import AgentModel "../models/agent-model";
 import WorkspaceModel "../models/workspace-model";
 import SecretModel "../models/secret-model";
+import ApprovalModel "../models/approval-model";
 import KeyDerivationService "key-derivation-service";
 import ExecutionTypes "../types/execution";
 import SlackWrapper "../wrappers/slack-wrapper";
@@ -22,6 +23,7 @@ module {
     agentRegistry : AgentModel.AgentRegistryState;
     workspaces : WorkspaceModel.WorkspacesState;
     secrets : SecretModel.SecretsState;
+    approvalState : ApprovalModel.ApprovalState;
     resumeAdminTurn : (turnId : Text, suspension : SessionModel.SuspensionData, syntheticToolResult : Text) -> async Types.AgentOrchestrateResult;
   };
 
@@ -135,7 +137,10 @@ module {
                 return;
               };
               ignore await TurnCompletionService.apply(
-                { sessionStores = deps.sessionStores },
+                {
+                  sessionStores = deps.sessionStores;
+                  approvalState = deps.approvalState;
+                },
                 turnId,
                 resumeResult,
                 { botToken; channelId; threadTs; metadata },

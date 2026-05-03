@@ -12,6 +12,7 @@ import Array "mo:core/Array";
 import Time "mo:core/Time";
 import Types "../types";
 import SessionModel "../models/session-model";
+import ApprovalModel "../models/approval-model";
 import SlackWrapper "../wrappers/slack-wrapper";
 import Logger "../utilities/logger";
 
@@ -19,6 +20,7 @@ module {
 
   public type ServiceDeps = {
     sessionStores : SessionModel.SessionStores;
+    approvalState : ApprovalModel.ApprovalState;
   };
 
   public type SlackPostCtx = {
@@ -45,12 +47,18 @@ module {
       case (#awaitingApproval({ steps; suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId })) {
         switch (SessionModel.findTurn(deps.sessionStores, turnId)) {
           case (?turn) {
+            let expiresAtNs = switch (ApprovalModel.findByCode(deps.approvalState, approvalCode)) {
+              case (?record) { record.expiresAtNs };
+              case null { Time.now() }; // safe fallback: treat as expired immediately
+            };
             turn.status := #awaitingApproval({
               suspension;
               workflowName;
               approvalCode;
               originalToolArgs;
               requestedByUserId;
+              expiresAtNs;
+              var timerId = null; // armed by the caller (message-handler) after this returns
             });
           };
           case null {};

@@ -5,6 +5,7 @@ import Blob "mo:core/Blob";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Nonce "../utilities/nonce";
+import Constants "../constants";
 
 module {
 
@@ -25,6 +26,7 @@ module {
     turnId : Text;
     requestedByUserId : Text;
     requestedAt : Int;
+    expiresAtNs : Int;
     var status : ApprovalStatus;
   };
 
@@ -68,6 +70,7 @@ module {
       turnId;
       requestedByUserId;
       requestedAt = now;
+      expiresAtNs = now + Constants.APPROVAL_TTL_NS;
       var status = #pending;
     };
     Map.add(state.approvals, Text.compare, code, record);
