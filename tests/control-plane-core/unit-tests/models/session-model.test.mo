@@ -702,3 +702,111 @@ suite(
     );
   },
 );
+
+// ============================================
+// awaitingApproval
+// ============================================
+
+suite(
+  "awaitingApproval",
+  func() {
+    test(
+      "transitions a running turn to #awaitingApproval",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        expect.bool(switch (turn.status) { case (#running) true; case _ false }).isTrue();
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_approval";
+          roundCount = 1;
+        };
+        turn.status := #awaitingApproval({
+          suspension = dummySuspension;
+          workflowName = "deploy";
+          approvalCode = "abc123";
+          originalToolArgs = "{\"env\":\"prod\"}";
+          requestedByUserId = "U_REQ";
+          expiresAtNs = 9_999_999_999_999;
+          var timerId = null;
+        });
+        switch (turn.status) {
+          case (#awaitingApproval(data)) {
+            expect.text(data.workflowName).equal("deploy");
+            expect.text(data.approvalCode).equal("abc123");
+            expect.text(data.requestedByUserId).equal("U_REQ");
+            expect.bool(data.expiresAtNs == 9_999_999_999_999).isTrue();
+            expect.bool(data.timerId == null).isTrue();
+            expect.bool(data.suspension.pendingToolCallId == "call_approval").isTrue();
+          };
+          case (_) { expect.bool(false).isTrue() }; // unreachable: expected #awaitingApproval
+        };
+      },
+    );
+
+    test(
+      "timerId field is mutable and can be set",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_approval";
+          roundCount = 1;
+        };
+        turn.status := #awaitingApproval({
+          suspension = dummySuspension;
+          workflowName = "deploy";
+          approvalCode = "abc123";
+          originalToolArgs = "{}";
+          requestedByUserId = "U_REQ";
+          expiresAtNs = 9_999_999_999_999;
+          var timerId = null;
+        });
+        switch (turn.status) {
+          case (#awaitingApproval(data)) {
+            // Simulate the timer being armed
+            data.timerId := ?42;
+            expect.bool(data.timerId == ?42).isTrue();
+          };
+          case (_) { expect.bool(false).isTrue() };
+        };
+      },
+    );
+
+    test(
+      "#awaitingApproval turn survives findTurn round-trip",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_approval";
+          roundCount = 2;
+        };
+        turn.status := #awaitingApproval({
+          suspension = dummySuspension;
+          workflowName = "approve_me";
+          approvalCode = "deadbeef";
+          originalToolArgs = "{\"x\":1}";
+          requestedByUserId = "U_OWNER";
+          expiresAtNs = 1_000_000;
+          var timerId = null;
+        });
+        switch (SessionModel.findTurn(stores, turn.turnId)) {
+          case (null) { expect.bool(false).isTrue() };
+          case (?found) {
+            switch (found.status) {
+              case (#awaitingApproval(data)) {
+                expect.text(data.workflowName).equal("approve_me");
+                expect.text(data.approvalCode).equal("deadbeef");
+                expect.nat(data.suspension.roundCount).equal(2);
+              };
+              case (_) { expect.bool(false).isTrue() };
+            };
+          };
+        };
+      },
+    );
+  },
+);

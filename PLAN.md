@@ -348,7 +348,7 @@ C.b.10 — `agent-orchestrator.mo` + `admin-agent-loop.mo`: thread `approvalStat
 
 ---
 
-### 5.2.1.1 — Approval TTL: per-turn timers, Block Kit, cancellable, upgrade-recovered _(depends on Phase C.b)_
+~~### 5.2.1.1 — Approval TTL: per-turn timers, Block Kit, cancellable, upgrade-recovered _(depends on Phase C.b)_~~
 
 **Goal**
 
