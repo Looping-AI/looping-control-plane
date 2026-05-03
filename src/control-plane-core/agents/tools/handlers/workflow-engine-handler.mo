@@ -58,7 +58,7 @@ module {
               };
             };
             case (_) {
-              // No approval code: generate one, post Slack prompt, return approval signal.
+              // No approval code: generate one, post Slack Block Kit prompt, return approval signal.
               let renderedArgs = JsonPretty.prettyPrint(parsed, 0);
               let approvalCode = ApprovalModel.request(
                 engineDispatch.approvalState,
@@ -69,14 +69,53 @@ module {
                 envelopeContext.turnId,
                 requestedByUserId,
               );
-              let slackMsg = "Workflow `" # descriptor.workflowName # "` requires approval.\nArguments:\n```\n" # renderedArgs # "\n```\nReply with `approve " # approvalCode # "` to proceed.";
+              // Plain-text fallback shown in notifications and clients that don't support Block Kit.
+              let slackTextFallback = "Workflow `" # descriptor.workflowName # "` requires your approval — use the buttons below to approve or deny.";
+              // Block Kit: section with details + Approve / Deny action buttons.
+              let blocksJson = Json.stringify(
+                #array([
+                  obj([
+                    ("type", str("section")),
+                    (
+                      "text",
+                      obj([
+                        ("type", str("mrkdwn")),
+                        ("text", str("*Approval required* — workflow `" # descriptor.workflowName # "`\n\n*Arguments:*\n```\n" # renderedArgs # "\n```")),
+                      ]),
+                    ),
+                  ]),
+                  obj([
+                    ("type", str("actions")),
+                    (
+                      "elements",
+                      #array([
+                        obj([
+                          ("type", str("button")),
+                          ("text", obj([("type", str("plain_text")), ("text", str("Approve"))])),
+                          ("style", str("primary")),
+                          ("action_id", str("approve_workflow")),
+                          ("value", str(approvalCode)),
+                        ]),
+                        obj([
+                          ("type", str("button")),
+                          ("text", obj([("type", str("plain_text")), ("text", str("Deny"))])),
+                          ("style", str("danger")),
+                          ("action_id", str("deny_workflow")),
+                          ("value", str(approvalCode)),
+                        ]),
+                      ]),
+                    ),
+                  ]),
+                ]),
+                null,
+              );
               switch (resolveSlackBotToken) {
                 case (?resolve) {
                   switch (resolve("approval/" # descriptor.workflowName)) {
                     case (?token) {
                       switch (sourceRef) {
                         case (?#slack({ channelId; ts = _; threadTs })) {
-                          ignore await SlackWrapper.postMessage(token, channelId, slackMsg, threadTs, null);
+                          ignore await SlackWrapper.postMessage(token, channelId, slackTextFallback, threadTs, null, ?blocksJson);
                         };
                         case (_) {}; // non-Slack source — approval prompt cannot be posted
                       };

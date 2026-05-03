@@ -62,9 +62,10 @@ module {
   ///
   /// @param token     Decrypted Slack bot token (xoxb-...)
   /// @param channel   Channel/DM/group ID to post to
-  /// @param text      Message text (plain text or mrkdwn)
+  /// @param text      Message text (plain text or mrkdwn; used as fallback when blocks are present)
   /// @param threadTs  Optional: ts of the parent message to reply within a thread
   /// @param metadata  Optional: agent lineage metadata to embed in the message
+  /// @param blocks    Optional: Block Kit blocks JSON array string (overrides plain-text body)
   /// @returns #ok with the posted message ts + channel, or #err with a description
   public func postMessage(
     token : Text,
@@ -72,6 +73,7 @@ module {
     text : Text,
     threadTs : ?Text,
     metadata : ?Types.AgentMessageMetadata,
+    blocks : ?Text,
   ) : async {
     #ok : PostMessageOk;
     #err : Text;
@@ -104,6 +106,20 @@ module {
           ("event_payload", obj(payloadFields)),
         ]);
         fields := Array.concat(fields, [("metadata", metaJson)]);
+      };
+      case (null) {};
+    };
+
+    // Append blocks when provided — parse the JSON string and include as an array.
+    // text remains as the plain-text fallback for clients that don't support Block Kit.
+    switch (blocks) {
+      case (?blocksJson) {
+        switch (Json.parse(blocksJson)) {
+          case (#ok(parsed)) {
+            fields := Array.concat(fields, [("blocks", parsed)]);
+          };
+          case (#err(_)) {}; // malformed blocks JSON — skip, Slack will use text fallback
+        };
       };
       case (null) {};
     };
@@ -750,5 +766,59 @@ module {
     };
 
     #ok(allMembers);
+  };
+
+  // ============================================
+  // response_url — Async interactive message updates
+  // ============================================
+
+  /// POST a JSON payload to a Slack response_url to update or replace an interactive message.
+  ///
+  /// Slack provides a `response_url` in every Block Kit interactive payload (button clicks, etc.).
+  /// It is a self-authenticated URL — no bot token is needed. It accepts the same JSON body as
+  /// `chat.postMessage` plus the special `"replace_original": true` field to replace the message
+  /// that contained the buttons.
+  ///
+  /// The URL is valid for 30 minutes after the interaction.
+  ///
+  /// Typical use: after processing an approval/denial asynchronously, call this to swap the
+  /// button block with a confirmation line (e.g. "✅ Approved by <@U...>.").
+  ///
+  /// @param responseUrl  The Slack-provided response_url from the interactive payload
+  /// @param body         JSON string to POST (e.g. `{"replace_original":true,"text":"..."}`)
+  public func postToResponseUrl(responseUrl : Text, body : Text) : async {
+    #ok;
+    #err : Text;
+  } {
+    let headers : [HttpWrapper.HttpHeader] = [
+      { name = "Content-Type"; value = "application/json" },
+    ];
+
+    let httpResult = await HttpWrapper.post(responseUrl, headers, body);
+
+    switch (httpResult) {
+      case (#err(e)) { #err("HTTP request failed: " # e) };
+      case (#ok((status, responseBody))) {
+        if (status != 200) {
+          return #err("response_url POST returned HTTP " # debug_show status # ": " # responseBody);
+        };
+        // Slack returns {"ok":true} on success; surface API errors for logging
+        switch (Json.parse(responseBody)) {
+          case (#err(_)) { #ok }; // non-JSON body is unusual but not fatal
+          case (#ok(json)) {
+            switch (Json.get(json, "ok")) {
+              case (?#bool(false)) {
+                let errMsg = switch (Json.get(json, "error")) {
+                  case (?#string(e)) { e };
+                  case _ { "unknown_error" };
+                };
+                #err("Slack response_url error: " # errMsg);
+              };
+              case _ { #ok };
+            };
+          };
+        };
+      };
+    };
   };
 };

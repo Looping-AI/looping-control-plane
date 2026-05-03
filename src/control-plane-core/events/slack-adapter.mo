@@ -22,6 +22,7 @@ import Constants "../constants";
 import Encryption "../utilities/encryption";
 import Logger "../utilities/logger";
 import Types "../types";
+import UrlEncoding "../utilities/url-encoding";
 
 module {
 
@@ -146,6 +147,15 @@ module {
   } {
     // Log raw payload for dev environments
     logRawPayload(bodyText);
+
+    // Slack interactive components (Block Kit buttons) send the payload as
+    // application/x-www-form-urlencoded: `payload=<percent-encoded-json>`.
+    // Detect this prefix and route to the block_actions parser.
+    if (Text.startsWith(bodyText, #text "payload=")) {
+      let encoded = Text.trimStart(bodyText, #text "payload=");
+      let decoded = UrlEncoding.decodeQueryValue(encoded);
+      return parseBlockActionsPayload(decoded);
+    };
 
     let json = switch (Json.parse(bodyText)) {
       case (#ok(j)) { j };
@@ -1025,5 +1035,96 @@ module {
       failedError = "";
       processingLog = [];
     });
+  };
+
+  // ============================================
+  // Block Kit interactive payload parsing
+  // ============================================
+
+  /// Parse a percent-decoded Slack Block Kit interactive payload JSON string.
+  ///
+  /// Slack sends interactive component payloads (button clicks, etc.) as:
+  ///   payload=<url-encoded-json>
+  ///
+  /// The JSON structure for a button action contains:
+  ///   { "type": "block_actions", "user": { "id": ... }, "team": { "id": ... },
+  ///     "message": { "ts": ... }, "channel": { "id": ... },
+  ///     "actions": [{ "action_id": ..., "value": ... }] }
+  ///
+  /// We extract the first action only (Slack sends one action per interactive payload).
+  private func parseBlockActionsPayload(decodedJson : Text) : {
+    #ok : SlackEventTypes.SlackEnvelope;
+    #err : Text;
+  } {
+    let json = switch (Json.parse(decodedJson)) {
+      case (#err(e)) {
+        return #err("Failed to parse block_actions JSON: " # debug_show e);
+      };
+      case (#ok(j)) { j };
+    };
+
+    let payloadType = switch (Json.get(json, "type")) {
+      case (?#string(t)) { t };
+      case _ { return #err("Missing 'type' in interactive payload") };
+    };
+
+    if (payloadType != "block_actions") {
+      return #ok(#unknown(payloadType));
+    };
+
+    let userId = switch (Json.get(json, "user.id")) {
+      case (?#string(u)) { u };
+      case _ { return #err("Missing 'user.id' in block_actions payload") };
+    };
+
+    let messageTs = switch (Json.get(json, "message.ts")) {
+      case (?#string(ts)) { ts };
+      case _ { "" }; // message may be absent in some surfaces
+    };
+
+    let channelId = switch (Json.get(json, "channel.id")) {
+      case (?#string(c)) { c };
+      case _ { "" }; // channel may be absent in some surfaces
+    };
+
+    // Extract first action from the actions array
+    let (actionId, actionValue) = switch (Json.get(json, "actions")) {
+      case (?#array(actions)) {
+        if (actions.size() == 0) {
+          return #err("Empty 'actions' array in block_actions payload");
+        };
+        let firstAction = actions[0];
+        let aid = switch (Json.get(firstAction, "action_id")) {
+          case (?#string(a)) { a };
+          case _ { return #err("Missing 'action_id' in first action") };
+        };
+        let aval = switch (Json.get(firstAction, "value")) {
+          case (?#string(v)) { v };
+          case _ { "" }; // value is optional for some action types
+        };
+        (aid, aval);
+      };
+      case _ {
+        return #err("Missing or invalid 'actions' in block_actions payload");
+      };
+    };
+
+    // response_url is provided by Slack for interactive payloads — it's a
+    // pre-authenticated POST target for async message updates (valid for 30 min).
+    let responseUrl = switch (Json.get(json, "response_url")) {
+      case (?#string(u)) { u };
+      case _ { "" }; // absent on some surfaces; handler should guard on empty
+    };
+
+    #ok(
+      #block_actions({
+        userId;
+        actionId;
+        actionValue;
+        messageTs;
+        channelId;
+        responseUrl;
+      })
+    );
   };
 };

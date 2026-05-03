@@ -72,6 +72,7 @@ module {
           response,
           slackCtx.threadTs,
           slackCtx.metadata,
+          null,
         );
         let slackStep : Types.ProcessingStep = {
           action = "post_to_slack";
@@ -112,6 +113,7 @@ module {
             errorText,
             slackCtx.threadTs,
             slackCtx.metadata,
+            null,
           )
         ) {
           case (#ok(_)) {};

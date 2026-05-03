@@ -39,6 +39,7 @@ import ApprovalModel "./models/approval-model";
 import ApprovalTimer "./timers/approval-timer";
 import InternalEngine "../internal-engine/main";
 import AgentRunner "./agents/agent-runner";
+import BlockActionsHandler "./events/handlers/block-actions-handler";
 import Json "mo:json";
 import { str; obj } "mo:json";
 
@@ -700,6 +701,35 @@ persistent actor class OpenOrgBackend() {
         let logMsg = "Rate-limiting events for team " # rateLimited.team_id # " at minute " # minuteStr;
         Logger.log(#warn, ?"SlackWebhook", logMsg);
         respondWithText(200, "ok");
+      };
+      case (#block_actions(payload)) {
+        // Return 200 immediately — Slack's interactive payload window is 3 seconds and
+        // key derivation (threshold signature, cold cache) can exceed that.
+        // Processing and the button-message update via response_url happen in a timer.
+        let resumeDeps : AgentRunner.ResumeDeps = {
+          sessionStores;
+          agentRegistry;
+          secrets;
+          internalEngine;
+          envelopeState = executionEnvelopeState;
+          catalogState = workflowCatalogState;
+          approvalState;
+        };
+        let blockDeps : BlockActionsHandler.BlockActionsDeps = {
+          approvalState;
+          sessionStores;
+          agentRegistry;
+          slackUsers;
+          resumeDeps;
+          keyCache;
+        };
+        ignore Timer.setTimer<system>(
+          #nanoseconds 0,
+          func() : async () {
+            await BlockActionsHandler.handle<system>(payload, blockDeps);
+          },
+        );
+        respondWithText(200, "");
       };
       case (#unknown(envelopeType)) {
         Logger.log(#warn, ?"SlackWebhook", "Unknown envelope type: " # envelopeType);

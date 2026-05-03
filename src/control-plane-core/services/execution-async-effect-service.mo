@@ -116,7 +116,7 @@ module {
       switch (effect) {
         case (#milestone(_m)) {
           // Post milestone update to Slack thread
-          switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata)) {
+          switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata, null)) {
             case (#ok(_)) {};
             case (#err(e)) {
               Logger.log(#error, ?"ExecutionAsyncEffect", "Milestone post failed for turn " # turnId # ": " # e);
@@ -148,7 +148,7 @@ module {
             };
             case (_) {
               // Normal (non-resume) completion: post humanSummary and mark turn terminal.
-              switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata)) {
+              switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata, null)) {
                 case (#ok({ ts = replyTs; channel = _ })) {
                   SessionModel.appendTrace(
                     deps.sessionStores,

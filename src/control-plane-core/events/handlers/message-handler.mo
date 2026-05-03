@@ -333,10 +333,8 @@ module {
       case (?token) { token };
     };
     let text = "⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.";
-    ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null);
+    ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null, null);
   };
-
-  // ─── Public entry point ──────────────────────────────────────────────────────
 
   public func handle(
     msg : IncomingMsg,
@@ -400,7 +398,7 @@ module {
       let slackResult = switch (botTokenOpt) {
         case (null) { #err("no bot token") };
         case (?token) {
-          switch (await SlackWrapper.postMessage(token, msg.channel, slackText, msg.threadTs, null)) {
+          switch (await SlackWrapper.postMessage(token, msg.channel, slackText, msg.threadTs, null, null)) {
             case (#ok(_)) { #ok };
             case (#err(e)) { #err(e) };
           };

@@ -14,6 +14,10 @@
 import Text "mo:core/Text";
 import Char "mo:core/Char";
 import Nat8 "mo:core/Nat8";
+import Nat32 "mo:core/Nat32";
+import Array "mo:core/Array";
+import Blob "mo:core/Blob";
+import VarArray "mo:core/VarArray";
 
 module {
 
@@ -89,6 +93,107 @@ module {
         };
       },
     );
+  };
+
+  // ─── Decoding ─────────────────────────────────────────────────────────────
+
+  /// Interpret a single hex character ('0'-'9', 'A'-'F', 'a'-'f') as its
+  /// numeric value, or null for non-hex characters.
+  private func hexCharToNat(c : Char) : ?Nat8 {
+    let n = Char.toNat32(c);
+    if (n >= 0x30 and n <= 0x39) {
+      return ?(Nat8.fromNat(Nat32.toNat(n - 0x30)));
+    }; // '0'-'9'
+    if (n >= 0x41 and n <= 0x46) {
+      return ?(Nat8.fromNat(Nat32.toNat(n - 0x41 + 10)));
+    }; // 'A'-'F'
+    if (n >= 0x61 and n <= 0x66) {
+      return ?(Nat8.fromNat(Nat32.toNat(n - 0x61 + 10)));
+    }; // 'a'-'f'
+    null;
+  };
+
+  /// Percent-decode a URL query parameter value (application/x-www-form-urlencoded).
+  ///
+  /// - `%XX` sequences are decoded to their byte values.
+  /// - `+` is decoded as a space (HTML form encoding).
+  /// - Other characters pass through unchanged.
+  ///
+  /// Invalid `%XX` sequences (non-hex digits or truncated) pass through verbatim.
+  public func decodeQueryValue(value : Text) : Text {
+    let chars = Text.toIter(value);
+    var result = "";
+
+    // Growing buffer for accumulating UTF-8 bytes from consecutive %XX sequences.
+    // Flushed to text whenever a non-%XX character is encountered or at end.
+    var buf : [var Nat8] = VarArray.repeat<Nat8>(0, 16);
+    var bufLen = 0;
+
+    // Flush all accumulated bytes in buf as decoded UTF-8 text.
+    // On invalid UTF-8, falls back to percent-encoding each byte verbatim.
+    let flushBytes = func() {
+      if (bufLen > 0) {
+        let slice = Array.tabulate<Nat8>(bufLen, func(i) { buf[i] });
+        switch (Text.decodeUtf8(Blob.fromArray(slice))) {
+          case (?t) { result #= t };
+          case null {
+            // Invalid UTF-8 — pass bytes through as percent-encoded (best effort)
+            var i = 0;
+            while (i < bufLen) {
+              let b = buf[i];
+              result #= "%" # Char.toText(hexDigits[Nat8.toNat(b / 16)]) # Char.toText(hexDigits[Nat8.toNat(b % 16)]);
+              i += 1;
+            };
+          };
+        };
+        bufLen := 0;
+      };
+    };
+
+    label L loop {
+      let c = switch (chars.next()) { case null break L; case (?c) c };
+
+      if (c == '%') {
+        // Try to read two hex digits
+        let h1 = switch (chars.next()) {
+          case null { flushBytes(); result #= "%"; break L };
+          case (?h) h;
+        };
+        let h2 = switch (chars.next()) {
+          case null { flushBytes(); result #= "%" # Char.toText(h1); break L };
+          case (?h) h;
+        };
+        switch (hexCharToNat(h1), hexCharToNat(h2)) {
+          case (?hi, ?lo) {
+            // Valid %XX — accumulate byte for multi-byte UTF-8 decoding
+            if (bufLen >= buf.size()) {
+              // Grow the buffer by doubling
+              let newBuf = VarArray.repeat<Nat8>(0, buf.size() * 2);
+              var i = 0;
+              while (i < bufLen) { newBuf[i] := buf[i]; i += 1 };
+              buf := newBuf;
+            };
+            buf[bufLen] := hi * 16 + lo;
+            bufLen += 1;
+          };
+          case _ {
+            // Not valid hex — flush buffered bytes, pass through verbatim
+            flushBytes();
+            result #= "%" # Char.toText(h1) # Char.toText(h2);
+          };
+        };
+      } else {
+        // Non-% character — flush any buffered bytes first
+        flushBytes();
+        if (c == '+') {
+          result #= " "; // form-encoding: + represents space
+        } else {
+          result #= Char.toText(c);
+        };
+      };
+    };
+    flushBytes();
+    result;
   };
 
 };

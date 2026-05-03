@@ -488,7 +488,7 @@ module {
   ) : async DispatchResult {
     switch (botTokenOpt) {
       case (?botToken) {
-        ignore await SlackWrapper.postMessage(botToken, channelId, "[Agent error] " # message, threadTs, null);
+        ignore await SlackWrapper.postMessage(botToken, channelId, "[Agent error] " # message, threadTs, null, null);
       };
       case null {};
     };
