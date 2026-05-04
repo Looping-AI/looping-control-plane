@@ -17,8 +17,10 @@ import {
   SLACK_SIGNING_SECRET,
   SLACK_TEST_TOKEN,
   TEST_API_KEY,
+  testCanisterIdlFactory,
 } from "../../setup.ts";
 import { expectOk, expectSome } from "../../helpers.ts";
+import { withCassette } from "../../lib/cassette.ts";
 
 // ============================================
 // Approval Flow – Integration Tests
@@ -232,38 +234,66 @@ describe("Approval Flow", () => {
   describe("full approval pipeline", () => {
     let testPic: PocketIc;
     let testActor: Actor<TestCanisterService>;
+    let testCanisterId: Awaited<
+      ReturnType<typeof freshTestCanister>
+    >["canisterId"];
 
     beforeAll(async () => {
       testPic = (await createTestCanister()).pic;
     });
 
     beforeEach(async () => {
-      testActor = (await freshTestCanister(testPic)).actor;
+      const canister = await freshTestCanister(testPic);
+      testActor = canister.actor;
+      testCanisterId = canister.canisterId;
     });
 
     afterAll(async () => {
       await testPic.tearDown();
     });
 
-    it("approval-request-generates-code: turn should enter #awaitingApproval after workflow approval request", async () => {
-      // The turn ID will be "0_0" (agent 0, first turn in a fresh canister).
-      await testActor.testMessageHandlerDispatch(
-        {
-          user: "U_OWNER",
-          text: "Delete workspace with ID 1.",
-          channel: "C_TEST",
-          ts: "1700000001.000001",
-          threadTs: [],
-          isBotMessage: false,
-          agentMetadata: [],
-        },
-        SLACK_TEST_TOKEN,
-        TEST_API_KEY,
-      );
-      expect(expectSome(await testActor.testGetTurnStatus("0_0"))).toBe(
-        "awaitingApproval",
-      );
-    });
+    it(
+      "approval-request-generates-code: turn should enter #awaitingApproval after workflow approval request",
+      async () => {
+        const cassetteName =
+          "control-plane-core/integration-tests/approval-flow/approval-request-generates-code";
+
+        // A deferred actor on the same canister is required for withCassette
+        // (deferred calls allow PocketIC to handle HTTPS outcalls between send
+        // and await). The regular testActor is used for state queries afterward.
+        const deferredActor = testPic.createDeferredActor<TestCanisterService>(
+          testCanisterIdlFactory,
+          testCanisterId,
+        );
+
+        // The turn ID will be "0_0" (agent 0, first turn in a fresh canister).
+        const { result } = await withCassette(
+          testPic,
+          cassetteName,
+          () =>
+            deferredActor.testMessageHandlerDispatch(
+              {
+                user: "U_OWNER",
+                text: "Delete workspace with ID 1.",
+                channel: "C_TEST",
+                ts: "1700000001.000001",
+                threadTs: [],
+                isBotMessage: false,
+                agentMetadata: [],
+              },
+              SLACK_TEST_TOKEN,
+              TEST_API_KEY,
+            ),
+          { ticks: 5, maxRounds: 3 },
+        );
+        await result;
+
+        expect(expectSome(await testActor.testGetTurnStatus("0_0"))).toBe(
+          "awaitingApproval",
+        );
+      },
+      { timeout: 60_000 },
+    );
 
     it("approval-reject-wrong-code: sending wrong code should leave turn in #awaitingApproval", async () => {
       const { turnId } = await testActor.testSeedApprovalForTurn(

@@ -25,7 +25,7 @@ import {
   TEST_API_KEY,
 } from "../../setup.ts";
 import type { EnvelopePayload } from "../../builds/internal-engine.did.d.ts";
-import { HttpCassette, shouldSkipWithoutCassette } from "../../lib/cassette.ts";
+import { HttpCassette } from "../../lib/cassette.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -34,6 +34,7 @@ function minimalEnvelope(
   envelopeId: bigint,
   agentName: string,
   prompt: string,
+  hash: string[] = [],
 ): EnvelopePayload {
   return {
     envelopeId,
@@ -49,7 +50,7 @@ function minimalEnvelope(
     constraints: { maxRounds: 3n, maxTokenBudget: [] },
     secrets: { apiKeys: [["openrouter", TEST_API_KEY]] },
     scopeGrants: [],
-    catalogHash: [],
+    catalogHash: hash as [] | [string],
     envelopeNonce: `nonce-${envelopeId}`,
   };
 }
@@ -60,10 +61,24 @@ describe("internal-engine / execute", () => {
   let pic: PocketIc;
   let engineActor: Actor<InternalEngineService>;
   let coreIdentity: ReturnType<typeof generateRandomIdentity>;
+  let catalogHash = "";
 
   beforeAll(async () => {
     pic = await PocketIc.create(process.env.PIC_URL || "");
     coreIdentity = generateRandomIdentity();
+
+    // Fetch the catalog hash once — static, derived from the compiled workflow
+    // descriptors. Required by execute() since the catalogHash guard was added.
+    const tempEngine = await createInternalEngineActor(
+      pic,
+      coreIdentity.getPrincipal(),
+    );
+    tempEngine.actor.setIdentity(coreIdentity);
+    const catalogResult = await tempEngine.actor.listWorkflows();
+    if ("ok" in catalogResult) {
+      catalogHash = (JSON.parse(catalogResult.ok) as { catalogHash: string })
+        .catalogHash;
+    }
   });
 
   beforeEach(async () => {
@@ -136,7 +151,7 @@ describe("internal-engine / execute", () => {
     engineActor.setIdentity(coreIdentity);
 
     const envelope: EnvelopePayload = {
-      ...minimalEnvelope(4n, "test-agent", "Hello"),
+      ...minimalEnvelope(4n, "test-agent", "Hello", [catalogHash]),
       secrets: { apiKeys: [] },
     };
 
@@ -152,7 +167,7 @@ describe("internal-engine / execute", () => {
     engineActor.setIdentity(coreIdentity);
 
     const envelope: EnvelopePayload = {
-      ...minimalEnvelope(5n, "test-agent", "Hello"),
+      ...minimalEnvelope(5n, "test-agent", "Hello", [catalogHash]),
       secrets: { apiKeys: [["some_other_service", "key-value"]] },
     };
 
@@ -169,7 +184,7 @@ describe("internal-engine / execute", () => {
   it("rejects duplicate envelopeId", async () => {
     engineActor.setIdentity(coreIdentity);
 
-    const envelope = minimalEnvelope(6n, "test-agent", "Hello");
+    const envelope = minimalEnvelope(6n, "test-agent", "Hello", [catalogHash]);
 
     // First call — should succeed
     const first = await engineActor.execute(envelope);
@@ -190,7 +205,7 @@ describe("internal-engine / execute", () => {
     engineActor.setIdentity(coreIdentity);
 
     const result = await engineActor.execute(
-      minimalEnvelope(7n, "test-agent", "Hello"),
+      minimalEnvelope(7n, "test-agent", "Hello", [catalogHash]),
     );
 
     expect("ok" in result).toBe(true);
@@ -203,6 +218,7 @@ describe("internal-engine / execute (async completion)", () => {
   let pic: PocketIc;
   let engineActor: Actor<InternalEngineService>;
   let stubActor: Actor<StubCoreService>;
+  let catalogHash = "";
 
   beforeAll(async () => {
     pic = await PocketIc.create(process.env.PIC_URL || "");
@@ -222,6 +238,13 @@ describe("internal-engine / execute (async completion)", () => {
       sign: async () => new ArrayBuffer(64),
     } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     engineActor.setIdentity(fakeCore);
+
+    // Fetch catalog hash — required by execute() after the catalogHash guard was added.
+    const catalogResult = await engineActor.listWorkflows();
+    if ("ok" in catalogResult) {
+      catalogHash = (JSON.parse(catalogResult.ok) as { catalogHash: string })
+        .catalogHash;
+    }
   });
 
   afterAll(async () => {
@@ -231,7 +254,6 @@ describe("internal-engine / execute (async completion)", () => {
   it("emits completion to core after timer fires (text response)", async () => {
     const cassetteName =
       "internal-engine/integration-tests/execute/text-response";
-    if (await shouldSkipWithoutCassette(cassetteName)) return;
 
     await stubActor.clearRecordedCalls();
     const cassette = await HttpCassette.auto(cassetteName);
@@ -240,6 +262,7 @@ describe("internal-engine / execute (async completion)", () => {
       100n,
       "test-agent",
       "Say hello in exactly one word.",
+      [catalogHash],
     );
 
     // Submit envelope — returns #ok synchronously, then zero-delay timer fires.
@@ -284,7 +307,7 @@ describe("internal-engine / execute (async completion)", () => {
     await stubActor.clearRecordedCalls();
 
     const envelope: EnvelopePayload = {
-      ...minimalEnvelope(101n, "test-agent", "Will not run"),
+      ...minimalEnvelope(101n, "test-agent", "Will not run", [catalogHash]),
       constraints: { maxRounds: 0n, maxTokenBudget: [] },
     };
 
