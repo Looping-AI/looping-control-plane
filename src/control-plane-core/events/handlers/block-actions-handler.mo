@@ -90,27 +90,6 @@ module {
     };
   };
 
-  // ─── Authorization ────────────────────────────────────────────────────────
-
-  /// Returns true if userId is authorized to approve/deny the given approval record.
-  ///
-  /// Authorized when:
-  ///   1. The user is the original requester, OR
-  ///   2. The user is a workspace admin of the agent's owning workspace.
-  private func isAuthorized(
-    userId : Text,
-    approval : ApprovalModel.ApprovalRecord,
-    slackUsers : SlackUserModel.SlackUserState,
-  ) : Bool {
-    if (userId == approval.requestedByUserId) { return true };
-    switch (SlackAuthMiddleware.buildFromCache(userId, slackUsers.cache)) {
-      case (null) { false };
-      case (?authCtx) {
-        Set.contains(authCtx.adminWorkspaces, Nat.compare, approval.workspaceId);
-      };
-    };
-  };
-
   // ─── Timer cancellation ───────────────────────────────────────────────────
 
   /// Cancel the TTL timer stored in the #awaitingApproval turn status, if any.
@@ -154,33 +133,12 @@ module {
       return;
     };
 
-    // Look up the approval record by code (stored in the button value).
-    let approval = switch (ApprovalModel.findByCode(deps.approvalState, payload.actionValue)) {
-      case (null) {
-        Logger.log(#warn, ?"BlockActions", "Approval code not found: " # payload.actionValue);
-        await postOutcome(payload.responseUrl, ephemeralBody("This approval request was not found. It may have already expired."));
-        return;
-      };
-      case (?r) { r };
+    // Build the caller's admin workspace set once — passed to the model so it can
+    // verify authorization (requester OR workspace admin) without trusting a bool.
+    let adminWorkspaces : Set.Set<Nat> = switch (SlackAuthMiddleware.buildFromCache(payload.userId, deps.slackUsers.cache)) {
+      case (null) { Set.empty() };
+      case (?authCtx) { authCtx.adminWorkspaces };
     };
-
-    // Guard: only process pending records.
-    switch (approval.status) {
-      case (#pending) {}; // proceed
-      case _ {
-        await postOutcome(payload.responseUrl, ephemeralBody("This approval request has already been processed."));
-        return;
-      };
-    };
-
-    // Authorization check.
-    if (not isAuthorized(payload.userId, approval, deps.slackUsers)) {
-      await postOutcome(payload.responseUrl, ephemeralBody("You are not authorized to approve or deny this workflow."));
-      return;
-    };
-
-    // Synchronously cancel the TTL timer before any await so it cannot race.
-    cancelTurnTimer(deps, approval.turnId);
 
     // Resolve the Slack bot token once before branching so both approve and deny
     // paths can forward it to the resume functions for error reporting.
@@ -202,30 +160,47 @@ module {
     };
 
     if (payload.actionId == "approve_workflow") {
-      // Mark record #used.
-      approval.status := #used;
+      // Delegate auth check + #used mutation to the model.
+      let record = switch (ApprovalModel.validate(deps.approvalState, payload.actionValue, payload.userId, adminWorkspaces)) {
+        case (#err(msg)) {
+          await postOutcome(payload.responseUrl, ephemeralBody(msg));
+          return;
+        };
+        case (#ok(r)) { r };
+      };
+
+      // Synchronously cancel the TTL timer before any await so it cannot race.
+      cancelTurnTimer(deps, record.turnId);
 
       // Fire-and-forget resume via a zero-delay timer so postOutcome can proceed concurrently.
       let resumeDeps = deps.resumeDeps;
       let keyCache = deps.keyCache;
-      let approvalSnap = approval;
       let userId = payload.userId;
       ignore Timer.setTimer<system>(
         #nanoseconds 0,
         func() : async () {
-          ignore await AgentRunner.resumeWithApproval(resumeDeps, keyCache, approvalSnap, userId, botTokenOpt);
+          ignore await AgentRunner.resumeWithApproval(resumeDeps, keyCache, record, userId, botTokenOpt);
         },
       );
 
       // Replace the button block with a confirmation line.
       await postOutcome(payload.responseUrl, replaceOriginalBody("✅ Approved by <@" # payload.userId # ">."));
     } else {
-      // deny_workflow — mark record #expired.
-      approval.status := #expired;
+      // Delegate auth check + #expired mutation to the model.
+      let record = switch (ApprovalModel.deny(deps.approvalState, payload.actionValue, payload.userId, adminWorkspaces)) {
+        case (#err(msg)) {
+          await postOutcome(payload.responseUrl, ephemeralBody(msg));
+          return;
+        };
+        case (#ok(r)) { r };
+      };
+
+      // Synchronously cancel the TTL timer before any await so it cannot race.
+      cancelTurnTimer(deps, record.turnId);
 
       let resumeDeps = deps.resumeDeps;
       let keyCache = deps.keyCache;
-      let turnId = approval.turnId;
+      let turnId = record.turnId;
       ignore Timer.setTimer<system>(
         #nanoseconds 0,
         func() : async () {

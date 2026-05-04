@@ -2271,7 +2271,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     // When preApprove=true: generate + validate a code so handle() proceeds to dispatch.
     let actualArgs : Text = if (preApprove) {
       let code = ApprovalModel.request(approvalState, approvalWorkflowName, "{}", 0, 0, testTurnId, testUserId);
-      ignore ApprovalModel.validate(approvalState, code, testUserId);
+      ignore ApprovalModel.validate(approvalState, code, testUserId, Set.empty());
       Json.stringify(obj([("approvalCode", str(code))]), null);
     } else {
       args;

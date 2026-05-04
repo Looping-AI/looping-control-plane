@@ -1,4 +1,5 @@
 import Map "mo:core/Map";
+import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 import Blob "mo:core/Blob";
@@ -82,12 +83,18 @@ module {
     Map.get(state.approvals, Text.compare, code);
   };
 
-  /// Validate an approval code: must exist, be #pending, and belong to the requesting user.
+  /// Validate an approval code: must exist, be #pending, and be authorized.
+  ///
+  /// Authorized when either:
+  ///   - `userId` is the original requester, OR
+  ///   - `adminWorkspaces` contains the workspace ID on the approval record.
+  ///
   /// On success marks the record #used and returns it.
   public func validate(
     state : ApprovalState,
     code : Text,
-    requestedByUserId : Text,
+    userId : Text,
+    adminWorkspaces : Set.Set<Nat>,
   ) : Result.Result<ApprovalRecord, Text> {
     switch (Map.get(state.approvals, Text.compare, code)) {
       case (null) { #err("Invalid approval code.") };
@@ -98,10 +105,43 @@ module {
           };
           case (#used) { #err("This approval code has already been used.") };
           case (#pending) {
-            if (record.requestedByUserId != requestedByUserId) {
-              return #err("Only the user who requested this approval can approve it.");
+            if (record.requestedByUserId != userId and not Set.contains(adminWorkspaces, Nat.compare, record.workspaceId)) {
+              return #err("Only the original requester or a workspace admin can approve this workflow.");
             };
             record.status := #used;
+            #ok(record);
+          };
+        };
+      };
+    };
+  };
+
+  /// Deny an approval code: must exist, be #pending, and be authorized.
+  ///
+  /// Authorized when either:
+  ///   - `userId` is the original requester, OR
+  ///   - `adminWorkspaces` contains the workspace ID on the approval record.
+  ///
+  /// On success marks the record #expired and returns it.
+  public func deny(
+    state : ApprovalState,
+    code : Text,
+    userId : Text,
+    adminWorkspaces : Set.Set<Nat>,
+  ) : Result.Result<ApprovalRecord, Text> {
+    switch (Map.get(state.approvals, Text.compare, code)) {
+      case (null) { #err("Invalid approval code.") };
+      case (?record) {
+        switch (record.status) {
+          case (#expired) {
+            #err("This approval code has expired. Please request the agent to run the workflow again.");
+          };
+          case (#used) { #err("This approval code has already been used.") };
+          case (#pending) {
+            if (record.requestedByUserId != userId and not Set.contains(adminWorkspaces, Nat.compare, record.workspaceId)) {
+              return #err("Only the original requester or a workspace admin can deny this workflow.");
+            };
+            record.status := #expired;
             #ok(record);
           };
         };
