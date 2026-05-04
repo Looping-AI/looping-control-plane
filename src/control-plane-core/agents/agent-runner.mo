@@ -27,6 +27,7 @@ import ExecutionTypes "../types/execution";
 import WorkflowCatalogModel "../models/workflow-catalog-model";
 import WorkflowCatalogTypes "../types/workflow-catalog";
 import TurnContextService "../services/turn-context-service";
+import TurnSuspensionService "../services/turn-suspension-service";
 import TurnCompletionService "../services/turn-completion-service";
 import KeyDerivationService "../services/key-derivation-service";
 import WorkflowCatalogService "../services/workflow-catalog-service";
@@ -623,12 +624,30 @@ module {
       };
     };
 
-    ignore await TurnCompletionService.apply(
-      { sessionStores = deps.sessionStores; approvalState = deps.approvalState },
-      turnId,
-      loopResult,
-      { botToken; channelId = ctx.channelId; threadTs = ctx.threadTs; metadata },
-    );
+    switch (loopResult) {
+      case (#ok(_) or #err(_)) {
+        ignore await TurnCompletionService.complete(
+          { sessionStores = deps.sessionStores },
+          turnId,
+          loopResult,
+          {
+            botToken;
+            channelId = ctx.channelId;
+            threadTs = ctx.threadTs;
+            metadata;
+          },
+        );
+      };
+      case (#dispatched(_) or #awaitingApproval(_)) {
+        ignore TurnSuspensionService.suspend(
+          {
+            sessionStores = deps.sessionStores;
+            approvalState = deps.approvalState;
+          },
+          turnId,
+          loopResult,
+        );
+      };
+    };
   };
-
 };

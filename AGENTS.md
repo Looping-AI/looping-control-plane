@@ -119,6 +119,7 @@ Steps:
 ## Motoko Conventions
 
 - **Model function parameter order**: all model functions must place the state/collection parameter **first**. This aligns with `mo:core` idioms (e.g. `Map.get(map, compare, key)`) and makes partial application natural.
+- **`Nat` is a subtype of `Int`** (`Nat <: Int`): a `Nat` value can be passed wherever an `Int` is expected. Do not add explicit casts or conversions when a function parameter is typed `Int` and the caller has a `Nat` — it is already valid.
 
 ### Tool and ExecutionApi Response Contract
 

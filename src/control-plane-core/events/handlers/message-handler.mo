@@ -14,6 +14,7 @@
 ///              channelGuard            — reject messages from channels the agent
 ///                                        is not configured for.
 ///              TurnCompletionService   — post reply to Slack and complete the turn.
+///              TurnSuspensionService   — mutate turn status for suspension outcomes.
 ///
 /// Helper inventory (sync):
 ///   resolveWorkspaceId, rootTimestamp, persistIncomingMessage,
@@ -50,6 +51,7 @@ import Logger "../../utilities/logger";
 import WorkspaceModel "../../models/workspace-model";
 import SessionModel "../../models/session-model";
 import TurnCompletionService "../../services/turn-completion-service";
+import TurnSuspensionService "../../services/turn-suspension-service";
 
 module {
 
@@ -502,12 +504,26 @@ module {
       threadTs = msg.threadTs;
       metadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent, turnId);
     };
-    let steps = await TurnCompletionService.apply(
-      { sessionStores = ctx.sessionStores; approvalState = ctx.approvalState },
-      turnId,
-      routeResult,
-      slackCtx,
-    );
+    let steps : [Types.ProcessingStep] = switch (routeResult) {
+      case (#ok(_) or #err(_)) {
+        await TurnCompletionService.complete(
+          { sessionStores = ctx.sessionStores },
+          turnId,
+          routeResult,
+          slackCtx,
+        );
+      };
+      case (#dispatched(_) or #awaitingApproval(_)) {
+        TurnSuspensionService.suspend(
+          {
+            sessionStores = ctx.sessionStores;
+            approvalState = ctx.approvalState;
+          },
+          turnId,
+          routeResult,
+        );
+      };
+    };
 
     // Arm a per-turn TTL timer for any turn that just entered #awaitingApproval.
     // We do this here (not inside TurnCompletionService) so that the async

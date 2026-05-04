@@ -13,6 +13,7 @@ import SlackWrapper "../wrappers/slack-wrapper";
 import Logger "../utilities/logger";
 import AgentHelpers "../agents/helpers";
 import TurnCompletionService "turn-completion-service";
+import TurnSuspensionService "turn-suspension-service";
 
 module {
 
@@ -136,15 +137,26 @@ module {
                 SessionModel.completeTurn(deps.sessionStores, turnId, #failed, cost, ?"Resume call failed");
                 return;
               };
-              ignore await TurnCompletionService.apply(
-                {
-                  sessionStores = deps.sessionStores;
-                  approvalState = deps.approvalState;
-                },
-                turnId,
-                resumeResult,
-                { botToken; channelId; threadTs; metadata },
-              );
+              switch (resumeResult) {
+                case (#ok(_) or #err(_)) {
+                  ignore await TurnCompletionService.complete(
+                    { sessionStores = deps.sessionStores },
+                    turnId,
+                    resumeResult,
+                    { botToken; channelId; threadTs; metadata },
+                  );
+                };
+                case (#dispatched(_) or #awaitingApproval(_)) {
+                  ignore TurnSuspensionService.suspend(
+                    {
+                      sessionStores = deps.sessionStores;
+                      approvalState = deps.approvalState;
+                    },
+                    turnId,
+                    resumeResult,
+                  );
+                };
+              };
             };
             case (_) {
               // Normal (non-resume) completion: post humanSummary and mark turn terminal.
