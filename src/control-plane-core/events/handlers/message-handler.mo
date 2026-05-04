@@ -554,7 +554,7 @@ module {
                   );
                 };
                 let newTimerId = await ctx.armApprovalTimer(data.expiresAtNs, onExpire);
-                data.timerId := ?newTimerId;
+                ignore SessionModel.setApprovalTimerId(ctx.sessionStores, turnId, newTimerId);
               };
               case _ {};
             };

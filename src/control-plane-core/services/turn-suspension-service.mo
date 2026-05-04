@@ -25,31 +25,24 @@ module {
   ) : [Types.ProcessingStep] {
     switch (result) {
       case (#dispatched({ steps; suspension })) {
-        switch (SessionModel.findTurn(deps.sessionStores, turnId)) {
-          case (?turn) { turn.status := #awaitingWorkflow(suspension) };
-          case null {};
-        };
+        ignore SessionModel.suspendForWorkflow(deps.sessionStores, turnId, suspension);
         steps;
       };
       case (#awaitingApproval({ steps; suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId })) {
-        switch (SessionModel.findTurn(deps.sessionStores, turnId)) {
-          case (?turn) {
-            let expiresAtNs = switch (ApprovalModel.findByCode(deps.approvalState, approvalCode)) {
-              case (?record) { record.expiresAtNs };
-              case null { Time.now() }; // safe fallback: treat as expired immediately
-            };
-            turn.status := #awaitingApproval({
-              suspension;
-              workflowName;
-              approvalCode;
-              originalToolArgs;
-              requestedByUserId;
-              expiresAtNs;
-              var timerId = null; // armed by the caller (message-handler) after this returns
-            });
-          };
-          case null {};
+        let expiresAtNs = switch (ApprovalModel.findByCode(deps.approvalState, approvalCode)) {
+          case (?record) { record.expiresAtNs };
+          case null { Time.now() }; // safe fallback: treat as expired immediately
         };
+        ignore SessionModel.suspendForApproval(
+          deps.sessionStores,
+          turnId,
+          suspension,
+          workflowName,
+          approvalCode,
+          originalToolArgs,
+          requestedByUserId,
+          expiresAtNs,
+        );
         steps;
       };
       case _ { Runtime.unreachable() };

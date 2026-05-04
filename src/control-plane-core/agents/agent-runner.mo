@@ -389,7 +389,7 @@ module {
             "Workflow was not dispatched after approval.",
           );
         };
-        syncCtx.turn.status := #awaitingWorkflow(suspension);
+        ignore SessionModel.suspendForWorkflow(deps.sessionStores, approval.turnId, suspension);
         #ok([dispatchStep("approval_dispatch", #ok)]);
       };
     };
@@ -548,14 +548,15 @@ module {
 
     // Race guard: if the turn is no longer awaiting approval (concurrent button click),
     // the denial has already been handled — no-op.
-    let suspension = switch (syncCtx.turn.status) {
-      case (#awaitingApproval(data)) {
+    // resumeFromApproval atomically checks #awaitingApproval and flips to #running.
+    let suspension = switch (SessionModel.resumeFromApproval(deps.sessionStores, turnId)) {
+      case (#ok({ suspension; approvalCode })) {
         // Mark the approval record #expired synchronously so it cannot be re-processed
         // by a subsequent button click or periodic scanner pass.
-        ApprovalModel.expire(deps.approvalState, data.approvalCode);
-        data.suspension;
+        ApprovalModel.expire(deps.approvalState, approvalCode);
+        suspension;
       };
-      case (_) { return };
+      case (#err(_)) { return };
     };
 
     let botToken = switch (botTokenOpt) {
@@ -581,7 +582,6 @@ module {
     };
 
     let resumeMessages = Array.concat(suspension.messages, [syntheticMsg]);
-    syncCtx.turn.status := #running;
 
     let loopResult = try {
       await AdminAgentLoop.process(

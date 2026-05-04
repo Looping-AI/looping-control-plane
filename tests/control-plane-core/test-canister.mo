@@ -800,19 +800,20 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       turn.turnId,
       requestedByUserId,
     );
-    turn.status := #awaitingApproval({
-      suspension = {
+    ignore SessionModel.suspendForApproval(
+      testDispatchSessionStores,
+      turn.turnId,
+      {
         messages = [];
         pendingToolCallId = "test-call-id";
         roundCount = 0;
-      };
-      workflowName;
-      approvalCode = code;
-      originalToolArgs = "{}";
-      requestedByUserId;
-      expiresAtNs = Time.now() + 3_600_000_000_000;
-      var timerId = null;
-    });
+      },
+      workflowName,
+      code,
+      "{}",
+      requestedByUserId,
+      Time.now() + 3_600_000_000_000,
+    );
     { turnId = turn.turnId; approvalCode = code };
   };
 
@@ -1262,11 +1263,15 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
       null,
     );
-    turn.status := #awaitingWorkflow({
-      messages = [];
-      pendingToolCallId = "test-call-id";
-      roundCount = 0;
-    });
+    ignore SessionModel.suspendForWorkflow(
+      testEffectSessionStores,
+      turn.turnId,
+      {
+        messages = [];
+        pendingToolCallId = "test-call-id";
+        roundCount = 0;
+      },
+    );
     turn.turnId;
   };
 

@@ -125,41 +125,13 @@ module {
           };
         };
         case (#complete(c)) {
-          switch (turn.status) {
-            case (#awaitingWorkflow(suspension)) {
-              // Resume: inject the engine result as a synthetic tool result and continue the LLM loop.
-              let syntheticResult = AgentHelpers.buildSyntheticToolResult(c);
-              let resumeResult = try {
-                await deps.resumeAdminTurn(turnId, suspension, syntheticResult);
-              } catch (e) {
-                Logger.log(#error, ?"ExecutionAsyncEffect", "resumeAdminTurn threw for turn " # turnId # ": " # Error.message(e));
-                let cost = SessionModel.aggregateTurnCost(deps.sessionStores, turnId);
-                SessionModel.completeTurn(deps.sessionStores, turnId, #failed, cost, ?"Resume call failed");
-                return;
-              };
-              switch (resumeResult) {
-                case (#ok(_) or #err(_)) {
-                  ignore await TurnCompletionService.complete(
-                    { sessionStores = deps.sessionStores },
-                    turnId,
-                    resumeResult,
-                    { botToken; channelId; threadTs; metadata },
-                  );
-                };
-                case (#dispatched(_) or #awaitingApproval(_)) {
-                  ignore TurnSuspensionService.suspend(
-                    {
-                      sessionStores = deps.sessionStores;
-                      approvalState = deps.approvalState;
-                    },
-                    turnId,
-                    resumeResult,
-                  );
-                };
-              };
-            };
-            case (_) {
-              // Normal (non-resume) completion: post humanSummary and mark turn terminal.
+          // One-shot guard: atomically check #awaitingWorkflow and flip to #running.
+          // Returns #err if the turn is not in #awaitingWorkflow (e.g. duplicate event),
+          // in which case we fall through to normal terminal-completion handling.
+          let suspension = switch (SessionModel.resumeFromWorkflow(deps.sessionStores, turnId)) {
+            case (#ok(s)) { s };
+            case (#err(_)) {
+              // Not awaiting a workflow result — treat as a normal completion.
               switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata, null)) {
                 case (#ok({ ts = replyTs; channel = _ })) {
                   SessionModel.appendTrace(
@@ -195,6 +167,38 @@ module {
               };
 
               SessionModel.completeTurn(deps.sessionStores, turnId, turnStatus, turnCost, errorSummary);
+              return;
+            };
+          };
+
+          // Resume: inject the engine result as a synthetic tool result and continue the LLM loop.
+          let syntheticResult = AgentHelpers.buildSyntheticToolResult(c);
+          let resumeResult = try {
+            await deps.resumeAdminTurn(turnId, suspension, syntheticResult);
+          } catch (e) {
+            Logger.log(#error, ?"ExecutionAsyncEffect", "resumeAdminTurn threw for turn " # turnId # ": " # Error.message(e));
+            let cost = SessionModel.aggregateTurnCost(deps.sessionStores, turnId);
+            SessionModel.completeTurn(deps.sessionStores, turnId, #failed, cost, ?"Resume call failed");
+            return;
+          };
+          switch (resumeResult) {
+            case (#ok(_) or #err(_)) {
+              ignore await TurnCompletionService.complete(
+                { sessionStores = deps.sessionStores },
+                turnId,
+                resumeResult,
+                { botToken; channelId; threadTs; metadata },
+              );
+            };
+            case (#dispatched(_) or #awaitingApproval(_)) {
+              ignore TurnSuspensionService.suspend(
+                {
+                  sessionStores = deps.sessionStores;
+                  approvalState = deps.approvalState;
+                },
+                turnId,
+                resumeResult,
+              );
             };
           };
         };

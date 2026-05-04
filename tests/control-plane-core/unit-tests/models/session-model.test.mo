@@ -167,7 +167,7 @@ suite(
           pendingToolCallId = "call_xyz";
           roundCount = 1;
         };
-        turn.status := #awaitingWorkflow(dummySuspension);
+        ignore SessionModel.suspendForWorkflow(stores, turn.turnId, dummySuspension);
         SessionModel.completeTurn(stores, turn.turnId, #succeeded, null, null);
         expect.bool(switch (turn.status) { case (#succeeded) true; case _ false }).isTrue();
         expect.bool(turn.completedAtNs != null).isTrue();
@@ -184,7 +184,7 @@ suite(
           pendingToolCallId = "call_xyz";
           roundCount = 1;
         };
-        turn.status := #awaitingWorkflow(dummySuspension);
+        ignore SessionModel.suspendForWorkflow(stores, turn.turnId, dummySuspension);
         SessionModel.completeTurn(stores, turn.turnId, #failed, null, ?"engine error");
         expect.bool(switch (turn.status) { case (#failed) true; case _ false }).isTrue();
         expect.bool(turn.errorSummary == ?"engine error").isTrue();
@@ -721,15 +721,16 @@ suite(
           pendingToolCallId = "call_approval";
           roundCount = 1;
         };
-        turn.status := #awaitingApproval({
-          suspension = dummySuspension;
-          workflowName = "deploy";
-          approvalCode = "abc123";
-          originalToolArgs = "{\"env\":\"prod\"}";
-          requestedByUserId = "U_REQ";
-          expiresAtNs = 9_999_999_999_999;
-          var timerId = null;
-        });
+        ignore SessionModel.suspendForApproval(
+          stores,
+          turn.turnId,
+          dummySuspension,
+          "deploy",
+          "abc123",
+          "{\"env\":\"prod\"}",
+          "U_REQ",
+          9_999_999_999_999,
+        );
         switch (turn.status) {
           case (#awaitingApproval(data)) {
             expect.text(data.workflowName).equal("deploy");
@@ -754,19 +755,20 @@ suite(
           pendingToolCallId = "call_approval";
           roundCount = 1;
         };
-        turn.status := #awaitingApproval({
-          suspension = dummySuspension;
-          workflowName = "deploy";
-          approvalCode = "abc123";
-          originalToolArgs = "{}";
-          requestedByUserId = "U_REQ";
-          expiresAtNs = 9_999_999_999_999;
-          var timerId = null;
-        });
+        ignore SessionModel.suspendForApproval(
+          stores,
+          turn.turnId,
+          dummySuspension,
+          "deploy",
+          "abc123",
+          "{}",
+          "U_REQ",
+          9_999_999_999_999,
+        );
         switch (turn.status) {
           case (#awaitingApproval(data)) {
-            // Simulate the timer being armed
-            data.timerId := ?42;
+            // Simulate the timer being armed via the model function
+            ignore SessionModel.setApprovalTimerId(stores, turn.turnId, 42);
             expect.bool(data.timerId == ?42).isTrue();
           };
           case (_) { expect.bool(false).isTrue() };
@@ -784,15 +786,16 @@ suite(
           pendingToolCallId = "call_approval";
           roundCount = 2;
         };
-        turn.status := #awaitingApproval({
-          suspension = dummySuspension;
-          workflowName = "approve_me";
-          approvalCode = "deadbeef";
-          originalToolArgs = "{\"x\":1}";
-          requestedByUserId = "U_OWNER";
-          expiresAtNs = 1_000_000;
-          var timerId = null;
-        });
+        ignore SessionModel.suspendForApproval(
+          stores,
+          turn.turnId,
+          dummySuspension,
+          "approve_me",
+          "deadbeef",
+          "{\"x\":1}",
+          "U_OWNER",
+          1_000_000,
+        );
         switch (SessionModel.findTurn(stores, turn.turnId)) {
           case (null) { expect.bool(false).isTrue() };
           case (?found) {
