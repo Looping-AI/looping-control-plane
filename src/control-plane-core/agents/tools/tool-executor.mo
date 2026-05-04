@@ -68,7 +68,16 @@ module {
           output #= data # "\n\n";
         };
         case (#err(err)) {
-          output #= "Error: " # err # "\n\n";
+          let message = switch (Json.parse(err)) {
+            case (#ok(parsed)) {
+              switch (Json.get(parsed, "message")) {
+                case (?#string(msg)) { msg };
+                case (_) { err };
+              };
+            };
+            case (#err(_)) { err };
+          };
+          output #= message # "\n\n";
         };
       };
     };

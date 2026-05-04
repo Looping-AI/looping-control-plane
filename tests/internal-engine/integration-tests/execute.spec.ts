@@ -75,10 +75,18 @@ describe("internal-engine / execute", () => {
     );
     tempEngine.actor.setIdentity(coreIdentity);
     const catalogResult = await tempEngine.actor.listWorkflows();
-    if ("ok" in catalogResult) {
-      catalogHash = (JSON.parse(catalogResult.ok) as { catalogHash: string })
-        .catalogHash;
+    if ("err" in catalogResult) {
+      throw new Error(
+        `listWorkflows() failed in beforeAll: ${catalogResult.err}`,
+      );
     }
+    const parsed = JSON.parse(catalogResult.ok) as { catalogHash: string };
+    if (!parsed.catalogHash || !/^[0-9a-f]{64}$/i.test(parsed.catalogHash)) {
+      throw new Error(
+        `Unexpected catalogHash format: "${parsed.catalogHash}". Expected a 64-char hex string.`,
+      );
+    }
+    catalogHash = parsed.catalogHash;
   });
 
   beforeEach(async () => {
@@ -142,6 +150,43 @@ describe("internal-engine / execute", () => {
     expect("err" in result).toBe(true);
     if ("err" in result) {
       expect(result.err).toContain("envelopeVersionRequired");
+    }
+  });
+
+  // ── Guard: catalogHash must be present and current ───────────
+
+  it("rejects envelope with missing catalogHash", async () => {
+    engineActor.setIdentity(coreIdentity);
+
+    // minimalEnvelope with no hash argument → catalogHash: []
+    const envelope = minimalEnvelope(8n, "test-agent", "Hello");
+
+    const result = await engineActor.execute(envelope);
+
+    expect("err" in result).toBe(true);
+    if ("err" in result) {
+      const err = JSON.parse(result.err) as { type: string; message: string };
+      expect(err.type).toBe("missingCatalogHash");
+      expect(typeof err.message).toBe("string");
+      expect(err.message.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("rejects envelope with stale catalogHash", async () => {
+    engineActor.setIdentity(coreIdentity);
+
+    // Valid hex shape but deliberately wrong hash value.
+    const staleHash = "a".repeat(64);
+    const envelope = minimalEnvelope(9n, "test-agent", "Hello", [staleHash]);
+
+    const result = await engineActor.execute(envelope);
+
+    expect("err" in result).toBe(true);
+    if ("err" in result) {
+      const err = JSON.parse(result.err) as { type: string; message: string };
+      expect(err.type).toBe("staleCatalog");
+      expect(typeof err.message).toBe("string");
+      expect(err.message.length).toBeGreaterThan(0);
     }
   });
 
@@ -241,10 +286,18 @@ describe("internal-engine / execute (async completion)", () => {
 
     // Fetch catalog hash — required by execute() after the catalogHash guard was added.
     const catalogResult = await engineActor.listWorkflows();
-    if ("ok" in catalogResult) {
-      catalogHash = (JSON.parse(catalogResult.ok) as { catalogHash: string })
-        .catalogHash;
+    if ("err" in catalogResult) {
+      throw new Error(
+        `listWorkflows() failed in beforeAll: ${catalogResult.err}`,
+      );
     }
+    const parsed = JSON.parse(catalogResult.ok) as { catalogHash: string };
+    if (!parsed.catalogHash || !/^[0-9a-f]{64}$/i.test(parsed.catalogHash)) {
+      throw new Error(
+        `Unexpected catalogHash format: "${parsed.catalogHash}". Expected a 64-char hex string.`,
+      );
+    }
+    catalogHash = parsed.catalogHash;
   });
 
   afterAll(async () => {

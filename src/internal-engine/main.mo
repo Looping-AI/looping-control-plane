@@ -57,7 +57,9 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
     #ok : Text;
     #err : Text;
   } {
-    if (caller != coreId) { return #err("Unauthorized") };
+    if (caller != coreId) {
+      return #err(Json.stringify(obj([("type", str("unauthorized")), ("message", str("Unauthorized."))]), null));
+    };
     #ok(WorkflowCatalog.listWorkflowsJson(catalogHash));
   };
 
@@ -70,7 +72,9 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
     #ok;
     #err : Text;
   } {
-    if (caller != coreId) { return #err("Unauthorized") };
+    if (caller != coreId) {
+      return executeError("unauthorized", "Unauthorized.");
+    };
 
     // Version check — reject envelopes with an unknown or missing dispatchedVersion.
     // Error body follows the shared JSON protocol so HTTP engines can use the same contract:

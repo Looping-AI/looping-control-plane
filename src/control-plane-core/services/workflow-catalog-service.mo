@@ -229,7 +229,7 @@ module {
   /// Fetch the current catalog from the engine, parse it, and atomically
   /// replace the cache. On any failure (network error or parse error) the
   /// existing cache is left unchanged — no partial writes.
-  public func refreshCatalogue(
+  public func refreshCatalog(
     state : WorkflowCatalogModel.CatalogState,
     engine : InternalEngine.InternalEngine,
   ) : async { #ok; #err : Text } {

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "milestone-post",
-  "recordedAt": "2026-05-04T13:40:37.455Z",
+  "recordedAt": "2026-05-04T19:12:48.015Z",
   "interactions": [
     {
       "request": {
@@ -11,7 +11,7 @@
           ["Authorization", "[REDACTED]"],
           ["Content-Type", "application/json"]
         ],
-        "body": "{\"channel\":\"C_EFFECT_TEST\",\"text\":\"Step 1 done.\",\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"workspace-admin\",\"parent_ts\":\"1700000030.000001\",\"parent_channel\":\"C_EFFECT_TEST\",\"turn_id\":\"0_0\"}}}",
+        "body": "{\"channel\":\"C0AG99QQAR4\",\"text\":\"Step 1 done.\",\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"workspace-admin\",\"parent_ts\":\"1700000030.000001\",\"parent_channel\":\"C0AG99QQAR4\",\"turn_id\":\"0_0\"}}}",
         "bodyEncoding": "text"
       },
       "response": {
@@ -28,9 +28,9 @@
             "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000, quic=\":443\"; ma=2592000"
           ],
           ["cache-control", "private, no-cache, no-store, must-revalidate"],
-          ["content-length", "77"],
+          ["content-length", "459"],
           ["content-type", "application/json; charset=utf-8"],
-          ["date", "Mon, 04 May 2026 13:40:37 GMT"],
+          ["date", "Mon, 04 May 2026 19:12:48 GMT"],
           ["expires", "Sat, 26 Jul 1997 05:00:00 GMT"],
           ["pragma", "no-cache"],
           ["referrer-policy", "no-referrer"],
@@ -43,28 +43,27 @@
           ["vary", "Accept-Encoding"],
           [
             "via",
-            "1.1 slack-prod.tinyspeck.com, envoy-www-iad-oypxzean,envoy-edge-lhr-aludtxqv"
+            "1.1 slack-prod.tinyspeck.com, envoy-www-canary-iad-irjbqurt,envoy-edge-lhr-szgfwblp"
           ],
           ["x-accepted-oauth-scopes", "chat:write"],
           ["x-backend", "api_normal"],
           ["x-content-type-options", "nosniff"],
           ["x-edge-backend", "envoy-www"],
           ["x-envoy-attempt-count", "1"],
-          ["x-envoy-upstream-service-time", "100"],
+          ["x-envoy-upstream-service-time", "241"],
           [
             "x-oauth-scopes",
             "app_mentions:read,assistant:write,channels:history,channels:read,chat:write,chat:write.customize,commands,files:read,files:write,groups:history,groups:read,groups:write,im:history,im:read,im:write,links:read,links:write,lists:read,lists:write,mpim:history,mpim:read,mpim:write,reactions:read,reactions:write,search:read.public,team:read,users:read"
           ],
-          ["x-server", "slack-www-hhvm-api-iad-7vmqgrbi86oz"],
+          ["x-server", "slack-www-hhvm-api-iad-2a3w25j68lyn"],
           ["x-slack-backend", "r"],
           ["x-slack-edge-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-failure", "channel_not_found"],
-          ["x-slack-req-id", "a3959c06e64e054b1e3e82ca3e3dcee9"],
+          ["x-slack-req-id", "4980686ea98ebe709bca47937e69f543"],
           ["x-slack-shared-secret-outcome", "[REDACTED]"],
-          ["x-slack-unique-id", "afih1YsNM49Jvbg0bBStiQAAACM"],
+          ["x-slack-unique-id", "afjvsLdGPpLp70RgUzvQ5QAAAD8"],
           ["x-xss-protection", "0"]
         ],
-        "body": "{\"ok\":false,\"error\":\"channel_not_found\",\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
+        "body": "{\"ok\":true,\"channel\":\"C0AG99QQAR4\",\"ts\":\"1777921968.534739\",\"message\":{\"user\":\"U0ADWN7P3DY\",\"type\":\"message\",\"ts\":\"1777921968.534739\",\"bot_id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"text\":\"Step 1 done.\",\"team\":\"T0ADR0P92G2\",\"bot_profile\":{\"id\":\"B0AE0AR1TLL\",\"app_id\":\"A0ADJUKD8TV\",\"user_id\":\"U0ADWN7P3DY\",\"name\":\"Looping AI (T)\",\"icons\":{\"image_36\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_36.jpg\",\"image_48\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_48.jpg\",\"image_72\":\"https:\\/\\/avatars.slack-edge.com\\/2026-02-08\\/10465327830534_a5ce6f7a1e9aaadba520_72.jpg\"},\"deleted\":false,\"updated\":1772839412,\"team_id\":\"T0ADR0P92G2\"},\"metadata\":{\"event_type\":\"looping_agent_message\",\"event_payload\":{\"parent_agent\":\"workspace-admin\",\"parent_ts\":\"1700000030.000001\",\"parent_channel\":\"C0AG99QQAR4\",\"turn_id\":\"0_0\"}},\"blocks\":[{\"type\":\"rich_text\",\"block_id\":\"pqDp\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"text\",\"text\":\"Step 1 done.\"}]}]}]},\"warning\":\"missing_charset\",\"response_metadata\":{\"warnings\":[\"missing_charset\"]}}",
         "bodyEncoding": "text"
       }
     }

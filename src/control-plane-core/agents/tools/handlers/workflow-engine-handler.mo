@@ -177,7 +177,7 @@ module {
     let catalogHash = switch (WorkflowCatalogModel.getHash(engineDispatch.catalogState)) {
       case (?h) { h };
       case (null) {
-        switch (await WorkflowCatalogService.refreshCatalogue(engineDispatch.catalogState, engineDispatch.internalEngine)) {
+        switch (await WorkflowCatalogService.refreshCatalog(engineDispatch.catalogState, engineDispatch.internalEngine)) {
           case (#err(msg)) {
             return handlerError("catalogError", "Failed to fetch workflow catalog: " # msg);
           };
@@ -238,7 +238,7 @@ module {
             case (#ok(errJson)) {
               switch (Json.get(errJson, "type")) {
                 case (?#string("staleCatalog")) {
-                  switch (await WorkflowCatalogService.refreshCatalogue(engineDispatch.catalogState, engineDispatch.internalEngine)) {
+                  switch (await WorkflowCatalogService.refreshCatalog(engineDispatch.catalogState, engineDispatch.internalEngine)) {
                     case (#ok) {
                       return handlerError("staleCatalog", "Workflow catalog was updated. Please retry the operation.");
                     };

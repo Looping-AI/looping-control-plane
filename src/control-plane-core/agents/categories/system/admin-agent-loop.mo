@@ -43,7 +43,7 @@ module {
     // Eager catalog pre-load: ensure the catalog is available before tools are built.
     // If the catalog is already cached from a prior turn, this is a no-op.
     if (engineDeps.catalogState.cached == null) {
-      ignore await WorkflowCatalogService.refreshCatalogue(engineDeps.catalogState, engineDeps.internalEngine);
+      ignore await WorkflowCatalogService.refreshCatalog(engineDeps.catalogState, engineDeps.internalEngine);
     };
 
     let instructions = InstructionComposer.compose(

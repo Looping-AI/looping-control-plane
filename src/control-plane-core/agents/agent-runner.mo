@@ -403,7 +403,7 @@ module {
     workflowName : Text,
   ) : async { #ok : WorkflowCatalogTypes.WorkflowDescriptor; #err : Text } {
     if (catalogState.cached == null) {
-      switch (await WorkflowCatalogService.refreshCatalogue(catalogState, engine)) {
+      switch (await WorkflowCatalogService.refreshCatalog(catalogState, engine)) {
         case (#ok) {};
         case (#err(message)) {
           return #err("Workflow catalog unavailable at approval dispatch: " # message);

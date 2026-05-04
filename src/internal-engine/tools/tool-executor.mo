@@ -61,7 +61,18 @@ module {
     for (r in results.vals()) {
       let (output, success) = switch (r.result) {
         case (#ok(data)) { (data, true) };
-        case (#err(err)) { ("Error: " # err, false) };
+        case (#err(err)) {
+          let message = switch (Json.parse(err)) {
+            case (#ok(parsed)) {
+              switch (Json.get(parsed, "message")) {
+                case (?#string(msg)) { msg };
+                case (_) { err };
+              };
+            };
+            case (#err(_)) { err };
+          };
+          (message, false);
+        };
       };
       List.add(items, { callId = r.callId; output; success });
     };

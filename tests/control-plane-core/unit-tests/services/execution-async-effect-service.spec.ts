@@ -13,6 +13,7 @@ import {
   type TestCanisterService,
 } from "../../../setup";
 import { withCassette } from "../../../lib/cassette";
+import { resolveSpecsChannel } from "../../../helpers";
 
 // ============================================
 // ExecutionAsyncEffectService – end-to-end
@@ -34,9 +35,6 @@ import { withCassette } from "../../../lib/cassette";
 const BOT_TOKEN =
   process.env["SLACK_APP_BOT_TOKEN"] ?? "not-needed-due-to-cassette";
 
-// Stable constants — do not appear in the Slack API response body,
-// so they are safe to use as-is across record and playback sessions.
-const EFFECT_CHANNEL = "C_EFFECT_TEST";
 const EFFECT_TS = "1700000030.000001";
 
 // Agent 0 = workspace-admin, pre-seeded by AgentModel.defaultState()
@@ -60,10 +58,14 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
   });
 
   it("milestone: should post to Slack and leave turn #awaitingWorkflow", async () => {
+    const cassetteName =
+      "control-plane-core/unit-tests/services/execution-async-effect-service/milestone-post";
+    const channel = await resolveSpecsChannel(cassetteName);
+
     // Seed an #awaitingWorkflow turn (no HTTP outcalls — tick and await manually)
     const turnIdThunk = await testCanister.testSeedPendingTurn(
       AGENT_ID,
-      EFFECT_CHANNEL,
+      channel,
       EFFECT_TS,
       [],
     );
@@ -81,7 +83,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     // Run the milestone effect — Slack postMessage is the HTTP outcall
     const { result } = await withCassette(
       pic,
-      "control-plane-core/unit-tests/services/execution-async-effect-service/milestone-post",
+      cassetteName,
       () =>
         testCanister.testRunAsyncEffect(
           { post: null },
@@ -104,11 +106,15 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
   });
 
   it("complete: should post to Slack and mark turn #succeeded", async () => {
+    const cassetteName =
+      "control-plane-core/unit-tests/services/execution-async-effect-service/complete-success";
+    const channel = await resolveSpecsChannel(cassetteName);
+
     // Seed a #running turn so processEffect takes the normal completion path
     // (not the resume branch, which requires a live resumeAdminTurn callback).
     const turnIdThunk = await testCanister.testSeedRunningTurn(
       AGENT_ID,
-      EFFECT_CHANNEL,
+      channel,
       EFFECT_TS,
       [],
     );
@@ -126,7 +132,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     // Run the complete effect — Slack postMessage is the HTTP outcall
     const { result } = await withCassette(
       pic,
-      "control-plane-core/unit-tests/services/execution-async-effect-service/complete-success",
+      cassetteName,
       () =>
         testCanister.testRunAsyncEffect(
           { post: null },
@@ -153,9 +159,13 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
   it("complete (awaitingWorkflow): should invoke resumeAdminTurn and mark turn #succeeded", async () => {
     // Seed a #awaitingWorkflow turn — this is the production path where
     // the engine finishes and Core must resume the admin agent loop.
+    const cassetteName =
+      "control-plane-core/unit-tests/services/execution-async-effect-service/complete-awaiting-workflow-resume";
+    const channel = await resolveSpecsChannel(cassetteName);
+
     const turnIdThunk = await testCanister.testSeedPendingTurn(
       AGENT_ID,
-      EFFECT_CHANNEL,
+      channel,
       EFFECT_TS,
       [],
     );
@@ -175,7 +185,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     // then posts to Slack (captured by cassette) and marks the turn #succeeded.
     const { result } = await withCassette(
       pic,
-      "control-plane-core/unit-tests/services/execution-async-effect-service/complete-awaiting-workflow-resume",
+      cassetteName,
       () =>
         testCanister.testRunAsyncEffectWithResume(
           { post: null },
@@ -194,12 +204,9 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     const response = await result;
     expect("ok" in response).toBe(true);
 
-    // Resume path: resumeAdminTurn stub returns #ok → TurnCompletionService.apply
-    // posts to Slack. In the test environment Slack returns channel_not_found, so
-    // TurnCompletionService marks the turn #failed (unlike the direct-complete path,
-    // which tolerates Slack failures). The cassette captures the 1 Slack outcall,
-    // proving that resumeAdminTurn was called and the completion path was entered.
+    // resumeAdminTurn stub returns #ok → TurnCompletionService posts to Slack
+    // and advances the turn to #succeeded.
     const status = await (await testCanister.testGetEffectTurnStatus(turnId))();
-    expect(status).toEqual(["failed"]);
+    expect(status).toEqual(["succeeded"]);
   });
 });
