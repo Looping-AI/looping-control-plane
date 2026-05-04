@@ -7,6 +7,7 @@ import Float "mo:core/Float";
 import Array "mo:core/Array";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
+import Time "mo:core/Time";
 import Principal "mo:core/Principal";
 import Json "mo:json";
 import { str; obj; bool; int } "mo:json";
@@ -770,6 +771,51 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Block Actions Handler Test Methods
   // ============================================
 
+  /// Seed a turn in #awaitingApproval state in testDispatchSessionStores and a matching
+  /// approval record in testDispatchApprovalState. Returns both the turnId and the
+  /// approval code so tests can call testHandleBlockAction / testHandleBlockActionFullPipeline
+  /// with the correct values.
+  public shared ({ caller }) func testSeedApprovalForTurn(
+    workflowName : Text,
+    requestedByUserId : Text,
+  ) : async { turnId : Text; approvalCode : Text } {
+    assert caller == parent;
+    let turn = SessionModel.createTurn(
+      testDispatchSessionStores,
+      0,
+      ?#slack({
+        channelId = "C_TEST";
+        ts = "1700000010.000001";
+        threadTs = null;
+      }),
+      null,
+      null,
+    );
+    let code = ApprovalModel.request(
+      testDispatchApprovalState,
+      workflowName,
+      "{}",
+      0,
+      0,
+      turn.turnId,
+      requestedByUserId,
+    );
+    turn.status := #awaitingApproval({
+      suspension = {
+        messages = [];
+        pendingToolCallId = "test-call-id";
+        roundCount = 0;
+      };
+      workflowName;
+      approvalCode = code;
+      originalToolArgs = "{}";
+      requestedByUserId;
+      expiresAtNs = Time.now() + 3_600_000_000_000;
+      var timerId = null;
+    });
+    { turnId = turn.turnId; approvalCode = code };
+  };
+
   /// Seed an approval record in testDispatchApprovalState and return the generated code.
   /// Stores the record with workspaceId=0, agentId=0 and the supplied turnId /
   /// requestedByUserId so that testHandleBlockAction can look it up.
@@ -823,6 +869,74 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       approvalState = testDispatchApprovalState;
       sessionStores = testDispatchSessionStores;
       agentRegistry = testAgentRegistry;
+      slackUsers;
+      resumeDeps;
+      keyCache = testSecretsKeyCache;
+    };
+    await BlockActionsHandler.handle<system>(payload, deps);
+  };
+
+  /// Full-pipeline variant of testHandleBlockAction for testing the
+  /// approve → resumeWithApproval → #awaitingWorkflow path.
+  ///
+  /// Seeds bot token and OR API key into a fresh secrets state using the dummy key,
+  /// wires testEffectAgentRegistry (agent 0 pre-seeded) and the mock internal engine,
+  /// then calls BlockActionsHandler.handle<system>.
+  ///
+  /// Call pic.tick() after this to let the zero-delay resume timer fire.
+  public shared ({ caller }) func testHandleBlockActionFullPipeline(
+    actionId : Text,
+    code : Text,
+    slackUserId : Text,
+    responseUrl : Text,
+    botToken : Text,
+    orApiKey : Text,
+  ) : async () {
+    assert caller == parent;
+    // Seed bot token and OR API key into a fresh secrets state encrypted with dummyKey.
+    let secrets = SecretModel.initState();
+    ignore SecretModel.storeSecret(
+      secrets,
+      TestHelpers.dummyKey,
+      0,
+      #slackBotToken,
+      botToken,
+      { slackUserId = null; agentId = null; operation = "test-seed" },
+    );
+    ignore SecretModel.storeSecret(
+      secrets,
+      TestHelpers.dummyKey,
+      0,
+      #openRouterApiKey,
+      orApiKey,
+      { slackUserId = null; agentId = null; operation = "test-seed" },
+    );
+    let payload : SlackEventTypes.BlockActionsPayload = {
+      userId = slackUserId;
+      actionId;
+      actionValue = code;
+      messageTs = "1700000000.000001";
+      channelId = "C_TEST";
+      responseUrl;
+    };
+    let resumeDeps : AgentRunner.ResumeDeps = {
+      sessionStores = testDispatchSessionStores;
+      agentRegistry = testEffectAgentRegistry;
+      secrets;
+      internalEngine = ?mockInternalEngine;
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      catalogState = {
+        var cached = ?{
+          catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+          descriptors = WorkflowCatalog.allDescriptors;
+        };
+      };
+      approvalState = testDispatchApprovalState;
+    };
+    let deps : BlockActionsHandler.BlockActionsDeps = {
+      approvalState = testDispatchApprovalState;
+      sessionStores = testDispatchSessionStores;
+      agentRegistry = testEffectAgentRegistry;
       slackUsers;
       resumeDeps;
       keyCache = testSecretsKeyCache;

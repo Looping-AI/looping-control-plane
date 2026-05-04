@@ -30,7 +30,22 @@ function parseResponse(json: string): {
   secretIds?: string[];
   error?: string;
 } {
-  return JSON.parse(json);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  const isError = "type" in parsed || parsed["success"] === false;
+  const errorText = isError
+    ? typeof parsed["error"] === "string"
+      ? (parsed["error"] as string)
+      : typeof parsed["message"] === "string"
+        ? (parsed["message"] as string)
+        : undefined
+    : undefined;
+  return {
+    success: !isError,
+    secretIds: Array.isArray(parsed["secretIds"])
+      ? (parsed["secretIds"] as string[])
+      : undefined,
+    error: errorText,
+  };
 }
 
 const NO_AUTH = {

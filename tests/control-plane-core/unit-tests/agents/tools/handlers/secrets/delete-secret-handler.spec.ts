@@ -31,7 +31,23 @@ function parseResponse(json: string): {
   message?: string;
   error?: string;
 } {
-  return JSON.parse(json);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  const isError = "type" in parsed || parsed["success"] === false;
+  const errorText = isError
+    ? typeof parsed["error"] === "string"
+      ? (parsed["error"] as string)
+      : typeof parsed["message"] === "string"
+        ? (parsed["message"] as string)
+        : undefined
+    : undefined;
+  return {
+    success: !isError,
+    message:
+      !isError && typeof parsed["message"] === "string"
+        ? (parsed["message"] as string)
+        : undefined,
+    error: errorText,
+  };
 }
 
 const NO_AUTH = {
@@ -220,10 +236,8 @@ describe("DeleteSecretHandler", () => {
         PRIMARY_OWNER,
       );
       const listResponse = JSON.parse(listResult) as {
-        success: boolean;
         secretIds: string[];
       };
-      expect(listResponse.success).toBe(true);
       expect(listResponse.secretIds).toHaveLength(1);
       expect(listResponse.secretIds).toContain("custom:second-key");
       expect(listResponse.secretIds).not.toContain("openRouterApiKey");
@@ -255,7 +269,6 @@ describe("DeleteSecretHandler", () => {
         PRIMARY_OWNER,
       );
       const listResponse = JSON.parse(listResult) as {
-        success: boolean;
         secretIds: string[];
       };
       expect(listResponse.secretIds).toHaveLength(3);

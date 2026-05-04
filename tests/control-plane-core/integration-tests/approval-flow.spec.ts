@@ -8,13 +8,17 @@ import {
 } from "bun:test";
 import type { PocketIc, Actor } from "@dfinity/pic";
 import { createHmac } from "node:crypto";
-import type { _SERVICE } from "../../setup.ts";
+import type { _SERVICE, TestCanisterService } from "../../setup.ts";
 import {
   createBackendCanister,
-  SLACK_SIGNING_SECRET,
+  createTestCanister,
   freshBackendCanister,
+  freshTestCanister,
+  SLACK_SIGNING_SECRET,
+  SLACK_TEST_TOKEN,
+  TEST_API_KEY,
 } from "../../setup.ts";
-import { expectOk } from "../../helpers.ts";
+import { expectOk, expectSome } from "../../helpers.ts";
 
 // ============================================
 // Approval Flow – Integration Tests
@@ -218,42 +222,124 @@ describe("Approval Flow", () => {
   });
 
   // ============================================
-  // Full approval pipeline (cassettes required)
+  // Full approval pipeline
   //
-  // These tests exercise the complete approval gate:
-  //   1. A message causes the admin agent to call a workflow requiring approval.
-  //   2. The turn enters #awaitingApproval state.
-  //   3. Approval / denial via text reply or Block Kit button is validated.
-  //
-  // To run these tests you need:
-  //   - Real Slack / OpenRouter credentials in .env.test
-  //   - RECORD_CASSETTES=true bun test <this-file> (first run)
-  //   - After recording: bun test <this-file> (playback)
-  //
-  // Note: Verifying internal turn state (#awaitingApproval / #awaitingWorkflow)
-  // requires a testSeedApprovalForTurn helper on the test canister that does not
-  // yet exist. Until that helper is added these tests are skipped. See PLAN.md
-  // §5.2 phase 2 for the implementation plan.
+  // Tests 2-4 use a test canister with pre-seeded state — no cassettes required.
+  // Test 1 (approval-request-generates-code) requires real credentials and a
+  // cassette recording.
   // ============================================
 
-  describe.skip("full approval pipeline (needs cassettes + test-canister seeding)", () => {
-    it("approval-request-generates-code: turn should enter #awaitingApproval after workflow approval request", () => {
-      // TODO: send testMessageHandlerDispatch with a message that triggers workflow approval,
-      // then call testGetTurnStatus and assert "awaitingApproval".
-      // Requires RECORD_CASSETTES=true on first run.
+  describe("full approval pipeline", () => {
+    let testPic: PocketIc;
+    let testActor: Actor<TestCanisterService>;
+
+    beforeAll(async () => {
+      testPic = (await createTestCanister()).pic;
     });
 
-    it("approval-reject-wrong-code: sending wrong code should leave turn in #awaitingApproval", () => {
-      // TODO: seed a turn in #awaitingApproval state, then send a message with
-      // "approve wrongcode" and assert the turn status is unchanged.
+    beforeEach(async () => {
+      testActor = (await freshTestCanister(testPic)).actor;
     });
 
-    it("approval-reject-wrong-user: different Slack user cannot approve someone else's request", () => {
-      // TODO: seed approval for U_OWNER, send approval as U_OTHER, assert #err.
+    afterAll(async () => {
+      await testPic.tearDown();
     });
 
-    it("approval-accept-and-dispatch: correct user approving transitions turn to #awaitingWorkflow", () => {
-      // TODO: seed approval for U_OWNER, approve as U_OWNER, assert turn is #awaitingWorkflow.
+    it("approval-request-generates-code: turn should enter #awaitingApproval after workflow approval request", async () => {
+      // The turn ID will be "0_0" (agent 0, first turn in a fresh canister).
+      await testActor.testMessageHandlerDispatch(
+        {
+          user: "U_OWNER",
+          text: "Delete workspace with ID 1.",
+          channel: "C_TEST",
+          ts: "1700000001.000001",
+          threadTs: [],
+          isBotMessage: false,
+          agentMetadata: [],
+        },
+        SLACK_TEST_TOKEN,
+        TEST_API_KEY,
+      );
+      expect(expectSome(await testActor.testGetTurnStatus("0_0"))).toBe(
+        "awaitingApproval",
+      );
+    });
+
+    it("approval-reject-wrong-code: sending wrong code should leave turn in #awaitingApproval", async () => {
+      const { turnId } = await testActor.testSeedApprovalForTurn(
+        "workspace_delete",
+        "U_OWNER",
+      );
+
+      // Wrong code — not in testDispatchApprovalState; handler logs and returns early
+      // without setting a resume timer. No tick needed.
+      await testActor.testHandleBlockAction(
+        "approve_workflow",
+        "0".repeat(64),
+        "U_OWNER",
+        "",
+      );
+
+      expect(expectSome(await testActor.testGetTurnStatus(turnId))).toBe(
+        "awaitingApproval",
+      );
+    });
+
+    it("approval-reject-wrong-user: different Slack user cannot approve someone else's request", async () => {
+      const { turnId, approvalCode } = await testActor.testSeedApprovalForTurn(
+        "workspace_delete",
+        "U_OWNER",
+      );
+
+      // U_OTHER is neither the requester nor a workspace admin — handler posts an
+      // ephemeral rejection (skipped for responseUrl="") and returns without setting
+      // a resume timer. No tick needed.
+      await testActor.testHandleBlockAction(
+        "approve_workflow",
+        approvalCode,
+        "U_OTHER",
+        "",
+      );
+
+      expect(
+        expectSome(await testActor.testGetApprovalStatus(approvalCode)),
+      ).toBe("pending");
+      expect(expectSome(await testActor.testGetTurnStatus(turnId))).toBe(
+        "awaitingApproval",
+      );
+    });
+
+    it("approval-accept-and-dispatch: correct user approving transitions turn to #awaitingWorkflow", async () => {
+      const { turnId, approvalCode } = await testActor.testSeedApprovalForTurn(
+        "workspace_delete",
+        "U_OWNER",
+      );
+
+      // Full-pipeline call — approval is marked #used synchronously, then a zero-delay
+      // timer fires resumeWithApproval which dispatches to the mock engine.
+      await testActor.testHandleBlockActionFullPipeline(
+        "approve_workflow",
+        approvalCode,
+        "U_OWNER",
+        "",
+        SLACK_TEST_TOKEN,
+        TEST_API_KEY,
+      );
+
+      // Approval record is marked #used synchronously before postOutcome.
+      expect(
+        expectSome(await testActor.testGetApprovalStatus(approvalCode)),
+      ).toBe("used");
+
+      // Advance rounds to let the zero-delay timer fire and the async resume
+      // chain (resumeWithApproval → engine.execute → awaitingWorkflow) complete.
+      for (let i = 0; i < 5; i++) {
+        await testPic.tick();
+      }
+
+      expect(expectSome(await testActor.testGetTurnStatus(turnId))).toBe(
+        "awaitingWorkflow",
+      );
     });
   });
 });

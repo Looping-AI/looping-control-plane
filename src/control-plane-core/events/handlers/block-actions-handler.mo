@@ -32,6 +32,7 @@
 
 import Json "mo:json";
 import { str; obj; bool } "mo:json";
+import Map "mo:core/Map";
 import Set "mo:core/Set";
 import Nat "mo:core/Nat";
 import Timer "mo:core/Timer";
@@ -43,6 +44,7 @@ import SlackUserModel "../../models/slack-user-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import AgentRunner "../../agents/agent-runner";
 import KeyDerivationService "../../services/key-derivation-service";
+import SecretModel "../../models/secret-model";
 import ApprovalTimer "../../timers/approval-timer";
 import Logger "../../utilities/logger";
 import SlackWrapper "../../wrappers/slack-wrapper";
@@ -180,6 +182,25 @@ module {
     // Synchronously cancel the TTL timer before any await so it cannot race.
     cancelTurnTimer(deps, approval.turnId);
 
+    // Resolve the Slack bot token once before branching so both approve and deny
+    // paths can forward it to the resume functions for error reporting.
+    let botTokenOpt : ?Text = switch (Map.get(deps.keyCache, Nat.compare, 0)) {
+      case (null) { null };
+      case (?orgKey) {
+        SecretModel.resolvePlatformSecret(
+          deps.resumeDeps.secrets,
+          orgKey,
+          null,
+          #slackBotToken,
+          {
+            slackUserId = null;
+            agentId = null;
+            operation = "block-actions:handle";
+          },
+        );
+      };
+    };
+
     if (payload.actionId == "approve_workflow") {
       // Mark record #used.
       approval.status := #used;
@@ -192,7 +213,7 @@ module {
       ignore Timer.setTimer<system>(
         #nanoseconds 0,
         func() : async () {
-          ignore await AgentRunner.resumeWithApproval(resumeDeps, keyCache, approvalSnap, userId, null);
+          ignore await AgentRunner.resumeWithApproval(resumeDeps, keyCache, approvalSnap, userId, botTokenOpt);
         },
       );
 
@@ -208,7 +229,7 @@ module {
       ignore Timer.setTimer<system>(
         #nanoseconds 0,
         func() : async () {
-          await AgentRunner.resumeWithDenial(resumeDeps, keyCache, turnId, "user denied", null);
+          await AgentRunner.resumeWithDenial(resumeDeps, keyCache, turnId, "user denied", botTokenOpt);
         },
       );
 
