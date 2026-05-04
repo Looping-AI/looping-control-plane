@@ -106,5 +106,68 @@ describe("AdminAgentLoop", () => {
         expect(response.ok.steps).toEqual([]);
       }
     });
+
+    it("returns #dispatched with suspension data when the admin loop dispatches a workflow", async () => {
+      const { result } = await withCassette(
+        pic,
+        "control-plane-core/unit-tests/agents/categories/system/admin-agent-loop/dispatch-workflow",
+        () =>
+          testCanister.testAdminAgentLoopProcess(
+            TEST_API_KEY,
+            DEFAULT_MODEL,
+            "List all registered agents. Use the agents_list tool.",
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+
+      expect("dispatched" in response).toBe(true);
+      if ("dispatched" in response) {
+        expect(response.dispatched.steps.length).toBeGreaterThan(0);
+        expect(response.dispatched.steps[0]?.action).toBe("dispatch_to_engine");
+        expect(response.dispatched.suspension.messages.length).toBeGreaterThan(
+          0,
+        );
+        expect(
+          response.dispatched.suspension.pendingToolCallId.length,
+        ).toBeGreaterThan(0);
+        expect(response.dispatched.suspension.roundCount).toBe(1n);
+      }
+    });
+
+    it("returns #awaitingApproval with suspension data when a workflow requires approval", async () => {
+      const { result } = await withCassette(
+        pic,
+        "control-plane-core/unit-tests/agents/categories/system/admin-agent-loop/awaiting-approval",
+        () =>
+          testCanister.testAdminAgentLoopApproval(
+            TEST_API_KEY,
+            DEFAULT_MODEL,
+            "Delete workspace 1. Use the workspace_delete tool with workspaceId 1.",
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      const response = await result;
+
+      expect("awaitingApproval" in response).toBe(true);
+      if ("awaitingApproval" in response) {
+        expect(response.awaitingApproval.workflowName).toBe("workspace_delete");
+        expect(response.awaitingApproval.approvalCode.length).toBeGreaterThan(
+          0,
+        );
+        expect(response.awaitingApproval.requestedByUserId).toBe(
+          "U_ADMIN_LOOP_TEST",
+        );
+        expect(
+          response.awaitingApproval.originalToolArgs.length,
+        ).toBeGreaterThan(0);
+        expect(
+          response.awaitingApproval.suspension.pendingToolCallId.length,
+        ).toBeGreaterThan(0);
+        expect(response.awaitingApproval.suspension.roundCount).toBe(1n);
+      }
+    });
   });
 });

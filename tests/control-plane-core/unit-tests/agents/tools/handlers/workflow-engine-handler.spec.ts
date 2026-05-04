@@ -40,10 +40,22 @@ function parseError(json: string): { type: string; message: string } {
   return JSON.parse(json);
 }
 
+function parseApprovalPrompt(json: string): {
+  dispatched: boolean;
+  approvalRequired: boolean;
+  approvalCode: string;
+} {
+  return JSON.parse(json);
+}
+
 const NO_TOKEN = [] as [] | [string];
 
 const DISPATCH_OK = false; // mockDispatchFail = false → engine #ok
 const DISPATCH_FAIL = true; // mockDispatchFail = true → engine call throws
+
+const NO_SLACK_CHANNEL = [] as [] | [string];
+const NO_PRE_APPROVE = false;
+const PRE_APPROVE = true;
 
 const ANY_VALID_ARGS = JSON.stringify({});
 
@@ -114,6 +126,35 @@ describe("WorkflowEngineHandler", () => {
       expect(response.type).toBe("dispatchFailed");
       expect(typeof response.message).toBe("string");
       expect(response.message.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("approval directive (#require('approval'))", () => {
+    it("returns approvalRequired:true with a non-empty code when no approvalCode is present", async () => {
+      const result = await testCanister.testWorkflowEngineHandlerApproval(
+        JSON.stringify({}),
+        NO_TOKEN,
+        DISPATCH_OK,
+        NO_PRE_APPROVE,
+        NO_SLACK_CHANNEL,
+      );
+      const response = parseApprovalPrompt(result);
+      expect(response.dispatched).toBe(false);
+      expect(response.approvalRequired).toBe(true);
+      expect(typeof response.approvalCode).toBe("string");
+      expect(response.approvalCode.length).toBeGreaterThan(0);
+    });
+
+    it("proceeds to dispatch when a valid pre-validated approval code is injected", async () => {
+      const result = await testCanister.testWorkflowEngineHandlerApproval(
+        JSON.stringify({}),
+        NO_TOKEN,
+        DISPATCH_OK,
+        PRE_APPROVE,
+        NO_SLACK_CHANNEL,
+      );
+      const response = parseSuccess(result);
+      expect(response.dispatched).toBe(true);
     });
   });
 });

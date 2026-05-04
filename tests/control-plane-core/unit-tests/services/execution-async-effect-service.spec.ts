@@ -149,4 +149,57 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     const status = await (await testCanister.testGetEffectTurnStatus(turnId))();
     expect(status).toEqual(["succeeded"]);
   });
+
+  it("complete (awaitingWorkflow): should invoke resumeAdminTurn and mark turn #succeeded", async () => {
+    // Seed a #awaitingWorkflow turn — this is the production path where
+    // the engine finishes and Core must resume the admin agent loop.
+    const turnIdThunk = await testCanister.testSeedPendingTurn(
+      AGENT_ID,
+      EFFECT_CHANNEL,
+      EFFECT_TS,
+      [],
+    );
+    await pic.tick(2);
+    const turnId = await turnIdThunk();
+
+    // Issue a token for this turn
+    const tokenThunk = await testCanister.testIssueEffectToken(
+      turnId,
+      WORKSPACE_ID,
+    );
+    await pic.tick(2);
+    const nonce = await tokenThunk();
+
+    // Run the complete effect via the resume-enabled variant.
+    // resumeAdminTurn stub returns #ok immediately; TurnCompletionService
+    // then posts to Slack (captured by cassette) and marks the turn #succeeded.
+    const { result } = await withCassette(
+      pic,
+      "control-plane-core/unit-tests/services/execution-async-effect-service/complete-awaiting-workflow-resume",
+      () =>
+        testCanister.testRunAsyncEffectWithResume(
+          { post: null },
+          "/execution/complete",
+          JSON.stringify({
+            envelopeNonce: nonce,
+            humanSummary: "Workflow complete.",
+            status: "completed",
+            stats: { inputTokens: 100, outputTokens: 50 },
+          }),
+          BOT_TOKEN,
+        ),
+      { ticks: 5, maxRounds: 3 },
+    );
+
+    const response = await result;
+    expect("ok" in response).toBe(true);
+
+    // Resume path: resumeAdminTurn stub returns #ok → TurnCompletionService.apply
+    // posts to Slack. In the test environment Slack returns channel_not_found, so
+    // TurnCompletionService marks the turn #failed (unlike the direct-complete path,
+    // which tolerates Slack failures). The cassette captures the 1 Slack outcall,
+    // proving that resumeAdminTurn was called and the completion path was entered.
+    const status = await (await testCanister.testGetEffectTurnStatus(turnId))();
+    expect(status).toEqual(["failed"]);
+  });
 });

@@ -311,6 +311,42 @@ describe("MessageHandler Unit Tests", () => {
     { timeout: CASSETTE_TEST_TIMEOUT_MS },
   );
 
+  it(
+    "should mark the turn as awaitingApproval when workspace_delete requires approval",
+    async () => {
+      const cassetteName =
+        "control-plane-core/unit-tests/events/handlers/message-handler/workspace-delete-awaiting-approval";
+
+      const { result } = await withCassette(
+        pic,
+        cassetteName,
+        () =>
+          testCanister.testMessageHandlerDispatch(
+            {
+              user: "U_ADMIN",
+              text: "Delete workspace 1. Use the workspace_delete tool with workspaceId 1.",
+              channel: DISPATCH_TEST_CHANNEL,
+              ts: "1700000020.000002",
+              threadTs: [],
+              isBotMessage: false,
+              agentMetadata: [],
+            },
+            BOT_TOKEN,
+            OPENROUTER_API_KEY,
+          ),
+        { ticks: 5, maxRounds: 5 },
+      );
+
+      await result;
+
+      const statusResult = await (
+        await testCanister.testGetTurnStatus("0_0")
+      )();
+      expect(statusResult).toEqual(["awaitingApproval"]);
+    },
+    { timeout: CASSETTE_TEST_TIMEOUT_MS },
+  );
+
   // ============================================
   // Bot-message proceed path — session inheritance
   // A bot reply that passes every guard and continues through orchestration must

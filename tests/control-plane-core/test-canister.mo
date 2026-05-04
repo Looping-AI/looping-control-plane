@@ -19,6 +19,8 @@ import OpenRouterWrapper "../../src/control-plane-core/wrappers/openrouter-wrapp
 import SlackWrapper "../../src/control-plane-core/wrappers/slack-wrapper";
 import HttpCertification "../../src/control-plane-core/utilities/http-certification";
 import MessageHandler "../../src/control-plane-core/events/handlers/message-handler";
+import BlockActionsHandler "../../src/control-plane-core/events/handlers/block-actions-handler";
+import SlackEventTypes "../../src/control-plane-core/events/types/slack-event-types";
 import MessageDeletedHandler "../../src/control-plane-core/events/handlers/message-deleted-handler";
 import MessageEditedHandler "../../src/control-plane-core/events/handlers/message-edited-handler";
 import AssistantThreadHandler "../../src/control-plane-core/events/handlers/assistant-thread-handler";
@@ -128,6 +130,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Dispatch-path session stores — shared across testMessageHandlerDispatch calls
   // so testGetTurnStatus can observe turn state after the handler returns.
   let testDispatchSessionStores = SessionModel.emptyStores();
+
+  // Approval state paired with testDispatchSessionStores for block-actions-handler tests.
+  // Persists within a canister instance so testSeedApprovalRecord / testHandleBlockAction /
+  // testGetApprovalStatus can observe state changes across separate calls.
+  let testDispatchApprovalState = ApprovalModel.emptyState();
 
   // Execution API token store — dedicated store for executionApi endpoint tests.
   let testExecEnvelopeState = ExecutionEnvelopeModel.emptyState();
@@ -760,6 +767,86 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   };
 
   // ============================================
+  // Block Actions Handler Test Methods
+  // ============================================
+
+  /// Seed an approval record in testDispatchApprovalState and return the generated code.
+  /// Stores the record with workspaceId=0, agentId=0 and the supplied turnId /
+  /// requestedByUserId so that testHandleBlockAction can look it up.
+  public shared ({ caller }) func testSeedApprovalRecord(
+    workflowName : Text,
+    turnId : Text,
+    requestedByUserId : Text,
+  ) : async Text {
+    assert caller == parent;
+    ApprovalModel.request(
+      testDispatchApprovalState,
+      workflowName,
+      "{}",
+      0,
+      0,
+      turnId,
+      requestedByUserId,
+    );
+  };
+
+  /// Simulate a Slack Block Kit button click against testDispatchApprovalState.
+  /// Constructs a minimal BlockActionsPayload and calls BlockActionsHandler.handle.
+  /// Pass responseUrl="" to skip the response_url HTTP call.
+  /// Do NOT call pic.tick() after this — the fire-and-forget resume timer must not
+  /// run during approval-status validation tests (engine is absent).
+  public shared ({ caller }) func testHandleBlockAction(
+    actionId : Text,
+    code : Text,
+    slackUserId : Text,
+    responseUrl : Text,
+  ) : async () {
+    assert caller == parent;
+    let payload : SlackEventTypes.BlockActionsPayload = {
+      userId = slackUserId;
+      actionId;
+      actionValue = code;
+      messageTs = "1700000000.000001";
+      channelId = "C_TEST";
+      responseUrl;
+    };
+    let resumeDeps : AgentRunner.ResumeDeps = {
+      sessionStores = testDispatchSessionStores;
+      agentRegistry = testAgentRegistry;
+      secrets = testSecretsMap;
+      internalEngine = null;
+      envelopeState = testExecEnvelopeState;
+      catalogState = { var cached = null };
+      approvalState = testDispatchApprovalState;
+    };
+    let deps : BlockActionsHandler.BlockActionsDeps = {
+      approvalState = testDispatchApprovalState;
+      sessionStores = testDispatchSessionStores;
+      agentRegistry = testAgentRegistry;
+      slackUsers;
+      resumeDeps;
+      keyCache = testSecretsKeyCache;
+    };
+    await BlockActionsHandler.handle<system>(payload, deps);
+  };
+
+  /// Query the status of an approval record in testDispatchApprovalState.
+  /// Returns "pending" / "used" / "expired", or null if the code is not found.
+  public query func testGetApprovalStatus(code : Text) : async ?Text {
+    switch (ApprovalModel.findByCode(testDispatchApprovalState, code)) {
+      case (null) { null };
+      case (?record) {
+        let statusText = switch (record.status) {
+          case (#pending) { "pending" };
+          case (#used) { "used" };
+          case (#expired) { "expired" };
+        };
+        ?statusText;
+      };
+    };
+  };
+
+  // ============================================
   // Agent Orchestrator Category Test Methods
   // ============================================
 
@@ -885,6 +972,69 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       SessionModel.emptyStores(),
       null,
       null,
+      secrets,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
+    );
+  };
+
+  /// Run AdminAgentLoop.process with a seeded userAuthContext (userId = "U_ADMIN_LOOP_TEST").
+  /// Identical to testAdminAgentLoopProcess but passes a proper userAuthContext so
+  /// requestedByUserId is correctly captured in #awaitingApproval results.
+  public shared ({ caller }) func testAdminAgentLoopApproval(
+    apiKey : Text,
+    model : Text,
+    prompt : Text,
+  ) : async Types.AgentOrchestrateResult {
+    assert caller == parent;
+    let secrets = if (apiKey == "") {
+      SecretModel.initState();
+    } else {
+      let s = SecretModel.initState();
+      ignore SecretModel.storeSecret(
+        s,
+        TestHelpers.dummyKey,
+        0,
+        #openRouterApiKey,
+        apiKey,
+        { slackUserId = null; agentId = null; operation = "test-seed" },
+      );
+      s;
+    };
+    let history = ChannelHistoryModel.empty();
+    let authCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_ADMIN_LOOP_TEST";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      adminWorkspaces = Set.empty<Nat>();
+    };
+    ChannelHistoryModel.addMessage(
+      history,
+      "C_TEST_CATEGORY",
+      {
+        ts = "1700000000.000001";
+        userAuthContext = ?authCtx;
+        text = prompt;
+        agentMetadata = null;
+      },
+      null,
+    );
+    let triggerPrompt : ?Text = if (prompt == "") { null } else { ?prompt };
+    await AgentRunner.start(
+      testAgentWithModel(#_system(#admin), "unit-test-admin", model),
+      history,
+      ?#slack({
+        channelId = "C_TEST_CATEGORY";
+        ts = "1700000000.000001";
+        threadTs = null;
+      }),
+      triggerPrompt,
+      "turn-admin-loop-approval-0",
+      SessionModel.emptyStores(),
+      ?authCtx,
+      ?"U_ADMIN_LOOP_TEST",
       secrets,
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
@@ -1070,6 +1220,44 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     let { response; asyncEffects } = testEffectExecApiService.handleRequest(method, path, body);
     for (effect in asyncEffects.vals()) {
       await testEffectAsyncEffectService.processEffect(testEffectKeyCache, effect);
+    };
+    response;
+  };
+
+  /// Variant of testRunAsyncEffect that wires a succeeding resumeAdminTurn stub.
+  /// Use this to exercise the #awaitingWorkflow → #succeeded path in
+  /// ExecutionAsyncEffectService, where the service calls resumeAdminTurn and then
+  /// applies the result via TurnCompletionService.
+  /// The stub returns #ok immediately, avoiding a live LLM or engine call.
+  public shared ({ caller }) func testRunAsyncEffectWithResume(
+    method : { #get; #post; #delete },
+    path : Text,
+    body : Text,
+    botToken : Text,
+  ) : async { #ok : Text; #err : Text } {
+    assert caller == parent;
+    ignore SecretModel.storeSecret(
+      testEffectSecretsState,
+      TestHelpers.dummyKey,
+      0,
+      #slackBotToken,
+      botToken,
+      { slackUserId = null; agentId = null; operation = "test-seed-resume" },
+    );
+    // Build a one-shot service with a succeeding resumeAdminTurn stub.
+    let serviceWithResume = ExecutionAsyncEffectService.Service({
+      sessionStores = testEffectSessionStores;
+      agentRegistry = testEffectAgentRegistry;
+      workspaces = testWorkspacesState;
+      secrets = testEffectSecretsState;
+      approvalState = ApprovalModel.emptyState();
+      resumeAdminTurn = func(_ : Text, _ : SessionModel.SuspensionData, _ : Text) : async Types.AgentOrchestrateResult {
+        #ok({ response = "Workflow complete."; steps = [] });
+      };
+    });
+    let { response; asyncEffects } = testEffectExecApiService.handleRequest(method, path, body);
+    for (effect in asyncEffects.vals()) {
+      await serviceWithResume.processEffect(testEffectKeyCache, effect);
     };
     response;
   };
@@ -1860,7 +2048,12 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     let engineDispatch : ToolTypes.EngineDispatch = {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine;
-      catalogState = WorkflowCatalogModel.empty();
+      catalogState = {
+        var cached = ?{
+          catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+          descriptors = WorkflowCatalog.allDescriptors;
+        };
+      };
       approvalState = ApprovalModel.emptyState();
     };
     let envelopeContext : ToolTypes.EnvelopeContext = {
@@ -1882,6 +2075,94 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       coreDirectives = [];
     };
     let outcome = await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, "", null, args);
+    switch (outcome) {
+      case (#ok(t)) { t };
+      case (#err(e)) { e };
+    };
+  };
+
+  /// Test the WorkflowEngineHandler with a descriptor that has coreDirectives = [#require("approval")].
+  ///
+  /// @param args             JSON-encoded tool arguments (no approvalCode → triggers approval prompt).
+  /// @param botToken         Optional Slack bot token (used to attempt posting the approval Slack message).
+  /// @param mockDispatchFail When true, dispatch returns #err; otherwise #ok.
+  /// @param preApprove       When true, pre-seeds an approval code as #used so the dispatch proceeds.
+  /// @param slackChannelId   When provided, used as the Slack channelId in sourceRef.
+  public shared ({ caller }) func testWorkflowEngineHandlerApproval(
+    args : Text,
+    botToken : ?Text,
+    mockDispatchFail : Bool,
+    preApprove : Bool,
+    slackChannelId : ?Text,
+  ) : async Text {
+    assert caller == parent;
+    let approvalWorkflowName = "admin-approval-v1";
+    let testUserId = "U_TEST_USER";
+    let testTurnId = "test-turn-0_0";
+    let agent : AgentModel.AgentRecord = {
+      id = 0;
+      ownedBy = 0;
+      category = #_system(#admin);
+      config = {
+        name = "test-approval-admin";
+        model = "openai/gpt-oss-120b";
+        workflowEngines = [#canister];
+        allowedChannelIds = Set.empty<Text>();
+        secrets = { allowed = []; overrides = [] };
+      };
+      state = {
+        toolsState = Map.empty<Text, AgentModel.ToolState>();
+      };
+    };
+    let internalEngine : InternalEngine.InternalEngine = if (mockDispatchFail) {
+      actor "aaaaa-aa" : InternalEngine.InternalEngine;
+    } else {
+      mockInternalEngine;
+    };
+    let approvalState = ApprovalModel.emptyState();
+    // Pre-seed catalog so dispatch can proceed past step 3 (catalog hash check).
+    let catalog = WorkflowCatalogModel.empty();
+    let catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+    WorkflowCatalogModel.replace(catalog, catalogHash, WorkflowCatalog.allDescriptors);
+    let engineDispatch : ToolTypes.EngineDispatch = {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      internalEngine;
+      catalogState = catalog;
+      approvalState;
+    };
+    let envelopeContext : ToolTypes.EnvelopeContext = {
+      agent;
+      turnId = testTurnId;
+      instructions = "Test instructions";
+      messages = [];
+      apiKey = "test-api-key";
+    };
+    let resolveSlackBotToken : ?(Text -> ?Text) = switch (botToken) {
+      case (null) { null };
+      case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
+    };
+    let descriptor : WorkflowCatalogTypes.WorkflowDescriptor = {
+      workflowName = approvalWorkflowName;
+      description = "Administrative approval workflow";
+      parametersJsonSchema = "{\"type\":\"object\"}";
+      requiredScopes = [];
+      coreDirectives = [#require("approval")];
+    };
+    let sourceRef : ?SessionModel.SourceRef = switch (slackChannelId) {
+      case (?channelId) {
+        ?#slack({ channelId; ts = "1700000000.000001"; threadTs = null });
+      };
+      case (null) { null };
+    };
+    // When preApprove=true: generate + validate a code so handle() proceeds to dispatch.
+    let actualArgs : Text = if (preApprove) {
+      let code = ApprovalModel.request(approvalState, approvalWorkflowName, "{}", 0, 0, testTurnId, testUserId);
+      ignore ApprovalModel.validate(approvalState, code, testUserId);
+      Json.stringify(obj([("approvalCode", str(code))]), null);
+    } else {
+      args;
+    };
+    let outcome = await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, testUserId, sourceRef, actualArgs);
     switch (outcome) {
       case (#ok(t)) { t };
       case (#err(e)) { e };
