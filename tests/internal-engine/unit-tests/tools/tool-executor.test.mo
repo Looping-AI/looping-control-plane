@@ -70,11 +70,11 @@ test(
 );
 
 test(
-  "formatResultsForLlm: error result output is prefixed with 'Error: '",
+  "formatResultsForLlm: error result output equals the error string",
   func() {
     let results = [{ callId = "c2"; result = #err("timeout"); durationMs = 5 }];
     let formatted = ToolExecutor.formatResultsForLlm(results);
-    expect.text(formatted[0].output).equal("Error: timeout");
+    expect.text(formatted[0].output).equal("timeout");
   },
 );
 
