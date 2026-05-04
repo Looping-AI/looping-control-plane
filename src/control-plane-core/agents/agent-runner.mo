@@ -549,7 +549,12 @@ module {
     // Race guard: if the turn is no longer awaiting approval (concurrent button click),
     // the denial has already been handled — no-op.
     let suspension = switch (syncCtx.turn.status) {
-      case (#awaitingApproval(data)) { data.suspension };
+      case (#awaitingApproval(data)) {
+        // Mark the approval record #expired synchronously so it cannot be re-processed
+        // by a subsequent button click or periodic scanner pass.
+        ApprovalModel.expire(deps.approvalState, data.approvalCode);
+        data.suspension;
+      };
       case (_) { return };
     };
 
