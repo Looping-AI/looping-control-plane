@@ -47,7 +47,7 @@ module {
       case (#ok(json)) { json };
     };
 
-    // 2. Process coreDirectives (no awaits have occurred before this point)
+    // 2. Process coreDirectives
     for (directive in descriptor.coreDirectives.vals()) {
       switch (directive) {
         case (#require("approval")) {
