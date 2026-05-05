@@ -161,7 +161,7 @@ module {
 
     if (payload.actionId == "approve_workflow") {
       // Delegate auth check + #used mutation to the model.
-      let record = switch (ApprovalModel.validate(deps.approvalState, payload.actionValue, payload.userId, adminWorkspaces)) {
+      let record = switch (ApprovalModel.approve(deps.approvalState, payload.actionValue, payload.userId, adminWorkspaces)) {
         case (#err(msg)) {
           await postOutcome(payload.responseUrl, ephemeralBody(msg));
           return;

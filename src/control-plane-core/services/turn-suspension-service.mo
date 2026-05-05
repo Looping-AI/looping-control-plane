@@ -29,7 +29,7 @@ module {
       };
       case (#awaitingApproval({ steps; suspension; approvalCode })) {
         let expiresAtNs = switch (ApprovalModel.findByCode(deps.approvalState, approvalCode)) {
-          case (?record) { record.expiresAtNs };
+          case (?record) { ApprovalModel.approvalWindowDeadline(record) };
           case null { Runtime.unreachable() };
         };
         ignore SessionModel.suspendForApproval(

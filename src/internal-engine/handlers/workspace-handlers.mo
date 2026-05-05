@@ -26,7 +26,12 @@ module {
     switch (parseNatField(args, "workspaceId")) {
       case (#err(e)) { #err(e) };
       case (#ok(id)) {
-        handleResult(await wrapper.callCore(#delete, "/workspace/" # Nat.toText(id), "{}"));
+        switch (parseTextField(args, "approvalCode")) {
+          case (#err(e)) { #err(e) };
+          case (#ok(approvalCode)) {
+            handleResult(await wrapper.callCore(#delete, "/workspace/" # Nat.toText(id), "{\"approvalCode\":\"" # approvalCode # "\"}"));
+          };
+        };
       };
     };
   };
@@ -62,6 +67,25 @@ module {
               #ok(Nat.fromInt(n));
             };
           };
+          case (_) {
+            #err(Json.stringify(obj([("type", str("missingField")), ("message", str("Missing or invalid '" # field # "' field."))]), null));
+          };
+        };
+      };
+    };
+  };
+
+  private func parseTextField(args : Text, field : Text) : {
+    #ok : Text;
+    #err : Text;
+  } {
+    switch (Json.parse(args)) {
+      case (#err(_)) {
+        #err(Json.stringify(obj([("type", str("parseError")), ("message", str("Invalid JSON arguments."))]), null));
+      };
+      case (#ok(parsed)) {
+        switch (Json.get(parsed, field)) {
+          case (?#string(v)) { #ok(v) };
           case (_) {
             #err(Json.stringify(obj([("type", str("missingField")), ("message", str("Missing or invalid '" # field # "' field."))]), null));
           };

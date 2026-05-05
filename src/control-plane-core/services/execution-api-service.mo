@@ -5,12 +5,15 @@ import Float "mo:core/Float";
 import Text "mo:core/Text";
 import List "mo:core/List";
 import Set "mo:core/Set";
+import Time "mo:core/Time";
 import WorkspaceModel "../models/workspace-model";
 import AgentModel "../models/agent-model";
+import ApprovalModel "../models/approval-model";
 import EventStoreModel "../models/event-store-model";
 import SessionModel "../models/session-model";
 import ExecutionTypes "../types/execution";
 import ExecutionEnvelopeModel "../models/execution-envelope-model";
+import Constants "../constants";
 
 module {
 
@@ -20,6 +23,7 @@ module {
     envelopeState : ExecutionEnvelopeModel.EnvelopeState;
     workspaces : WorkspaceModel.WorkspacesState;
     agentRegistry : AgentModel.AgentRegistryState;
+    approvalState : ApprovalModel.ApprovalState;
     eventStore : EventStoreModel.EventStoreState;
     sessionStores : SessionModel.SessionStores;
   };
@@ -93,7 +97,7 @@ module {
               };
             };
             case (#delete, "workspace") {
-              handleWorkspaceDelete(envelopeNonce, seg1);
+              handleWorkspaceDelete(envelopeNonce, seg1, parsed);
             };
 
             // #agents scoped routes
@@ -257,7 +261,7 @@ module {
       };
     };
 
-    private func handleWorkspaceDelete(envelopeNonce : Text, idStr : Text) : {
+    private func handleWorkspaceDelete(envelopeNonce : Text, idStr : Text, body : Json.Json) : {
       #ok : Text;
       #err : Text;
     } {
@@ -274,6 +278,32 @@ module {
       // Only org admin (ws 0) can delete workspaces
       if (not WorkspaceModel.isOrgWorkspace(tokenWs)) {
         return errorResponse("forbidden", "Only org admin can delete workspaces.");
+      };
+      // Require a valid, approved, unexpired, matching approval code
+      let approvalCode = switch (Json.get(body, "approvalCode")) {
+        case (?#string(c)) { c };
+        case (_) {
+          return errorResponse("approvalRequired", "An approval code is required to delete a workspace.");
+        };
+      };
+      let approval = switch (ApprovalModel.findByCode(deps.approvalState, approvalCode)) {
+        case (null) {
+          return errorResponse("approvalInvalid", "Approval code not found.");
+        };
+        case (?r) { r };
+      };
+      switch (approval.status) {
+        case (#approved) {};
+        case (_) {
+          return errorResponse("approvalInvalid", "Approval code has not been approved.");
+        };
+      };
+      if (ApprovalModel.isExecutionWindowExpired(approval, Time.now())) {
+        let ttlHours = 2 * (Nat.fromInt(Constants.APPROVAL_TTL_NS) / 3_600_000_000_000);
+        return errorResponse("approvalExpired", "Approval code has expired. Approvals must be executed within " # Nat.toText(ttlHours) # " hour(s) of being requested.");
+      };
+      if (approval.workspaceId != workspaceId or approval.workflowName != "workspace_delete") {
+        return errorResponse("approvalMismatch", "Approval code does not match this workspace delete request.");
       };
       switch (WorkspaceModel.deleteWorkspace(deps.workspaces, workspaceId)) {
         case (#ok(())) { okResponse(null) };

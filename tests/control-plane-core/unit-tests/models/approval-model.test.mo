@@ -58,19 +58,6 @@ suite(
       },
     );
 
-    test(
-      "expiresAtNs is after requestedAt",
-      func() {
-        let state = makeState();
-        let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
-        switch (ApprovalModel.findByCode(state, code)) {
-          case (null) { expect.bool(false).isTrue() };
-          case (?record) {
-            expect.bool(record.expiresAtNs > record.requestedAt).isTrue();
-          };
-        };
-      },
-    );
   },
 );
 
@@ -107,55 +94,98 @@ suite(
 );
 
 // ============================================
-// expire
+// isApprovalWindowExpired
 // ============================================
 
 suite(
-  "expire",
+  "isApprovalWindowExpired",
   func() {
     test(
-      "transitions status from #pending to #expired",
+      "returns false when now equals requestedAt",
       func() {
         let state = makeState();
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
-        ApprovalModel.expire(state, code);
         switch (ApprovalModel.findByCode(state, code)) {
           case (null) { expect.bool(false).isTrue() };
           case (?record) {
-            expect.bool(switch (record.status) { case (#expired) true; case _ false }).isTrue();
+            expect.bool(not ApprovalModel.isApprovalWindowExpired(record, record.requestedAt)).isTrue();
           };
         };
       },
     );
 
     test(
-      "is a no-op for unknown codes",
+      "returns true when now is far in the future",
       func() {
         let state = makeState();
-        // Should not trap
-        ApprovalModel.expire(state, "no-such-code");
+        let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
+        switch (ApprovalModel.findByCode(state, code)) {
+          case (null) { expect.bool(false).isTrue() };
+          case (?record) {
+            let farFuture = record.requestedAt + 999_999_999_999_999_999;
+            expect.bool(ApprovalModel.isApprovalWindowExpired(record, farFuture)).isTrue();
+          };
+        };
       },
     );
   },
 );
 
 // ============================================
-// validate
+// isExecutionWindowExpired
 // ============================================
 
 suite(
-  "validate",
+  "isExecutionWindowExpired",
   func() {
     test(
-      "succeeds and marks record #used for correct user",
+      "returns false when now equals requestedAt",
       func() {
         let state = makeState();
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
-        switch (ApprovalModel.validate(state, code, "U_REQ", Set.empty())) {
+        switch (ApprovalModel.findByCode(state, code)) {
+          case (null) { expect.bool(false).isTrue() };
+          case (?record) {
+            expect.bool(not ApprovalModel.isExecutionWindowExpired(record, record.requestedAt)).isTrue();
+          };
+        };
+      },
+    );
+
+    test(
+      "returns true when now is far in the future",
+      func() {
+        let state = makeState();
+        let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
+        switch (ApprovalModel.findByCode(state, code)) {
+          case (null) { expect.bool(false).isTrue() };
+          case (?record) {
+            let farFuture = record.requestedAt + 999_999_999_999_999_999;
+            expect.bool(ApprovalModel.isExecutionWindowExpired(record, farFuture)).isTrue();
+          };
+        };
+      },
+    );
+  },
+);
+
+// ============================================
+// approve
+// ============================================
+
+suite(
+  "approve",
+  func() {
+    test(
+      "succeeds and marks record #approved for correct user",
+      func() {
+        let state = makeState();
+        let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
+        switch (ApprovalModel.approve(state, code, "U_REQ", Set.empty())) {
           case (#err(_)) { expect.bool(false).isTrue() }; // unexpected error
           case (#ok(record)) {
             expect.text(record.code).equal(code);
-            expect.bool(switch (record.status) { case (#used) true; case _ false }).isTrue();
+            expect.bool(switch (record.status) { case (#approved) true; case _ false }).isTrue();
           };
         };
       },
@@ -165,7 +195,7 @@ suite(
       "rejects unknown code",
       func() {
         let state = makeState();
-        switch (ApprovalModel.validate(state, "no-such-code", "U_REQ", Set.empty())) {
+        switch (ApprovalModel.approve(state, "no-such-code", "U_REQ", Set.empty())) {
           case (#ok(_)) { expect.bool(false).isTrue() }; // unexpected success
           case (#err(_)) {};
         };
@@ -177,7 +207,7 @@ suite(
       func() {
         let state = makeState();
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_OWNER");
-        switch (ApprovalModel.validate(state, code, "U_OTHER", Set.empty())) {
+        switch (ApprovalModel.approve(state, code, "U_OTHER", Set.empty())) {
           case (#ok(_)) { expect.bool(false).isTrue() }; // unexpected success
           case (#err(_)) {};
         };
@@ -185,13 +215,13 @@ suite(
     );
 
     test(
-      "rejects already-used code",
+      "rejects already-approved code",
       func() {
         let state = makeState();
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
-        ignore ApprovalModel.validate(state, code, "U_REQ", Set.empty());
-        // Second call: already #used
-        switch (ApprovalModel.validate(state, code, "U_REQ", Set.empty())) {
+        ignore ApprovalModel.approve(state, code, "U_REQ", Set.empty());
+        // Second call: already #approved
+        switch (ApprovalModel.approve(state, code, "U_REQ", Set.empty())) {
           case (#ok(_)) { expect.bool(false).isTrue() }; // unexpected success
           case (#err(_)) {};
         };
@@ -205,10 +235,10 @@ suite(
         // workspaceId = 1 comes from the request() call below.
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_OWNER");
         let adminSet = Set.fromIter([1].values(), Nat.compare);
-        switch (ApprovalModel.validate(state, code, "U_ADMIN", adminSet)) {
+        switch (ApprovalModel.approve(state, code, "U_ADMIN", adminSet)) {
           case (#err(_)) { expect.bool(false).isTrue() }; // unexpected error
           case (#ok(record)) {
-            expect.bool(switch (record.status) { case (#used) true; case _ false }).isTrue();
+            expect.bool(switch (record.status) { case (#approved) true; case _ false }).isTrue();
           };
         };
       },
@@ -219,7 +249,7 @@ suite(
       func() {
         let state = makeState();
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_OWNER");
-        switch (ApprovalModel.validate(state, code, "U_ADMIN", Set.empty())) {
+        switch (ApprovalModel.approve(state, code, "U_ADMIN", Set.empty())) {
           case (#ok(_)) { expect.bool(false).isTrue() }; // unexpected success
           case (#err(_)) {};
         };
@@ -233,20 +263,7 @@ suite(
         // Record has workspaceId = 1; admin set contains 99 — no match.
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_OWNER");
         let adminSet = Set.fromIter([99].values(), Nat.compare);
-        switch (ApprovalModel.validate(state, code, "U_ADMIN", adminSet)) {
-          case (#ok(_)) { expect.bool(false).isTrue() }; // unexpected success
-          case (#err(_)) {};
-        };
-      },
-    );
-
-    test(
-      "rejects expired code",
-      func() {
-        let state = makeState();
-        let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
-        ApprovalModel.expire(state, code);
-        switch (ApprovalModel.validate(state, code, "U_REQ", Set.empty())) {
+        switch (ApprovalModel.approve(state, code, "U_ADMIN", adminSet)) {
           case (#ok(_)) { expect.bool(false).isTrue() }; // unexpected success
           case (#err(_)) {};
         };
@@ -263,14 +280,14 @@ suite(
   "deny",
   func() {
     test(
-      "succeeds and marks record #expired for correct user",
+      "succeeds and marks record #denied for correct user",
       func() {
         let state = makeState();
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
         switch (ApprovalModel.deny(state, code, "U_REQ", Set.empty())) {
           case (#err(_)) { expect.bool(false).isTrue() }; // unexpected error
           case (#ok(record)) {
-            expect.bool(switch (record.status) { case (#expired) true; case _ false }).isTrue();
+            expect.bool(switch (record.status) { case (#denied) true; case _ false }).isTrue();
           };
         };
       },
@@ -285,7 +302,7 @@ suite(
         switch (ApprovalModel.deny(state, code, "U_ADMIN", adminSet)) {
           case (#err(_)) { expect.bool(false).isTrue() }; // unexpected error
           case (#ok(record)) {
-            expect.bool(switch (record.status) { case (#expired) true; case _ false }).isTrue();
+            expect.bool(switch (record.status) { case (#denied) true; case _ false }).isTrue();
           };
         };
       },
@@ -315,11 +332,11 @@ suite(
     );
 
     test(
-      "rejects already-expired code",
+      "rejects already-denied code",
       func() {
         let state = makeState();
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
-        ApprovalModel.expire(state, code);
+        ignore ApprovalModel.deny(state, code, "U_REQ", Set.empty());
         switch (ApprovalModel.deny(state, code, "U_REQ", Set.empty())) {
           case (#ok(_)) { expect.bool(false).isTrue() }; // unexpected success
           case (#err(_)) {};
@@ -328,11 +345,11 @@ suite(
     );
 
     test(
-      "rejects already-used code",
+      "rejects already-approved code",
       func() {
         let state = makeState();
         let code = ApprovalModel.request(state, "deploy", "{}", 1, 2, "1_0", "U_REQ");
-        ignore ApprovalModel.validate(state, code, "U_REQ", Set.empty());
+        ignore ApprovalModel.approve(state, code, "U_REQ", Set.empty());
         switch (ApprovalModel.deny(state, code, "U_REQ", Set.empty())) {
           case (#ok(_)) { expect.bool(false).isTrue() }; // unexpected success
           case (#err(_)) {};
@@ -357,13 +374,13 @@ suite(
         switch (ApprovalModel.findByCode(state, code)) {
           case (null) { expect.bool(false).isTrue() };
           case (?record) {
-            record.status := #used;
-            expect.bool(switch (record.status) { case (#used) true; case _ false }).isTrue();
+            record.status := #approved;
+            expect.bool(switch (record.status) { case (#approved) true; case _ false }).isTrue();
             // Verify it's visible via a fresh lookup (same mutable ref)
             switch (ApprovalModel.findByCode(state, code)) {
               case (null) { expect.bool(false).isTrue() };
               case (?r2) {
-                expect.bool(switch (r2.status) { case (#used) true; case _ false }).isTrue();
+                expect.bool(switch (r2.status) { case (#approved) true; case _ false }).isTrue();
               };
             };
           };

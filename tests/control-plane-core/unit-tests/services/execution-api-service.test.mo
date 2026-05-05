@@ -1,5 +1,6 @@
 import { test; suite; expect } "mo:test";
 import Int "mo:core/Int";
+import Json "mo:json";
 import Nat "mo:core/Nat";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
@@ -8,6 +9,7 @@ import ExecutionEnvelopeModel "../../../../src/control-plane-core/models/executi
 import ExecutionTypes "../../../../src/control-plane-core/types/execution";
 import WorkspaceModel "../../../../src/control-plane-core/models/workspace-model";
 import AgentModel "../../../../src/control-plane-core/models/agent-model";
+import ApprovalModel "../../../../src/control-plane-core/models/approval-model";
 import EventStoreModel "../../../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../../../src/control-plane-core/models/session-model";
 
@@ -44,6 +46,7 @@ func mkDeps(
     envelopeState = store;
     workspaces = ws;
     agentRegistry = agents;
+    approvalState = ApprovalModel.emptyState();
     eventStore = EventStoreModel.empty();
     sessionStores = SessionModel.emptyStores();
   };
@@ -77,6 +80,25 @@ func isOk(r : ExecutionTypes.HandleResult) : Bool {
 };
 
 func isErr(r : ExecutionTypes.HandleResult) : Bool { not isOk(r) };
+
+/// Extracts the `type` field from a HandleResult #err JSON body.
+/// Returns empty string if the result is not an error or the body cannot be parsed.
+func errType(r : ExecutionTypes.HandleResult) : Text {
+  switch (r.response) {
+    case (#ok(_)) { "" };
+    case (#err(body)) {
+      switch (Json.parse(body)) {
+        case (#err(_)) { "" };
+        case (#ok(parsed)) {
+          switch (Json.get(parsed, "type")) {
+            case (?#string(t)) { t };
+            case (_) { "" };
+          };
+        };
+      };
+    };
+  };
+};
 
 // ============================================
 // Auth guard — invalid / missing token
@@ -257,11 +279,146 @@ suite(
   "DELETE /workspace/{id}",
   func() {
     test(
-      "org admin + write scope can delete ws 1",
+      "org admin + write scope + approved code can delete ws 1",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let approvalState = ApprovalModel.emptyState();
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 0, [#workspace({ access = #write })]).nonce;
+        let code = ApprovalModel.request(approvalState, "workspace_delete", "{}", 1, 0, "turn_1", "U_ADMIN");
+        ignore ApprovalModel.approve(approvalState, code, "U_ADMIN", Set.empty());
+        let svc = ExecutionApiService.Service({
+          envelopeState = store;
+          workspaces = ws;
+          agentRegistry = agents;
+          approvalState;
+          eventStore = EventStoreModel.empty();
+          sessionStores = SessionModel.emptyStores();
+        });
+        let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\",\"approvalCode\":\"" # code # "\"}");
+        expect.bool(isOk(r)).isTrue();
+      },
+    );
+
+    test(
+      "missing approvalCode is rejected with approvalRequired",
       func() {
         let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 0);
         let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\"}");
-        expect.bool(isOk(r)).isTrue();
+        expect.bool(isErr(r)).isTrue();
+        expect.text(errType(r)).equal("approvalRequired");
+      },
+    );
+
+    test(
+      "unknown approvalCode is rejected with approvalInvalid",
+      func() {
+        let (_, _, _, svc, nonce) = issue([#workspace({ access = #write })], 0);
+        let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\",\"approvalCode\":\"nonexistent\"}");
+        expect.bool(isErr(r)).isTrue();
+        expect.text(errType(r)).equal("approvalInvalid");
+      },
+    );
+
+    test(
+      "pending approvalCode is rejected with approvalInvalid",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let approvalState = ApprovalModel.emptyState();
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 0, [#workspace({ access = #write })]).nonce;
+        let code = ApprovalModel.request(approvalState, "workspace_delete", "{}", 1, 0, "turn_1", "U_ADMIN");
+        // code remains #pending — not approved
+        let svc = ExecutionApiService.Service({
+          envelopeState = store;
+          workspaces = ws;
+          agentRegistry = agents;
+          approvalState;
+          eventStore = EventStoreModel.empty();
+          sessionStores = SessionModel.emptyStores();
+        });
+        let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\",\"approvalCode\":\"" # code # "\"}");
+        expect.bool(isErr(r)).isTrue();
+        expect.text(errType(r)).equal("approvalInvalid");
+      },
+    );
+
+    test(
+      "denied approvalCode is rejected with approvalInvalid",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let approvalState = ApprovalModel.emptyState();
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 0, [#workspace({ access = #write })]).nonce;
+        let code = ApprovalModel.request(approvalState, "workspace_delete", "{}", 1, 0, "turn_1", "U_ADMIN");
+        switch (ApprovalModel.deny(approvalState, code, "U_ADMIN", Set.fromArray([0], Nat.compare))) {
+          case (#ok(_)) {};
+          case (#err(_)) { assert false };
+        };
+        let svc = ExecutionApiService.Service({
+          envelopeState = store;
+          workspaces = ws;
+          agentRegistry = agents;
+          approvalState;
+          eventStore = EventStoreModel.empty();
+          sessionStores = SessionModel.emptyStores();
+        });
+        let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\",\"approvalCode\":\"" # code # "\"}");
+        expect.bool(isErr(r)).isTrue();
+        expect.text(errType(r)).equal("approvalInvalid");
+      },
+    );
+
+    test(
+      "approvalCode for wrong workspaceId is rejected with approvalMismatch",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let approvalState = ApprovalModel.emptyState();
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 0, [#workspace({ access = #write })]).nonce;
+        // Code is for workspace 99, not workspace 1
+        let code = ApprovalModel.request(approvalState, "workspace_delete", "{}", 99, 0, "turn_1", "U_ADMIN");
+        ignore ApprovalModel.approve(approvalState, code, "U_ADMIN", Set.empty());
+        let svc = ExecutionApiService.Service({
+          envelopeState = store;
+          workspaces = ws;
+          agentRegistry = agents;
+          approvalState;
+          eventStore = EventStoreModel.empty();
+          sessionStores = SessionModel.emptyStores();
+        });
+        let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\",\"approvalCode\":\"" # code # "\"}");
+        expect.bool(isErr(r)).isTrue();
+        expect.text(errType(r)).equal("approvalMismatch");
+      },
+    );
+
+    test(
+      "approvalCode for wrong workflowName is rejected with approvalMismatch",
+      func() {
+        let store = ExecutionEnvelopeModel.emptyState();
+        let ws = freshWorkspaces();
+        let agents = AgentModel.emptyState();
+        let approvalState = ApprovalModel.emptyState();
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 0, [#workspace({ access = #write })]).nonce;
+        // Code is for a different workflow
+        let code = ApprovalModel.request(approvalState, "other_workflow", "{}", 1, 0, "turn_1", "U_ADMIN");
+        ignore ApprovalModel.approve(approvalState, code, "U_ADMIN", Set.empty());
+        let svc = ExecutionApiService.Service({
+          envelopeState = store;
+          workspaces = ws;
+          agentRegistry = agents;
+          approvalState;
+          eventStore = EventStoreModel.empty();
+          sessionStores = SessionModel.emptyStores();
+        });
+        let r = svc.handleRequest(#delete, "/workspace/1", "{\"envelopeNonce\":\"" # nonce # "\",\"approvalCode\":\"" # code # "\"}");
+        expect.bool(isErr(r)).isTrue();
+        expect.text(errType(r)).equal("approvalMismatch");
       },
     );
 
@@ -897,6 +1054,7 @@ suite(
           envelopeState = store;
           workspaces = ws;
           agentRegistry = agents;
+          approvalState = ApprovalModel.emptyState();
           eventStore = EventStoreModel.empty();
           sessionStores = sessions;
         };

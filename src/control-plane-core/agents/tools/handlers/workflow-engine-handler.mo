@@ -283,7 +283,7 @@ module {
         if (record.agentId != envelopeContext.agent.id) return false;
         if (record.requestedByUserId != requestedByUserId) return false;
         switch (record.status) {
-          case (#used) { true };
+          case (#approved) { true };
           case (_) { false };
         };
       };

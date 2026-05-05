@@ -14,8 +14,8 @@ module {
 
   public type ApprovalStatus = {
     #pending;
-    #used;
-    #expired;
+    #approved;
+    #denied;
   };
 
   public type ApprovalRecord = {
@@ -27,7 +27,6 @@ module {
     turnId : Text;
     requestedByUserId : Text;
     requestedAt : Int;
-    expiresAtNs : Int;
     var status : ApprovalStatus;
   };
 
@@ -71,7 +70,6 @@ module {
       turnId;
       requestedByUserId;
       requestedAt = now;
-      expiresAtNs = now + Constants.APPROVAL_TTL_NS;
       var status = #pending;
     };
     Map.add(state.approvals, Text.compare, code, record);
@@ -83,14 +81,33 @@ module {
     Map.get(state.approvals, Text.compare, code);
   };
 
-  /// Validate an approval code: must exist, be #pending, and be authorized.
+  /// Returns the absolute nanosecond deadline for the human approval window.
+  /// After this timestamp, the record can no longer be approved or denied.
+  public func approvalWindowDeadline(record : ApprovalRecord) : Int {
+    record.requestedAt + Constants.APPROVAL_TTL_NS;
+  };
+
+  /// Returns true when the human approval window has passed (requestedAt + TTL).
+  /// After this point, the record can no longer be approved or denied.
+  public func isApprovalWindowExpired(record : ApprovalRecord, now : Int) : Bool {
+    now > record.requestedAt + Constants.APPROVAL_TTL_NS;
+  };
+
+  /// Returns true when the execution window has passed (requestedAt + 2 × TTL).
+  /// After this point, the internal engine can no longer use an #approved record.
+  public func isExecutionWindowExpired(record : ApprovalRecord, now : Int) : Bool {
+    now > record.requestedAt + (2 * Constants.APPROVAL_TTL_NS);
+  };
+
+  /// Approve an approval code: must exist, be #pending, within the approval window,
+  /// and be authorized.
   ///
   /// Authorized when either:
   ///   - `userId` is the original requester, OR
   ///   - `adminWorkspaces` contains the workspace ID on the approval record.
   ///
-  /// On success marks the record #used and returns it.
-  public func validate(
+  /// On success marks the record #approved and returns it.
+  public func approve(
     state : ApprovalState,
     code : Text,
     userId : Text,
@@ -100,15 +117,16 @@ module {
       case (null) { #err("Invalid approval code.") };
       case (?record) {
         switch (record.status) {
-          case (#expired) {
-            #err("This approval code has expired. Please request the agent to run the workflow again.");
-          };
-          case (#used) { #err("This approval code has already been used.") };
+          case (#approved) { #err("This workflow has already been approved.") };
+          case (#denied) { #err("This workflow was denied.") };
           case (#pending) {
+            if (isApprovalWindowExpired(record, Time.now())) {
+              return #err("This approval code has expired. Please request the agent to run the workflow again.");
+            };
             if (record.requestedByUserId != userId and not Set.contains(adminWorkspaces, Nat.compare, record.workspaceId)) {
               return #err("Only the original requester or a workspace admin can approve this workflow.");
             };
-            record.status := #used;
+            record.status := #approved;
             #ok(record);
           };
         };
@@ -116,13 +134,14 @@ module {
     };
   };
 
-  /// Deny an approval code: must exist, be #pending, and be authorized.
+  /// Deny an approval code: must exist, be #pending, within the approval window,
+  /// and be authorized.
   ///
   /// Authorized when either:
   ///   - `userId` is the original requester, OR
   ///   - `adminWorkspaces` contains the workspace ID on the approval record.
   ///
-  /// On success marks the record #expired and returns it.
+  /// On success marks the record #denied and returns it.
   public func deny(
     state : ApprovalState,
     code : Text,
@@ -133,27 +152,20 @@ module {
       case (null) { #err("Invalid approval code.") };
       case (?record) {
         switch (record.status) {
-          case (#expired) {
-            #err("This approval code has expired. Please request the agent to run the workflow again.");
-          };
-          case (#used) { #err("This approval code has already been used.") };
+          case (#approved) { #err("This workflow has already been approved.") };
+          case (#denied) { #err("This workflow was already denied.") };
           case (#pending) {
+            if (isApprovalWindowExpired(record, Time.now())) {
+              return #err("This approval code has expired, no need for further action.");
+            };
             if (record.requestedByUserId != userId and not Set.contains(adminWorkspaces, Nat.compare, record.workspaceId)) {
               return #err("Only the original requester or a workspace admin can deny this workflow.");
             };
-            record.status := #expired;
+            record.status := #denied;
             #ok(record);
           };
         };
       };
-    };
-  };
-
-  /// Mark an approval code as expired. Called by the TTL timer (5.2.1.1).
-  public func expire(state : ApprovalState, code : Text) {
-    switch (Map.get(state.approvals, Text.compare, code)) {
-      case (null) {};
-      case (?record) { record.status := #expired };
     };
   };
 

@@ -150,6 +150,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     envelopeState = testExecEnvelopeState;
     workspaces = testWorkspacesState;
     agentRegistry = testAgentRegistry;
+    approvalState = ApprovalModel.emptyState();
     eventStore = testEventStore;
     sessionStores = testDispatchSessionStores;
   });
@@ -163,6 +164,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     envelopeState = testEffectEnvelopeState;
     workspaces = testWorkspacesState;
     agentRegistry = testEffectAgentRegistry;
+    approvalState = ApprovalModel.emptyState();
     eventStore = testEventStore;
     sessionStores = testEffectSessionStores;
   });
@@ -950,8 +952,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (?record) {
         let statusText = switch (record.status) {
           case (#pending) { "pending" };
-          case (#used) { "used" };
-          case (#expired) { "expired" };
+          case (#approved) { "approved" };
+          case (#denied) { "denied" };
         };
         ?statusText;
       };
@@ -2273,7 +2275,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     // When preApprove=true: generate + validate a code so handle() proceeds to dispatch.
     let actualArgs : Text = if (preApprove) {
       let code = ApprovalModel.request(approvalState, approvalWorkflowName, "{}", 0, 0, testTurnId, testUserId);
-      ignore ApprovalModel.validate(approvalState, code, testUserId, Set.empty());
+      ignore ApprovalModel.approve(approvalState, code, testUserId, Set.empty());
       Json.stringify(obj([("approvalCode", str(code))]), null);
     } else {
       args;

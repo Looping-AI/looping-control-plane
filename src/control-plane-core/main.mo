@@ -89,6 +89,7 @@ persistent actor class OpenOrgBackend() {
     envelopeState = executionEnvelopeState;
     workspaces;
     agentRegistry;
+    approvalState;
     eventStore;
     sessionStores;
   });

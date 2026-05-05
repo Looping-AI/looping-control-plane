@@ -548,10 +548,7 @@ module {
     // the denial has already been handled — no-op.
     // resumeFromApproval atomically checks #awaitingApproval and flips to #running.
     let suspension = switch (SessionModel.resumeFromApproval(deps.sessionStores, turnId)) {
-      case (#ok({ suspension; approvalCode })) {
-        // Mark the approval record #expired synchronously so it cannot be re-processed
-        // by a subsequent button click or periodic scanner pass.
-        ApprovalModel.expire(deps.approvalState, approvalCode);
+      case (#ok({ suspension; approvalCode = _ })) {
         suspension;
       };
       case (#err(_)) { return };
