@@ -261,7 +261,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (null) { false };
     };
     if (not versionOk) {
-      return #err("{\"envelopeVersionRequired\":\"" # requiredVersion # "\"}");
+      return #err(Json.stringify(obj([("type", str("versionMismatch")), ("message", str("Envelope version mismatch. Engine requires: " # requiredVersion # ".")), ("envelopeVersionRequired", str(requiredVersion))]), null));
     };
 
     let hasApiKey = Array.find<(Text, Text)>(

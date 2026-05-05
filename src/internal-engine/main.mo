@@ -77,14 +77,14 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
     };
 
     // Version check — reject envelopes with an unknown or missing dispatchedVersion.
-    // Error body follows the shared JSON protocol so HTTP engines can use the same contract:
-    //   {"envelopeVersionRequired":"v1"}
+    // Error body follows the shared JSON protocol: {"type":"versionMismatch","message":"...","envelopeVersionRequired":"v1"}
+    // The extra "envelopeVersionRequired" field lets Core parse the required version for automatic retry.
     let versionOk = switch (envelope.dispatchedVersion) {
       case (?v) { v == envelopeVersion };
       case (null) { false };
     };
     if (not versionOk) {
-      return #err(Json.stringify(obj([("envelopeVersionRequired", str(envelopeVersion))]), null));
+      return #err(Json.stringify(obj([("type", str("versionMismatch")), ("message", str("Envelope version mismatch. Engine requires: " # envelopeVersion # ".")), ("envelopeVersionRequired", str(envelopeVersion))]), null));
     };
 
     // Catalog hash check — Core must always send the hash it received from listWorkflows().
@@ -113,14 +113,14 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
       func(kv : (Text, Text)) : Bool { kv.0 == "openrouter" },
     ) != null;
     if (not hasApiKey) {
-      return #err("Missing 'openrouter' API key in envelope secrets");
+      return executeError("missingApiKey", "Missing 'openrouter' API key in envelope secrets.");
     };
 
     // Build run record and enqueue
     let record = RunHelpers.fromEnvelope(envelope, Time.now());
     switch (RunStoreModel.enqueue(runStore, record)) {
       case (#duplicate) {
-        return #err("Duplicate envelopeId: " # Nat.toText(envelope.envelopeId));
+        return executeError("duplicateEnvelopeId", "Duplicate envelopeId: " # Nat.toText(envelope.envelopeId));
       };
       case (#ok) {};
     };
