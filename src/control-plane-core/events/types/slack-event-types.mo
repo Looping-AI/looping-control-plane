@@ -174,7 +174,20 @@ module {
     #url_verification : SlackUrlVerification;
     #event_callback : SlackEventCallback;
     #app_rate_limited : SlackAppRateLimitedEvent;
+    #block_actions : BlockActionsPayload; // Interactive component payload (button clicks)
     #unknown : Text; // Unrecognized envelope type
+  };
+
+  /// Parsed payload from a Slack Block Kit interactive component action.
+  /// Extracted from the URL-encoded `payload=<json>` body sent by Slack
+  /// when a user clicks a button in a Block Kit message.
+  public type BlockActionsPayload = {
+    userId : Text; // Slack user ID of the user who clicked the button
+    actionId : Text; // action_id of the clicked button (e.g. "approve_workflow")
+    actionValue : Text; // value of the clicked button (e.g. the approval code)
+    messageTs : Text; // ts of the original Block Kit message
+    channelId : Text; // channel ID where the message lives
+    responseUrl : Text; // Slack response_url — authenticated POST target for async message updates (valid 30 min)
   };
 
   /// member_joined_channel event — fired when a user joins a channel

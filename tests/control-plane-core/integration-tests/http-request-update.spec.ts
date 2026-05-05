@@ -525,4 +525,33 @@ describe("Slack Webhook", () => {
       );
     });
   });
+
+  // ============================================
+  // block_actions
+  // ============================================
+
+  describe("block_actions", () => {
+    it("should return 200 for a valid block_actions payload with correct HMAC", async () => {
+      const payload = JSON.stringify({
+        type: "block_actions",
+        user: { id: "U_CLICKER" },
+        message: { ts: "1700000010.000001" },
+        channel: { id: "C_CHAN" },
+        actions: [{ action_id: "approve_workflow", value: "a".repeat(64) }],
+        response_url: "https://hooks.slack.com/actions/test",
+      });
+      const body = `payload=${encodeURIComponent(payload)}`;
+      const response = await sendSignedWebhook(actor, body);
+      expect(response.status_code).toBe(200);
+      expect(decodeBody(response)).toBe("");
+    });
+
+    it("should return 400 for a payload= body with unparseable JSON", async () => {
+      // parseEnvelope fails before signature verification — Slack should not send garbage,
+      // so returning 400 (not retrying) is the correct behaviour.
+      const body = "payload=%ZZnot_valid_json";
+      const response = await sendSignedWebhook(actor, body);
+      expect(response.status_code).toBe(400);
+    });
+  });
 });

@@ -16,7 +16,11 @@ import Int "mo:core/Int";
 import Float "mo:core/Float";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
+import Timer "mo:core/Timer";
+import Runtime "mo:core/Runtime";
+import Result "mo:core/Result";
 import Constants "../constants";
+import Types "../types";
 import SlackAuthMiddleware "../middleware/slack-auth-middleware";
 
 module {
@@ -45,9 +49,20 @@ module {
     var policy : SessionPolicy;
   };
 
+  /// Suspension data captured when a turn is suspended waiting for an async workflow result.
+  /// Stored inside TurnStatus so the checkpoint is co-located with the turn state.
+  public type SuspensionData = Types.SuspensionData;
+
   public type TurnStatus = {
     #running;
-    #pending;
+    #awaitingWorkflow : SuspensionData; // dispatched to engine, waiting for #complete
+    #awaitingApproval : {
+      // waiting for human approval of a workflow call
+      suspension : SuspensionData;
+      approvalCode : Text;
+      expiresAtNs : Int; // Time.now() + APPROVAL_TTL_NS, set when approval is requested
+      var timerId : ?Timer.TimerId; // one-shot TTL timer id; null until armed
+    };
     #succeeded;
     #failed;
   };
@@ -216,17 +231,6 @@ module {
     turn;
   };
 
-  /// Mark a turn as pending (dispatched to engine, awaiting completion).
-  public func markPending(
-    stores : SessionStores,
-    turnId : Text,
-  ) : () {
-    switch (findTurn(stores, turnId)) {
-      case (null) {};
-      case (?turn) { turn.status := #pending };
-    };
-  };
-
   /// Finalize a turn with terminal status, cost, and optional error summary.
   /// The status must be terminal (#succeeded or #failed), never #running or #pending.
   /// Traps if status is non-terminal (developer error).
@@ -237,7 +241,12 @@ module {
     cost : ?TurnCost,
     errorSummary : ?Text,
   ) : () {
-    assert status == #succeeded or status == #failed;
+    switch (status) {
+      case (#succeeded or #failed) {};
+      case (_) {
+        Runtime.trap("completeTurn: status must be terminal (#succeeded or #failed)");
+      };
+    };
     switch (findTurn(stores, turnId)) {
       case (null) {};
       case (?turn) {
@@ -245,6 +254,132 @@ module {
         turn.completedAtNs := ?Time.now();
         turn.cost := cost;
         turn.errorSummary := errorSummary;
+      };
+    };
+  };
+
+  /// Transition a turn to `#awaitingWorkflow`. Valid from any non-terminal status.
+  /// Returns `#err` if the turn is not found or is already terminal.
+  public func suspendForWorkflow(
+    stores : SessionStores,
+    turnId : Text,
+    suspension : SuspensionData,
+  ) : Result.Result<(), Text> {
+    switch (findTurn(stores, turnId)) {
+      case null { #err("Turn not found: " # turnId) };
+      case (?turn) {
+        switch (turn.status) {
+          case (#succeeded or #failed) {
+            #err("Cannot suspend a terminal turn: " # turnId);
+          };
+          case (_) {
+            turn.status := #awaitingWorkflow(suspension);
+            #ok(());
+          };
+        };
+      };
+    };
+  };
+
+  /// Transition a turn to `#awaitingApproval`. Valid from any non-terminal status.
+  /// Returns `#err` if the turn is not found or is already terminal.
+  public func suspendForApproval(
+    stores : SessionStores,
+    turnId : Text,
+    suspension : SuspensionData,
+    approvalCode : Text,
+    expiresAtNs : Int,
+  ) : Result.Result<(), Text> {
+    switch (findTurn(stores, turnId)) {
+      case null { #err("Turn not found: " # turnId) };
+      case (?turn) {
+        switch (turn.status) {
+          case (#succeeded or #failed) {
+            #err("Cannot suspend a terminal turn: " # turnId);
+          };
+          case (_) {
+            turn.status := #awaitingApproval({
+              suspension;
+              approvalCode;
+              expiresAtNs;
+              var timerId = null;
+            });
+            #ok(());
+          };
+        };
+      };
+    };
+  };
+
+  /// Set the timer ID on an `#awaitingApproval` turn after the timer has been armed.
+  /// Returns `#err` if the turn is not found or is not in `#awaitingApproval` status.
+  public func setApprovalTimerId(
+    stores : SessionStores,
+    turnId : Text,
+    timerId : Timer.TimerId,
+  ) : Result.Result<(), Text> {
+    switch (findTurn(stores, turnId)) {
+      case null { #err("Turn not found: " # turnId) };
+      case (?turn) {
+        switch (turn.status) {
+          case (#awaitingApproval(data)) {
+            data.timerId := ?timerId;
+            #ok(());
+          };
+          case (_) {
+            #err("Turn " # turnId # " is not #awaitingApproval — cannot set timer ID");
+          };
+        };
+      };
+    };
+  };
+
+  /// Transition a turn from `#awaitingWorkflow` to `#running`.
+  /// One-shot guard: returns `#err` (without mutating) if the turn is not in
+  /// `#awaitingWorkflow`, so duplicate event deliveries are safely ignored.
+  public func resumeFromWorkflow(
+    stores : SessionStores,
+    turnId : Text,
+  ) : Result.Result<SuspensionData, Text> {
+    switch (findTurn(stores, turnId)) {
+      case null { #err("Turn not found: " # turnId) };
+      case (?turn) {
+        switch (turn.status) {
+          case (#awaitingWorkflow(suspension)) {
+            turn.status := #running;
+            #ok(suspension);
+          };
+          case (_) {
+            #err("Turn " # turnId # " is not #awaitingWorkflow — cannot resume");
+          };
+        };
+      };
+    };
+  };
+
+  /// Transition a turn from `#awaitingApproval` to `#running`.
+  /// Returns the suspension data and approval code so the caller can call
+  /// `ApprovalModel.expire` independently (models remain decoupled).
+  /// Returns `#err` (without mutating) if the turn is not in `#awaitingApproval`.
+  public func resumeFromApproval(
+    stores : SessionStores,
+    turnId : Text,
+  ) : Result.Result<{ suspension : SuspensionData; approvalCode : Text }, Text> {
+    switch (findTurn(stores, turnId)) {
+      case null { #err("Turn not found: " # turnId) };
+      case (?turn) {
+        switch (turn.status) {
+          case (#awaitingApproval(data)) {
+            turn.status := #running;
+            #ok({
+              suspension = data.suspension;
+              approvalCode = data.approvalCode;
+            });
+          };
+          case (_) {
+            #err("Turn " # turnId # " is not #awaitingApproval — cannot resume");
+          };
+        };
       };
     };
   };

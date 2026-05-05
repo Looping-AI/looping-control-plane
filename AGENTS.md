@@ -119,6 +119,17 @@ Steps:
 ## Motoko Conventions
 
 - **Model function parameter order**: all model functions must place the state/collection parameter **first**. This aligns with `mo:core` idioms (e.g. `Map.get(map, compare, key)`) and makes partial application natural.
+- **`Nat` is a subtype of `Int`** (`Nat <: Int`): a `Nat` value can be passed wherever an `Int` is expected. Do not add explicit casts or conversions when a function parameter is typed `Int` and the caller has a `Nat` — it is already valid.
+
+### Tool and ExecutionApi Response Contract
+
+All tool handlers (`ToolCallOutcome`) and the `executionApi` endpoint must produce structured JSON responses:
+
+- **`#ok : Text`** — a meaningful JSON result. Never include a `"success": true` wrapper key.
+- **`#err : Text`** — always `{"type":"camelCaseIdentifier","message":"Human readable sentence."}`. **Never a plain string.**
+  - `type`: stable programmatic camelCase identifier (e.g. `"parseError"`, `"unauthorized"`, `"missingField"`).
+  - `message`: human-readable sentence.
+- Variant names are `#ok`/`#err` (not `#success`/`#error`) to align with the ICP `Result` pattern.
 
 ### Guard Rails vs Service Logic
 

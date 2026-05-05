@@ -78,7 +78,7 @@ describe("EngineDispatchService", () => {
 
   describe("version negotiation", () => {
     it("succeeds after correcting a stale cached version and updates knownEngineVersions", async () => {
-      // Seed "v0" → engine rejects with {"envelopeVersionRequired":"v1"}
+      // Seed "v0" → engine rejects with {"type":"versionMismatch","envelopeVersionRequired":"v1"}
       // → service stores "v1" in knownEngineVersions and retries → engine accepts
       const result = await testCanister.testEngineDispatchService(
         seed("v0"),
@@ -97,7 +97,7 @@ describe("EngineDispatchService", () => {
 
   describe("error propagation", () => {
     it("propagates a non-version engine error directly (no retry)", async () => {
-      // Missing API key → engine returns a plain error, not a version-mismatch JSON
+      // Missing API key → engine returns a structured error, not a version-mismatch JSON
       // → service passes it through without retrying
       const result = await testCanister.testEngineDispatchService(
         NO_SEED,

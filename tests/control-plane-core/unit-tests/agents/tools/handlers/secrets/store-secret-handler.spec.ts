@@ -35,7 +35,26 @@ function parseResponse(json: string): {
   message?: string;
   error?: string;
 } {
-  return JSON.parse(json);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  // Two error shapes:
+  //   handler error  → { type: string, message: string }  (from HandlerHelpers.makeError)
+  //   wrapper error  → { success: false, error: string }  (from test-canister workspaceId guard)
+  const isError = "type" in parsed || parsed["success"] === false;
+  const errorText = isError
+    ? typeof parsed["error"] === "string"
+      ? (parsed["error"] as string)
+      : typeof parsed["message"] === "string"
+        ? (parsed["message"] as string)
+        : undefined
+    : undefined;
+  return {
+    success: !isError,
+    message:
+      !isError && typeof parsed["message"] === "string"
+        ? (parsed["message"] as string)
+        : undefined,
+    error: errorText,
+  };
 }
 
 const NO_AUTH = {
@@ -358,10 +377,8 @@ describe("StoreSecretHandler", () => {
         PRIMARY_OWNER,
       );
       const listResponse = JSON.parse(listResult) as {
-        success: boolean;
         secretIds: string[];
       };
-      expect(listResponse.success).toBe(true);
       expect(listResponse.secretIds).toHaveLength(1);
     });
 

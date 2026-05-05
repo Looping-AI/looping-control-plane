@@ -3,7 +3,6 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
-import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import SecretModel "../../../../src/control-plane-core/models/secret-model";
@@ -72,7 +71,7 @@ func makeAgentOnWorkspace(wsId : Nat) : AgentModel.AgentRecord {
       name = "test-agent";
       model = "openai/gpt-oss-120b";
       allowedChannelIds = Set.singleton<Text>("C_TEST");
-      executionEngines = [#canister];
+      workflowEngines = [#canister];
       secrets = {
         allowed = [(wsId, #openRouterApiKey)];
         overrides = [];
@@ -402,7 +401,7 @@ func makeAgentWithOverrides(secretOverrides : [(Types.SecretId, Text)]) : AgentM
       name = "test-agent";
       model = "openai/gpt-oss-120b";
       allowedChannelIds = Set.singleton<Text>("C_TEST");
-      executionEngines = [#canister];
+      workflowEngines = [#canister];
       secrets = {
         allowed = [(1, #openRouterApiKey)];
         overrides = secretOverrides;

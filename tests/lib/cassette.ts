@@ -35,7 +35,6 @@ export {
   handleWithCassette,
   createCassetteContext,
   generateCassetteName,
-  shouldSkipWithoutCassette,
   type CassetteOptions,
   type CassetteResult,
   type CassetteContext,

@@ -1,7 +1,10 @@
 import AgentModel "../../models/agent-model";
+import SessionModel "../../models/session-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
+import WorkflowCatalogModel "../../models/workflow-catalog-model";
+import ApprovalModel "../../models/approval-model";
 import ExecutionTypes "../../types/execution";
 import InternalEngine "../../../internal-engine/main";
 
@@ -19,8 +22,31 @@ module {
 
   /// Outcome of a tool call execution
   public type ToolCallOutcome = {
-    #success : Text; // JSON string result
-    #error : Text; // Error message
+    #ok : Text; // JSON string result
+    #err : Text; // Structured JSON error: {"type":"camelCase","message":"..."}
+  };
+
+  // ============================================
+  // Engine Dispatch Types
+  // ============================================
+
+  /// Engine dispatch resources — envelope state, pre-resolved engine actor, catalog state, and approval state.
+  /// Passed to workflow tools so they can issue envelopes and dispatch to the engine.
+  public type EngineDispatch = {
+    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+    internalEngine : InternalEngine.InternalEngine;
+    catalogState : WorkflowCatalogModel.CatalogState;
+    approvalState : ApprovalModel.ApprovalState;
+  };
+
+  /// Per-turn envelope context needed to build an ExecutionEnvelope.
+  /// All fields map directly onto EnvelopePayload fields — nothing else.
+  public type EnvelopeContext = {
+    agent : AgentModel.AgentRecord;
+    turnId : Text;
+    instructions : Text;
+    messages : [ExecutionTypes.ChatMessage];
+    apiKey : Text;
   };
 
   // ============================================
@@ -47,15 +73,11 @@ module {
     // Required for authorization checks in workspace-management write tools.
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext;
 
-    // The verbatim text of the Slack message that triggered this agent turn.
-    // Set by the agent from channel history before building ToolResources.
-    // Used by destructive operations to verify explicit user confirmation.
-    triggerMessageText : ?Text;
-
-    // Workspace name resolver — returns the name of a workspace by ID.
-    // Used by destructive operations (e.g. deleteWorkspace) to verify the user
-    // confirmed the correct workspace by name.
-    resolveWorkspaceName : ?(Nat -> ?Text);
+    // Source reference for the turn (Slack channel + ts + threadTs).
+    // Used by workflow tools that need to post back to the originating thread
+    // (e.g. approval prompt). Separate from EnvelopeContext because it is not
+    // part of the engine payload.
+    sourceRef : ?SessionModel.SourceRef;
 
     // Secrets store - if provided, secrets-management tools are available.
     // write=true enables store_secret and delete_secret.
@@ -66,21 +88,12 @@ module {
       write : Bool;
     };
 
-    // Engine dispatch resources — if provided, dispatch_workflow tool is available.
+    // Engine dispatch resources — if provided, workflow engine tools are available.
     // Carries the envelope state (token store + counter + salt) and the pre-resolved engine actor.
-    engineDispatch : ?{
-      envelopeState : ExecutionEnvelopeModel.EnvelopeState;
-      internalEngine : InternalEngine.InternalEngine;
-    };
+    engineDispatch : ?EngineDispatch;
 
-    // Per-turn envelope context needed by dispatch_workflow to build the ExecutionEnvelope.
+    // Per-turn envelope context needed by workflow tools to build the ExecutionEnvelope.
     // Requires engineDispatch to also be set.
-    envelopeContext : ?{
-      agent : AgentModel.AgentRecord;
-      turnId : Text;
-      instructions : Text;
-      messages : [ExecutionTypes.ChatMessage];
-      apiKey : Text;
-    };
+    envelopeContext : ?EnvelopeContext;
   };
 };

@@ -1,15 +1,13 @@
 import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
-import Nat8 "mo:core/Nat8";
 import Blob "mo:core/Blob";
-import Array "mo:core/Array";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
 import List "mo:core/List";
-import Sha256 "mo:sha2/Sha256";
 import ExecutionTypes "../types/execution";
 import Constants "../constants";
+import Nonce "../utilities/nonce";
 
 module {
 
@@ -21,7 +19,6 @@ module {
     turnId : Text;
     workspaceId : Nat;
     grants : [ExecutionTypes.ScopeGrant];
-    permits : [ExecutionTypes.OperationPermit];
     createdAtNs : Int;
     expiresAtNs : Int;
     var revoked : Bool;
@@ -67,11 +64,10 @@ module {
     turnId : Text,
     workspaceId : Nat,
     grants : [ExecutionTypes.ScopeGrant],
-    permits : [ExecutionTypes.OperationPermit],
   ) : { envelopeId : Nat; nonce : Text } {
     let now = Time.now();
     let envelopeId = store.nextTokenId;
-    let nonce = makeNonce(store.envelopeSalt, envelopeId, now);
+    let nonce = Nonce.make(store.envelopeSalt, envelopeId, now);
     store.nextTokenId += 1;
     let record : EnvelopeRecord = {
       nonce;
@@ -79,7 +75,6 @@ module {
       turnId;
       workspaceId;
       grants;
-      permits;
       createdAtNs = now;
       expiresAtNs = now + Constants.EXECUTION_TOKEN_TTL_NS;
       var revoked = false;
@@ -195,79 +190,6 @@ module {
       case (#read) { true }; // any access level covers read
       case (#write) { held == #write };
     };
-  };
-
-  // ── Permit checking ────────────────────────────────────────────────
-
-  /// Check if the token identified by `nonce` carries a matching OperationPermit.
-  public func hasPermit(
-    store : EnvelopeState,
-    nonce : Text,
-    required : ExecutionTypes.OperationPermit,
-  ) : Bool {
-    switch (getRecord(store, nonce)) {
-      case (null) { false };
-      case (?record) { permitMatches(record.permits, required) };
-    };
-  };
-
-  private func permitMatches(
-    permits : [ExecutionTypes.OperationPermit],
-    required : ExecutionTypes.OperationPermit,
-  ) : Bool {
-    for (permit in permits.vals()) {
-      let matched = switch (permit, required) {
-        case (#deleteWorkspace(p), #deleteWorkspace(r)) {
-          p.workspaceId == r.workspaceId;
-        };
-        case (#setAdminChannel(p), #setAdminChannel(r)) {
-          p.channelId == r.channelId;
-        };
-        case (_, _) { false };
-      };
-      if (matched) { return true };
-    };
-    false;
-  };
-
-  // ── Nonce generation ───────────────────────────────────────────────
-
-  /// Encode a Nat as 8 big-endian bytes.
-  private func natToBytes8(n : Nat) : [Nat8] {
-    Array.tabulate<Nat8>(
-      8,
-      func(i : Nat) : Nat8 {
-        Nat8.fromNat((n / (256 ** (7 - i))) % 256);
-      },
-    );
-  };
-
-  /// Hex-encode a single byte as two lowercase hex characters.
-  private func byteToHex(b : Nat8) : Text {
-    let digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"];
-    digits[Nat8.toNat(b) / 16] # digits[Nat8.toNat(b) % 16];
-  };
-
-  /// Produce an unpredictable 64-char hex nonce:
-  ///   SHA256(salt || counter-bytes(8) || timestamp-bytes(8))
-  /// - salt: per-canister entropy refreshed on every upgrade via raw_rand
-  /// - counter: monotonically increasing — prevents nonce reuse within a salt cycle
-  /// - timestamp: adds an additional timing dimension to the preimage
-  private func makeNonce(salt : Blob, counter : Nat, now : Int) : Text {
-    let saltArr = Blob.toArray(salt);
-    let counterArr = natToBytes8(counter);
-    let timeArr = natToBytes8(Int.abs(now));
-    let input = List.empty<Nat8>();
-    for (b in saltArr.vals()) { List.add(input, b) };
-    for (b in counterArr.vals()) { List.add(input, b) };
-    for (b in timeArr.vals()) { List.add(input, b) };
-    let hash = Sha256.fromArray(#sha256, List.toArray(input));
-    let hashBytes = Blob.toArray(hash);
-    var hex = "";
-    for (b in hashBytes.vals()) {
-      hex #= byteToHex(b);
-    };
-    hex;
   };
 
 };

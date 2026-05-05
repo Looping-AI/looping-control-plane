@@ -21,7 +21,7 @@ module {
       requestId = "req-test-" # Nat.toText(envelopeId);
       agentId = 0;
       workspaceId = 0;
-      workflowId = "wf-test";
+      workflowName = "wf-test";
       agentName;
       dispatchedVersion = ?"v1";
       instructions = "You are a test assistant.";
@@ -30,8 +30,8 @@ module {
       model = "openai/gpt-oss-120b";
       secrets = { apiKeys = [("openrouter", "test-key-placeholder")] };
       scopeGrants = [];
-      permits = [];
       envelopeNonce = "nonce-" # Nat.toText(envelopeId);
+      catalogHash = null;
     };
   };
 

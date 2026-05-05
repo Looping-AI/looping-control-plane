@@ -25,7 +25,7 @@ import {
   TEST_API_KEY,
 } from "../../setup.ts";
 import type { EnvelopePayload } from "../../builds/internal-engine.did.d.ts";
-import { HttpCassette, shouldSkipWithoutCassette } from "../../lib/cassette.ts";
+import { HttpCassette } from "../../lib/cassette.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -34,13 +34,14 @@ function minimalEnvelope(
   envelopeId: bigint,
   agentName: string,
   prompt: string,
+  hash: string[] = [],
 ): EnvelopePayload {
   return {
     envelopeId,
     requestId: `req-test-${envelopeId}`,
     agentId: 0n,
     workspaceId: 0n,
-    workflowId: "wf-test",
+    workflowName: "wf-test",
     model: "openai/gpt-oss-120b",
     agentName,
     dispatchedVersion: ["v1"],
@@ -49,7 +50,7 @@ function minimalEnvelope(
     constraints: { maxRounds: 3n, maxTokenBudget: [] },
     secrets: { apiKeys: [["openrouter", TEST_API_KEY]] },
     scopeGrants: [],
-    permits: [],
+    catalogHash: hash as [] | [string],
     envelopeNonce: `nonce-${envelopeId}`,
   };
 }
@@ -60,10 +61,32 @@ describe("internal-engine / execute", () => {
   let pic: PocketIc;
   let engineActor: Actor<InternalEngineService>;
   let coreIdentity: ReturnType<typeof generateRandomIdentity>;
+  let catalogHash = "";
 
   beforeAll(async () => {
     pic = await PocketIc.create(process.env.PIC_URL || "");
     coreIdentity = generateRandomIdentity();
+
+    // Fetch the catalog hash once — static, derived from the compiled workflow
+    // descriptors. Required by execute() since the catalogHash guard was added.
+    const tempEngine = await createInternalEngineActor(
+      pic,
+      coreIdentity.getPrincipal(),
+    );
+    tempEngine.actor.setIdentity(coreIdentity);
+    const catalogResult = await tempEngine.actor.listWorkflows();
+    if ("err" in catalogResult) {
+      throw new Error(
+        `listWorkflows() failed in beforeAll: ${catalogResult.err}`,
+      );
+    }
+    const parsed = JSON.parse(catalogResult.ok) as { catalogHash: string };
+    if (!parsed.catalogHash || !/^[0-9a-f]{64}$/i.test(parsed.catalogHash)) {
+      throw new Error(
+        `Unexpected catalogHash format: "${parsed.catalogHash}". Expected a 64-char hex string.`,
+      );
+    }
+    catalogHash = parsed.catalogHash;
   });
 
   beforeEach(async () => {
@@ -91,7 +114,7 @@ describe("internal-engine / execute", () => {
 
     expect("err" in result).toBe(true);
     if ("err" in result) {
-      expect(result.err).toBe("Unauthorized");
+      expect(result.err).toContain('"type":"unauthorized"');
     }
   });
 
@@ -130,13 +153,50 @@ describe("internal-engine / execute", () => {
     }
   });
 
+  // ── Guard: catalogHash must be present and current ───────────
+
+  it("rejects envelope with missing catalogHash", async () => {
+    engineActor.setIdentity(coreIdentity);
+
+    // minimalEnvelope with no hash argument → catalogHash: []
+    const envelope = minimalEnvelope(8n, "test-agent", "Hello");
+
+    const result = await engineActor.execute(envelope);
+
+    expect("err" in result).toBe(true);
+    if ("err" in result) {
+      const err = JSON.parse(result.err) as { type: string; message: string };
+      expect(err.type).toBe("missingCatalogHash");
+      expect(typeof err.message).toBe("string");
+      expect(err.message.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("rejects envelope with stale catalogHash", async () => {
+    engineActor.setIdentity(coreIdentity);
+
+    // Valid hex shape but deliberately wrong hash value.
+    const staleHash = "a".repeat(64);
+    const envelope = minimalEnvelope(9n, "test-agent", "Hello", [staleHash]);
+
+    const result = await engineActor.execute(envelope);
+
+    expect("err" in result).toBe(true);
+    if ("err" in result) {
+      const err = JSON.parse(result.err) as { type: string; message: string };
+      expect(err.type).toBe("staleCatalog");
+      expect(typeof err.message).toBe("string");
+      expect(err.message.length).toBeGreaterThan(0);
+    }
+  });
+
   // ── Guard: openrouter API key must be present ─────────────────
 
   it("rejects envelope missing openrouter API key", async () => {
     engineActor.setIdentity(coreIdentity);
 
     const envelope: EnvelopePayload = {
-      ...minimalEnvelope(4n, "test-agent", "Hello"),
+      ...minimalEnvelope(4n, "test-agent", "Hello", [catalogHash]),
       secrets: { apiKeys: [] },
     };
 
@@ -152,7 +212,7 @@ describe("internal-engine / execute", () => {
     engineActor.setIdentity(coreIdentity);
 
     const envelope: EnvelopePayload = {
-      ...minimalEnvelope(5n, "test-agent", "Hello"),
+      ...minimalEnvelope(5n, "test-agent", "Hello", [catalogHash]),
       secrets: { apiKeys: [["some_other_service", "key-value"]] },
     };
 
@@ -169,7 +229,7 @@ describe("internal-engine / execute", () => {
   it("rejects duplicate envelopeId", async () => {
     engineActor.setIdentity(coreIdentity);
 
-    const envelope = minimalEnvelope(6n, "test-agent", "Hello");
+    const envelope = minimalEnvelope(6n, "test-agent", "Hello", [catalogHash]);
 
     // First call — should succeed
     const first = await engineActor.execute(envelope);
@@ -190,7 +250,7 @@ describe("internal-engine / execute", () => {
     engineActor.setIdentity(coreIdentity);
 
     const result = await engineActor.execute(
-      minimalEnvelope(7n, "test-agent", "Hello"),
+      minimalEnvelope(7n, "test-agent", "Hello", [catalogHash]),
     );
 
     expect("ok" in result).toBe(true);
@@ -203,6 +263,7 @@ describe("internal-engine / execute (async completion)", () => {
   let pic: PocketIc;
   let engineActor: Actor<InternalEngineService>;
   let stubActor: Actor<StubCoreService>;
+  let catalogHash = "";
 
   beforeAll(async () => {
     pic = await PocketIc.create(process.env.PIC_URL || "");
@@ -222,6 +283,21 @@ describe("internal-engine / execute (async completion)", () => {
       sign: async () => new ArrayBuffer(64),
     } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     engineActor.setIdentity(fakeCore);
+
+    // Fetch catalog hash — required by execute() after the catalogHash guard was added.
+    const catalogResult = await engineActor.listWorkflows();
+    if ("err" in catalogResult) {
+      throw new Error(
+        `listWorkflows() failed in beforeAll: ${catalogResult.err}`,
+      );
+    }
+    const parsed = JSON.parse(catalogResult.ok) as { catalogHash: string };
+    if (!parsed.catalogHash || !/^[0-9a-f]{64}$/i.test(parsed.catalogHash)) {
+      throw new Error(
+        `Unexpected catalogHash format: "${parsed.catalogHash}". Expected a 64-char hex string.`,
+      );
+    }
+    catalogHash = parsed.catalogHash;
   });
 
   afterAll(async () => {
@@ -231,7 +307,6 @@ describe("internal-engine / execute (async completion)", () => {
   it("emits completion to core after timer fires (text response)", async () => {
     const cassetteName =
       "internal-engine/integration-tests/execute/text-response";
-    if (await shouldSkipWithoutCassette(cassetteName)) return;
 
     await stubActor.clearRecordedCalls();
     const cassette = await HttpCassette.auto(cassetteName);
@@ -240,6 +315,7 @@ describe("internal-engine / execute (async completion)", () => {
       100n,
       "test-agent",
       "Say hello in exactly one word.",
+      [catalogHash],
     );
 
     // Submit envelope — returns #ok synchronously, then zero-delay timer fires.
@@ -284,7 +360,7 @@ describe("internal-engine / execute (async completion)", () => {
     await stubActor.clearRecordedCalls();
 
     const envelope: EnvelopePayload = {
-      ...minimalEnvelope(101n, "test-agent", "Will not run"),
+      ...minimalEnvelope(101n, "test-agent", "Will not run", [catalogHash]),
       constraints: { maxRounds: 0n, maxTokenBudget: [] },
     };
 

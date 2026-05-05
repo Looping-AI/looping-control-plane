@@ -4,7 +4,6 @@ import Map "mo:core/Map";
 import Set "mo:core/Set";
 import SessionModel "../../../../src/control-plane-core/models/session-model";
 import Constants "../../../../src/control-plane-core/constants";
-import SlackUserModel "../../../../src/control-plane-core/models/slack-user-model";
 
 // ============================================
 // Helpers
@@ -81,7 +80,7 @@ suite(
         let turn = SessionModel.createTurn(stores, 1, null, null, ?makeDummyAuthCtx());
         expect.text(turn.turnId).equal("1_0");
         expect.nat(turn.agentId).equal(1);
-        expect.bool(turn.status == #running).isTrue();
+        expect.bool(switch (turn.status) { case (#running) true; case _ false }).isTrue();
         expect.bool(turn.triggerTurnId == null).isTrue();
         expect.bool(turn.cost == null).isTrue();
         expect.bool(turn.errorSummary == null).isTrue();
@@ -130,53 +129,64 @@ suite(
 );
 
 // ============================================
-// markPending
+// awaitingWorkflow (replaces markPending)
 // ============================================
 
 suite(
-  "markPending",
+  "awaitingWorkflow",
   func() {
     test(
-      "transitions a running turn to pending",
+      "transitions a running turn to #awaitingWorkflow",
       func() {
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
-        expect.bool(turn.status == #running).isTrue();
-        SessionModel.markPending(stores, turn.turnId);
-        expect.bool(turn.status == #pending).isTrue();
+        expect.bool(switch (turn.status) { case (#running) true; case _ false }).isTrue();
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_abc";
+          roundCount = 2;
+        };
+        turn.status := #awaitingWorkflow(dummySuspension);
+        switch (turn.status) {
+          case (#awaitingWorkflow(s)) {
+            expect.bool(s.pendingToolCallId == "call_abc").isTrue();
+            expect.bool(s.roundCount == 2).isTrue();
+          };
+          case (_) { expect.bool(false).isTrue() }; // unreachable: expected #awaitingWorkflow
+        };
       },
     );
 
     test(
-      "no-ops silently for unknown turnId",
-      func() {
-        let stores = makeStores();
-        // Should not trap
-        SessionModel.markPending(stores, "999_999");
-      },
-    );
-
-    test(
-      "pending turn can be finalized with completeTurn",
+      "awaitingWorkflow turn can be finalized with completeTurn",
       func() {
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
-        SessionModel.markPending(stores, turn.turnId);
-        expect.bool(turn.status == #pending).isTrue();
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_xyz";
+          roundCount = 1;
+        };
+        ignore SessionModel.suspendForWorkflow(stores, turn.turnId, dummySuspension);
         SessionModel.completeTurn(stores, turn.turnId, #succeeded, null, null);
-        expect.bool(turn.status == #succeeded).isTrue();
+        expect.bool(switch (turn.status) { case (#succeeded) true; case _ false }).isTrue();
         expect.bool(turn.completedAtNs != null).isTrue();
       },
     );
 
     test(
-      "pending turn can be finalized as failed",
+      "awaitingWorkflow turn can be finalized as failed",
       func() {
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
-        SessionModel.markPending(stores, turn.turnId);
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_xyz";
+          roundCount = 1;
+        };
+        ignore SessionModel.suspendForWorkflow(stores, turn.turnId, dummySuspension);
         SessionModel.completeTurn(stores, turn.turnId, #failed, null, ?"engine error");
-        expect.bool(turn.status == #failed).isTrue();
+        expect.bool(switch (turn.status) { case (#failed) true; case _ false }).isTrue();
         expect.bool(turn.errorSummary == ?"engine error").isTrue();
       },
     );
@@ -201,7 +211,7 @@ suite(
           estimatedDollarCost = ?0.0002;
         };
         SessionModel.completeTurn(stores, turn.turnId, #succeeded, ?cost, null);
-        expect.bool(turn.status == #succeeded).isTrue();
+        expect.bool(switch (turn.status) { case (#succeeded) true; case _ false }).isTrue();
         expect.bool(turn.completedAtNs != null).isTrue();
         expect.bool(turn.cost == ?cost).isTrue();
         expect.bool(turn.errorSummary == null).isTrue();
@@ -214,7 +224,7 @@ suite(
         let stores = makeStores();
         let turn = SessionModel.createTurn(stores, 1, null, null, null);
         SessionModel.completeTurn(stores, turn.turnId, #failed, null, ?"something broke");
-        expect.bool(turn.status == #failed).isTrue();
+        expect.bool(switch (turn.status) { case (#failed) true; case _ false }).isTrue();
         expect.bool(turn.errorSummary == ?"something broke").isTrue();
       },
     );
@@ -688,6 +698,105 @@ suite(
         expect.bool(isSome(SessionModel.getTraces(stores, t0.turnId))).isTrue();
         expect.bool(isSome(SessionModel.getTraces(stores, t1.turnId))).isTrue();
         expect.bool(isSome(SessionModel.getTraces(stores, t2.turnId))).isTrue();
+      },
+    );
+  },
+);
+
+// ============================================
+// awaitingApproval
+// ============================================
+
+suite(
+  "awaitingApproval",
+  func() {
+    test(
+      "transitions a running turn to #awaitingApproval",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        expect.bool(switch (turn.status) { case (#running) true; case _ false }).isTrue();
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_approval";
+          roundCount = 1;
+        };
+        ignore SessionModel.suspendForApproval(
+          stores,
+          turn.turnId,
+          dummySuspension,
+          "abc123",
+          9_999_999_999_999,
+        );
+        switch (turn.status) {
+          case (#awaitingApproval(data)) {
+            expect.text(data.approvalCode).equal("abc123");
+            expect.bool(data.expiresAtNs == 9_999_999_999_999).isTrue();
+            expect.bool(data.timerId == null).isTrue();
+            expect.bool(data.suspension.pendingToolCallId == "call_approval").isTrue();
+          };
+          case (_) { expect.bool(false).isTrue() }; // unreachable: expected #awaitingApproval
+        };
+      },
+    );
+
+    test(
+      "timerId field is mutable and can be set",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_approval";
+          roundCount = 1;
+        };
+        ignore SessionModel.suspendForApproval(
+          stores,
+          turn.turnId,
+          dummySuspension,
+          "abc123",
+          9_999_999_999_999,
+        );
+        switch (turn.status) {
+          case (#awaitingApproval(data)) {
+            // Simulate the timer being armed via the model function
+            ignore SessionModel.setApprovalTimerId(stores, turn.turnId, 42);
+            expect.bool(data.timerId == ?42).isTrue();
+          };
+          case (_) { expect.bool(false).isTrue() };
+        };
+      },
+    );
+
+    test(
+      "#awaitingApproval turn survives findTurn round-trip",
+      func() {
+        let stores = makeStores();
+        let turn = SessionModel.createTurn(stores, 1, null, null, null);
+        let dummySuspension : SessionModel.SuspensionData = {
+          messages = [];
+          pendingToolCallId = "call_approval";
+          roundCount = 2;
+        };
+        ignore SessionModel.suspendForApproval(
+          stores,
+          turn.turnId,
+          dummySuspension,
+          "deadbeef",
+          1_000_000,
+        );
+        switch (SessionModel.findTurn(stores, turn.turnId)) {
+          case (null) { expect.bool(false).isTrue() };
+          case (?found) {
+            switch (found.status) {
+              case (#awaitingApproval(data)) {
+                expect.text(data.approvalCode).equal("deadbeef");
+                expect.nat(data.suspension.roundCount).equal(2);
+              };
+              case (_) { expect.bool(false).isTrue() };
+            };
+          };
+        };
       },
     );
   },

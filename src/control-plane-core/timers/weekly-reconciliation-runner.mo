@@ -317,7 +317,7 @@ module {
                 "but it is *public*. For security, the org-admin channel must be *private*.\n\n" #
                 "Please convert the channel to private, or delete it and create a new private " #
                 "channel named `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "`.";
-                switch (await SlackWrapper.postMessage(token, ownerId, warnText, null, null)) {
+                switch (await SlackWrapper.postMessage(token, ownerId, warnText, null, null, null)) {
                   case (#err(e)) {
                     Logger.log(
                       #error,
@@ -563,7 +563,7 @@ module {
                     "The org-admin channel (ID: `" # channelId # "`) is no longer accessible " #
                     "and no channel named `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "` was found.\n\n" #
                     "Please re-create the channel with the correct name or re-anchor it so org-level access continues to work.";
-                    switch (await SlackWrapper.postMessage(token, ownerId, dmText, null, null)) {
+                    switch (await SlackWrapper.postMessage(token, ownerId, dmText, null, null, null)) {
                       case (#err(e2)) {
                         let msg = "Failed to DM Primary Owner about org admin channel issue: " # e2;
                         Logger.log(#error, ?"WeeklyReconciliation", msg);
@@ -631,7 +631,7 @@ module {
                       "`#" # channelInfo.name # "`, but it must be named " #
                       "`#" # Constants.ORG_ADMIN_CHANNEL_NAME # "` for visibility and security best practices.\n\n" #
                       "Please rename the channel to `#" # Constants.ORG_ADMIN_CHANNEL_NAME # "`.";
-                      switch (await SlackWrapper.postMessage(token, ownerId, warnText, null, null)) {
+                      switch (await SlackWrapper.postMessage(token, ownerId, warnText, null, null, null)) {
                         case (#err(e2)) {
                           let msg = "Failed to DM Primary Owner about org admin channel name issue: " # e2;
                           Logger.log(#error, ?"WeeklyReconciliation", msg);
@@ -709,7 +709,7 @@ module {
                       "The admin channel for workspace *" # ws.name # "* " #
                       "(ID: `" # adminChanId # "`) is no longer accessible.\n\n" #
                       "Please assign a new admin channel for this workspace, or request workspace deletion.";
-                      switch (await SlackWrapper.postMessage(token, orgChanId, notifyText, null, null)) {
+                      switch (await SlackWrapper.postMessage(token, orgChanId, notifyText, null, null, null)) {
                         case (#err(e2)) {
                           let msg = "Failed to notify org admin channel about gone workspace admin channel: " # e2;
                           Logger.log(#error, ?"WeeklyReconciliation", msg);

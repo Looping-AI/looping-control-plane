@@ -19,6 +19,9 @@ import WorkspaceModel "../../models/workspace-model";
 import EventStoreModel "../../models/event-store-model";
 import SessionModel "../../models/session-model";
 import ExecutionEnvelopeModel "../../models/execution-envelope-model";
+import WorkflowCatalogModel "../../models/workflow-catalog-model";
+import ApprovalModel "../../models/approval-model";
+import Timer "mo:core/Timer";
 import InternalEngine "../../../internal-engine/main";
 
 module {
@@ -60,5 +63,17 @@ module {
     /// Pre-resolved internal engine actor. Guaranteed non-null by the time any
     /// event is processed (pre-warmed at init and postupgrade).
     internalEngine : InternalEngine.InternalEngine;
+
+    /// Workflow catalog cache — lazily populated on first dispatch, refreshed on
+    /// #staleCatalog engine responses. Passed through to the dispatch handler.
+    catalogState : WorkflowCatalogModel.CatalogState;
+
+    /// Approval gate state — holds pending approval codes for workflow approval gate.
+    approvalState : ApprovalModel.ApprovalState;
+
+    /// Arm a per-turn approval TTL timer. Returns async Timer.TimerId so the closure
+    /// body is async — async bodies always have <system>, letting them call
+    /// Timer.setTimer<system> without threading a <system> parameter through modules.
+    armApprovalTimer : (expiresAtNs : Int, callback : () -> async ()) -> async Timer.TimerId;
   };
 };

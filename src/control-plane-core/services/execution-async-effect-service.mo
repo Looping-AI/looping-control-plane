@@ -1,13 +1,19 @@
 import Nat "mo:core/Nat";
+import Text "mo:core/Text";
+import Error "mo:core/Error";
 import Types "../types";
 import SessionModel "../models/session-model";
 import AgentModel "../models/agent-model";
 import WorkspaceModel "../models/workspace-model";
 import SecretModel "../models/secret-model";
+import ApprovalModel "../models/approval-model";
 import KeyDerivationService "key-derivation-service";
 import ExecutionTypes "../types/execution";
 import SlackWrapper "../wrappers/slack-wrapper";
 import Logger "../utilities/logger";
+import AgentHelpers "../agents/helpers";
+import TurnCompletionService "turn-completion-service";
+import TurnSuspensionService "turn-suspension-service";
 
 module {
 
@@ -18,6 +24,8 @@ module {
     agentRegistry : AgentModel.AgentRegistryState;
     workspaces : WorkspaceModel.WorkspacesState;
     secrets : SecretModel.SecretsState;
+    approvalState : ApprovalModel.ApprovalState;
+    resumeAdminTurn : (turnId : Text, suspension : SessionModel.SuspensionData, syntheticToolResult : Text) -> async Types.AgentOrchestrateResult;
   };
 
   public class Service(deps : ServiceDeps) {
@@ -109,7 +117,7 @@ module {
       switch (effect) {
         case (#milestone(_m)) {
           // Post milestone update to Slack thread
-          switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata)) {
+          switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata, null)) {
             case (#ok(_)) {};
             case (#err(e)) {
               Logger.log(#error, ?"ExecutionAsyncEffect", "Milestone post failed for turn " # turnId # ": " # e);
@@ -117,43 +125,82 @@ module {
           };
         };
         case (#complete(c)) {
-          // Post final response
-          switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata)) {
-            case (#ok({ ts = replyTs; channel = _ })) {
-              SessionModel.appendTrace(
-                deps.sessionStores,
+          // One-shot guard: atomically check #awaitingWorkflow and flip to #running.
+          // Returns #err if the turn is not in #awaitingWorkflow (e.g. duplicate event),
+          // in which case we fall through to normal terminal-completion handling.
+          let suspension = switch (SessionModel.resumeFromWorkflow(deps.sessionStores, turnId)) {
+            case (#ok(s)) { s };
+            case (#err(_)) {
+              // Not awaiting a workflow result — treat as a normal completion.
+              switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata, null)) {
+                case (#ok({ ts = replyTs; channel = _ })) {
+                  SessionModel.appendTrace(
+                    deps.sessionStores,
+                    turnId,
+                    #slackPost({
+                      channelId;
+                      threadTs;
+                      ts = replyTs;
+                    }),
+                  );
+                };
+                case (#err(e)) {
+                  Logger.log(#error, ?"ExecutionAsyncEffect", "Reply post failed for turn " # turnId # ": " # e);
+                };
+              };
+
+              let (turnStatus, errorSummary) = switch (c.status) {
+                case (#completed) { (#succeeded, null) };
+                case (#failed(reason)) { (#failed, ?reason) };
+                case (#roundLimitReached) { (#failed, ?"Round limit reached") };
+              };
+
+              let turnCost : ?SessionModel.TurnCost = switch (c.stats.inputTokens, c.stats.outputTokens) {
+                case (?inp, ?out) {
+                  ?{
+                    promptTokens = inp;
+                    completionTokens = out;
+                    estimatedDollarCost = c.stats.estimatedDollarCost;
+                  };
+                };
+                case (_) { null };
+              };
+
+              SessionModel.completeTurn(deps.sessionStores, turnId, turnStatus, turnCost, errorSummary);
+              return;
+            };
+          };
+
+          // Resume: inject the engine result as a synthetic tool result and continue the LLM loop.
+          let syntheticResult = AgentHelpers.buildSyntheticToolResult(c);
+          let resumeResult = try {
+            await deps.resumeAdminTurn(turnId, suspension, syntheticResult);
+          } catch (e) {
+            Logger.log(#error, ?"ExecutionAsyncEffect", "resumeAdminTurn threw for turn " # turnId # ": " # Error.message(e));
+            let cost = SessionModel.aggregateTurnCost(deps.sessionStores, turnId);
+            SessionModel.completeTurn(deps.sessionStores, turnId, #failed, cost, ?"Resume call failed");
+            return;
+          };
+          switch (resumeResult) {
+            case (#ok(_) or #err(_)) {
+              ignore await TurnCompletionService.complete(
+                { sessionStores = deps.sessionStores },
                 turnId,
-                #slackPost({
-                  channelId;
-                  threadTs;
-                  ts = replyTs;
-                }),
+                resumeResult,
+                { botToken; channelId; threadTs; metadata },
               );
             };
-            case (#err(e)) {
-              Logger.log(#error, ?"ExecutionAsyncEffect", "Reply post failed for turn " # turnId # ": " # e);
+            case (#dispatched(_) or #awaitingApproval(_)) {
+              ignore TurnSuspensionService.suspend(
+                {
+                  sessionStores = deps.sessionStores;
+                  approvalState = deps.approvalState;
+                },
+                turnId,
+                resumeResult,
+              );
             };
           };
-
-          // Map engine execution status to turn status and cost
-          let (turnStatus, errorSummary) = switch (c.status) {
-            case (#completed) { (#succeeded, null) };
-            case (#failed(reason)) { (#failed, ?reason) };
-            case (#roundLimitReached) { (#failed, ?"Round limit reached") };
-          };
-
-          let turnCost : ?SessionModel.TurnCost = switch (c.stats.inputTokens, c.stats.outputTokens) {
-            case (?inp, ?out) {
-              ?{
-                promptTokens = inp;
-                completionTokens = out;
-                estimatedDollarCost = c.stats.estimatedDollarCost;
-              };
-            };
-            case (_) { null };
-          };
-
-          SessionModel.completeTurn(deps.sessionStores, turnId, turnStatus, turnCost, errorSummary);
         };
       };
     };

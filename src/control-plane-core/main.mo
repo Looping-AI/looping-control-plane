@@ -32,9 +32,16 @@ import SlackEventIntakeService "./services/slack-event-intake-service";
 import SessionModel "./models/session-model";
 import Random "mo:core/Random";
 import ExecutionEnvelopeModel "./models/execution-envelope-model";
+import WorkflowCatalogModel "./models/workflow-catalog-model";
 import ExecutionApiService "./services/execution-api-service";
 import ExecutionAsyncEffectService "./services/execution-async-effect-service";
+import ApprovalModel "./models/approval-model";
+import ApprovalTimer "./timers/approval-timer";
 import InternalEngine "../internal-engine/main";
+import AgentRunner "./agents/agent-runner";
+import BlockActionsHandler "./events/handlers/block-actions-handler";
+import Json "mo:json";
+import { str; obj } "mo:json";
 
 persistent actor class OpenOrgBackend() {
   // ============================================
@@ -71,21 +78,20 @@ persistent actor class OpenOrgBackend() {
   // The salt is refreshed on every upgrade via raw_rand (see init/postupgrade timers).
   let executionEnvelopeState = ExecutionEnvelopeModel.emptyState();
 
+  // Workflow catalog cache — lazily populated on first dispatch, refreshed on #staleCatalog.
+  let workflowCatalogState = WorkflowCatalogModel.empty();
+
+  // Approval gate state — holds pending approval codes for workflow approval gate.
+  let approvalState = ApprovalModel.emptyState();
+
   // Execution API service (instantiated once with all deps captured in class scope)
   transient let executionApiService = ExecutionApiService.Service({
     envelopeState = executionEnvelopeState;
     workspaces;
     agentRegistry;
+    approvalState;
     eventStore;
     sessionStores;
-  });
-
-  // Execution async-effect service (processes engine results: Slack posts, turn completion)
-  transient let executionAsyncEffectService = ExecutionAsyncEffectService.Service({
-    sessionStores;
-    agentRegistry;
-    workspaces;
-    secrets;
   });
 
   // Internal engine canister principal — set when engine is spawned (Phase 6)
@@ -93,6 +99,35 @@ persistent actor class OpenOrgBackend() {
 
   // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
   var internalEngine : ?InternalEngine.InternalEngine = null;
+
+  // Resume closure: delegates to AgentRunner.resume so this closure stays thin.
+  transient let resumeAdminTurn : (turnId : Text, suspension : SessionModel.SuspensionData, syntheticToolResult : Text) -> async Types.AgentOrchestrateResult = func(turnId : Text, suspension : SessionModel.SuspensionData, syntheticToolResult : Text) : async Types.AgentOrchestrateResult {
+    await AgentRunner.resume(
+      {
+        sessionStores;
+        agentRegistry;
+        secrets;
+        internalEngine;
+        envelopeState = executionEnvelopeState;
+        catalogState = workflowCatalogState;
+        approvalState;
+      },
+      keyCache,
+      turnId,
+      suspension,
+      syntheticToolResult,
+    );
+  };
+
+  // Execution async-effect service (processes engine results: Slack posts, turn completion)
+  transient let executionAsyncEffectService = ExecutionAsyncEffectService.Service({
+    sessionStores;
+    agentRegistry;
+    workspaces;
+    secrets;
+    approvalState;
+    resumeAdminTurn;
+  });
 
   // Track last engine top-up for the timer runner
   var lastEngineTopUpTimestamp : Int = Time.now();
@@ -269,6 +304,16 @@ persistent actor class OpenOrgBackend() {
   // Per-event timer callback factory — returns an async closure that processes one event by ID
   private func makeEventProcessor(eventId : Text) : async () {
     let e = await ensureInternalEngine();
+    // Async body → <system> is implicitly available here.
+    // armApprovalTimer returns async Timer.TimerId so its closure body is also
+    // async → Timer.setTimer<system> can be called without threading <system> through modules.
+    let armApprovalTimer = func(expiresAtNs : Int, cb : () -> async ()) : async Timer.TimerId {
+      let now = Time.now();
+      let delayNs : Nat = if (expiresAtNs > now) {
+        Int.toNat(expiresAtNs - now);
+      } else { 0 };
+      Timer.setTimer<system>(#nanoseconds(delayNs), cb);
+    };
     let ctx : EventRouter.EventProcessingContext = {
       secrets;
       keyCache;
@@ -280,6 +325,9 @@ persistent actor class OpenOrgBackend() {
       sessionStores;
       envelopeState = executionEnvelopeState;
       internalEngine = e;
+      catalogState = workflowCatalogState;
+      approvalState;
+      armApprovalTimer;
     };
     await EventRouter.processSingleEvent(eventStore, eventId, ctx);
   };
@@ -300,6 +348,9 @@ persistent actor class OpenOrgBackend() {
     func() : async () {
       // Fetch initial envelope salt — raw_rand requires an async context, so we use a zero-delay timer.
       executionEnvelopeState.envelopeSalt := await Random.blob();
+
+      // Refresh approval salt with fresh entropy on install.
+      approvalState.approvalSalt := await Random.blob();
 
       // Pre-warm the engine canister so the first dispatch doesn't pay the spawn cost.
       ignore await ensureInternalEngine();
@@ -357,6 +408,48 @@ persistent actor class OpenOrgBackend() {
       #nanoseconds 0,
       func() : async () {
         executionEnvelopeState.envelopeSalt := await Random.blob();
+      },
+    );
+
+    // Refresh approval salt with new entropy on every upgrade
+    ignore Timer.setTimer<system>(
+      #nanoseconds 0,
+      func() : async () {
+        approvalState.approvalSalt := await Random.blob();
+      },
+    );
+
+    // Re-arm TTL timers for any turns still awaiting approval after upgrade.
+    // Runs in a zero-delay timer so the postupgrade hook returns fast — the IC
+    // wipes all timers on upgrade but this callback fires immediately after.
+    // async body → <system> is available → ApprovalTimer.arm<system> works.
+    ignore Timer.setTimer<system>(
+      #nanoseconds 0,
+      func() : async () {
+        for ((_agentId, agentTurns) in Map.entries(sessionStores.turns)) {
+          for ((_turnNum, turn) in Map.entries(agentTurns)) {
+            switch (turn.status) {
+              case (#awaitingApproval(data)) {
+                let tId = turn.turnId;
+                let resumeDeps : AgentRunner.ResumeDeps = {
+                  sessionStores;
+                  agentRegistry;
+                  secrets;
+                  internalEngine;
+                  envelopeState = executionEnvelopeState;
+                  catalogState = workflowCatalogState;
+                  approvalState;
+                };
+                let onExpire = func() : async () {
+                  await AgentRunner.resumeWithDenial(resumeDeps, keyCache, tId, "approval timed out", null);
+                };
+                let newTimerId = ApprovalTimer.arm<system>(data.expiresAtNs, onExpire);
+                data.timerId := ?newTimerId;
+              };
+              case _ {};
+            };
+          };
+        };
       },
     );
   };
@@ -448,12 +541,12 @@ persistent actor class OpenOrgBackend() {
   ) : async { #ok : Text; #err : Text } {
     let expected = switch (internalEnginePrincipal) {
       case (null) {
-        return #err("Unauthorized: engine not yet initialized");
+        return #err(Json.stringify(obj([("type", str("engineNotInitialized")), ("message", str("Unauthorized: engine not yet initialized."))]), null));
       };
       case (?p) { p };
     };
     if (caller != expected) {
-      return #err("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister");
+      return #err(Json.stringify(obj([("type", str("unauthorized")), ("message", str("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister."))]), null));
     };
     let { response; asyncEffects } = executionApiService.handleRequest(method, path, body);
 
@@ -609,6 +702,35 @@ persistent actor class OpenOrgBackend() {
         let logMsg = "Rate-limiting events for team " # rateLimited.team_id # " at minute " # minuteStr;
         Logger.log(#warn, ?"SlackWebhook", logMsg);
         respondWithText(200, "ok");
+      };
+      case (#block_actions(payload)) {
+        // Return 200 immediately — Slack's interactive payload window is 3 seconds and
+        // key derivation (threshold signature, cold cache) can exceed that.
+        // Processing and the button-message update via response_url happen in a timer.
+        let resumeDeps : AgentRunner.ResumeDeps = {
+          sessionStores;
+          agentRegistry;
+          secrets;
+          internalEngine;
+          envelopeState = executionEnvelopeState;
+          catalogState = workflowCatalogState;
+          approvalState;
+        };
+        let blockDeps : BlockActionsHandler.BlockActionsDeps = {
+          approvalState;
+          sessionStores;
+          agentRegistry;
+          slackUsers;
+          resumeDeps;
+          keyCache;
+        };
+        ignore Timer.setTimer<system>(
+          #nanoseconds 0,
+          func() : async () {
+            await BlockActionsHandler.handle<system>(payload, blockDeps);
+          },
+        );
+        respondWithText(200, "");
       };
       case (#unknown(envelopeType)) {
         Logger.log(#warn, ?"SlackWebhook", "Unknown envelope type: " # envelopeType);

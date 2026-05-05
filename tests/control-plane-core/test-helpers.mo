@@ -13,6 +13,8 @@ import EventProcessingContextTypes "../../src/control-plane-core/events/types/ev
 import EventStoreModel "../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../src/control-plane-core/models/session-model";
 import InternalEngine "../../src/internal-engine/main";
+import WorkflowCatalogModel "../../src/control-plane-core/models/workflow-catalog-model";
+import ApprovalModel "../../src/control-plane-core/models/approval-model";
 
 // ============================================
 // Test Helpers
@@ -87,6 +89,11 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 
@@ -121,7 +128,7 @@ module {
       {
         name = "unit-test-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = Set.fromArray(channelIds, Text.compare);
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -140,6 +147,11 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 
@@ -173,7 +185,7 @@ module {
       {
         name = "unit-test-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = Set.fromArray(channelIds, Text.compare);
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -192,6 +204,11 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 
@@ -226,7 +243,7 @@ module {
       {
         name = "unit-test-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = allowedChannels;
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -243,7 +260,7 @@ module {
       {
         name = "unit-test-custom";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = allowedChannels;
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -262,6 +279,11 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 
@@ -295,7 +317,7 @@ module {
       {
         name = "unit-test-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = allowedChannels;
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -310,7 +332,7 @@ module {
       {
         name = "unit-test-custom";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = allowedChannels;
         secrets = {
           allowed = [(0, #openRouterApiKey), (1, #openRouterApiKey), (42, #openRouterApiKey)];
@@ -329,6 +351,11 @@ module {
       sessionStores = SessionModel.emptyStores();
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
+      catalogState = WorkflowCatalogModel.empty();
+      approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in unit tests
     };
   };
 

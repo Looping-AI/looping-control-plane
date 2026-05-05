@@ -372,11 +372,11 @@ test(
 );
 
 // ─────────────────────────────────────────────────────────────────
-// Tool schema — executionEngines field
+// Tool schema — workflowEngines field
 // ─────────────────────────────────────────────────────────────────
 
 test(
-  "register_agent parameter schema includes executionEngines",
+  "register_agent parameter schema includes workflowEngines",
   func() {
     switch (ToolRegistry.get("admin-v1", agentsWriteAccess, "register_agent")) {
       case (null) { expect.bool(false).isTrue() };
@@ -384,7 +384,7 @@ test(
         switch (t.definition.function_.parameters) {
           case (null) { expect.bool(false).isTrue() };
           case (?params) {
-            expect.bool(Text.contains(params, #text "executionEngines")).isTrue();
+            expect.bool(Text.contains(params, #text "workflowEngines")).isTrue();
           };
         };
       };
@@ -393,7 +393,7 @@ test(
 );
 
 test(
-  "update_agent parameter schema includes executionEngines",
+  "update_agent parameter schema includes workflowEngines",
   func() {
     switch (ToolRegistry.get("admin-v1", agentsWriteAccess, "update_agent")) {
       case (null) { expect.bool(false).isTrue() };
@@ -401,7 +401,7 @@ test(
         switch (t.definition.function_.parameters) {
           case (null) { expect.bool(false).isTrue() };
           case (?params) {
-            expect.bool(Text.contains(params, #text "executionEngines")).isTrue();
+            expect.bool(Text.contains(params, #text "workflowEngines")).isTrue();
           };
         };
       };

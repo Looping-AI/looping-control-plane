@@ -25,7 +25,7 @@ module {
     envelopeId : Nat;
     requestId : Text;
     agentName : Text;
-    workflowId : Text;
+    workflowName : Text;
 
     // The full envelope — needed by the runner to execute
     envelope : ExecutionTypes.EnvelopePayload;

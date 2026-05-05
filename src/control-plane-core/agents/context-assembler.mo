@@ -116,7 +116,8 @@ module {
   func statusToText(status : SessionModel.TurnStatus) : Text {
     switch (status) {
       case (#running) { "running" };
-      case (#pending) { "pending" };
+      case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
+      case (#awaitingApproval(_)) { "awaitingApproval" };
       case (#succeeded) { "succeeded" };
       case (#failed) { "failed" };
     };
@@ -202,7 +203,10 @@ module {
       if (turn.turnId == currentTurnId) { continue scanLoop };
 
       // Skip running turns (incomplete)
-      if (turn.status == #running) { continue scanLoop };
+      switch (turn.status) {
+        case (#running) { continue scanLoop };
+        case (_) {};
+      };
 
       // Respect compaction boundary
       switch (session.compaction.lastCompactedTurnId) {

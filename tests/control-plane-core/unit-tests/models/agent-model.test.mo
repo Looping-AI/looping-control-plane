@@ -51,7 +51,7 @@ func registerSimple(state : AgentModel.AgentRegistryState, name : Text, category
       name;
       model = "openai/gpt-oss-120b";
       allowedChannelIds = Set.singleton<Text>("C_TEST");
-      executionEngines = [#canister];
+      workflowEngines = [#canister];
       secrets = { allowed = []; overrides = [] };
     },
   );
@@ -191,7 +191,7 @@ suite(
             name = "info-bot";
             model = "openai/gpt-o3";
             allowedChannelIds = Set.singleton<Text>("C_TEST");
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = { allowed = []; overrides = [] };
           },
         );
@@ -217,7 +217,7 @@ suite(
     );
 
     test(
-      "register accepts empty executionEngines",
+      "register accepts empty workflowEngines",
       func() {
         let state = AgentModel.emptyState();
         let result = AgentModel.register(
@@ -228,7 +228,7 @@ suite(
             name = "no-engine-bot";
             model = "openai/gpt-o3";
             allowedChannelIds = Set.singleton<Text>("C_TEST");
-            executionEngines = [];
+            workflowEngines = [];
             secrets = { allowed = []; overrides = [] };
           },
         );
@@ -236,7 +236,7 @@ suite(
         switch (AgentModel.lookupByName(state, "no-engine-bot")) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.bool(r.config.executionEngines == []).equal(true);
+            expect.bool(r.config.workflowEngines == []).equal(true);
           };
         };
       },
@@ -318,7 +318,7 @@ suite(
           {
             name = null;
             model = ?"openai/gpt-4o";
-            executionEngines = null;
+            workflowEngines = null;
             secretsAllowed = null;
             secretOverrides = null;
             allowedChannelIds = null;
@@ -336,7 +336,7 @@ suite(
     );
 
     test(
-      "updates executionEngines",
+      "updates workflowEngines",
       func() {
         let state = AgentModel.emptyState();
         let id = switch (registerSimple(state, "bot", #_system(#admin))) {
@@ -344,19 +344,19 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentModel.updateById(state, id, { name = null; model = null; executionEngines = ?[#canister, #github]; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
+        ignore AgentModel.updateById(state, id, { name = null; model = null; workflowEngines = ?[#canister, #github]; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.bool(r.config.executionEngines == [#canister, #github]).equal(true);
+            expect.bool(r.config.workflowEngines == [#canister, #github]).equal(true);
           };
         };
       },
     );
 
     test(
-      "updates executionEngines to empty array",
+      "updates workflowEngines to empty array",
       func() {
         let state = AgentModel.emptyState();
         let id = switch (registerSimple(state, "bot", #_system(#admin))) {
@@ -364,12 +364,12 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        ignore AgentModel.updateById(state, id, { name = null; model = null; executionEngines = ?[]; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
+        ignore AgentModel.updateById(state, id, { name = null; model = null; workflowEngines = ?[]; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) {
-            expect.bool(r.config.executionEngines == []).equal(true);
+            expect.bool(r.config.workflowEngines == []).equal(true);
           };
         };
       },
@@ -385,7 +385,7 @@ suite(
         };
 
         // Update name to new-bot
-        let result = AgentModel.updateById(state, id, { name = ?"new-bot"; model = null; executionEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
+        let result = AgentModel.updateById(state, id, { name = ?"new-bot"; model = null; workflowEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Old name should no longer resolve
@@ -416,7 +416,7 @@ suite(
         ignore registerSimple(state, "bot-two", #custom);
 
         // Try to rename bot-one to bot-two (which already exists)
-        let result = AgentModel.updateById(state, id1, { name = ?"bot-two"; model = null; executionEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
+        let result = AgentModel.updateById(state, id1, { name = ?"bot-two"; model = null; workflowEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // bot-one should still have its original name
@@ -437,7 +437,7 @@ suite(
         };
 
         // Update with the same name (case variation)
-        let result = AgentModel.updateById(state, id, { name = ?"BOT"; model = null; executionEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
+        let result = AgentModel.updateById(state, id, { name = ?"BOT"; model = null; workflowEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         // Lookup should still work
@@ -455,7 +455,7 @@ suite(
         };
 
         // Try to update with invalid name (starting with digit)
-        let result = AgentModel.updateById(state, id, { name = ?"1invalid"; model = null; executionEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
+        let result = AgentModel.updateById(state, id, { name = ?"1invalid"; model = null; workflowEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
 
         // Original name should still be intact
@@ -470,7 +470,7 @@ suite(
       "returns error for non-existent agent",
       func() {
         let state = AgentModel.emptyState();
-        let result = AgentModel.updateById(state, 999, { name = null; model = null; executionEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
+        let result = AgentModel.updateById(state, 999, { name = null; model = null; workflowEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).isErr();
       },
     );
@@ -567,7 +567,7 @@ suite(
             name = "secure-bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = {
               allowed = [(1, #openRouterApiKey), (2, #custom("tool-key"))];
               overrides = [];
@@ -593,7 +593,7 @@ suite(
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
 
-        let result = AgentModel.updateById(state, id, { name = null; model = null; executionEngines = null; secretsAllowed = ?[(0, #openRouterApiKey)]; secretOverrides = null; allowedChannelIds = null });
+        let result = AgentModel.updateById(state, id, { name = null; model = null; workflowEngines = null; secretsAllowed = ?[(0, #openRouterApiKey)]; secretOverrides = null; allowedChannelIds = null });
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
 
         switch (AgentModel.lookupById(state, id)) {
@@ -617,13 +617,13 @@ suite(
             name = "bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = { allowed = [(1, #openRouterApiKey)]; overrides = [] };
           },
         );
         let id = 0;
 
-        ignore AgentModel.updateById(state, id, { name = null; model = null; executionEngines = null; secretsAllowed = ?[]; secretOverrides = null; allowedChannelIds = null });
+        ignore AgentModel.updateById(state, id, { name = null; model = null; workflowEngines = null; secretsAllowed = ?[]; secretOverrides = null; allowedChannelIds = null });
 
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
@@ -668,7 +668,7 @@ suite(
             name = "override-bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.singleton<Text>("C_TEST");
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = {
               allowed = [];
               overrides = [(#openRouterApiKey, "my-custom-key"), (#custom("alt-key"), "another-key")];
@@ -690,7 +690,7 @@ suite(
           case (#ok n) n;
           case (#err _) { expect.bool(false).equal(true); 0 };
         };
-        let result = AgentModel.updateById(state, id, { name = null; model = null; executionEngines = null; secretsAllowed = null; secretOverrides = ?[(#openRouterApiKey, "my-key")]; allowedChannelIds = null });
+        let result = AgentModel.updateById(state, id, { name = null; model = null; workflowEngines = null; secretsAllowed = null; secretOverrides = ?[(#openRouterApiKey, "my-key")]; allowedChannelIds = null });
         expect.result<Bool, Text>(result, resultBoolToText, resultBoolEqual).equal(#ok(true));
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
@@ -711,7 +711,7 @@ suite(
             name = "bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = {
               allowed = [];
               overrides = [(#openRouterApiKey, "my-key")];
@@ -719,7 +719,7 @@ suite(
           },
         );
         let id = 0;
-        ignore AgentModel.updateById(state, id, { name = null; model = null; executionEngines = null; secretsAllowed = null; secretOverrides = ?[]; allowedChannelIds = null });
+        ignore AgentModel.updateById(state, id, { name = null; model = null; workflowEngines = null; secretsAllowed = null; secretOverrides = ?[]; allowedChannelIds = null });
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) { expect.nat(r.config.secrets.overrides.size()).equal(0) };
@@ -739,7 +739,7 @@ suite(
             name = "bot";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = {
               allowed = [];
               overrides = [(#openRouterApiKey, "keep-this")];
@@ -747,7 +747,7 @@ suite(
           },
         );
         let id = 0;
-        ignore AgentModel.updateById(state, id, { name = null; model = null; executionEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
+        ignore AgentModel.updateById(state, id, { name = null; model = null; workflowEngines = null; secretsAllowed = null; secretOverrides = null; allowedChannelIds = null });
         switch (AgentModel.lookupById(state, id)) {
           case (null) { expect.bool(false).equal(true) };
           case (?r) { expect.nat(r.config.secrets.overrides.size()).equal(1) };
@@ -859,7 +859,7 @@ suite(
             name = "org-admin";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.singleton<Text>("C_SHOULD_BE_IGNORED");
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = { allowed = []; overrides = [] };
           },
         );
@@ -884,7 +884,7 @@ suite(
             name = "org-admin";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = { allowed = []; overrides = [] };
           },
         );
@@ -904,7 +904,7 @@ suite(
             name = "planner";
             model = "openai/gpt-oss-120b";
             allowedChannelIds = Set.empty<Text>();
-            executionEngines = [#canister];
+            workflowEngines = [#canister];
             secrets = { allowed = []; overrides = [] };
           },
         );
@@ -929,7 +929,7 @@ suite(
           {
             name = null;
             model = null;
-            executionEngines = null;
+            workflowEngines = null;
             secretsAllowed = null;
             secretOverrides = null;
             allowedChannelIds = ?Set.singleton<Text>("C_NEW_CHANNEL");
@@ -960,7 +960,7 @@ suite(
           {
             name = null;
             model = null;
-            executionEngines = null;
+            workflowEngines = null;
             secretsAllowed = null;
             secretOverrides = null;
             allowedChannelIds = ?Set.empty<Text>();

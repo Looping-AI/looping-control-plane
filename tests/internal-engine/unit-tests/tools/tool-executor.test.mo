@@ -22,7 +22,7 @@ test(
   func() {
     let results = [{
       callId = "c1";
-      result = #success("the data");
+      result = #ok("the data");
       durationMs = 10;
     }];
     let formatted = ToolExecutor.formatResultsForLlm(results);
@@ -35,7 +35,7 @@ test(
   func() {
     let results = [{
       callId = "c1";
-      result = #success("the data");
+      result = #ok("the data");
       durationMs = 10;
     }];
     let formatted = ToolExecutor.formatResultsForLlm(results);
@@ -48,7 +48,7 @@ test(
   func() {
     let results = [{
       callId = "call-abc";
-      result = #success("x");
+      result = #ok("x");
       durationMs = 0;
     }];
     let formatted = ToolExecutor.formatResultsForLlm(results);
@@ -61,7 +61,7 @@ test(
   func() {
     let results = [{
       callId = "c2";
-      result = #error("something went wrong");
+      result = #err("something went wrong");
       durationMs = 5;
     }];
     let formatted = ToolExecutor.formatResultsForLlm(results);
@@ -70,11 +70,11 @@ test(
 );
 
 test(
-  "formatResultsForLlm: error result output is prefixed with 'Error: '",
+  "formatResultsForLlm: error result output equals the error string",
   func() {
-    let results = [{ callId = "c2"; result = #error("timeout"); durationMs = 5 }];
+    let results = [{ callId = "c2"; result = #err("timeout"); durationMs = 5 }];
     let formatted = ToolExecutor.formatResultsForLlm(results);
-    expect.text(formatted[0].output).equal("Error: timeout");
+    expect.text(formatted[0].output).equal("timeout");
   },
 );
 
@@ -83,7 +83,7 @@ test(
   func() {
     let results = [{
       callId = "err-xyz";
-      result = #error("oops");
+      result = #err("oops");
       durationMs = 0;
     }];
     let formatted = ToolExecutor.formatResultsForLlm(results);
@@ -95,9 +95,9 @@ test(
   "formatResultsForLlm: output count matches input count",
   func() {
     let results = [
-      { callId = "c1"; result = #success("a"); durationMs = 1 },
-      { callId = "c2"; result = #error("b"); durationMs = 2 },
-      { callId = "c3"; result = #success("c"); durationMs = 3 },
+      { callId = "c1"; result = #ok("a"); durationMs = 1 },
+      { callId = "c2"; result = #err("b"); durationMs = 2 },
+      { callId = "c3"; result = #ok("c"); durationMs = 3 },
     ];
     expect.nat(ToolExecutor.formatResultsForLlm(results).size()).equal(3);
   },
@@ -107,8 +107,8 @@ test(
   "formatResultsForLlm: output order matches input order",
   func() {
     let results = [
-      { callId = "first"; result = #success("1"); durationMs = 0 },
-      { callId = "second"; result = #error("2"); durationMs = 0 },
+      { callId = "first"; result = #ok("1"); durationMs = 0 },
+      { callId = "second"; result = #err("2"); durationMs = 0 },
     ];
     let formatted = ToolExecutor.formatResultsForLlm(results);
     expect.text(formatted[0].callId).equal("first");

@@ -64,7 +64,7 @@ module {
     };
 
     let model = resolveModel(envelope);
-    let tools = ToolRegistry.getDefinitions(envelope.workflowId, envelope.scopeGrants);
+    let tools = ToolRegistry.getDefinitions(envelope.workflowName, envelope.scopeGrants);
     let toolsArg : ?[LlmWrapper.Tool] = if (tools.size() > 0) { ?tools } else {
       null;
     };
@@ -193,7 +193,7 @@ module {
           let results = try {
             await ToolExecutor.execute(
               wrapper,
-              envelope.workflowId,
+              envelope.workflowName,
               envelope.scopeGrants,
               calls,
             );
@@ -224,8 +224,8 @@ module {
           // Record individual tool steps + summarized steps
           for (r in results.vals()) {
             let (summary, success) = switch (r.result) {
-              case (#success(data)) { (truncate(data, 200), true) };
-              case (#error(err)) { (err, false) };
+              case (#ok(data)) { (truncate(data, 200), true) };
+              case (#err(err)) { (err, false) };
             };
             let toolName = toolNameFromCallId(calls, r.callId);
             List.add(
@@ -342,8 +342,8 @@ module {
       results,
       func(r : ToolTypes.ToolResult) : Bool {
         switch (r.result) {
-          case (#success(_)) { true };
-          case (#error(_)) { false };
+          case (#ok(_)) { true };
+          case (#err(_)) { false };
         };
       },
     );
@@ -354,8 +354,8 @@ module {
     var successCount : Nat = 0;
     for (r in results.vals()) {
       switch (r.result) {
-        case (#success(_)) { successCount += 1 };
-        case (#error(_)) {};
+        case (#ok(_)) { successCount += 1 };
+        case (#err(_)) {};
       };
     };
     "Executed " # Nat.toText(count) # " tool(s), " # Nat.toText(successCount) # " succeeded.";

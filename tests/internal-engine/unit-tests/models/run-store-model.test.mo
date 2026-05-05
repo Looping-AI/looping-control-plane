@@ -2,7 +2,6 @@
 
 import { test; expect } "mo:test";
 import Nat "mo:core/Nat";
-import Time "mo:core/Time";
 import Map "mo:core/Map";
 import RunStoreModel "../../../../src/internal-engine/models/run-store-model";
 import RunTypes "../../../../src/internal-engine/runner/run-types";
@@ -19,7 +18,7 @@ func makeEnvelope(id : Nat) : ExecutionTypes.EnvelopePayload {
     requestId = "req-" # Nat.toText(id);
     agentId = 0;
     workspaceId = 0;
-    workflowId = "wf-test";
+    workflowName = "wf-test";
     agentName = "test-agent";
     dispatchedVersion = ?"v1";
     instructions = "test";
@@ -28,8 +27,8 @@ func makeEnvelope(id : Nat) : ExecutionTypes.EnvelopePayload {
     model = "openai/gpt-oss-120b";
     secrets = { apiKeys = [("openrouter", "key")] };
     scopeGrants = [];
-    permits = [];
     envelopeNonce = "nonce-" # Nat.toText(id);
+    catalogHash = null;
   };
 };
 
@@ -41,11 +40,6 @@ let ANCIENT : Int = -9_999_999_999_999_999;
 /// Stale record — enqueuedAt set far in the past, exceeds the 1-hour stale threshold.
 func makeRecord(id : Nat) : RunTypes.RunRecord {
   RunHelpers.fromEnvelope(makeEnvelope(id), ANCIENT);
-};
-
-/// Fresh record — enqueuedAt = Time.now(), will not be considered stale.
-func freshRecord(id : Nat) : RunTypes.RunRecord {
-  RunHelpers.fromEnvelope(makeEnvelope(id), Time.now());
 };
 
 func dummyStats() : ExecutionTypes.ExecutionStats {

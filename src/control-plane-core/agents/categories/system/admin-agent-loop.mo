@@ -7,6 +7,8 @@ import Json "mo:json";
 import Types "../../../types";
 import SecretModel "../../../models/secret-model";
 import AgentModel "../../../models/agent-model";
+import SessionModel "../../../models/session-model";
+import ApprovalModel "../../../models/approval-model";
 import ExecutionTypes "../../../types/execution";
 import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
 import InstructionComposer "../../instructions/instruction-composer";
@@ -18,41 +20,64 @@ import ToolExecutor "../../tools/tool-executor";
 import ToolTypes "../../tools/tool-types";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import OpenRouterWrapper "../../../wrappers/openrouter-wrapper";
+import WorkflowCatalogService "../../../services/workflow-catalog-service";
 
 module {
   public func process(
     agent : AgentModel.AgentRecord,
     assembled : ContextAssembler.AssembledContext,
-    triggerMessageText : ?Text,
     turnId : Text,
     userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     apiKey : Text,
     secrets : SecretModel.SecretsState,
     workspaceKey : [Nat8],
     resolveSlackBotToken : (Text -> ?Text),
-    resolveWorkspaceName : (Nat -> ?Text),
     engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
+    approvalState : ApprovalModel.ApprovalState,
+    sourceRef : ?SessionModel.SourceRef,
+    resumeOverride : ?{
+      messages : [OpenRouterWrapper.ResponseInputMessage];
+      startRound : Nat;
+    },
   ) : async Types.AgentOrchestrateResult {
+    // Eager catalog pre-load: ensure the catalog is available before tools are built.
+    // If the catalog is already cached from a prior turn, this is a no-op.
+    if (engineDeps.catalogState.cached == null) {
+      ignore await WorkflowCatalogService.refreshCatalog(engineDeps.catalogState, engineDeps.internalEngine);
+    };
+
     let instructions = InstructionComposer.compose(
       AgentHelpers.categoryToRole(agent.category, agent.config.name),
       [],
       [],
     );
 
-    let chatMessages = messagesToChat(assembled.messages);
+    let (initialMessages, startRound) = switch (resumeOverride) {
+      case (?override) {
+        // Resume: use the provided message history and start the loop counter from the saved round.
+        (override.messages, override.startRound);
+      };
+      case (null) {
+        // Fresh start: assemble context from session history.
+        (assembled.messages, 0);
+      };
+    };
+
+    let chatMessages = messagesToChat(initialMessages);
 
     let toolResources : ToolTypes.ToolResources = {
       openRouterApiKey = ?apiKey;
       workspaceId = ?agent.ownedBy;
       resolveSlackBotToken = ?(resolveSlackBotToken);
       userAuthContext;
-      triggerMessageText;
-      resolveWorkspaceName = ?(resolveWorkspaceName);
       secrets = ?{ state = secrets; workspaceKey; write = true };
       engineDispatch = ?{
         envelopeState = engineDeps.envelopeState;
         internalEngine = engineDeps.internalEngine;
+        catalogState = engineDeps.catalogState;
+        approvalState;
       };
+      sourceRef;
       envelopeContext = ?{
         agent;
         turnId;
@@ -69,7 +94,8 @@ module {
       apiKey,
       agent.config.model,
       instructions,
-      assembled.messages,
+      initialMessages,
+      startRound,
       #workspaceAgent(agent.ownedBy, agent.id),
       toolsOpt,
       toolResources,
@@ -81,12 +107,13 @@ module {
     model : Text,
     instructions : Text,
     initialInput : [OpenRouterWrapper.ResponseInputMessage],
+    startRound : Nat,
     trackId : OpenRouterWrapper.TrackId,
     toolDefinitions : ?[OpenRouterWrapper.Tool],
     toolResources : ToolTypes.ToolResources,
   ) : async Types.AgentOrchestrateResult {
     let inputHistory = List.fromArray<OpenRouterWrapper.ResponseInputMessage>(initialInput);
-    var rounds : Nat = 0;
+    var rounds : Nat = startRound;
 
     label loop_ loop {
       if (rounds >= Constants.MAX_AGENT_ROUNDS) {
@@ -131,17 +158,48 @@ module {
 
           let toolResults = await ToolExecutor.execute(toolResources, calls);
 
-          if (toolResultsContainDispatchSignal(toolResults)) {
-            let step : Types.ProcessingStep = {
-              action = "dispatch_to_engine";
-              result = #ok;
-              timestamp = Time.now();
-            };
-            return #dispatched({ steps = [step] });
-          };
-
+          // Append all results before any early-return so suspension.messages is complete.
           let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
           List.add(inputHistory, { role = #assistant; content = formattedResults });
+
+          // ── Approval signal check (before dispatch) ───────────────────────────
+          switch (findApprovalCall(toolResults, calls)) {
+            case (?(pendingToolCallId, approvalCode)) {
+              let suspension : SessionModel.SuspensionData = {
+                messages = List.toArray(inputHistory);
+                pendingToolCallId;
+                roundCount = rounds;
+              };
+              let step : Types.ProcessingStep = {
+                action = "awaiting_approval";
+                result = #ok;
+                timestamp = Time.now();
+              };
+              return #awaitingApproval({
+                steps = [step];
+                suspension;
+                approvalCode;
+              });
+            };
+            case (null) {};
+          };
+
+          switch (findDispatchingCall(toolResults)) {
+            case (?pendingToolCallId) {
+              let suspension : SessionModel.SuspensionData = {
+                messages = List.toArray(inputHistory);
+                pendingToolCallId;
+                roundCount = rounds;
+              };
+              let step : Types.ProcessingStep = {
+                action = "dispatch_to_engine";
+                result = #ok;
+                timestamp = Time.now();
+              };
+              return #dispatched({ steps = [step]; suspension });
+            };
+            case (null) {};
+          };
         };
         case (#err(msg)) {
           return #err({ message = "Core LLM error: " # msg; steps = [] });
@@ -155,18 +213,60 @@ module {
     });
   };
 
-  private func toolResultsContainDispatchSignal(toolResults : [ToolTypes.ToolResult]) : Bool {
+  /// Find a tool call that produced an approval signal, correlating it back to the original call
+  /// to extract workflowName and originalToolArgs.
+  /// Returns (callId, approvalCode) for the first approvalRequired result.
+  private func findApprovalCall(
+    toolResults : [ToolTypes.ToolResult],
+    calls : [OpenRouterWrapper.ToolCall],
+  ) : ?(Text, Text) {
     for (toolResult in toolResults.vals()) {
       switch (toolResult.result) {
-        case (#success(output)) {
-          if (isDispatchSignal(output)) {
-            return true;
+        case (#ok(output)) {
+          switch (extractApprovalCode(output)) {
+            case (?approvalCode) {
+              // Verify there's a matching call — approval codes only apply to dispatched tool calls
+              for (call in calls.vals()) {
+                if (call.callId == toolResult.callId) {
+                  return ?(toolResult.callId, approvalCode);
+                };
+              };
+            };
+            case (null) {};
           };
         };
-        case (#error(_)) {};
+        case (#err(_)) {};
       };
     };
-    false;
+    null;
+  };
+
+  private func extractApprovalCode(output : Text) : ?Text {
+    switch (Json.parse(output)) {
+      case (#ok(json)) {
+        switch (Json.get(json, "approvalRequired"), Json.get(json, "approvalCode")) {
+          case (?#bool(true), ?#string(code)) { ?code };
+          case _ { null };
+        };
+      };
+      case _ { null };
+    };
+  };
+
+  /// Find the callId of the tool call that produced a dispatch signal, if any.
+  /// Returns the callId of the first dispatching call found.
+  private func findDispatchingCall(toolResults : [ToolTypes.ToolResult]) : ?Text {
+    for (toolResult in toolResults.vals()) {
+      switch (toolResult.result) {
+        case (#ok(output)) {
+          if (isDispatchSignal(output)) {
+            return ?toolResult.callId;
+          };
+        };
+        case (#err(_)) {};
+      };
+    };
+    null;
   };
 
   private func isDispatchSignal(output : Text) : Bool {

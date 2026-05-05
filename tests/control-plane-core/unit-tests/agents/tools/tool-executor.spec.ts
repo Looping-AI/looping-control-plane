@@ -45,8 +45,8 @@ describe("ToolExecutor", () => {
       );
 
       expect(results).toHaveLength(1);
-      if (results[0] && "error" in results[0].result) {
-        expect(results[0].result.error).toContain("Unknown tool");
+      if (results[0] && "err" in results[0].result) {
+        expect(results[0].result.err).toContain("Unknown tool");
       } else {
         throw new Error("Expected unknown tool execution to fail");
       }
@@ -58,7 +58,7 @@ describe("ToolExecutor", () => {
       expect(formatted).toContain("Tool call call-1 result:");
       expect(formatted).toContain('{"ok":true}');
       expect(formatted).toContain("Tool call call-2 result:");
-      expect(formatted).toContain("Error: boom");
+      expect(formatted).toContain("boom");
     });
   });
 
@@ -99,8 +99,8 @@ describe("ToolExecutor", () => {
         expect(results).toHaveLength(1);
         expect(results[0]?.callId).toBe("call-1");
         expect(results[0]?.durationMs).toBeGreaterThanOrEqual(0n);
-        if (results[0] && "success" in results[0].result) {
-          expect(results[0].result.success.length).toBeGreaterThan(0);
+        if (results[0] && "ok" in results[0].result) {
+          expect(results[0].result.ok.length).toBeGreaterThan(0);
         } else {
           throw new Error("Expected web_search tool execution to succeed");
         }

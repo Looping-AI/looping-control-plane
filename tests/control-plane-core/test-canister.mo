@@ -7,17 +7,21 @@ import Float "mo:core/Float";
 import Array "mo:core/Array";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
+import Time "mo:core/Time";
 import Principal "mo:core/Principal";
 import Json "mo:json";
 import { str; obj; bool; int } "mo:json";
 
 import InternalEngine "../../src/internal-engine/main";
+import WorkflowCatalog "../../src/internal-engine/workflows/workflow-catalog";
 
 import HttpWrapper "../../src/control-plane-core/wrappers/http-wrapper";
 import OpenRouterWrapper "../../src/control-plane-core/wrappers/openrouter-wrapper";
 import SlackWrapper "../../src/control-plane-core/wrappers/slack-wrapper";
 import HttpCertification "../../src/control-plane-core/utilities/http-certification";
 import MessageHandler "../../src/control-plane-core/events/handlers/message-handler";
+import BlockActionsHandler "../../src/control-plane-core/events/handlers/block-actions-handler";
+import SlackEventTypes "../../src/control-plane-core/events/types/slack-event-types";
 import MessageDeletedHandler "../../src/control-plane-core/events/handlers/message-deleted-handler";
 import MessageEditedHandler "../../src/control-plane-core/events/handlers/message-edited-handler";
 import AssistantThreadHandler "../../src/control-plane-core/events/handlers/assistant-thread-handler";
@@ -30,7 +34,8 @@ import SlackAdapter "../../src/control-plane-core/events/slack-adapter";
 import StoreSecretHandler "../../src/control-plane-core/agents/tools/handlers/secrets/store-secret-handler";
 import GetWorkspaceSecretsHandler "../../src/control-plane-core/agents/tools/handlers/secrets/get-workspace-secrets-handler";
 import DeleteSecretHandler "../../src/control-plane-core/agents/tools/handlers/secrets/delete-secret-handler";
-import DispatchWorkflowHandler "../../src/control-plane-core/agents/tools/handlers/dispatch-workflow-handler";
+import WorkflowEngineHandler "../../src/control-plane-core/agents/tools/handlers/workflow-engine-handler";
+import WorkflowCatalogTypes "../../src/control-plane-core/types/workflow-catalog";
 import EngineDispatchService "../../src/control-plane-core/services/engine-dispatch-service";
 import ExecutionTypes "../../src/control-plane-core/types/execution";
 import WeeklyReconciliationRunner "../../src/control-plane-core/timers/weekly-reconciliation-runner";
@@ -50,10 +55,12 @@ import SecretModel "../../src/control-plane-core/models/secret-model";
 import EventStoreModel "../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../src/control-plane-core/models/session-model";
 import ExecutionEnvelopeModel "../../src/control-plane-core/models/execution-envelope-model";
+import WorkflowCatalogModel "../../src/control-plane-core/models/workflow-catalog-model";
+import ApprovalModel "../../src/control-plane-core/models/approval-model";
 import ExecutionApiService "../../src/control-plane-core/services/execution-api-service";
 import ExecutionAsyncEffectService "../../src/control-plane-core/services/execution-async-effect-service";
 import EventProcessingContextTypes "../../src/control-plane-core/events/types/event-processing-context";
-import AgentOrchestrator "../../src/control-plane-core/agents/agent-orchestrator";
+import AgentRunner "../../src/control-plane-core/agents/agent-runner";
 import ToolExecutor "../../src/control-plane-core/agents/tools/tool-executor";
 import ToolTypes "../../src/control-plane-core/agents/tools/tool-types";
 import Types "../../src/control-plane-core/types";
@@ -125,6 +132,11 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // so testGetTurnStatus can observe turn state after the handler returns.
   let testDispatchSessionStores = SessionModel.emptyStores();
 
+  // Approval state paired with testDispatchSessionStores for block-actions-handler tests.
+  // Persists within a canister instance so testSeedApprovalRecord / testHandleBlockAction /
+  // testGetApprovalStatus can observe state changes across separate calls.
+  let testDispatchApprovalState = ApprovalModel.emptyState();
+
   // Execution API token store — dedicated store for executionApi endpoint tests.
   let testExecEnvelopeState = ExecutionEnvelopeModel.emptyState();
 
@@ -138,6 +150,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     envelopeState = testExecEnvelopeState;
     workspaces = testWorkspacesState;
     agentRegistry = testAgentRegistry;
+    approvalState = ApprovalModel.emptyState();
     eventStore = testEventStore;
     sessionStores = testDispatchSessionStores;
   });
@@ -151,6 +164,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     envelopeState = testEffectEnvelopeState;
     workspaces = testWorkspacesState;
     agentRegistry = testEffectAgentRegistry;
+    approvalState = ApprovalModel.emptyState();
     eventStore = testEventStore;
     sessionStores = testEffectSessionStores;
   });
@@ -166,12 +180,34 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     agentRegistry = testEffectAgentRegistry;
     workspaces = testWorkspacesState;
     secrets = testEffectSecretsState;
+    approvalState = ApprovalModel.emptyState();
+    resumeAdminTurn = func(_ : Text, _ : SessionModel.SuspensionData, _ : Text) : async Types.AgentOrchestrateResult {
+      #err({
+        message = "resumeAdminTurn not supported in test canister";
+        steps = [];
+      });
+    };
   });
 
+  func outcomeToText(outcome : ToolTypes.ToolCallOutcome) : Text {
+    switch (outcome) {
+      case (#ok(t)) { t };
+      case (#err(e)) { e };
+    };
+  };
+
   func testOrchestratorEngineDeps() : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState> {
+    // Pre-seed the catalog with the real internal-engine descriptors so that
+    // admin-agent-loop sees the full tool list without needing a live self-call
+    // to listWorkflows(). This mirrors production behaviour where Core has already
+    // fetched the catalog at least once.
+    let catalog = WorkflowCatalogModel.empty();
+    let catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+    WorkflowCatalogModel.replace(catalog, catalogHash, WorkflowCatalog.allDescriptors);
     {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = mockInternalEngine;
+      catalogState = catalog;
     };
   };
 
@@ -187,7 +223,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       config = {
         name;
         model;
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds;
         secrets = { allowed = [(0, #openRouterApiKey)]; overrides = [] };
       };
@@ -205,6 +241,16 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     mockInternalEngine;
   };
 
+  /// Implements the InternalEngine.InternalEngine interface so mockInternalEngine
+  /// (cast to this canister) can serve the workflow catalog to admin-agent-loop.
+  public shared func listWorkflows() : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    let catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+    #ok(WorkflowCatalog.listWorkflowsJson(catalogHash));
+  };
+
   public shared ({ caller = _ }) func execute(envelope : ExecutionTypes.EnvelopePayload) : async {
     #ok;
     #err : Text;
@@ -215,7 +261,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (null) { false };
     };
     if (not versionOk) {
-      return #err("{\"envelopeVersionRequired\":\"" # requiredVersion # "\"}");
+      return #err(Json.stringify(obj([("type", str("versionMismatch")), ("message", str("Envelope version mismatch. Engine requires: " # requiredVersion # ".")), ("envelopeVersionRequired", str(requiredVersion))]), null));
     };
 
     let hasApiKey = Array.find<(Text, Text)>(
@@ -689,21 +735,225 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       sessionStores = testDispatchSessionStores;
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine = engine;
+      catalogState = {
+        // Pre-seed the catalog so admin-agent-loop can build workflow tools
+        // without making a live listWorkflows() call inside the test tick budget.
+        var cached = ?{
+          catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+          descriptors = WorkflowCatalog.allDescriptors;
+        };
+      };
+      approvalState = ApprovalModel.emptyState();
+      armApprovalTimer = func(_expiresAtNs : Int, _cb : () -> async ()) : async Nat {
+        0;
+      }; // no-op: timers not exercised in integration tests
     };
     await MessageHandler.handle(msg, ctx);
   };
 
   /// Query the status of a turn recorded in testDispatchSessionStores.
-  /// Returns "running", "pending", "succeeded", or "failed"; null if not found.
+  /// Returns "running", "awaitingWorkflow", "succeeded", or "failed"; null if not found.
   public query func testGetTurnStatus(turnId : Text) : async ?Text {
     switch (SessionModel.findTurn(testDispatchSessionStores, turnId)) {
       case (null) { null };
       case (?turn) {
         let statusText = switch (turn.status) {
           case (#running) { "running" };
-          case (#pending) { "pending" };
+          case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
+          case (#awaitingApproval(_)) { "awaitingApproval" };
           case (#succeeded) { "succeeded" };
           case (#failed) { "failed" };
+        };
+        ?statusText;
+      };
+    };
+  };
+
+  // ============================================
+  // Block Actions Handler Test Methods
+  // ============================================
+
+  /// Seed a turn in #awaitingApproval state in testDispatchSessionStores and a matching
+  /// approval record in testDispatchApprovalState. Returns both the turnId and the
+  /// approval code so tests can call testHandleBlockAction / testHandleBlockActionFullPipeline
+  /// with the correct values.
+  public shared ({ caller }) func testSeedApprovalForTurn(
+    workflowName : Text,
+    requestedByUserId : Text,
+  ) : async { turnId : Text; approvalCode : Text } {
+    assert caller == parent;
+    let turn = SessionModel.createTurn(
+      testDispatchSessionStores,
+      0,
+      ?#slack({
+        channelId = "C_TEST";
+        ts = "1700000010.000001";
+        threadTs = null;
+      }),
+      null,
+      null,
+    );
+    let code = ApprovalModel.request(
+      testDispatchApprovalState,
+      workflowName,
+      "{}",
+      0,
+      0,
+      turn.turnId,
+      requestedByUserId,
+    );
+    ignore SessionModel.suspendForApproval(
+      testDispatchSessionStores,
+      turn.turnId,
+      {
+        messages = [];
+        pendingToolCallId = "test-call-id";
+        roundCount = 0;
+      },
+      code,
+      Time.now() + 3_600_000_000_000,
+    );
+    { turnId = turn.turnId; approvalCode = code };
+  };
+
+  /// Seed an approval record in testDispatchApprovalState and return the generated code.
+  /// Stores the record with workspaceId=0, agentId=0 and the supplied turnId /
+  /// requestedByUserId so that testHandleBlockAction can look it up.
+  public shared ({ caller }) func testSeedApprovalRecord(
+    workflowName : Text,
+    turnId : Text,
+    requestedByUserId : Text,
+  ) : async Text {
+    assert caller == parent;
+    ApprovalModel.request(
+      testDispatchApprovalState,
+      workflowName,
+      "{}",
+      0,
+      0,
+      turnId,
+      requestedByUserId,
+    );
+  };
+
+  /// Simulate a Slack Block Kit button click against testDispatchApprovalState.
+  /// Constructs a minimal BlockActionsPayload and calls BlockActionsHandler.handle.
+  /// Pass responseUrl="" to skip the response_url HTTP call.
+  /// Do NOT call pic.tick() after this — the fire-and-forget resume timer must not
+  /// run during approval-status validation tests (engine is absent).
+  public shared ({ caller }) func testHandleBlockAction(
+    actionId : Text,
+    code : Text,
+    slackUserId : Text,
+    responseUrl : Text,
+  ) : async () {
+    assert caller == parent;
+    let payload : SlackEventTypes.BlockActionsPayload = {
+      userId = slackUserId;
+      actionId;
+      actionValue = code;
+      messageTs = "1700000000.000001";
+      channelId = "C_TEST";
+      responseUrl;
+    };
+    let resumeDeps : AgentRunner.ResumeDeps = {
+      sessionStores = testDispatchSessionStores;
+      agentRegistry = testAgentRegistry;
+      secrets = testSecretsMap;
+      internalEngine = null;
+      envelopeState = testExecEnvelopeState;
+      catalogState = { var cached = null };
+      approvalState = testDispatchApprovalState;
+    };
+    let deps : BlockActionsHandler.BlockActionsDeps = {
+      approvalState = testDispatchApprovalState;
+      sessionStores = testDispatchSessionStores;
+      agentRegistry = testAgentRegistry;
+      slackUsers;
+      resumeDeps;
+      keyCache = testSecretsKeyCache;
+    };
+    await BlockActionsHandler.handle<system>(payload, deps);
+  };
+
+  /// Full-pipeline variant of testHandleBlockAction for testing the
+  /// approve → resumeWithApproval → #awaitingWorkflow path.
+  ///
+  /// Seeds bot token and OR API key into a fresh secrets state using the dummy key,
+  /// wires testEffectAgentRegistry (agent 0 pre-seeded) and the mock internal engine,
+  /// then calls BlockActionsHandler.handle<system>.
+  ///
+  /// Call pic.tick() after this to let the zero-delay resume timer fire.
+  public shared ({ caller }) func testHandleBlockActionFullPipeline(
+    actionId : Text,
+    code : Text,
+    slackUserId : Text,
+    responseUrl : Text,
+    botToken : Text,
+    orApiKey : Text,
+  ) : async () {
+    assert caller == parent;
+    // Seed bot token and OR API key into a fresh secrets state encrypted with dummyKey.
+    let secrets = SecretModel.initState();
+    ignore SecretModel.storeSecret(
+      secrets,
+      TestHelpers.dummyKey,
+      0,
+      #slackBotToken,
+      botToken,
+      { slackUserId = null; agentId = null; operation = "test-seed" },
+    );
+    ignore SecretModel.storeSecret(
+      secrets,
+      TestHelpers.dummyKey,
+      0,
+      #openRouterApiKey,
+      orApiKey,
+      { slackUserId = null; agentId = null; operation = "test-seed" },
+    );
+    let payload : SlackEventTypes.BlockActionsPayload = {
+      userId = slackUserId;
+      actionId;
+      actionValue = code;
+      messageTs = "1700000000.000001";
+      channelId = "C_TEST";
+      responseUrl;
+    };
+    let resumeDeps : AgentRunner.ResumeDeps = {
+      sessionStores = testDispatchSessionStores;
+      agentRegistry = testEffectAgentRegistry;
+      secrets;
+      internalEngine = ?mockInternalEngine;
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      catalogState = {
+        var cached = ?{
+          catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+          descriptors = WorkflowCatalog.allDescriptors;
+        };
+      };
+      approvalState = testDispatchApprovalState;
+    };
+    let deps : BlockActionsHandler.BlockActionsDeps = {
+      approvalState = testDispatchApprovalState;
+      sessionStores = testDispatchSessionStores;
+      agentRegistry = testEffectAgentRegistry;
+      slackUsers;
+      resumeDeps;
+      keyCache = testSecretsKeyCache;
+    };
+    await BlockActionsHandler.handle<system>(payload, deps);
+  };
+
+  /// Query the status of an approval record in testDispatchApprovalState.
+  /// Returns "pending" / "used" / "expired", or null if the code is not found.
+  public query func testGetApprovalStatus(code : Text) : async ?Text {
+    switch (ApprovalModel.findByCode(testDispatchApprovalState, code)) {
+      case (null) { null };
+      case (?record) {
+        let statusText = switch (record.status) {
+          case (#pending) { "pending" };
+          case (#approved) { "approved" };
+          case (#denied) { "denied" };
         };
         ?statusText;
       };
@@ -716,10 +966,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   public shared ({ caller }) func testOrchestrateSystemAdminNoApiKey() : async Types.AgentOrchestrateResult {
     assert caller == parent;
-    await AgentOrchestrator.orchestrate(
+    await AgentRunner.start(
       testAgent(#_system(#admin), "unit-test-admin"),
       ChannelHistoryModel.empty(),
-      "C_TEST_CATEGORY",
       null,
       null,
       "turn-admin-0",
@@ -729,8 +978,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       SecretModel.initState(),
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
-      WorkspaceModel.emptyState(),
       testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
     );
   };
 
@@ -741,10 +990,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
       s;
     };
-    await AgentOrchestrator.orchestrate(
+    await AgentRunner.start(
       testAgent(#_system(#onboarding), "unit-test-onboarding"),
       ChannelHistoryModel.empty(),
-      "C_TEST_CATEGORY",
       null,
       null,
       "turn-onboarding-0",
@@ -754,8 +1002,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       secrets,
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
-      WorkspaceModel.emptyState(),
       testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
     );
   };
 
@@ -766,10 +1014,9 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       ignore SecretModel.storeSecret(s, TestHelpers.dummyKey, 0, #openRouterApiKey, "dummy-key", { slackUserId = null; agentId = null; operation = "test" });
       s;
     };
-    await AgentOrchestrator.orchestrate(
+    await AgentRunner.start(
       testAgent(#custom, "unit-test-custom"),
       ChannelHistoryModel.empty(),
-      "C_TEST_CATEGORY",
       null,
       null,
       "turn-custom-0",
@@ -779,8 +1026,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       secrets,
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
-      WorkspaceModel.emptyState(),
       testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
     );
   };
 
@@ -826,11 +1073,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
     );
     let triggerPrompt : ?Text = if (prompt == "") { null } else { ?prompt };
-    await AgentOrchestrator.orchestrate(
+    await AgentRunner.start(
       testAgentWithModel(#_system(#admin), "unit-test-admin", model),
       history,
-      "C_TEST_CATEGORY",
-      null,
+      ?#slack({
+        channelId = "C_TEST_CATEGORY";
+        ts = "1700000000.000001";
+        threadTs = null;
+      }),
       triggerPrompt,
       "turn-admin-loop-0",
       SessionModel.emptyStores(),
@@ -839,8 +1089,71 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       secrets,
       TestHelpers.dummyKey,
       TestHelpers.dummyKey,
-      WorkspaceModel.emptyState(),
       testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
+    );
+  };
+
+  /// Run AdminAgentLoop.process with a seeded userAuthContext (userId = "U_ADMIN_LOOP_TEST").
+  /// Identical to testAdminAgentLoopProcess but passes a proper userAuthContext so
+  /// requestedByUserId is correctly captured in #awaitingApproval results.
+  public shared ({ caller }) func testAdminAgentLoopApproval(
+    apiKey : Text,
+    model : Text,
+    prompt : Text,
+  ) : async Types.AgentOrchestrateResult {
+    assert caller == parent;
+    let secrets = if (apiKey == "") {
+      SecretModel.initState();
+    } else {
+      let s = SecretModel.initState();
+      ignore SecretModel.storeSecret(
+        s,
+        TestHelpers.dummyKey,
+        0,
+        #openRouterApiKey,
+        apiKey,
+        { slackUserId = null; agentId = null; operation = "test-seed" },
+      );
+      s;
+    };
+    let history = ChannelHistoryModel.empty();
+    let authCtx : SlackAuthMiddleware.UserAuthContext = {
+      slackUserId = "U_ADMIN_LOOP_TEST";
+      isPrimaryOwner = false;
+      isOrgAdmin = false;
+      adminWorkspaces = Set.empty<Nat>();
+    };
+    ChannelHistoryModel.addMessage(
+      history,
+      "C_TEST_CATEGORY",
+      {
+        ts = "1700000000.000001";
+        userAuthContext = ?authCtx;
+        text = prompt;
+        agentMetadata = null;
+      },
+      null,
+    );
+    let triggerPrompt : ?Text = if (prompt == "") { null } else { ?prompt };
+    await AgentRunner.start(
+      testAgentWithModel(#_system(#admin), "unit-test-admin", model),
+      history,
+      ?#slack({
+        channelId = "C_TEST_CATEGORY";
+        ts = "1700000000.000001";
+        threadTs = null;
+      }),
+      triggerPrompt,
+      "turn-admin-loop-approval-0",
+      SessionModel.emptyStores(),
+      ?authCtx,
+      ?"U_ADMIN_LOOP_TEST",
+      secrets,
+      TestHelpers.dummyKey,
+      TestHelpers.dummyKey,
+      testOrchestratorEngineDeps(),
+      ApprovalModel.emptyState(),
     );
   };
 
@@ -859,8 +1172,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       workspaceId = null;
       resolveSlackBotToken = null;
       userAuthContext = null;
-      triggerMessageText = null;
-      resolveWorkspaceName = null;
+      sourceRef = null;
       secrets = null;
       engineDispatch = null;
       envelopeContext = null;
@@ -874,8 +1186,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   public shared ({ caller }) func testToolExecutorFormatFixture() : async Text {
     assert caller == parent;
     ToolExecutor.formatResultsForLlm([
-      { callId = "call-1"; result = #success("{\"ok\":true}"); durationMs = 0 },
-      { callId = "call-2"; result = #error("boom"); durationMs = 0 },
+      { callId = "call-1"; result = #ok("{\"ok\":true}"); durationMs = 0 },
+      { callId = "call-2"; result = #err("boom"); durationMs = 0 },
     ]);
   };
 
@@ -906,7 +1218,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         #slackQueue({ access = #read }),
         #session({ access = #write }),
       ],
-      [],
     ).nonce;
   };
 
@@ -935,6 +1246,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // ============================================
 
   /// Seed a pending turn in testEffectSessionStores with a Slack sourceRef.
+  /// The turn is set to #awaitingWorkflow so it is ready for engine completion.
   /// Returns the generated turnId (format: "{agentId}_{turnNumber}").
   public shared ({ caller }) func testSeedPendingTurn(
     agentId : Nat,
@@ -950,7 +1262,37 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       null,
       null,
     );
-    SessionModel.markPending(testEffectSessionStores, turn.turnId);
+    ignore SessionModel.suspendForWorkflow(
+      testEffectSessionStores,
+      turn.turnId,
+      {
+        messages = [];
+        pendingToolCallId = "test-call-id";
+        roundCount = 0;
+      },
+    );
+    turn.turnId;
+  };
+
+  /// Seed a #running turn in testEffectSessionStores with a Slack sourceRef.
+  /// Use this when testing the normal (non-resume) completion path where the
+  /// turn is not awaiting a workflow engine result.
+  /// Returns the generated turnId (format: "{agentId}_{turnNumber}").
+  public shared ({ caller }) func testSeedRunningTurn(
+    agentId : Nat,
+    channelId : Text,
+    ts : Text,
+    threadTs : ?Text,
+  ) : async Text {
+    assert caller == parent;
+    let turn = SessionModel.createTurn(
+      testEffectSessionStores,
+      agentId,
+      ?#slack({ channelId; ts; threadTs }),
+      null,
+      null,
+    );
+    // Leave status as #running (the default from createTurn)
     turn.turnId;
   };
 
@@ -971,7 +1313,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         #slackQueue({ access = #read }),
         #session({ access = #write }),
       ],
-      [],
     ).nonce;
   };
 
@@ -1001,6 +1342,44 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     response;
   };
 
+  /// Variant of testRunAsyncEffect that wires a succeeding resumeAdminTurn stub.
+  /// Use this to exercise the #awaitingWorkflow → #succeeded path in
+  /// ExecutionAsyncEffectService, where the service calls resumeAdminTurn and then
+  /// applies the result via TurnCompletionService.
+  /// The stub returns #ok immediately, avoiding a live LLM or engine call.
+  public shared ({ caller }) func testRunAsyncEffectWithResume(
+    method : { #get; #post; #delete },
+    path : Text,
+    body : Text,
+    botToken : Text,
+  ) : async { #ok : Text; #err : Text } {
+    assert caller == parent;
+    ignore SecretModel.storeSecret(
+      testEffectSecretsState,
+      TestHelpers.dummyKey,
+      0,
+      #slackBotToken,
+      botToken,
+      { slackUserId = null; agentId = null; operation = "test-seed-resume" },
+    );
+    // Build a one-shot service with a succeeding resumeAdminTurn stub.
+    let serviceWithResume = ExecutionAsyncEffectService.Service({
+      sessionStores = testEffectSessionStores;
+      agentRegistry = testEffectAgentRegistry;
+      workspaces = testWorkspacesState;
+      secrets = testEffectSecretsState;
+      approvalState = ApprovalModel.emptyState();
+      resumeAdminTurn = func(_ : Text, _ : SessionModel.SuspensionData, _ : Text) : async Types.AgentOrchestrateResult {
+        #ok({ response = "Workflow complete."; steps = [] });
+      };
+    });
+    let { response; asyncEffects } = testEffectExecApiService.handleRequest(method, path, body);
+    for (effect in asyncEffects.vals()) {
+      await serviceWithResume.processEffect(testEffectKeyCache, effect);
+    };
+    response;
+  };
+
   /// Query the status of a turn in testEffectSessionStores.
   public query func testGetEffectTurnStatus(turnId : Text) : async ?Text {
     switch (SessionModel.findTurn(testEffectSessionStores, turnId)) {
@@ -1008,7 +1387,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (?turn) {
         let statusText = switch (turn.status) {
           case (#running) { "running" };
-          case (#pending) { "pending" };
+          case (#awaitingWorkflow(_)) { "awaitingWorkflow" };
+          case (#awaitingApproval(_)) { "awaitingApproval" };
           case (#succeeded) { "succeeded" };
           case (#failed) { "failed" };
         };
@@ -1509,7 +1889,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         };
       };
     };
-    StoreSecretHandler.handle(testSecretsMap, TestHelpers.dummyKey, uac, workspaceId, args);
+    StoreSecretHandler.handle(testSecretsMap, TestHelpers.dummyKey, uac, workspaceId, args) |> outcomeToText(_);
   };
 
   /// Test the GetWorkspaceSecretsHandler in isolation.
@@ -1552,7 +1932,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         };
       };
     };
-    await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, workspaceId, args);
+    (await GetWorkspaceSecretsHandler.handle(testSecretsMap, uac, workspaceId, args)) |> outcomeToText(_);
   };
 
   /// Test the DeleteSecretHandler in isolation.
@@ -1595,7 +1975,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         };
       };
     };
-    await DeleteSecretHandler.handle(testSecretsMap, uac, workspaceId, args);
+    (await DeleteSecretHandler.handle(testSecretsMap, uac, workspaceId, args)) |> outcomeToText(_);
   };
 
   // ============================================
@@ -1706,7 +2086,6 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       "test-turn-dispatch-0_0",
       0,
       [#workspace({ access = #read })],
-      [],
     );
     let envelope : ExecutionTypes.EnvelopePayload = {
       envelopeId;
@@ -1716,14 +2095,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       agentId = 0;
       agentName = "test-agent";
       workspaceId = 0;
-      workflowId = "admin-v1";
+      workflowName = "admin-v1";
       model = "";
       messages = [];
       instructions = "test instructions";
       constraints = { maxRounds = 1; maxTokenBudget = null };
       secrets = { apiKeys };
       scopeGrants = [#workspace({ access = #read })];
-      permits = [];
+      catalogHash = null;
     };
     let knownVersionAfter = func() : ?Text {
       Map.get(store.knownEngineVersions, Text.compare, "internal-engine");
@@ -1750,16 +2129,15 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Dispatch Workflow Handler Test Methods
   // ============================================
 
-  /// Test the DispatchWorkflowHandler in isolation.
+  /// Test the WorkflowEngineHandler in isolation.
   ///
-  /// @param args               JSON-encoded tool arguments ({ workflowId, permits? }).
-  /// @param triggerMessageText The verbatim Slack trigger message text (for permit validation).
-  /// @param botToken           Optional Slack bot token (for setAdminChannel permit validation).
-  /// @param mockDispatchFail   When true, dispatchToEngine returns #err; otherwise #ok.
+  /// Builds a minimal descriptor with no coreDirectives and dispatches using the provided args.
+  /// @param args             JSON-encoded tool arguments (workflow-specific).
+  /// @param botToken         Optional Slack bot token (unused when no preValidation directives).
+  /// @param mockDispatchFail When true, dispatch returns #err; otherwise #ok.
   /// Uses a minimal org-admin AgentRecord stub and a fresh ExecutionEnvelopeModel.EnvelopeState.
-  public shared ({ caller }) func testDispatchWorkflowHandler(
+  public shared ({ caller }) func testWorkflowEngineHandler(
     args : Text,
-    triggerMessageText : ?Text,
     botToken : ?Text,
     mockDispatchFail : Bool,
   ) : async Text {
@@ -1771,7 +2149,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       config = {
         name = "test-dispatch-admin";
         model = "openai/gpt-oss-120b";
-        executionEngines = [#canister];
+        workflowEngines = [#canister];
         allowedChannelIds = Set.empty<Text>();
         secrets = { allowed = []; overrides = [] };
       };
@@ -1785,11 +2163,18 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     } else {
       mockInternalEngine;
     };
-    let engineDispatch : DispatchWorkflowHandler.EngineDispatch = {
+    let engineDispatch : ToolTypes.EngineDispatch = {
       envelopeState = ExecutionEnvelopeModel.emptyState();
       internalEngine;
+      catalogState = {
+        var cached = ?{
+          catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+          descriptors = WorkflowCatalog.allDescriptors;
+        };
+      };
+      approvalState = ApprovalModel.emptyState();
     };
-    let envelopeContext : DispatchWorkflowHandler.EnvelopeContext = {
+    let envelopeContext : ToolTypes.EnvelopeContext = {
       agent;
       turnId = "test-turn-0_0";
       instructions = "Test instructions";
@@ -1800,15 +2185,106 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (null) { null };
       case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
     };
-    let resolveWorkspaceName : ?(Nat -> ?Text) = ?(
-      func(id : Nat) : ?Text {
-        switch (WorkspaceModel.getWorkspace(testWorkspacesState, id)) {
-          case (null) { null };
-          case (?r) { ?r.name };
-        };
-      }
-    );
-    await DispatchWorkflowHandler.handle(engineDispatch, envelopeContext, resolveSlackBotToken, triggerMessageText, resolveWorkspaceName, args);
+    let descriptor : WorkflowCatalogTypes.WorkflowDescriptor = {
+      workflowName = "admin-v1";
+      description = "Administrative operations";
+      parametersJsonSchema = "{\"type\":\"object\"}";
+      requiredScopes = [];
+      coreDirectives = [];
+    };
+    let outcome = await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, "", null, args);
+    switch (outcome) {
+      case (#ok(t)) { t };
+      case (#err(e)) { e };
+    };
+  };
+
+  /// Test the WorkflowEngineHandler with a descriptor that has coreDirectives = [#require("approval")].
+  ///
+  /// @param args             JSON-encoded tool arguments (no approvalCode → triggers approval prompt).
+  /// @param botToken         Optional Slack bot token (used to attempt posting the approval Slack message).
+  /// @param mockDispatchFail When true, dispatch returns #err; otherwise #ok.
+  /// @param preApprove       When true, pre-seeds an approval code as #used so the dispatch proceeds.
+  /// @param slackChannelId   When provided, used as the Slack channelId in sourceRef.
+  public shared ({ caller }) func testWorkflowEngineHandlerApproval(
+    args : Text,
+    botToken : ?Text,
+    mockDispatchFail : Bool,
+    preApprove : Bool,
+    slackChannelId : ?Text,
+  ) : async Text {
+    assert caller == parent;
+    let approvalWorkflowName = "admin-approval-v1";
+    let testUserId = "U_TEST_USER";
+    let testTurnId = "test-turn-0_0";
+    let agent : AgentModel.AgentRecord = {
+      id = 0;
+      ownedBy = 0;
+      category = #_system(#admin);
+      config = {
+        name = "test-approval-admin";
+        model = "openai/gpt-oss-120b";
+        workflowEngines = [#canister];
+        allowedChannelIds = Set.empty<Text>();
+        secrets = { allowed = []; overrides = [] };
+      };
+      state = {
+        toolsState = Map.empty<Text, AgentModel.ToolState>();
+      };
+    };
+    let internalEngine : InternalEngine.InternalEngine = if (mockDispatchFail) {
+      actor "aaaaa-aa" : InternalEngine.InternalEngine;
+    } else {
+      mockInternalEngine;
+    };
+    let approvalState = ApprovalModel.emptyState();
+    // Pre-seed catalog so dispatch can proceed past step 3 (catalog hash check).
+    let catalog = WorkflowCatalogModel.empty();
+    let catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
+    WorkflowCatalogModel.replace(catalog, catalogHash, WorkflowCatalog.allDescriptors);
+    let engineDispatch : ToolTypes.EngineDispatch = {
+      envelopeState = ExecutionEnvelopeModel.emptyState();
+      internalEngine;
+      catalogState = catalog;
+      approvalState;
+    };
+    let envelopeContext : ToolTypes.EnvelopeContext = {
+      agent;
+      turnId = testTurnId;
+      instructions = "Test instructions";
+      messages = [];
+      apiKey = "test-api-key";
+    };
+    let resolveSlackBotToken : ?(Text -> ?Text) = switch (botToken) {
+      case (null) { null };
+      case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
+    };
+    let descriptor : WorkflowCatalogTypes.WorkflowDescriptor = {
+      workflowName = approvalWorkflowName;
+      description = "Administrative approval workflow";
+      parametersJsonSchema = "{\"type\":\"object\"}";
+      requiredScopes = [];
+      coreDirectives = [#require("approval")];
+    };
+    let sourceRef : ?SessionModel.SourceRef = switch (slackChannelId) {
+      case (?channelId) {
+        ?#slack({ channelId; ts = "1700000000.000001"; threadTs = null });
+      };
+      case (null) { null };
+    };
+    // When preApprove=true: generate + validate a code so handle() proceeds to dispatch.
+    let actualArgs : Text = if (preApprove) {
+      let code = ApprovalModel.request(approvalState, approvalWorkflowName, "{}", 0, 0, testTurnId, testUserId);
+      ignore ApprovalModel.approve(approvalState, code, testUserId, Set.empty());
+      Json.stringify(obj([("approvalCode", str(code))]), null);
+    } else {
+      args;
+    };
+    let outcome = await WorkflowEngineHandler.handle(descriptor, engineDispatch, envelopeContext, resolveSlackBotToken, testUserId, sourceRef, actualArgs);
+    switch (outcome) {
+      case (#ok(t)) { t };
+      case (#err(e)) { e };
+    };
   };
 
   /// Test the SlackEventIntakeService in isolation.

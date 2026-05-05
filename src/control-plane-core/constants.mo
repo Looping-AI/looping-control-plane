@@ -71,6 +71,11 @@ module {
   // Tokens are issued by Core when spawning an engine run and auto-expire after this window.
   public let EXECUTION_TOKEN_TTL_NS : Int = 3_600_000_000_000;
 
+  // Approval TTL — 1 hour in nanoseconds (60 * 60 * 1_000_000_000)
+  // Pending approvals auto-expire after this window; the per-turn one-shot timer fires
+  // `resumeWithDenial` with reason "approval timed out".
+  public let APPROVAL_TTL_NS : Int = 3_600_000_000_000;
+
   // Default session policy — token budgets for context-window management.
   // The admin agent can override these per-agent via the update_session_policy tool.
   public let DEFAULT_SUMMARY_TOKEN_BUDGET : Nat = 32768; // 32k

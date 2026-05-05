@@ -13,8 +13,8 @@
 ///   Phase 1.6  resolvePrimaryAgent     — pick the agent to route to.
 ///              channelGuard            — reject messages from channels the agent
 ///                                        is not configured for.
-///              postAgentReply          — post the reply to Slack and emit the final
-///                                        HandlerResult.
+///              TurnCompletionService   — post reply to Slack and complete the turn.
+///              TurnSuspensionService   — mutate turn status for suspension outcomes.
 ///
 /// Helper inventory (sync):
 ///   resolveWorkspaceId, rootTimestamp, persistIncomingMessage,
@@ -22,7 +22,7 @@
 ///   buildReplyMetadata, resolvePrimaryAgent
 ///
 /// Helper inventory (async):
-///   postTerminationIfTokenAvailable, postAgentReply
+///   postTerminationIfTokenAvailable
 ///
 /// Note: the bot reply is NOT explicitly stored here — Slack echoes the posted
 /// message back as a bot event, which is stored via the normal incoming-message
@@ -40,7 +40,8 @@ import Types "../../types";
 import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ChannelHistoryModel "../../models/channel-history-model";
-import AgentOrchestrator "../../agents/agent-orchestrator";
+import AgentRunner "../../agents/agent-runner";
+import ApprovalModel "../../models/approval-model";
 import SlackWrapper "../../wrappers/slack-wrapper";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import AgentRefParser "../../utilities/agent-ref-parser";
@@ -49,6 +50,8 @@ import Constants "../../constants";
 import Logger "../../utilities/logger";
 import WorkspaceModel "../../models/workspace-model";
 import SessionModel "../../models/session-model";
+import TurnCompletionService "../../services/turn-completion-service";
+import TurnSuspensionService "../../services/turn-suspension-service";
 
 module {
 
@@ -332,47 +335,8 @@ module {
       case (?token) { token };
     };
     let text = "⚠️ I've reached the maximum number of steps for this session. Reply with **continue** (or **::agentname continue**) in this thread to allow me to keep going.";
-    ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null);
+    ignore await SlackWrapper.postMessage(botToken, channel, text, threadTs, null, null);
   };
-
-  /// Post the agent reply to Slack and assemble the final HandlerResult.
-  /// Returns the HandlerResult paired with a Bool indicating whether the Slack
-  /// post succeeded, so the caller can mark the turn #failed when the user
-  /// never received a reply.
-  func postAgentReply(
-    botToken : Text,
-    msg : IncomingMsg,
-    replyText : Text,
-    primaryAgent : AgentModel.AgentRecord,
-    llmSteps : [Types.ProcessingStep],
-    turnId : Text,
-    sessionStores : SessionModel.SessionStores,
-  ) : async (NormalizedEventTypes.HandlerResult, Bool) {
-    let replyMetadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent, turnId);
-    let slackResult = await SlackWrapper.postMessage(botToken, msg.channel, replyText, msg.threadTs, replyMetadata);
-    let slackOk = switch (slackResult) {
-      case (#ok(_)) { true };
-      case (#err(_)) { false };
-    };
-    let slackStep : Types.ProcessingStep = {
-      action = "post_to_slack";
-      result = switch (slackResult) {
-        case (#ok(_)) { #ok };
-        case (#err(e)) { #err(e) };
-      };
-      timestamp = Time.now();
-    };
-    // Record the reply in the turn's trace.
-    switch (slackResult) {
-      case (#ok({ ts = replyTs; channel = _ })) {
-        SessionModel.appendTrace(sessionStores, turnId, #slackPost({ channelId = msg.channel; threadTs = msg.threadTs; ts = replyTs }));
-      };
-      case (#err(_)) {};
-    };
-    (#ok(Array.concat(llmSteps, [slackStep])), slackOk);
-  };
-
-  // ─── Public entry point ──────────────────────────────────────────────────────
 
   public func handle(
     msg : IncomingMsg,
@@ -436,7 +400,7 @@ module {
       let slackResult = switch (botTokenOpt) {
         case (null) { #err("no bot token") };
         case (?token) {
-          switch (await SlackWrapper.postMessage(token, msg.channel, slackText, msg.threadTs, null)) {
+          switch (await SlackWrapper.postMessage(token, msg.channel, slackText, msg.threadTs, null, null)) {
             case (#ok(_)) { #ok };
             case (#err(e)) { #err(e) };
           };
@@ -514,11 +478,10 @@ module {
       case (?token) { token };
     };
 
-    let routeResult = await AgentOrchestrator.orchestrate(
+    let routeResult = await AgentRunner.start(
       primaryAgent,
       ctx.channelHistory,
-      msg.channel,
-      msg.threadTs,
+      sourceRef,
       ?msg.text,
       turnId,
       ctx.sessionStores,
@@ -527,36 +490,81 @@ module {
       ctx.secrets,
       encryptionKey,
       orgKey,
-      ctx.workspaces,
-      { envelopeState = ctx.envelopeState; internalEngine = ctx.internalEngine },
+      {
+        envelopeState = ctx.envelopeState;
+        internalEngine = ctx.internalEngine;
+        catalogState = ctx.catalogState;
+      },
+      ctx.approvalState,
     );
 
-    switch (routeResult) {
-      case (#dispatched({ steps })) {
-        // Engine accepted the envelope — mark turn pending.
-        // Response will arrive async via processExecutionAsyncEffect.
-        SessionModel.markPending(ctx.sessionStores, turnId);
-        #ok(steps);
+    let slackCtx : TurnCompletionService.SlackPostCtx = {
+      botToken;
+      channelId = msg.channel;
+      threadTs = msg.threadTs;
+      metadata = buildReplyMetadata(msg.channel, msg.ts, primaryAgent, turnId);
+    };
+    let steps : [Types.ProcessingStep] = switch (routeResult) {
+      case (#ok(_) or #err(_)) {
+        await TurnCompletionService.complete(
+          { sessionStores = ctx.sessionStores },
+          turnId,
+          routeResult,
+          slackCtx,
+        );
       };
-      case (#ok({ response; steps })) {
-        // Synchronous response (future non-engine agents)
-        let (result, slackOk) = await postAgentReply(botToken, msg, response, primaryAgent, steps, turnId, ctx.sessionStores);
-        let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
-        if (not slackOk) {
-          SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?"Slack post failed");
-        } else {
-          SessionModel.completeTurn(ctx.sessionStores, turnId, #succeeded, cost, null);
-        };
-        result;
-      };
-      case (#err({ message; steps })) {
-        // Dispatch failure — post error to Slack so user sees something
-        let errorText = "[Agent error] " # message;
-        let (result, _slackOk) = await postAgentReply(botToken, msg, errorText, primaryAgent, steps, turnId, ctx.sessionStores);
-        let cost = SessionModel.aggregateTurnCost(ctx.sessionStores, turnId);
-        SessionModel.completeTurn(ctx.sessionStores, turnId, #failed, cost, ?message);
-        result;
+      case (#dispatched(_) or #awaitingApproval(_)) {
+        TurnSuspensionService.suspend(
+          {
+            sessionStores = ctx.sessionStores;
+            approvalState = ctx.approvalState;
+          },
+          turnId,
+          routeResult,
+        );
       };
     };
+
+    // Arm a per-turn TTL timer for any turn that just entered #awaitingApproval.
+    // We do this here (not inside TurnCompletionService) so that the async
+    // armApprovalTimer closure — which calls Timer.setTimer<system> — runs in an
+    // async context that has <system> capability.
+    switch (routeResult) {
+      case (#awaitingApproval(_)) {
+        switch (SessionModel.findTurn(ctx.sessionStores, turnId)) {
+          case (?turn) {
+            switch (turn.status) {
+              case (#awaitingApproval(data)) {
+                let resumeDeps : AgentRunner.ResumeDeps = {
+                  sessionStores = ctx.sessionStores;
+                  agentRegistry = ctx.agentRegistry;
+                  secrets = ctx.secrets;
+                  internalEngine = ?ctx.internalEngine;
+                  envelopeState = ctx.envelopeState;
+                  catalogState = ctx.catalogState;
+                  approvalState = ctx.approvalState;
+                };
+                let onExpire = func() : async () {
+                  await AgentRunner.resumeWithDenial(
+                    resumeDeps,
+                    ctx.keyCache,
+                    turnId,
+                    "approval timed out",
+                    botTokenOpt,
+                  );
+                };
+                let newTimerId = await ctx.armApprovalTimer(data.expiresAtNs, onExpire);
+                ignore SessionModel.setApprovalTimerId(ctx.sessionStores, turnId, newTimerId);
+              };
+              case _ {};
+            };
+          };
+          case null {};
+        };
+      };
+      case _ {};
+    };
+
+    #ok(steps);
   };
 };

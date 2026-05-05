@@ -339,35 +339,3 @@ export function generateCassetteName(
 
   return `${fileName}/${sanitizedTestName}`;
 }
-
-/**
- * Skip a test if cassette is missing and not in record mode.
- *
- * Useful for optionally running tests that require recorded cassettes.
- *
- * @param cassetteName - Name/path of the cassette
- * @returns true if test should be skipped
- */
-export async function shouldSkipWithoutCassette(
-  cassetteName: string,
-): Promise<boolean> {
-  const { isRecordMode, resolveCassettePath } = await import("./http-cassette");
-  const { cassetteExists } = await import("./cassette-storage");
-
-  if (isRecordMode()) {
-    return false; // Will record, don't skip
-  }
-
-  const fullPath = resolveCassettePath(cassetteName);
-  const exists = await cassetteExists(fullPath);
-
-  if (!exists) {
-    console.log(
-      `⏭️  Skipping test: cassette "${cassetteName}" not found. ` +
-        `Run with RECORD_CASSETTES=true to record.`,
-    );
-    return true;
-  }
-
-  return false;
-}

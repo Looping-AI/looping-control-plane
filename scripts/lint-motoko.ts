@@ -11,11 +11,13 @@
  */
 
 import { $ } from "bun";
-import { readFileSync, readdirSync, statSync } from "fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { dirname, join, normalize } from "path";
 
 const ROOT = process.cwd();
 const SRC_DIR = join(ROOT, "src");
+const TESTS_DIR = join(ROOT, "tests");
+const CHECK_DIRS = [SRC_DIR, TESTS_DIR];
 const IMPORT_PATTERN = /^\s*import\b.*"([^"]+)";\s*$/gm;
 
 /** Recursively collect all .mo files under a directory. */
@@ -80,18 +82,35 @@ function findCheckRoots(moFiles: string[]): string[] {
     .sort();
 }
 
+function findCheckRootsByDirectory(dirs: string[]): string[] {
+  const roots = new Set<string>();
+
+  for (const dir of dirs) {
+    if (!existsSync(dir)) {
+      continue;
+    }
+
+    for (const file of findCheckRoots(findMoFiles(dir))) {
+      roots.add(file);
+    }
+  }
+
+  return [...roots].sort();
+}
+
 async function main() {
   const mocPath = (await $`mops toolchain bin moc`.text()).trim();
   const sourcesRaw = (await $`mops sources`.text()).trim();
   // `mops sources` emits one "--package name path" per line; split into tokens.
   const sourcesArgs = sourcesRaw.split(/\s+/).filter((arg) => arg.length > 0);
 
-  const moFiles = findMoFiles(SRC_DIR).sort();
-  const rootFiles = findCheckRoots(moFiles);
+  const rootFiles = findCheckRootsByDirectory(CHECK_DIRS);
 
   // Root-only checks avoid re-checking files that are already compiled via a
-  // local importer. Shared dependencies can still appear under multiple roots,
-  // so diagnostics are deduplicated by their source location header.
+  // local importer. Source and test directories are analyzed separately so test
+  // imports do not change which source files count as roots. Shared dependencies
+  // can still appear under multiple roots, so diagnostics are deduplicated by
+  // their source location header.
   const seen = new Set<string>();
   const uniqueDiagnostics: string[] = [];
 

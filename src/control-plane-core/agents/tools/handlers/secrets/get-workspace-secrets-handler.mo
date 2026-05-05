@@ -1,10 +1,11 @@
 import Json "mo:json";
-import { obj; bool; arr } "mo:json";
+import { obj; arr } "mo:json";
 import Array "mo:core/Array";
 import SecretModel "../../../../models/secret-model";
 import SlackAuthMiddleware "../../../../middleware/slack-auth-middleware";
 import Types "../../../../types";
-import Helpers "../handler-helpers";
+import ToolTypes "../../tool-types";
+import HandlerHelpers "../handler-helpers";
 
 module {
   /// List the secret identifiers stored for a workspace (values are never returned).
@@ -18,22 +19,23 @@ module {
     uac : SlackAuthMiddleware.UserAuthContext,
     workspaceId : Nat,
     _args : Text,
-  ) : async Text {
+  ) : async ToolTypes.ToolCallOutcome {
     switch (SlackAuthMiddleware.authorize(uac, [#IsPrimaryOwner, #IsOrgAdmin, #IsWorkspaceAdmin(workspaceId)])) {
       case (#err(msg)) {
-        Helpers.buildErrorResponse("Unauthorized: " # msg);
+        HandlerHelpers.makeError("unauthorized", "Unauthorized: " # msg);
       };
       case (#ok(())) {
         switch (SecretModel.getWorkspaceSecrets(secrets, workspaceId)) {
-          case (#err(msg)) { Helpers.buildErrorResponse(msg) };
+          case (#err(msg)) { HandlerHelpers.makeError("operationFailed", msg) };
           case (#ok(secretIds)) {
             let idStrings = secretIdArrayToJson(secretIds);
-            Json.stringify(
-              obj([
-                ("success", bool(true)),
-                ("secretIds", arr(idStrings)),
-              ]),
-              null,
+            #ok(
+              Json.stringify(
+                obj([
+                  ("secretIds", arr(idStrings)),
+                ]),
+                null,
+              )
             );
           };
         };

@@ -18,7 +18,7 @@ let slackQueueGrant : ExecutionTypes.ScopeGrant = #slackQueue({
 let sessionGrant : ExecutionTypes.ScopeGrant = #session({ access = #write });
 
 func issueBasic(store : ExecutionEnvelopeModel.EnvelopeState) : Text {
-  ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant], []).nonce;
+  ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
 };
 
 // ============================================
@@ -92,7 +92,7 @@ suite(
       "returns true when token carries the exact required grant",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
         expect.bool(ExecutionEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
       },
     );
@@ -101,7 +101,7 @@ suite(
       "write grant covers read requirement on same scope",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
         // Token has #write; requiring #read should be satisfied
         expect.bool(
           ExecutionEnvelopeModel.validate(store, nonce, #workspace({ access = #read }))
@@ -118,7 +118,6 @@ suite(
           "1_0",
           1,
           [#workspace({ access = #read })],
-          [],
         ).nonce;
         expect.bool(
           ExecutionEnvelopeModel.validate(store, nonce, #workspace({ access = #write }))
@@ -130,7 +129,7 @@ suite(
       "wrong scope type is rejected",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
         // Token only has #workspace, not #agents
         expect.bool(ExecutionEnvelopeModel.validate(store, nonce, agentsReadGrant)).isFalse();
       },
@@ -153,7 +152,6 @@ suite(
           "1_0",
           1,
           [workspaceGrant, agentsReadGrant, slackQueueGrant],
-          [],
         ).nonce;
         expect.bool(ExecutionEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
         expect.bool(ExecutionEnvelopeModel.validate(store, nonce, agentsReadGrant)).isTrue();
@@ -171,7 +169,7 @@ suite(
           id = 7;
           access = #write;
         });
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [agentGrant], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [agentGrant]).nonce;
         expect.bool(ExecutionEnvelopeModel.validate(store, nonce, #agent({ id = 7; access = #write }))).isTrue();
         expect.bool(ExecutionEnvelopeModel.validate(store, nonce, #agent({ id = 7; access = #read }))).isTrue();
         // Wrong agent id
@@ -233,101 +231,6 @@ suite(
 );
 
 // ============================================
-// hasPermit
-// ============================================
-
-suite(
-  "hasPermit",
-  func() {
-    test(
-      "returns true for matching deleteWorkspace permit",
-      func() {
-        let store = makeStore();
-        let permit : ExecutionTypes.OperationPermit = #deleteWorkspace({
-          workspaceId = 5;
-        });
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant], [permit]).nonce;
-        expect.bool(ExecutionEnvelopeModel.hasPermit(store, nonce, permit)).isTrue();
-      },
-    );
-
-    test(
-      "returns false when workspaceId does not match",
-      func() {
-        let store = makeStore();
-        let permit : ExecutionTypes.OperationPermit = #deleteWorkspace({
-          workspaceId = 5;
-        });
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant], [permit]).nonce;
-        expect.bool(
-          ExecutionEnvelopeModel.hasPermit(store, nonce, #deleteWorkspace({ workspaceId = 99 }))
-        ).isFalse();
-      },
-    );
-
-    test(
-      "returns true for matching setAdminChannel permit",
-      func() {
-        let store = makeStore();
-        let permit : ExecutionTypes.OperationPermit = #setAdminChannel({
-          channelId = "C_ADMIN";
-        });
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [sessionGrant], [permit]).nonce;
-        expect.bool(ExecutionEnvelopeModel.hasPermit(store, nonce, permit)).isTrue();
-      },
-    );
-
-    test(
-      "returns false when channelId does not match",
-      func() {
-        let store = makeStore();
-        let permit : ExecutionTypes.OperationPermit = #setAdminChannel({
-          channelId = "C_ADMIN";
-        });
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [sessionGrant], [permit]).nonce;
-        expect.bool(
-          ExecutionEnvelopeModel.hasPermit(store, nonce, #setAdminChannel({ channelId = "C_OTHER" }))
-        ).isFalse();
-      },
-    );
-
-    test(
-      "returns false when token has no permits",
-      func() {
-        let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant], []).nonce;
-        expect.bool(
-          ExecutionEnvelopeModel.hasPermit(store, nonce, #deleteWorkspace({ workspaceId = 1 }))
-        ).isFalse();
-      },
-    );
-
-    test(
-      "returns false for revoked token even with matching permit",
-      func() {
-        let store = makeStore();
-        let permit : ExecutionTypes.OperationPermit = #deleteWorkspace({
-          workspaceId = 1;
-        });
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant], [permit]).nonce;
-        ExecutionEnvelopeModel.revoke(store, nonce);
-        expect.bool(ExecutionEnvelopeModel.hasPermit(store, nonce, permit)).isFalse();
-      },
-    );
-
-    test(
-      "returns false for unknown nonce",
-      func() {
-        let store = makeStore();
-        expect.bool(
-          ExecutionEnvelopeModel.hasPermit(store, "ghost", #deleteWorkspace({ workspaceId = 1 }))
-        ).isFalse();
-      },
-    );
-  },
-);
-
-// ============================================
 // getRecord
 // ============================================
 
@@ -338,7 +241,7 @@ suite(
       "returns the token record for a valid nonce",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "2_0", 3, [workspaceGrant], []).nonce;
+        let nonce = ExecutionEnvelopeModel.issue(store, "2_0", 3, [workspaceGrant]).nonce;
         switch (ExecutionEnvelopeModel.getRecord(store, nonce)) {
           case (?record) {
             expect.nat(record.envelopeId).equal(0);

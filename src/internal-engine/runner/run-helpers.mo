@@ -12,7 +12,7 @@ module {
       envelopeId = envelope.envelopeId;
       requestId = envelope.requestId;
       agentName = envelope.agentName;
-      workflowId = envelope.workflowId;
+      workflowName = envelope.workflowName;
       envelope;
       enqueuedAt = now;
       claimedAt = null;

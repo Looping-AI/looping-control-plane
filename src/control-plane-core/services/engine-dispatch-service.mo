@@ -14,7 +14,7 @@ module {
   /// Dispatch an envelope to the internal engine, handling version negotiation
   /// and a single retry automatically.
   ///
-  /// On a version-mismatch response (`{"envelopeVersionRequired":"vX"}`):
+  /// On a version-mismatch response (`{"type":"versionMismatch","message":"...","envelopeVersionRequired":"vX"}`):
   ///   - updates `envelopeState.knownEngineVersions` for the engine name
   ///   - retries once with the required version
   ///
@@ -40,7 +40,7 @@ module {
         #ok;
       };
       case (#err(msg)) {
-        // Check for the version-mismatch JSON protocol: {"envelopeVersionRequired":"vX"}
+        // Check for the version-mismatch JSON protocol: {"type":"versionMismatch","message":"...","envelopeVersionRequired":"vX"}
         // The same protocol is used by future HTTP engines so no engine-specific branching is needed.
         switch (Json.parse(msg)) {
           case (#ok(json)) {
