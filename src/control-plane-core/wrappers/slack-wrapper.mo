@@ -16,6 +16,7 @@ import Json "mo:json";
 import { str; obj } "mo:json";
 import HttpWrapper "./http-wrapper";
 import JsonSanitizer "../utilities/json-sanitizer";
+import Logger "../utilities/logger";
 import UrlEncoding "../utilities/url-encoding";
 import Types "../types";
 
@@ -118,7 +119,9 @@ module {
           case (#ok(parsed)) {
             fields := Array.concat(fields, [("blocks", parsed)]);
           };
-          case (#err(_)) {}; // malformed blocks JSON — skip, Slack will use text fallback
+          case (#err(e)) {
+            return #err("Failed to parse blocks JSON: " # debug_show e);
+          };
         };
       };
       case (null) {};
@@ -790,6 +793,21 @@ module {
     #ok;
     #err : Text;
   } {
+    // Validate that responseUrl targets a slack.com hostname.
+    // Split on '/' to isolate the host segment (index 2) without scanning query strings.
+    // e.g. "https://hooks.slack.com/actions/..." → ["https:", "", "hooks.slack.com", ...]
+    let urlParts = Text.split(responseUrl, #char '/');
+    ignore urlParts.next(); // "https:"
+    ignore urlParts.next(); // ""
+    let host = switch (urlParts.next()) {
+      case (?h) { h };
+      case (null) { "" };
+    };
+    let isSlackDomain = Text.startsWith(responseUrl, #text "https://") and (host == "slack.com" or Text.endsWith(host, #text ".slack.com"));
+    if (not isSlackDomain) {
+      Logger.log(#warn, ?"SlackWrapper", "postToResponseUrl called with unexpected domain: " # responseUrl);
+    };
+
     let headers : [HttpWrapper.HttpHeader] = [
       { name = "Content-Type"; value = "application/json" },
     ];

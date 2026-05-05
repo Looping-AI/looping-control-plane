@@ -1,6 +1,8 @@
 import Text "mo:core/Text";
 import Array "mo:core/Array";
 import Int "mo:core/Int";
+import Char "mo:core/Char";
+import Nat32 "mo:core/Nat32";
 import Json "mo:json";
 
 module {
@@ -47,6 +49,13 @@ module {
     };
   };
 
+  private let hexDigits : [Char] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+
+  private func toHex4(n : Nat32) : Text {
+    let v = Nat32.toNat(n);
+    Text.fromChar(hexDigits[(v / 4096) % 16]) # Text.fromChar(hexDigits[(v / 256) % 16]) # Text.fromChar(hexDigits[(v / 16) % 16]) # Text.fromChar(hexDigits[v % 16]);
+  };
+
   private func escapeJsonString(s : Text) : Text {
     var result = "";
     for (c in s.chars()) {
@@ -54,7 +63,9 @@ module {
         result #= "\\\\";
       } else if (c == '\n') { result #= "\\n" } else if (c == '\r') {
         result #= "\\r";
-      } else if (c == '\t') { result #= "\\t" } else {
+      } else if (c == '\t') { result #= "\\t" } else if (Char.toNat32(c) < 0x20) {
+        result #= "\\u" # toHex4(Char.toNat32(c));
+      } else {
         result #= Text.fromChar(c);
       };
     };

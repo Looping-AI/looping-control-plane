@@ -54,7 +54,7 @@ describe("internal-engine / listWorkflows", () => {
 
     expect("err" in result).toBe(true);
     if ("err" in result) {
-      expect(result.err).toBe("Unauthorized");
+      expect(result.err).toContain('"type":"unauthorized"');
     }
   });
 

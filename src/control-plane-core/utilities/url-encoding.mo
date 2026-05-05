@@ -18,6 +18,7 @@ import Nat32 "mo:core/Nat32";
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import VarArray "mo:core/VarArray";
+import Result "mo:core/Result";
 
 module {
 
@@ -119,8 +120,13 @@ module {
   /// - `+` is decoded as a space (HTML form encoding).
   /// - Other characters pass through unchanged.
   ///
-  /// Invalid `%XX` sequences (non-hex digits or truncated) pass through verbatim.
-  public func decodeQueryValue(value : Text) : Text {
+  /// Returns `#ok(decoded)` on success. Returns `#err` if any `%XX` byte sequence
+  /// decodes to invalid UTF-8 (e.g. a lone continuation byte `%80`, or a truncated
+  /// multi-byte sequence such as `%C3` at end of input).
+  ///
+  /// `%XX` sequences with non-hex digits (e.g. `%GG`) pass through verbatim and do
+  /// not cause an `#err`.
+  public func decodeQueryValue(value : Text) : Result.Result<Text, Text> {
     let chars = Text.toIter(value);
     var result = "";
 
@@ -128,22 +134,18 @@ module {
     // Flushed to text whenever a non-%XX character is encountered or at end.
     var buf : [var Nat8] = VarArray.repeat<Nat8>(0, 16);
     var bufLen = 0;
+    var failed = false;
 
     // Flush all accumulated bytes in buf as decoded UTF-8 text.
-    // On invalid UTF-8, falls back to percent-encoding each byte verbatim.
+    // On invalid UTF-8, sets failed = true and discards the bytes.
     let flushBytes = func() {
       if (bufLen > 0) {
         let slice = Array.tabulate<Nat8>(bufLen, func(i) { buf[i] });
         switch (Text.decodeUtf8(Blob.fromArray(slice))) {
           case (?t) { result #= t };
           case null {
-            // Invalid UTF-8 — pass bytes through as percent-encoded (best effort)
-            var i = 0;
-            while (i < bufLen) {
-              let b = buf[i];
-              result #= "%" # Char.toText(hexDigits[Nat8.toNat(b / 16)]) # Char.toText(hexDigits[Nat8.toNat(b % 16)]);
-              i += 1;
-            };
+            // Invalid UTF-8 — signal failure and discard the bytes.
+            failed := true;
           };
         };
         bufLen := 0;
@@ -193,7 +195,7 @@ module {
       };
     };
     flushBytes();
-    result;
+    if (failed) #err("invalid UTF-8 byte sequence in percent-encoded input") else #ok(result);
   };
 
 };

@@ -359,7 +359,7 @@ describe("Approval Flow", () => {
       // Approval record is marked #used synchronously before postOutcome.
       expect(
         expectSome(await testActor.testGetApprovalStatus(approvalCode)),
-      ).toBe("used");
+      ).toBe("approved");
 
       // Advance rounds to let the zero-delay timer fire and the async resume
       // chain (resumeWithApproval → engine.execute → awaitingWorkflow) complete.

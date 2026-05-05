@@ -1,5 +1,18 @@
 import { test; suite; expect } "mo:test";
+import Result "mo:core/Result";
+import Text "mo:core/Text";
 import UrlEncoding "../../../../src/control-plane-core/utilities/url-encoding";
+
+func decodeResultToText(r : Result.Result<Text, Text>) : Text {
+  switch (r) {
+    case (#ok(t)) { "#ok(" # t # ")" };
+    case (#err(e)) { "#err(" # e # ")" };
+  };
+};
+
+func decodeResultEqual(r1 : Result.Result<Text, Text>, r2 : Result.Result<Text, Text>) : Bool {
+  r1 == r2;
+};
 
 suite(
   "UrlEncoding",
@@ -195,6 +208,97 @@ suite(
           "emoji 🎈 (U+1F388) encodes as %F0%9F%8E%88",
           func() {
             expect.text(UrlEncoding.encodeQueryValue("🎈")).equal("%F0%9F%8E%88");
+          },
+        );
+
+      },
+    );
+
+    suite(
+      "decodeQueryValue — happy path",
+      func() {
+
+        test(
+          "%3D decodes to =",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("%3D"), decodeResultToText, decodeResultEqual).equal(#ok("="));
+          },
+        );
+
+        test(
+          "%3d (lower-case hex) decodes to =",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("%3d"), decodeResultToText, decodeResultEqual).equal(#ok("="));
+          },
+        );
+
+        test(
+          "+ decodes to space",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("+"), decodeResultToText, decodeResultEqual).equal(#ok(" "));
+          },
+        );
+
+        test(
+          "plain text passes through unchanged",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("hello"), decodeResultToText, decodeResultEqual).equal(#ok("hello"));
+          },
+        );
+
+        test(
+          "%C3%A9 decodes to \u{e9} (caf\u{e9})",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("caf%C3%A9"), decodeResultToText, decodeResultEqual).equal(#ok("caf\u{e9}"));
+          },
+        );
+
+        test(
+          "Slack cursor dXNlcjpVMEc5V0ZYTlo%3D decodes to dXNlcjpVMEc5V0ZYTlo=",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("dXNlcjpVMEc5V0ZYTlo%3D"), decodeResultToText, decodeResultEqual).equal(#ok("dXNlcjpVMEc5V0ZYTlo="));
+          },
+        );
+
+        test(
+          "empty string returns #ok(empty)",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue(""), decodeResultToText, decodeResultEqual).equal(#ok(""));
+          },
+        );
+
+        test(
+          "invalid %XX with non-hex digits passes through verbatim as #ok",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("%GG"), decodeResultToText, decodeResultEqual).equal(#ok("%GG"));
+          },
+        );
+
+      },
+    );
+
+    suite(
+      "decodeQueryValue — invalid UTF-8 returns #err",
+      func() {
+
+        test(
+          "%80 (lone continuation byte) returns #err",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("%80"), decodeResultToText, decodeResultEqual).isErr();
+          },
+        );
+
+        test(
+          "%C3 (truncated 2-byte sequence at end of input) returns #err",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("%C3"), decodeResultToText, decodeResultEqual).isErr();
+          },
+        );
+
+        test(
+          "%F0%9F (truncated 4-byte sequence) returns #err",
+          func() {
+            expect.result<Text, Text>(UrlEncoding.decodeQueryValue("%F0%9F"), decodeResultToText, decodeResultEqual).isErr();
           },
         );
 

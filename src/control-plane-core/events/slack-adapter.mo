@@ -14,6 +14,7 @@ import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Float "mo:core/Float";
 import Time "mo:core/Time";
+import Runtime "mo:core/Runtime";
 import Json "mo:json";
 import SlackEventTypes "./types/slack-event-types";
 import NormalizedEventTypes "./types/normalized-event-types";
@@ -152,8 +153,14 @@ module {
     // application/x-www-form-urlencoded: `payload=<percent-encoded-json>`.
     // Detect this prefix and route to the block_actions parser.
     if (Text.startsWith(bodyText, #text "payload=")) {
-      let encoded = Text.trimStart(bodyText, #text "payload=");
-      let decoded = UrlEncoding.decodeQueryValue(encoded);
+      let encoded = switch (Text.stripStart(bodyText, #text "payload=")) {
+        case (?t) { t };
+        case null { Runtime.unreachable() }; // startsWith guard above
+      };
+      let decoded = switch (UrlEncoding.decodeQueryValue(encoded)) {
+        case (#ok(t)) { t };
+        case (#err(e)) { return #err("Invalid percent-encoded payload: " # e) };
+      };
       return parseBlockActionsPayload(decoded);
     };
 

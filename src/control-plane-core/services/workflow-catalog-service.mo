@@ -218,7 +218,9 @@ module {
     needed : Text,
   ) : Bool {
     switch (granted, needed) {
-      case (#write, _) { true }; // write satisfies both "read" and "write"
+      case (#write, "write") { true };
+      case (#write, "read") { true }; // write satisfies both "read" and "write"
+      case (#write, _) { false };
       case (#read, "read") { true };
       case (#read, _) { false };
     };

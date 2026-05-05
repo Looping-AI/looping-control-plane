@@ -18,8 +18,8 @@ import {
 //
 // Tests the approval-gate logic in block-actions-handler.mo:
 //   - Approval records are only accepted from authorized users.
-//   - approve_workflow transitions #pending → #used.
-//   - deny_workflow transitions #pending → #expired.
+//   - approve_workflow transitions #pending → #approved.
+//   - deny_workflow transitions #pending → #denied.
 //   - Already-processed records are silently ignored.
 //   - Unknown codes are silently ignored.
 //
@@ -64,14 +64,14 @@ describe("BlockActionsHandler — approve_workflow / deny_workflow gate", () => 
 
   // ─── Already-processed record ──────────────────────────────────────────────
 
-  it("should leave status as #used when approve_workflow is sent a second time", async () => {
+  it("should leave status as #approved when approve_workflow is sent a second time", async () => {
     const code = await testCanister.testSeedApprovalRecord(
       "workspace_delete",
       "0_0",
       "U_OWNER",
     );
 
-    // First click — transitions #pending → #used.
+    // First click — transitions #pending → #approved.
     await testCanister.testHandleBlockAction(
       "approve_workflow",
       code,
@@ -79,8 +79,8 @@ describe("BlockActionsHandler — approve_workflow / deny_workflow gate", () => 
       "",
     );
 
-    // Second click — handler sees #used (not #pending) and posts ephemeral "already processed".
-    // Status must remain #used, not change to anything else.
+    // Second click — handler sees #approved (not #pending) and posts ephemeral "already processed".
+    // Status must remain #approved, not change to anything else.
     await testCanister.testHandleBlockAction(
       "approve_workflow",
       code,
@@ -89,7 +89,7 @@ describe("BlockActionsHandler — approve_workflow / deny_workflow gate", () => 
     );
 
     const status = await testCanister.testGetApprovalStatus(code);
-    expect(status).toEqual(["used"]);
+    expect(status).toEqual(["approved"]);
   });
 
   // ─── Authorization ─────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ describe("BlockActionsHandler — approve_workflow / deny_workflow gate", () => 
 
   // ─── approve_workflow happy path ───────────────────────────────────────────
 
-  it("should transition approval to #used when approve_workflow is sent by the original requester", async () => {
+  it("should transition approval to #approved when approve_workflow is sent by the original requester", async () => {
     const code = await testCanister.testSeedApprovalRecord(
       "workspace_delete",
       "0_0",
@@ -130,12 +130,12 @@ describe("BlockActionsHandler — approve_workflow / deny_workflow gate", () => 
     );
 
     const status = await testCanister.testGetApprovalStatus(code);
-    expect(status).toEqual(["used"]);
+    expect(status).toEqual(["approved"]);
   });
 
   // ─── deny_workflow happy path ──────────────────────────────────────────────
 
-  it("should transition approval to #expired when deny_workflow is sent by the original requester", async () => {
+  it("should transition approval to #denied when deny_workflow is sent by the original requester", async () => {
     const code = await testCanister.testSeedApprovalRecord(
       "workspace_delete",
       "0_0",
@@ -150,6 +150,6 @@ describe("BlockActionsHandler — approve_workflow / deny_workflow gate", () => 
     );
 
     const status = await testCanister.testGetApprovalStatus(code);
-    expect(status).toEqual(["expired"]);
+    expect(status).toEqual(["denied"]);
   });
 });
