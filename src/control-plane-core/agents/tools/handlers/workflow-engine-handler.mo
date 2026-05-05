@@ -63,7 +63,7 @@ module {
               let approvalCode = ApprovalModel.request(
                 engineDispatch.approvalState,
                 descriptor.workflowName,
-                renderedArgs,
+                args,
                 envelopeContext.agent.ownedBy,
                 envelopeContext.agent.id,
                 envelopeContext.turnId,

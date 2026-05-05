@@ -21,7 +21,7 @@ module {
   public type ApprovalRecord = {
     code : Text;
     workflowName : Text;
-    renderedArgs : Text;
+    originalArgs : Text;
     workspaceId : Nat;
     agentId : Nat;
     turnId : Text;
@@ -53,7 +53,7 @@ module {
   public func request(
     state : ApprovalState,
     workflowName : Text,
-    renderedArgs : Text,
+    originalArgs : Text,
     workspaceId : Nat,
     agentId : Nat,
     turnId : Text,
@@ -65,7 +65,7 @@ module {
     let record : ApprovalRecord = {
       code;
       workflowName;
-      renderedArgs;
+      originalArgs;
       workspaceId;
       agentId;
       turnId;

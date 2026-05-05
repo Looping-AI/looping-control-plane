@@ -96,10 +96,7 @@ module {
     #awaitingApproval : {
       steps : [ProcessingStep];
       suspension : SuspensionData;
-      workflowName : Text;
       approvalCode : Text;
-      originalToolArgs : Text;
-      requestedByUserId : Text;
     };
     #ok : {
       response : Text;

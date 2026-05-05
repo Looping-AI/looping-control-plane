@@ -808,10 +808,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         pendingToolCallId = "test-call-id";
         roundCount = 0;
       },
-      workflowName,
       code,
-      "{}",
-      requestedByUserId,
       Time.now() + 3_600_000_000_000,
     );
     { turnId = turn.turnId; approvalCode = code };

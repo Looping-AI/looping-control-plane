@@ -59,10 +59,7 @@ module {
     #awaitingApproval : {
       // waiting for human approval of a workflow call
       suspension : SuspensionData;
-      workflowName : Text;
       approvalCode : Text;
-      originalToolArgs : Text; // exact JSON args from the LLM — do not normalize
-      requestedByUserId : Text;
       expiresAtNs : Int; // Time.now() + APPROVAL_TTL_NS, set when approval is requested
       var timerId : ?Timer.TimerId; // one-shot TTL timer id; null until armed
     };
@@ -290,10 +287,7 @@ module {
     stores : SessionStores,
     turnId : Text,
     suspension : SuspensionData,
-    workflowName : Text,
     approvalCode : Text,
-    originalToolArgs : Text,
-    requestedByUserId : Text,
     expiresAtNs : Int,
   ) : Result.Result<(), Text> {
     switch (findTurn(stores, turnId)) {
@@ -306,10 +300,7 @@ module {
           case (_) {
             turn.status := #awaitingApproval({
               suspension;
-              workflowName;
               approvalCode;
-              originalToolArgs;
-              requestedByUserId;
               expiresAtNs;
               var timerId = null;
             });

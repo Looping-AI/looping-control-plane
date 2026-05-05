@@ -5,7 +5,6 @@
 ///   - `#awaitingApproval`→ mutates turn status to `#awaitingApproval`
 ///
 /// This is a synchronous operation. Returns the processing steps from the result payload.
-import Time "mo:core/Time";
 import Runtime "mo:core/Runtime";
 import Types "../types";
 import SessionModel "../models/session-model";
@@ -28,19 +27,16 @@ module {
         ignore SessionModel.suspendForWorkflow(deps.sessionStores, turnId, suspension);
         steps;
       };
-      case (#awaitingApproval({ steps; suspension; workflowName; approvalCode; originalToolArgs; requestedByUserId })) {
+      case (#awaitingApproval({ steps; suspension; approvalCode })) {
         let expiresAtNs = switch (ApprovalModel.findByCode(deps.approvalState, approvalCode)) {
           case (?record) { record.expiresAtNs };
-          case null { Time.now() }; // safe fallback: treat as expired immediately
+          case null { Runtime.unreachable() };
         };
         ignore SessionModel.suspendForApproval(
           deps.sessionStores,
           turnId,
           suspension,
-          workflowName,
           approvalCode,
-          originalToolArgs,
-          requestedByUserId,
           expiresAtNs,
         );
         steps;

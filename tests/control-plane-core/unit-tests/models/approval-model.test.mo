@@ -37,7 +37,7 @@ suite(
           case (?record) {
             expect.text(record.code).equal(code);
             expect.text(record.workflowName).equal("deploy");
-            expect.text(record.renderedArgs).equal("{\"arg\":1}");
+            expect.text(record.originalArgs).equal("{\"arg\":1}");
             expect.nat(record.workspaceId).equal(1);
             expect.nat(record.agentId).equal(2);
             expect.text(record.turnId).equal("1_0");

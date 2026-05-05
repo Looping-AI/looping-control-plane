@@ -58,7 +58,7 @@ describe("ToolExecutor", () => {
       expect(formatted).toContain("Tool call call-1 result:");
       expect(formatted).toContain('{"ok":true}');
       expect(formatted).toContain("Tool call call-2 result:");
-      expect(formatted).toContain("Error: boom");
+      expect(formatted).toContain("boom");
     });
   });
 

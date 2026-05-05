@@ -11,10 +11,8 @@
 ///             delegates here.
 
 import Array "mo:core/Array";
-import Int "mo:core/Int";
 import Json "mo:json";
 import Error "mo:core/Error";
-import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Types "../types";
 import AgentModel "../models/agent-model";
@@ -283,9 +281,9 @@ module {
     };
     let syncCtx = TurnContextService.syncResolve(resolveDeps, ctx, approval.turnId);
 
-    let (suspension, workflowName, approvalCode, originalToolArgs, requestedByUserId) = switch (syncCtx.turn.status) {
+    let (suspension, approvalCode) = switch (syncCtx.turn.status) {
       case (#awaitingApproval(data)) {
-        (data.suspension, data.workflowName, data.approvalCode, data.originalToolArgs, data.requestedByUserId);
+        (data.suspension, data.approvalCode);
       };
       case (_) {
         return await failTurn(
@@ -299,7 +297,7 @@ module {
       };
     };
 
-    if (approval.code != approvalCode or approval.workflowName != workflowName or approval.requestedByUserId != requestedByUserId) {
+    if (approval.code != approvalCode) {
       return await failTurn(
         deps,
         approval.turnId,
@@ -317,14 +315,14 @@ module {
       };
     };
 
-    let descriptor = switch (await resolveDescriptor(deps.catalogState, engine, workflowName)) {
+    let descriptor = switch (await resolveDescriptor(deps.catalogState, engine, approval.workflowName)) {
       case (#ok(d)) { d };
       case (#err(message)) {
         return await failTurn(deps, approval.turnId, ?botToken, ctx.channelId, ctx.threadTs, message);
       };
     };
 
-    let argsWithApproval = injectApprovalCode(originalToolArgs, approval.code);
+    let argsWithApproval = injectApprovalCode(approval.originalArgs, approval.code);
     let instructions = InstructionComposer.compose(
       AgentHelpers.categoryToRole(syncCtx.agent.category, syncCtx.agent.config.name),
       [],
@@ -352,7 +350,7 @@ module {
         engineDispatch,
         envelopeContext,
         ?syncCtx.resolveSlackBotToken,
-        requestedByUserId,
+        approval.requestedByUserId,
         ctx.sourceRef,
         argsWithApproval,
       );
@@ -573,9 +571,7 @@ module {
     };
 
     // Build a synthetic denial tool result for the LLM to react to.
-    // Strip any double quotes from reason to keep the JSON valid without a parser.
-    let safeReason = Text.replace(Text.replace(reason, #text "\"", "'"), #text "\\", "");
-    let syntheticResult = "{\"dispatched\":false,\"denied\":true,\"reason\":\"" # safeReason # "\"}";
+    let syntheticResult = "{\"dispatched\":false,\"denied\":true,\"reason\":" # Json.stringify(#string(reason), null) # "}";
     let syntheticMsg : OpenRouterWrapper.ResponseInputMessage = {
       role = #assistant;
       content = "Tool call " # suspension.pendingToolCallId # " result:\n" # syntheticResult # "\n\n";

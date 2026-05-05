@@ -725,17 +725,12 @@ suite(
           stores,
           turn.turnId,
           dummySuspension,
-          "deploy",
           "abc123",
-          "{\"env\":\"prod\"}",
-          "U_REQ",
           9_999_999_999_999,
         );
         switch (turn.status) {
           case (#awaitingApproval(data)) {
-            expect.text(data.workflowName).equal("deploy");
             expect.text(data.approvalCode).equal("abc123");
-            expect.text(data.requestedByUserId).equal("U_REQ");
             expect.bool(data.expiresAtNs == 9_999_999_999_999).isTrue();
             expect.bool(data.timerId == null).isTrue();
             expect.bool(data.suspension.pendingToolCallId == "call_approval").isTrue();
@@ -759,10 +754,7 @@ suite(
           stores,
           turn.turnId,
           dummySuspension,
-          "deploy",
           "abc123",
-          "{}",
-          "U_REQ",
           9_999_999_999_999,
         );
         switch (turn.status) {
@@ -790,10 +782,7 @@ suite(
           stores,
           turn.turnId,
           dummySuspension,
-          "approve_me",
           "deadbeef",
-          "{\"x\":1}",
-          "U_OWNER",
           1_000_000,
         );
         switch (SessionModel.findTurn(stores, turn.turnId)) {
@@ -801,7 +790,6 @@ suite(
           case (?found) {
             switch (found.status) {
               case (#awaitingApproval(data)) {
-                expect.text(data.workflowName).equal("approve_me");
                 expect.text(data.approvalCode).equal("deadbeef");
                 expect.nat(data.suspension.roundCount).equal(2);
               };

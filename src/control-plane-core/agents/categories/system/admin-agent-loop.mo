@@ -160,7 +160,7 @@ module {
 
           // ── Approval signal check (before dispatch) ───────────────────────────
           switch (findApprovalCall(toolResults, calls)) {
-            case (?(pendingToolCallId, approvalCode, workflowName, originalToolArgs)) {
+            case (?(pendingToolCallId, approvalCode)) {
               let suspension : SessionModel.SuspensionData = {
                 messages = List.toArray(inputHistory);
                 pendingToolCallId;
@@ -171,17 +171,10 @@ module {
                 result = #ok;
                 timestamp = Time.now();
               };
-              let requestedByUserId = switch (toolResources.userAuthContext) {
-                case (?ctx) { ctx.slackUserId };
-                case (null) { "" };
-              };
               return #awaitingApproval({
                 steps = [step];
                 suspension;
-                workflowName;
                 approvalCode;
-                originalToolArgs;
-                requestedByUserId;
               });
             };
             case (null) {};
@@ -221,20 +214,20 @@ module {
 
   /// Find a tool call that produced an approval signal, correlating it back to the original call
   /// to extract workflowName and originalToolArgs.
-  /// Returns (callId, approvalCode, workflowName, originalToolArgs) for the first approvalRequired result.
+  /// Returns (callId, approvalCode) for the first approvalRequired result.
   private func findApprovalCall(
     toolResults : [ToolTypes.ToolResult],
     calls : [OpenRouterWrapper.ToolCall],
-  ) : ?(Text, Text, Text, Text) {
+  ) : ?(Text, Text) {
     for (toolResult in toolResults.vals()) {
       switch (toolResult.result) {
         case (#ok(output)) {
           switch (extractApprovalCode(output)) {
             case (?approvalCode) {
-              // Correlate callId -> original call to get workflowName and args
+              // Verify there's a matching call — approval codes only apply to dispatched tool calls
               for (call in calls.vals()) {
                 if (call.callId == toolResult.callId) {
-                  return ?(toolResult.callId, approvalCode, call.toolName, call.arguments);
+                  return ?(toolResult.callId, approvalCode);
                 };
               };
             };

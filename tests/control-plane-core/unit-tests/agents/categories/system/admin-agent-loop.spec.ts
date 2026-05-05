@@ -153,16 +153,9 @@ describe("AdminAgentLoop", () => {
 
       expect("awaitingApproval" in response).toBe(true);
       if ("awaitingApproval" in response) {
-        expect(response.awaitingApproval.workflowName).toBe("workspace_delete");
         expect(response.awaitingApproval.approvalCode.length).toBeGreaterThan(
           0,
         );
-        expect(response.awaitingApproval.requestedByUserId).toBe(
-          "U_ADMIN_LOOP_TEST",
-        );
-        expect(
-          response.awaitingApproval.originalToolArgs.length,
-        ).toBeGreaterThan(0);
         expect(
           response.awaitingApproval.suspension.pendingToolCallId.length,
         ).toBeGreaterThan(0);
