@@ -204,10 +204,10 @@ module {
     };
     let syncCtx = TurnContextService.syncResolve(resolveDeps, ctx, turnId);
 
-    // Format the synthetic result using the same convention as ToolExecutor.formatResultsForLlm.
+    // "Workflow result" prefix distinguishes the final outcome from the interim dispatch signal.
     let syntheticMsg : OpenRouterWrapper.ResponseInputMessage = {
       role = #assistant;
-      content = "Tool call " # suspension.pendingToolCallId # " result:\n" # syntheticToolResult # "\n\n";
+      content = "Workflow result for call " # suspension.pendingToolCallId # ":\n" # syntheticToolResult # "\n\n";
     };
 
     let resumeMessages = Array.concat(suspension.messages, [syntheticMsg]);
@@ -567,11 +567,11 @@ module {
       };
     };
 
-    // Build a synthetic denial tool result for the LLM to react to.
+    // Build a synthetic denial result; "Workflow result" prefix matches the engine-resume path.
     let syntheticResult = "{\"dispatched\":false,\"denied\":true,\"reason\":" # Json.stringify(#string(reason), null) # "}";
     let syntheticMsg : OpenRouterWrapper.ResponseInputMessage = {
       role = #assistant;
-      content = "Tool call " # suspension.pendingToolCallId # " result:\n" # syntheticResult # "\n\n";
+      content = "Workflow result for call " # suspension.pendingToolCallId # ":\n" # syntheticResult # "\n\n";
     };
 
     let resumeMessages = Array.concat(suspension.messages, [syntheticMsg]);

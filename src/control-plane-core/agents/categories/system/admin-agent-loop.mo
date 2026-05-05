@@ -158,6 +158,10 @@ module {
 
           let toolResults = await ToolExecutor.execute(toolResources, calls);
 
+          // Append all results before any early-return so suspension.messages is complete.
+          let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
+          List.add(inputHistory, { role = #assistant; content = formattedResults });
+
           // ── Approval signal check (before dispatch) ───────────────────────────
           switch (findApprovalCall(toolResults, calls)) {
             case (?(pendingToolCallId, approvalCode)) {
@@ -196,9 +200,6 @@ module {
             };
             case (null) {};
           };
-
-          let formattedResults = ToolExecutor.formatResultsForLlm(toolResults);
-          List.add(inputHistory, { role = #assistant; content = formattedResults });
         };
         case (#err(msg)) {
           return #err({ message = "Core LLM error: " # msg; steps = [] });
