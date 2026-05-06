@@ -7,27 +7,27 @@ import { test; expect } "mo:test";
 import Array "mo:core/Array";
 import Text "mo:core/Text";
 import ToolRegistry "../../../../src/internal-engine/tools/tool-registry";
-import ExecutionTypes "../../../../src/internal-engine/execution-types";
+import WorkflowTypes "../../../../src/internal-engine/workflow-types";
 
 // ─────────────────────────────────────────────────────────────────
 // Scope-grant shorthands
 // ─────────────────────────────────────────────────────────────────
 
-let workspaceRead : ExecutionTypes.ScopeGrant = #workspace { access = #read };
-let workspaceWrite : ExecutionTypes.ScopeGrant = #workspace { access = #write };
-let agentsRead : ExecutionTypes.ScopeGrant = #agents { access = #read };
-let agentsWrite : ExecutionTypes.ScopeGrant = #agents { access = #write };
-let slackQueueRead : ExecutionTypes.ScopeGrant = #slackQueue { access = #read };
-let sessionWrite : ExecutionTypes.ScopeGrant = #session { access = #write };
+let workspaceRead : WorkflowTypes.ScopeGrant = #workspace { access = #read };
+let workspaceWrite : WorkflowTypes.ScopeGrant = #workspace { access = #write };
+let agentsRead : WorkflowTypes.ScopeGrant = #agents { access = #read };
+let agentsWrite : WorkflowTypes.ScopeGrant = #agents { access = #write };
+let slackQueueRead : WorkflowTypes.ScopeGrant = #slackQueue { access = #read };
+let sessionWrite : WorkflowTypes.ScopeGrant = #session { access = #write };
 
-let noGrants : [ExecutionTypes.ScopeGrant] = [];
-let readOnly : [ExecutionTypes.ScopeGrant] = [workspaceRead];
-let writeAccess : [ExecutionTypes.ScopeGrant] = [workspaceWrite];
-let agentsReadOnly : [ExecutionTypes.ScopeGrant] = [agentsRead];
-let agentsWriteAccess : [ExecutionTypes.ScopeGrant] = [agentsWrite];
-let slackOnly : [ExecutionTypes.ScopeGrant] = [slackQueueRead];
-let sessionOnly : [ExecutionTypes.ScopeGrant] = [sessionWrite];
-let allGrants : [ExecutionTypes.ScopeGrant] = [workspaceWrite, agentsWrite, slackQueueRead, sessionWrite];
+let noGrants : [WorkflowTypes.ScopeGrant] = [];
+let readOnly : [WorkflowTypes.ScopeGrant] = [workspaceRead];
+let writeAccess : [WorkflowTypes.ScopeGrant] = [workspaceWrite];
+let agentsReadOnly : [WorkflowTypes.ScopeGrant] = [agentsRead];
+let agentsWriteAccess : [WorkflowTypes.ScopeGrant] = [agentsWrite];
+let slackOnly : [WorkflowTypes.ScopeGrant] = [slackQueueRead];
+let sessionOnly : [WorkflowTypes.ScopeGrant] = [sessionWrite];
+let allGrants : [WorkflowTypes.ScopeGrant] = [workspaceWrite, agentsWrite, slackQueueRead, sessionWrite];
 
 func hasName(tools : [ToolRegistry.FunctionTool], name : Text) : Bool {
   Array.any<ToolRegistry.FunctionTool>(
@@ -365,7 +365,7 @@ test(
 test(
   "slackQueue write grant satisfies slackQueue read requirement",
   func() {
-    let slackWrite : ExecutionTypes.ScopeGrant = #slackQueue { access = #write };
+    let slackWrite : WorkflowTypes.ScopeGrant = #slackQueue { access = #write };
     let tools = ToolRegistry.getTools("admin-v1", [slackWrite]);
     expect.bool(hasName(tools, "get_slack_queue_stats")).isTrue();
   },

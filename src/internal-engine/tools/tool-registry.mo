@@ -2,7 +2,7 @@ import Array "mo:core/Array";
 import List "mo:core/List";
 import LlmWrapper "../wrappers/llm-wrapper";
 import ToolTypes "./tool-types";
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 import WorkspaceHandlers "../handlers/workspace-handlers";
 import AgentHandlers "../handlers/agent-handlers";
 import SlackQueueHandlers "../handlers/slack-queue-handlers";
@@ -23,7 +23,7 @@ module {
   /// Get all tools available for the given workflow and scope grants.
   public func getTools(
     workflowName : Text,
-    scopeGrants : [ExecutionTypes.ScopeGrant],
+    scopeGrants : [WorkflowTypes.ScopeGrant],
   ) : [FunctionTool] {
     switch (workflowName) {
       case "admin-v1" { getAdminTools(scopeGrants) };
@@ -34,7 +34,7 @@ module {
   /// Get all tool definitions (for passing to LLM API).
   public func getDefinitions(
     workflowName : Text,
-    scopeGrants : [ExecutionTypes.ScopeGrant],
+    scopeGrants : [WorkflowTypes.ScopeGrant],
   ) : [LlmWrapper.Tool] {
     Array.map<FunctionTool, LlmWrapper.Tool>(
       getTools(workflowName, scopeGrants),
@@ -45,7 +45,7 @@ module {
   /// Lookup a single tool by name.
   public func get(
     workflowName : Text,
-    scopeGrants : [ExecutionTypes.ScopeGrant],
+    scopeGrants : [WorkflowTypes.ScopeGrant],
     name : Text,
   ) : ?FunctionTool {
     Array.find<FunctionTool>(
@@ -57,7 +57,7 @@ module {
   // ── Admin workflow tools ───────────────────────────────────────────
 
   private func getAdminTools(
-    grants : [ExecutionTypes.ScopeGrant]
+    grants : [WorkflowTypes.ScopeGrant]
   ) : [FunctionTool] {
     let tools = List.empty<FunctionTool>();
 
@@ -100,13 +100,13 @@ module {
 
   /// Check if any grant matches the requested domain and minimum access level.
   private func hasScope(
-    grants : [ExecutionTypes.ScopeGrant],
+    grants : [WorkflowTypes.ScopeGrant],
     domain : Text,
-    minAccess : ExecutionTypes.ScopeAccess,
+    minAccess : WorkflowTypes.ScopeAccess,
   ) : Bool {
-    Array.any<ExecutionTypes.ScopeGrant>(
+    Array.any<WorkflowTypes.ScopeGrant>(
       grants,
-      func(g : ExecutionTypes.ScopeGrant) : Bool {
+      func(g : WorkflowTypes.ScopeGrant) : Bool {
         switch (g, domain) {
           case (#workspace(w), "workspace") {
             accessSatisfies(w.access, minAccess);
@@ -130,8 +130,8 @@ module {
   /// Check if `granted` access level satisfies `required` level.
   /// #write satisfies both #read and #write; #read only satisfies #read.
   private func accessSatisfies(
-    granted : ExecutionTypes.ScopeAccess,
-    required : ExecutionTypes.ScopeAccess,
+    granted : WorkflowTypes.ScopeAccess,
+    required : WorkflowTypes.ScopeAccess,
   ) : Bool {
     switch (required) {
       case (#read) { true }; // both #read and #write satisfy #read

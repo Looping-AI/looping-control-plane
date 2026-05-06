@@ -31,10 +31,10 @@ import EngineTopUpRunner "./timers/engine-topup-runner";
 import SlackEventIntakeService "./services/slack-event-intake-service";
 import SessionModel "./models/session-model";
 import Random "mo:core/Random";
-import ExecutionEnvelopeModel "./models/execution-envelope-model";
+import WorkflowEnvelopeModel "./models/workflow-envelope-model";
 import WorkflowCatalogModel "./models/workflow-catalog-model";
-import ExecutionApiService "./services/execution-api-service";
-import ExecutionAsyncEffectService "./services/execution-async-effect-service";
+import WorkflowApiService "./services/workflow-api-service";
+import WorkflowAsyncEffectService "./services/workflow-async-effect-service";
 import ApprovalModel "./models/approval-model";
 import ApprovalTimer "./timers/approval-timer";
 import InternalEngine "../internal-engine/main";
@@ -76,7 +76,7 @@ persistent actor class OpenOrgBackend() {
 
   // Envelope state (engine ↔ Core authorization): token store, counter, and entropy salt.
   // The salt is refreshed on every upgrade via raw_rand (see init/postupgrade timers).
-  let executionEnvelopeState = ExecutionEnvelopeModel.emptyState();
+  let workflowEnvelopeState = WorkflowEnvelopeModel.emptyState();
 
   // Workflow catalog cache — lazily populated on first dispatch, refreshed on #staleCatalog.
   let workflowCatalogState = WorkflowCatalogModel.empty();
@@ -85,8 +85,8 @@ persistent actor class OpenOrgBackend() {
   let approvalState = ApprovalModel.emptyState();
 
   // Execution API service (instantiated once with all deps captured in class scope)
-  transient let executionApiService = ExecutionApiService.Service({
-    envelopeState = executionEnvelopeState;
+  transient let workflowApiService = WorkflowApiService.Service({
+    envelopeState = workflowEnvelopeState;
     workspaces;
     agentRegistry;
     approvalState;
@@ -108,7 +108,7 @@ persistent actor class OpenOrgBackend() {
         agentRegistry;
         secrets;
         internalEngine;
-        envelopeState = executionEnvelopeState;
+        envelopeState = workflowEnvelopeState;
         catalogState = workflowCatalogState;
         approvalState;
       },
@@ -120,7 +120,7 @@ persistent actor class OpenOrgBackend() {
   };
 
   // Execution async-effect service (processes engine results: Slack posts, turn completion)
-  transient let executionAsyncEffectService = ExecutionAsyncEffectService.Service({
+  transient let workflowAsyncEffectService = WorkflowAsyncEffectService.Service({
     sessionStores;
     agentRegistry;
     workspaces;
@@ -227,7 +227,7 @@ persistent actor class OpenOrgBackend() {
         getLastRun = func() : Int { lastTurnCleanupTimestamp };
         setLastRun = func(t : Int) { lastTurnCleanupTimestamp := t };
         wrappedRun = func() : async { #ok; #err : Text } {
-          switch (TurnCleanupRunner.run(sessionStores, executionEnvelopeState)) {
+          switch (TurnCleanupRunner.run(sessionStores, workflowEnvelopeState)) {
             case (#ok(_)) { #ok };
             case (#err(e)) { #err(e) };
           };
@@ -323,7 +323,7 @@ persistent actor class OpenOrgBackend() {
       workspaces;
       eventStore;
       sessionStores;
-      envelopeState = executionEnvelopeState;
+      envelopeState = workflowEnvelopeState;
       internalEngine = e;
       catalogState = workflowCatalogState;
       approvalState;
@@ -347,7 +347,7 @@ persistent actor class OpenOrgBackend() {
     #nanoseconds 0,
     func() : async () {
       // Fetch initial envelope salt — raw_rand requires an async context, so we use a zero-delay timer.
-      executionEnvelopeState.envelopeSalt := await Random.blob();
+      workflowEnvelopeState.envelopeSalt := await Random.blob();
 
       // Refresh approval salt with fresh entropy on install.
       approvalState.approvalSalt := await Random.blob();
@@ -407,7 +407,7 @@ persistent actor class OpenOrgBackend() {
     ignore Timer.setTimer<system>(
       #nanoseconds 0,
       func() : async () {
-        executionEnvelopeState.envelopeSalt := await Random.blob();
+        workflowEnvelopeState.envelopeSalt := await Random.blob();
       },
     );
 
@@ -436,7 +436,7 @@ persistent actor class OpenOrgBackend() {
                   agentRegistry;
                   secrets;
                   internalEngine;
-                  envelopeState = executionEnvelopeState;
+                  envelopeState = workflowEnvelopeState;
                   catalogState = workflowCatalogState;
                   approvalState;
                 };
@@ -534,7 +534,7 @@ persistent actor class OpenOrgBackend() {
   /// Single endpoint for engine-to-Core communication.
   /// The engine sends method + path + JSON body; path encodes the resource and optional ID.
   /// Transport-level guard: only the internal engine canister principal may call this.
-  public shared ({ caller }) func executionApi(
+  public shared ({ caller }) func workflowApi(
     method : { #get; #post; #delete },
     path : Text,
     body : Text,
@@ -548,14 +548,14 @@ persistent actor class OpenOrgBackend() {
     if (caller != expected) {
       return #err(Json.stringify(obj([("type", str("unauthorized")), ("message", str("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister."))]), null));
     };
-    let { response; asyncEffects } = executionApiService.handleRequest(method, path, body);
+    let { response; asyncEffects } = workflowApiService.handleRequest(method, path, body);
 
     // Schedule async processing for any async effects produced by the request
     for (effect in asyncEffects.vals()) {
       ignore Timer.setTimer<system>(
         #seconds 0,
         func() : async () {
-          await executionAsyncEffectService.processEffect(keyCache, effect);
+          await workflowAsyncEffectService.processEffect(keyCache, effect);
         },
       );
     };
@@ -712,7 +712,7 @@ persistent actor class OpenOrgBackend() {
           agentRegistry;
           secrets;
           internalEngine;
-          envelopeState = executionEnvelopeState;
+          envelopeState = workflowEnvelopeState;
           catalogState = workflowCatalogState;
           approvalState;
         };

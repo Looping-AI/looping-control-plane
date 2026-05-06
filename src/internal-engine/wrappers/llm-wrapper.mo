@@ -7,7 +7,7 @@ import List "mo:core/List";
 import Json "mo:json";
 import { str; float; bool; obj; arr } "mo:json";
 import HttpWrapper "./http-wrapper";
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 
 module {
 
@@ -38,7 +38,7 @@ module {
   /// Covers regular messages, echoed function calls from previous
   /// LLM responses, and tool execution results.
   public type InputItem = {
-    #message : { role : ExecutionTypes.ChatRole; content : Text };
+    #message : { role : WorkflowTypes.ChatRole; content : Text };
     #functionCall : { callId : Text; name : Text; arguments : Text };
     #functionCallOutput : { callId : Text; output : Text };
   };
@@ -66,8 +66,8 @@ module {
   // ── Conversion helpers ─────────────────────────────────────────────
 
   /// Convert initial ChatMessages from the envelope into InputItems.
-  public func chatMessagesToInput(messages : [ExecutionTypes.ChatMessage]) : [InputItem] {
-    Array.map<ExecutionTypes.ChatMessage, InputItem>(messages, func(msg) { #message(msg) });
+  public func chatMessagesToInput(messages : [WorkflowTypes.ChatMessage]) : [InputItem] {
+    Array.map<WorkflowTypes.ChatMessage, InputItem>(messages, func(msg) { #message(msg) });
   };
 
   /// Build InputItems for a completed tool round: the echoed function calls
@@ -88,7 +88,7 @@ module {
 
   // ── Serialization helpers ──────────────────────────────────────────
 
-  private func chatRoleToString(role : ExecutionTypes.ChatRole) : Text {
+  private func chatRoleToString(role : WorkflowTypes.ChatRole) : Text {
     switch (role) {
       case (#user) { "user" };
       case (#assistant) { "assistant" };

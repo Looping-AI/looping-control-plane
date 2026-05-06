@@ -6,13 +6,13 @@ import Map "mo:core/Map";
 import RunStoreModel "../../../../src/internal-engine/models/run-store-model";
 import RunTypes "../../../../src/internal-engine/runner/run-types";
 import RunHelpers "../../../../src/internal-engine/runner/run-helpers";
-import ExecutionTypes "../../../../src/internal-engine/execution-types";
+import WorkflowTypes "../../../../src/internal-engine/workflow-types";
 
 // ─────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────
 
-func makeEnvelope(id : Nat) : ExecutionTypes.EnvelopePayload {
+func makeEnvelope(id : Nat) : WorkflowTypes.EnvelopePayload {
   {
     envelopeId = id;
     requestId = "req-" # Nat.toText(id);
@@ -42,7 +42,7 @@ func makeRecord(id : Nat) : RunTypes.RunRecord {
   RunHelpers.fromEnvelope(makeEnvelope(id), ANCIENT);
 };
 
-func dummyStats() : ExecutionTypes.ExecutionStats {
+func dummyStats() : WorkflowTypes.WorkflowStats {
   {
     durationNs = ?100;
     llmCalls = ?1;

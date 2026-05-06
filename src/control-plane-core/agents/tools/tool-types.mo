@@ -2,10 +2,10 @@ import AgentModel "../../models/agent-model";
 import SessionModel "../../models/session-model";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import SecretModel "../../models/secret-model";
-import ExecutionEnvelopeModel "../../models/execution-envelope-model";
+import WorkflowEnvelopeModel "../../models/workflow-envelope-model";
 import WorkflowCatalogModel "../../models/workflow-catalog-model";
 import ApprovalModel "../../models/approval-model";
-import ExecutionTypes "../../types/execution";
+import WorkflowTypes "../../types/workflow";
 import InternalEngine "../../../internal-engine/main";
 
 module {
@@ -33,7 +33,7 @@ module {
   /// Engine dispatch resources — envelope state, pre-resolved engine actor, catalog state, and approval state.
   /// Passed to workflow tools so they can issue envelopes and dispatch to the engine.
   public type EngineDispatch = {
-    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+    envelopeState : WorkflowEnvelopeModel.EnvelopeState;
     internalEngine : InternalEngine.InternalEngine;
     catalogState : WorkflowCatalogModel.CatalogState;
     approvalState : ApprovalModel.ApprovalState;
@@ -45,7 +45,7 @@ module {
     agent : AgentModel.AgentRecord;
     turnId : Text;
     instructions : Text;
-    messages : [ExecutionTypes.ChatMessage];
+    messages : [WorkflowTypes.ChatMessage];
     apiKey : Text;
   };
 

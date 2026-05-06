@@ -3,8 +3,8 @@ import { str; obj; bool } "mo:json";
 import Error "mo:core/Error";
 import AgentHelpers "../../../agents/helpers";
 import JsonPretty "../../../utilities/json-pretty";
-import ExecutionTypes "../../../types/execution";
-import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
+import WorkflowTypes "../../../types/workflow";
+import WorkflowEnvelopeModel "../../../models/workflow-envelope-model";
 import WorkflowCatalogModel "../../../models/workflow-catalog-model";
 import WorkflowCatalogService "../../../services/workflow-catalog-service";
 import WorkflowCatalogTypes "../../../types/workflow-catalog";
@@ -194,7 +194,7 @@ module {
 
     // 4. Issue envelope
     let scopeGrants = AgentHelpers.buildScopeGrants(envelopeContext.agent);
-    let { envelopeId; nonce = envelopeNonce } = ExecutionEnvelopeModel.issue(
+    let { envelopeId; nonce = envelopeNonce } = WorkflowEnvelopeModel.issue(
       engineDispatch.envelopeState,
       envelopeContext.turnId,
       envelopeContext.agent.ownedBy,
@@ -202,7 +202,7 @@ module {
     );
 
     // 5. Build payload
-    let envelope : ExecutionTypes.EnvelopePayload = {
+    let envelope : WorkflowTypes.EnvelopePayload = {
       envelopeId;
       dispatchedVersion = null;
       requestId = envelopeContext.turnId;
@@ -232,7 +232,7 @@ module {
           #ok(Json.stringify(obj([("dispatched", bool(true))]), null));
         };
         case (#err(e)) {
-          ExecutionEnvelopeModel.revoke(engineDispatch.envelopeState, envelopeNonce);
+          WorkflowEnvelopeModel.revoke(engineDispatch.envelopeState, envelopeNonce);
           // If the engine signalled a stale catalog, refresh and surface a retry hint.
           switch (Json.parse(e)) {
             case (#ok(errJson)) {
@@ -256,7 +256,7 @@ module {
         };
       };
     } catch (e : Error) {
-      ExecutionEnvelopeModel.revoke(engineDispatch.envelopeState, envelopeNonce);
+      WorkflowEnvelopeModel.revoke(engineDispatch.envelopeState, envelopeNonce);
       handlerError("dispatchFailed", "Engine call failed: " # Error.message(e));
     };
   };

@@ -1,5 +1,5 @@
 import Nat "mo:core/Nat";
-import ExecutionTypes "../../src/internal-engine/execution-types";
+import WorkflowTypes "../../src/internal-engine/workflow-types";
 
 // ============================================
 // Internal Engine Test Helpers
@@ -15,7 +15,7 @@ module {
     envelopeId : Nat,
     agentName : Text,
     prompt : Text,
-  ) : ExecutionTypes.EnvelopePayload {
+  ) : WorkflowTypes.EnvelopePayload {
     {
       envelopeId;
       requestId = "req-test-" # Nat.toText(envelopeId);

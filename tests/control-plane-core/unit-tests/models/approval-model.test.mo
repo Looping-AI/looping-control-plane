@@ -132,11 +132,11 @@ suite(
 );
 
 // ============================================
-// isExecutionWindowExpired
+// isWorkflowWindowExpired
 // ============================================
 
 suite(
-  "isExecutionWindowExpired",
+  "isWorkflowWindowExpired",
   func() {
     test(
       "returns false when now equals requestedAt",
@@ -146,7 +146,7 @@ suite(
         switch (ApprovalModel.findByCode(state, code)) {
           case (null) { expect.bool(false).isTrue() };
           case (?record) {
-            expect.bool(not ApprovalModel.isExecutionWindowExpired(record, record.requestedAt)).isTrue();
+            expect.bool(not ApprovalModel.isWorkflowWindowExpired(record, record.requestedAt)).isTrue();
           };
         };
       },
@@ -161,7 +161,7 @@ suite(
           case (null) { expect.bool(false).isTrue() };
           case (?record) {
             let farFuture = record.requestedAt + 999_999_999_999_999_999;
-            expect.bool(ApprovalModel.isExecutionWindowExpired(record, farFuture)).isTrue();
+            expect.bool(ApprovalModel.isWorkflowWindowExpired(record, farFuture)).isTrue();
           };
         };
       },

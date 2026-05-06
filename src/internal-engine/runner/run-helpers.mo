@@ -1,13 +1,13 @@
 /// Run Helpers
 /// Constructor and utility functions for RunRecord values.
 
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 import RunTypes "./run-types";
 
 module {
 
   /// Build a fresh RunRecord from an envelope, stamped with enqueuedAt.
-  public func fromEnvelope(envelope : ExecutionTypes.EnvelopePayload, now : Int) : RunTypes.RunRecord {
+  public func fromEnvelope(envelope : WorkflowTypes.EnvelopePayload, now : Int) : RunTypes.RunRecord {
     {
       envelopeId = envelope.envelopeId;
       requestId = envelope.requestId;

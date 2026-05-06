@@ -16,7 +16,7 @@ import { withCassette } from "../../../lib/cassette";
 import { resolveSpecsChannel } from "../../../helpers";
 
 // ============================================
-// ExecutionAsyncEffectService – end-to-end
+// WorkflowAsyncEffectService – end-to-end
 //
 // Tests that after testRunAsyncEffect is called:
 //   - #milestone: SlackWrapper.postMessage is called with the milestone
@@ -25,11 +25,11 @@ import { resolveSpecsChannel } from "../../../helpers";
 //     summary and the turn is advanced to #succeeded
 //
 // testRunAsyncEffect seeds the botToken into the test secrets store and
-// delegates to ExecutionAsyncEffectService.processEffect, which mirrors the
+// delegates to WorkflowAsyncEffectService.processEffect, which mirrors the
 // production path in main.mo without live Schnorr key derivation.
 //
 // Cassettes record the Slack chat.postMessage HTTP outcall.
-// To re-record: RECORD_CASSETTES=true bun test execution-async-effect-service.spec.ts
+// To re-record: RECORD_CASSETTES=true bun test workflow-async-effect-service.spec.ts
 // ============================================
 
 const BOT_TOKEN =
@@ -41,7 +41,7 @@ const EFFECT_TS = "1700000030.000001";
 const AGENT_ID = 0n;
 const WORKSPACE_ID = 0n;
 
-describe("ExecutionAsyncEffectService – end-to-end", () => {
+describe("WorkflowAsyncEffectService – end-to-end", () => {
   let pic: PocketIc;
   let testCanister: DeferredActor<TestCanisterService>;
 
@@ -59,7 +59,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
 
   it("milestone: should post to Slack and leave turn #awaitingWorkflow", async () => {
     const cassetteName =
-      "control-plane-core/unit-tests/services/execution-async-effect-service/milestone-post";
+      "control-plane-core/unit-tests/services/workflow-async-effect-service/milestone-post";
     const channel = await resolveSpecsChannel(cassetteName);
 
     // Seed an #awaitingWorkflow turn (no HTTP outcalls — tick and await manually)
@@ -87,7 +87,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
       () =>
         testCanister.testRunAsyncEffect(
           { post: null },
-          "/execution/milestone",
+          "/workflow/milestone",
           JSON.stringify({
             envelopeNonce: nonce,
             humanSummary: "Step 1 done.",
@@ -107,7 +107,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
 
   it("complete: should post to Slack and mark turn #succeeded", async () => {
     const cassetteName =
-      "control-plane-core/unit-tests/services/execution-async-effect-service/complete-success";
+      "control-plane-core/unit-tests/services/workflow-async-effect-service/complete-success";
     const channel = await resolveSpecsChannel(cassetteName);
 
     // Seed a #running turn so processEffect takes the normal completion path
@@ -136,7 +136,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
       () =>
         testCanister.testRunAsyncEffect(
           { post: null },
-          "/execution/complete",
+          "/workflow/complete",
           JSON.stringify({
             envelopeNonce: nonce,
             humanSummary: "Workflow complete.",
@@ -160,7 +160,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
     // Seed a #awaitingWorkflow turn — this is the production path where
     // the engine finishes and Core must resume the admin agent loop.
     const cassetteName =
-      "control-plane-core/unit-tests/services/execution-async-effect-service/complete-awaiting-workflow-resume";
+      "control-plane-core/unit-tests/services/workflow-async-effect-service/complete-awaiting-workflow-resume";
     const channel = await resolveSpecsChannel(cassetteName);
 
     const turnIdThunk = await testCanister.testSeedPendingTurn(
@@ -189,7 +189,7 @@ describe("ExecutionAsyncEffectService – end-to-end", () => {
       () =>
         testCanister.testRunAsyncEffectWithResume(
           { post: null },
-          "/execution/complete",
+          "/workflow/complete",
           JSON.stringify({
             envelopeNonce: nonce,
             humanSummary: "Workflow complete.",

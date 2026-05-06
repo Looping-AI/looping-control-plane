@@ -4,7 +4,7 @@ import List "mo:core/List";
 import Json "mo:json";
 import WorkflowCatalogTypes "../types/workflow-catalog";
 import WorkflowCatalogModel "../models/workflow-catalog-model";
-import ExecutionTypes "../types/execution";
+import WorkflowTypes "../types/workflow";
 import InternalEngine "../../internal-engine/main";
 
 /// Workflow catalog service — fetching, parsing, and scope filtering.
@@ -159,7 +159,7 @@ module {
   ///   #agent (per-agent) grant does NOT satisfy the collection-level "agents" scope.
   public func filterByScopes(
     descriptors : [WorkflowCatalogTypes.WorkflowDescriptor],
-    scopeGrants : [ExecutionTypes.ScopeGrant],
+    scopeGrants : [WorkflowTypes.ScopeGrant],
   ) : [WorkflowCatalogTypes.WorkflowDescriptor] {
     Array.filter<WorkflowCatalogTypes.WorkflowDescriptor>(
       descriptors,
@@ -171,7 +171,7 @@ module {
 
   private func allScopesGranted(
     required : [WorkflowCatalogTypes.RequiredScope],
-    grants : [ExecutionTypes.ScopeGrant],
+    grants : [WorkflowTypes.ScopeGrant],
   ) : Bool {
     for (req in required.vals()) {
       if (not scopeSatisfied(req, grants)) { return false };
@@ -181,7 +181,7 @@ module {
 
   private func scopeSatisfied(
     req : WorkflowCatalogTypes.RequiredScope,
-    grants : [ExecutionTypes.ScopeGrant],
+    grants : [WorkflowTypes.ScopeGrant],
   ) : Bool {
     for (grant in grants.vals()) {
       if (grantSatisfiesScope(grant, req.scope, req.access)) { return true };
@@ -190,7 +190,7 @@ module {
   };
 
   private func grantSatisfiesScope(
-    grant : ExecutionTypes.ScopeGrant,
+    grant : WorkflowTypes.ScopeGrant,
     scope : Text,
     accessNeeded : Text,
   ) : Bool {
@@ -214,7 +214,7 @@ module {
   };
 
   private func accessSufficient(
-    granted : ExecutionTypes.ScopeAccess,
+    granted : WorkflowTypes.ScopeAccess,
     needed : Text,
   ) : Bool {
     switch (granted, needed) {

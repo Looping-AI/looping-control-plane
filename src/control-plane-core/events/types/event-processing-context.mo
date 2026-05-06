@@ -18,7 +18,7 @@ import SlackUserModel "../../models/slack-user-model";
 import WorkspaceModel "../../models/workspace-model";
 import EventStoreModel "../../models/event-store-model";
 import SessionModel "../../models/session-model";
-import ExecutionEnvelopeModel "../../models/execution-envelope-model";
+import WorkflowEnvelopeModel "../../models/workflow-envelope-model";
 import WorkflowCatalogModel "../../models/workflow-catalog-model";
 import ApprovalModel "../../models/approval-model";
 import Timer "mo:core/Timer";
@@ -58,7 +58,7 @@ module {
 
     /// Envelope state — holds the token store, monotonic counter, and entropy
     /// salt in one place. Pass this wherever envelope generation is needed.
-    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+    envelopeState : WorkflowEnvelopeModel.EnvelopeState;
 
     /// Pre-resolved internal engine actor. Guaranteed non-null by the time any
     /// event is processed (pre-warmed at init and postupgrade).

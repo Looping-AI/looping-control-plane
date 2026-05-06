@@ -1,7 +1,7 @@
 import Time "mo:core/Time";
 import Types "../../../types";
 import AgentModel "../../../models/agent-model";
-import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
+import WorkflowEnvelopeModel "../../../models/workflow-envelope-model";
 import SlackAuthMiddleware "../../../middleware/slack-auth-middleware";
 import ContextAssembler "../../context-assembler";
 
@@ -14,7 +14,7 @@ module {
     _userAuthContext : ?SlackAuthMiddleware.UserAuthContext,
     _apiKey : Text,
     _resolveSlackBotToken : (Text -> ?Text),
-    _engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
+    _engineDeps : Types.AgentEngineDeps<WorkflowEnvelopeModel.EnvelopeState>,
   ) : async Types.AgentOrchestrateResult {
     let step : Types.ProcessingStep = {
       action = "orchestrate";

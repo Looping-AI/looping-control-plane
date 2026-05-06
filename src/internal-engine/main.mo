@@ -6,7 +6,7 @@ import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 import Json "mo:json";
 import { str; obj } "mo:json";
-import ExecutionTypes "./execution-types";
+import WorkflowTypes "./workflow-types";
 import CoreWrapper "./wrappers/core-wrapper";
 import RunHelpers "./runner/run-helpers";
 import RunStoreModel "./models/run-store-model";
@@ -68,7 +68,7 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
   // and returns immediately. The LLM loop runs asynchronously via the
   // timer and delivers results to Core via emitComplete / emitMilestone.
 
-  public shared ({ caller }) func execute(envelope : ExecutionTypes.EnvelopePayload) : async {
+  public shared ({ caller }) func execute(envelope : WorkflowTypes.EnvelopePayload) : async {
     #ok;
     #err : Text;
   } {

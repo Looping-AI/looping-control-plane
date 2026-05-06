@@ -8,7 +8,7 @@ import WorkspaceModel "../models/workspace-model";
 import SecretModel "../models/secret-model";
 import ApprovalModel "../models/approval-model";
 import KeyDerivationService "key-derivation-service";
-import ExecutionTypes "../types/execution";
+import WorkflowTypes "../types/workflow";
 import SlackWrapper "../wrappers/slack-wrapper";
 import Logger "../utilities/logger";
 import AgentHelpers "../agents/helpers";
@@ -36,7 +36,7 @@ module {
     /// at construction would leave the service with a stale reference after rotation.
     public func processEffect(
       keyCache : KeyDerivationService.KeyCache,
-      effect : ExecutionTypes.AsyncEffect,
+      effect : WorkflowTypes.AsyncEffect,
     ) : async () {
       let (envelopeId, turnId, humanSummary) = switch (effect) {
         case (#milestone(m)) { (m.envelopeId, m.turnId, m.humanSummary) };
@@ -47,7 +47,7 @@ module {
       let turn = switch (SessionModel.findTurn(deps.sessionStores, turnId)) {
         case (?t) { t };
         case null {
-          Logger.log(#error, ?"ExecutionAsyncEffect", "Turn not found: " # turnId # " (envelope=" # Nat.toText(envelopeId) # ")");
+          Logger.log(#error, ?"WorkflowAsyncEffect", "Turn not found: " # turnId # " (envelope=" # Nat.toText(envelopeId) # ")");
           return;
         };
       };
@@ -56,7 +56,7 @@ module {
       let agent = switch (AgentModel.lookupById(deps.agentRegistry, turn.agentId)) {
         case (?a) { a };
         case null {
-          Logger.log(#error, ?"ExecutionAsyncEffect", "Agent not found: " # Nat.toText(turn.agentId));
+          Logger.log(#error, ?"WorkflowAsyncEffect", "Agent not found: " # Nat.toText(turn.agentId));
           return;
         };
       };
@@ -74,7 +74,7 @@ module {
           switch (adminChannel) {
             case (?ch) { (ch, "", null) };
             case null {
-              Logger.log(#error, ?"ExecutionAsyncEffect", "No admin channel for non-Slack turn " # turnId # " — cannot post result");
+              Logger.log(#error, ?"WorkflowAsyncEffect", "No admin channel for non-Slack turn " # turnId # " — cannot post result");
               return;
             };
           };
@@ -98,7 +98,7 @@ module {
       ) {
         case (?t) { t };
         case null {
-          Logger.log(#error, ?"ExecutionAsyncEffect", "Bot token not available for turn " # turnId);
+          Logger.log(#error, ?"WorkflowAsyncEffect", "Bot token not available for turn " # turnId);
           return;
         };
       };
@@ -120,7 +120,7 @@ module {
           switch (await SlackWrapper.postMessage(botToken, channelId, humanSummary, threadTs, metadata, null)) {
             case (#ok(_)) {};
             case (#err(e)) {
-              Logger.log(#error, ?"ExecutionAsyncEffect", "Milestone post failed for turn " # turnId # ": " # e);
+              Logger.log(#error, ?"WorkflowAsyncEffect", "Milestone post failed for turn " # turnId # ": " # e);
             };
           };
         };
@@ -145,7 +145,7 @@ module {
                   );
                 };
                 case (#err(e)) {
-                  Logger.log(#error, ?"ExecutionAsyncEffect", "Reply post failed for turn " # turnId # ": " # e);
+                  Logger.log(#error, ?"WorkflowAsyncEffect", "Reply post failed for turn " # turnId # ": " # e);
                 };
               };
 
@@ -176,7 +176,7 @@ module {
           let resumeResult = try {
             await deps.resumeAdminTurn(turnId, suspension, syntheticResult);
           } catch (e) {
-            Logger.log(#error, ?"ExecutionAsyncEffect", "resumeAdminTurn threw for turn " # turnId # ": " # Error.message(e));
+            Logger.log(#error, ?"WorkflowAsyncEffect", "resumeAdminTurn threw for turn " # turnId # ": " # Error.message(e));
             let cost = SessionModel.aggregateTurnCost(deps.sessionStores, turnId);
             SessionModel.completeTurn(deps.sessionStores, turnId, #failed, cost, ?"Resume call failed");
             return;

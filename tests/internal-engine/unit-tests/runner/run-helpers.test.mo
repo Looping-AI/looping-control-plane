@@ -5,13 +5,13 @@
 import { test; expect } "mo:test";
 import Nat "mo:core/Nat";
 import RunHelpers "../../../../src/internal-engine/runner/run-helpers";
-import ExecutionTypes "../../../../src/internal-engine/execution-types";
+import WorkflowTypes "../../../../src/internal-engine/workflow-types";
 
 // ─────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────
 
-func makeEnvelope(id : Nat) : ExecutionTypes.EnvelopePayload {
+func makeEnvelope(id : Nat) : WorkflowTypes.EnvelopePayload {
   {
     envelopeId = id;
     requestId = "req-" # Nat.toText(id);

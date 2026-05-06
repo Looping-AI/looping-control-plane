@@ -19,7 +19,7 @@ import {
 // This handler:
 //   1. Parses JSON args (workflow-specific parameters — no workflowId field)
 //   2. Processes coreDirectives (approval / preValidation) — none in test descriptor
-//   3. Issues an ExecutionToken via ExecutionEnvelopeModel
+//   3. Issues a WorkflowToken via WorkflowEnvelopeModel
 //   4. Builds an EnvelopePayload and dispatches to the engine
 //   5. Returns {"dispatched":true} on success (#ok)
 //   6. Returns {"type":"camelCase","message":"..."} on failure (#err)

@@ -12,23 +12,23 @@ import type { TestCanisterService } from "../../setup.ts";
 import { createTestCanister, freshTestCanister } from "../../setup.ts";
 
 // ============================================
-// executionApi – Candid endpoint tests
+// workflowApi – Candid endpoint tests
 //
-// Tests the `executionApi` method on the main backend canister.
+// Tests the `workflowApi` method on the main backend canister.
 // This covers the transport-level authorization guard and verifies that
 // the service layer is wired correctly (route dispatch, token lifecycle).
 //
-// No LLM calls are made — tokens are issued directly via testIssueExecutionToken
+// No LLM calls are made — tokens are issued directly via testIssueWorkflowToken
 // and the engine principal is set via testSetInternalEnginePrincipal (both
 // controller-only helpers added for unit testing).
 //
-// The async effects scheduled by /execution/complete and /execution/milestone
+// The async effects scheduled by /workflow/complete and /workflow/milestone
 // fire after the call returns. They fail silently here (no turn seeded in
 // sessionStores), so only the synchronous response is verified. Phase 6
 // covers the full async-effect end-to-end path.
 // ============================================
 
-describe("executionApi – Candid endpoint", () => {
+describe("workflowApi – Candid endpoint", () => {
   let pic: PocketIc;
   let actor: Actor<TestCanisterService>;
 
@@ -53,7 +53,7 @@ describe("executionApi – Candid endpoint", () => {
     it("should pass guard and reach the service when no engine principal is configured", async () => {
       // Fresh canister — internalEnginePrincipal is null → guard is skipped
       // The call reaches the service layer, which rejects the bad token (not auth).
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { get: null },
         "/workspace",
         JSON.stringify({ envelopeNonce: "no-such-token" }),
@@ -70,11 +70,11 @@ describe("executionApi – Candid endpoint", () => {
       const engineIdentity = generateRandomIdentity();
       await actor.testSetInternalEnginePrincipal(engineIdentity.getPrincipal());
 
-      // Switch to a different (non-engine) identity and call executionApi
+      // Switch to a different (non-engine) identity and call workflowApi
       const otherIdentity = generateRandomIdentity();
       actor.setIdentity(otherIdentity);
 
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { get: null },
         "/workspace",
         JSON.stringify({ envelopeNonce: "any" }),
@@ -85,17 +85,17 @@ describe("executionApi – Candid endpoint", () => {
       }
     });
 
-    it("should allow the registered engine principal to call executionApi", async () => {
+    it("should allow the registered engine principal to call workflowApi", async () => {
       const engineIdentity = generateRandomIdentity();
       await actor.testSetInternalEnginePrincipal(engineIdentity.getPrincipal());
 
       // Issue a valid token so the service can proceed past token validation
-      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
+      const nonce = await actor.testIssueWorkflowToken("0_0", 0n);
 
       // Switch to the engine identity
       actor.setIdentity(engineIdentity);
 
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { get: null },
         "/workspace",
         JSON.stringify({ envelopeNonce: nonce }),
@@ -111,9 +111,9 @@ describe("executionApi – Candid endpoint", () => {
 
   describe("GET /workspace", () => {
     it("should return workspace 0 for a valid full-scope token", async () => {
-      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
+      const nonce = await actor.testIssueWorkflowToken("0_0", 0n);
 
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { get: null },
         "/workspace",
         JSON.stringify({ envelopeNonce: nonce }),
@@ -128,7 +128,7 @@ describe("executionApi – Candid endpoint", () => {
     });
 
     it("should return error for a missing envelopeNonce", async () => {
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { get: null },
         "/workspace",
         JSON.stringify({}),
@@ -137,7 +137,7 @@ describe("executionApi – Candid endpoint", () => {
     });
 
     it("should return error for an invalid token nonce", async () => {
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { get: null },
         "/workspace",
         JSON.stringify({ envelopeNonce: "no-such-token" }),
@@ -147,16 +147,16 @@ describe("executionApi – Candid endpoint", () => {
   });
 
   // ============================================
-  // POST /execution/complete
+  // POST /workflow/complete
   // ============================================
 
-  describe("POST /execution/complete", () => {
+  describe("POST /workflow/complete", () => {
     it("should succeed and immediately revoke the token", async () => {
-      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
+      const nonce = await actor.testIssueWorkflowToken("0_0", 0n);
 
-      const firstResult = await actor.testExecutionApi(
+      const firstResult = await actor.testWorkflowApi(
         { post: null },
-        "/execution/complete",
+        "/workflow/complete",
         JSON.stringify({
           envelopeNonce: nonce,
           humanSummary: "Workflow complete.",
@@ -166,9 +166,9 @@ describe("executionApi – Candid endpoint", () => {
       expect("ok" in firstResult).toBe(true);
 
       // Token must be revoked after complete — second call should fail
-      const retryResult = await actor.testExecutionApi(
+      const retryResult = await actor.testWorkflowApi(
         { post: null },
-        "/execution/complete",
+        "/workflow/complete",
         JSON.stringify({
           envelopeNonce: nonce,
           humanSummary: "Retry.",
@@ -179,11 +179,11 @@ describe("executionApi – Candid endpoint", () => {
     });
 
     it("should return error for a missing humanSummary field", async () => {
-      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
+      const nonce = await actor.testIssueWorkflowToken("0_0", 0n);
 
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { post: null },
-        "/execution/complete",
+        "/workflow/complete",
         JSON.stringify({ envelopeNonce: nonce }),
       );
       expect("err" in result).toBe(true);
@@ -191,16 +191,16 @@ describe("executionApi – Candid endpoint", () => {
   });
 
   // ============================================
-  // POST /execution/milestone
+  // POST /workflow/milestone
   // ============================================
 
-  describe("POST /execution/milestone", () => {
+  describe("POST /workflow/milestone", () => {
     it("should succeed and leave the token valid (not revoked)", async () => {
-      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
+      const nonce = await actor.testIssueWorkflowToken("0_0", 0n);
 
-      const milestoneResult = await actor.testExecutionApi(
+      const milestoneResult = await actor.testWorkflowApi(
         { post: null },
-        "/execution/milestone",
+        "/workflow/milestone",
         JSON.stringify({
           envelopeNonce: nonce,
           humanSummary: "Step 1 done.",
@@ -209,7 +209,7 @@ describe("executionApi – Candid endpoint", () => {
       expect("ok" in milestoneResult).toBe(true);
 
       // Token must still be valid after milestone (not revoked)
-      const followUpResult = await actor.testExecutionApi(
+      const followUpResult = await actor.testWorkflowApi(
         { get: null },
         "/workspace",
         JSON.stringify({ envelopeNonce: nonce }),
@@ -218,11 +218,11 @@ describe("executionApi – Candid endpoint", () => {
     });
 
     it("should return error for a missing humanSummary field", async () => {
-      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
+      const nonce = await actor.testIssueWorkflowToken("0_0", 0n);
 
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { post: null },
-        "/execution/milestone",
+        "/workflow/milestone",
         JSON.stringify({ envelopeNonce: nonce }),
       );
       expect("err" in result).toBe(true);
@@ -235,9 +235,9 @@ describe("executionApi – Candid endpoint", () => {
 
   describe("unknown route", () => {
     it("should return error for an unrecognized path", async () => {
-      const nonce = await actor.testIssueExecutionToken("0_0", 0n);
+      const nonce = await actor.testIssueWorkflowToken("0_0", 0n);
 
-      const result = await actor.testExecutionApi(
+      const result = await actor.testWorkflowApi(
         { get: null },
         "/no-such-route",
         JSON.stringify({ envelopeNonce: nonce }),

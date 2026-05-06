@@ -1,8 +1,8 @@
-/// Execution Types — re-export shim
+/// Workflow Types — re-export shim
 /// Internal-engine files import from here instead of reaching into control-plane-core directly.
-/// The canonical source remains src/control-plane-core/types/execution.mo.
+/// The canonical source remains src/control-plane-core/types/workflow.mo.
 
-import E "../control-plane-core/types/execution";
+import E "../control-plane-core/types/workflow";
 
 module {
   public type HttpMethod = E.HttpMethod;
@@ -10,14 +10,14 @@ module {
   public type ScopeGrant = E.ScopeGrant;
   public type ChatRole = E.ChatRole;
   public type ChatMessage = E.ChatMessage;
-  public type ExecutionConstraints = E.ExecutionConstraints;
-  public type ExecutionSecrets = E.ExecutionSecrets;
+  public type WorkflowConstraints = E.WorkflowConstraints;
+  public type WorkflowSecrets = E.WorkflowSecrets;
   public type EnvelopePayload = E.EnvelopePayload;
-  public type ExecutionStats = E.ExecutionStats;
-  public type ExecutionStatus = E.ExecutionStatus;
-  public type ExecutionResult = E.ExecutionResult;
+  public type WorkflowStats = E.WorkflowStats;
+  public type WorkflowStatus = E.WorkflowStatus;
+  public type WorkflowResult = E.WorkflowResult;
   public type SummarizedStep = E.SummarizedStep;
-  public type ExecutionEvent = E.ExecutionEvent;
+  public type WorkflowEvent = E.WorkflowEvent;
   public type AsyncEffect = E.AsyncEffect;
   public type HandleResult = E.HandleResult;
 };

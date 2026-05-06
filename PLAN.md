@@ -30,30 +30,6 @@ Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/p
 
 ---
 
-### 5.2.2.1 - Review Execution naming, consider Workflow
-
-In a previous refactor, have changed from "Execution" (Engine) concept to "Workflow" (Engine) concept.
-
-But am realizing some sibling concepts are still to be renamed, like ExecutionEnvelope, should be WorkflowEnvelope : "src/control-plane-core/models/execution-envelope-model.mo".
-
-Instead of ExecutionAPI it should be workflowAPI (endpoint and service), etc...
-
-### 5.2.2 - Improve the EnvelopePayload to more sensible fields
-
-- model in secrets?
-- workflow params
-- catalog version
-- overall review
-
-### 5.2.3 — HMAC encrypted envelop (JSON format always)
-
-- on core, generate a private key for the engine and submit it through an inter canister call.
-- on engine, store the secret and ensure request is coming from the owner.
-- when envelope is generated, it converts to JSON, and then is encrypted in HMAC and sent on the execute call (both the signature and the body).
-- Engine decrypts the body, then parses it to Candid, then proceeds as usual.
-
----
-
 ### 5.2.4 — Multi-suspension safety: concurrent suspension-triggering tool calls
 
 **TL;DR**: `adminLoop` is designed for a single suspension signal per round, but there is no enforcement. If the LLM emits multiple tool calls in one round and more than one triggers a suspension (`dispatched` or `approvalRequired`), the system exhibits undefined behavior. This task researches and implements a complete enforcement strategy.

@@ -20,8 +20,8 @@ import ChannelHistoryModel "../models/channel-history-model";
 import SecretModel "../models/secret-model";
 import SessionModel "../models/session-model";
 import ApprovalModel "../models/approval-model";
-import ExecutionEnvelopeModel "../models/execution-envelope-model";
-import ExecutionTypes "../types/execution";
+import WorkflowEnvelopeModel "../models/workflow-envelope-model";
+import WorkflowTypes "../types/workflow";
 import WorkflowCatalogModel "../models/workflow-catalog-model";
 import WorkflowCatalogTypes "../types/workflow-catalog";
 import TurnContextService "../services/turn-context-service";
@@ -54,7 +54,7 @@ module {
     agentRegistry : AgentModel.AgentRegistryState;
     secrets : SecretModel.SecretsState;
     internalEngine : ?InternalEngine.InternalEngine;
-    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+    envelopeState : WorkflowEnvelopeModel.EnvelopeState;
     catalogState : WorkflowCatalogModel.CatalogState;
     approvalState : ApprovalModel.ApprovalState;
   };
@@ -79,7 +79,7 @@ module {
     secrets : SecretModel.SecretsState,
     workspaceKey : [Nat8],
     orgKey : [Nat8],
-    engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
+    engineDeps : Types.AgentEngineDeps<WorkflowEnvelopeModel.EnvelopeState>,
     approvalState : ApprovalModel.ApprovalState,
   ) : async Types.AgentOrchestrateResult {
     let apiKey = switch (
@@ -239,7 +239,7 @@ module {
   // ── resumeWithApproval ────────────────────────────────────────────────────
 
   /// Dispatch the approved workflow and leave the original turn waiting for the
-  /// engine completion event. The LLM resumes only from ExecutionAsyncEffectService.
+  /// engine completion event. The LLM resumes only from WorkflowAsyncEffectService.
   /// This replaces the deleted `ApprovalDispatchService.dispatchApproved`.
   public func resumeWithApproval(
     deps : ResumeDeps,
@@ -468,10 +468,10 @@ module {
 
   private func messagesToChat(
     messages : [OpenRouterWrapper.ResponseInputMessage]
-  ) : [ExecutionTypes.ChatMessage] {
-    Array.map<OpenRouterWrapper.ResponseInputMessage, ExecutionTypes.ChatMessage>(
+  ) : [WorkflowTypes.ChatMessage] {
+    Array.map<OpenRouterWrapper.ResponseInputMessage, WorkflowTypes.ChatMessage>(
       messages,
-      func(message : OpenRouterWrapper.ResponseInputMessage) : ExecutionTypes.ChatMessage {
+      func(message : OpenRouterWrapper.ResponseInputMessage) : WorkflowTypes.ChatMessage {
         { role = message.role; content = message.content };
       },
     );

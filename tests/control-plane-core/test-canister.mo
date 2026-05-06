@@ -37,7 +37,7 @@ import DeleteSecretHandler "../../src/control-plane-core/agents/tools/handlers/s
 import WorkflowEngineHandler "../../src/control-plane-core/agents/tools/handlers/workflow-engine-handler";
 import WorkflowCatalogTypes "../../src/control-plane-core/types/workflow-catalog";
 import EngineDispatchService "../../src/control-plane-core/services/engine-dispatch-service";
-import ExecutionTypes "../../src/control-plane-core/types/execution";
+import WorkflowTypes "../../src/control-plane-core/types/workflow";
 import WeeklyReconciliationRunner "../../src/control-plane-core/timers/weekly-reconciliation-runner";
 import ClearKeyCacheRunner "../../src/control-plane-core/timers/clear-key-cache-runner";
 import ProcessedEventsCleanupRunner "../../src/control-plane-core/timers/processed-events-cleanup-runner";
@@ -54,11 +54,11 @@ import KeyDerivationService "../../src/control-plane-core/services/key-derivatio
 import SecretModel "../../src/control-plane-core/models/secret-model";
 import EventStoreModel "../../src/control-plane-core/models/event-store-model";
 import SessionModel "../../src/control-plane-core/models/session-model";
-import ExecutionEnvelopeModel "../../src/control-plane-core/models/execution-envelope-model";
+import WorkflowEnvelopeModel "../../src/control-plane-core/models/workflow-envelope-model";
 import WorkflowCatalogModel "../../src/control-plane-core/models/workflow-catalog-model";
 import ApprovalModel "../../src/control-plane-core/models/approval-model";
-import ExecutionApiService "../../src/control-plane-core/services/execution-api-service";
-import ExecutionAsyncEffectService "../../src/control-plane-core/services/execution-async-effect-service";
+import WorkflowApiService "../../src/control-plane-core/services/workflow-api-service";
+import WorkflowAsyncEffectService "../../src/control-plane-core/services/workflow-async-effect-service";
 import EventProcessingContextTypes "../../src/control-plane-core/events/types/event-processing-context";
 import AgentRunner "../../src/control-plane-core/agents/agent-runner";
 import ToolExecutor "../../src/control-plane-core/agents/tools/tool-executor";
@@ -126,7 +126,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   let testCleanupSessionStores = SessionModel.emptyStores();
 
   // Envelope state paired with testCleanupSessionStores for turn-cleanup-runner tests.
-  let testCleanupEnvelopeState = ExecutionEnvelopeModel.emptyState();
+  let testCleanupEnvelopeState = WorkflowEnvelopeModel.emptyState();
 
   // Dispatch-path session stores — shared across testMessageHandlerDispatch calls
   // so testGetTurnStatus can observe turn state after the handler returns.
@@ -137,17 +137,17 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // testGetApprovalStatus can observe state changes across separate calls.
   let testDispatchApprovalState = ApprovalModel.emptyState();
 
-  // Execution API token store — dedicated store for executionApi endpoint tests.
-  let testExecEnvelopeState = ExecutionEnvelopeModel.emptyState();
+  // Execution API token store — dedicated store for workflowApi endpoint tests.
+  let testWorkflowEnvelopeState = WorkflowEnvelopeModel.emptyState();
 
-  // Internal engine principal for executionApi authorization guard tests.
+  // Internal engine principal for workflowApi authorization guard tests.
   var testInternalEnginePrincipal : ?Principal = null;
 
   let mockInternalEngine : InternalEngine.InternalEngine = actor (Principal.toText(Principal.fromActor(self))) : InternalEngine.InternalEngine;
 
   // Execution API service wired up for unit tests.
-  transient let testExecApiService = ExecutionApiService.Service({
-    envelopeState = testExecEnvelopeState;
+  transient let testWorkflowApiService = WorkflowApiService.Service({
+    envelopeState = testWorkflowEnvelopeState;
     workspaces = testWorkspacesState;
     agentRegistry = testAgentRegistry;
     approvalState = ApprovalModel.emptyState();
@@ -159,8 +159,8 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Uses AgentModel.defaultState() so agent 0 (workspace-admin, ownedBy=0) is pre-seeded.
   let testEffectAgentRegistry = AgentModel.defaultState();
   let testEffectSessionStores = SessionModel.emptyStores();
-  let testEffectEnvelopeState = ExecutionEnvelopeModel.emptyState();
-  transient let testEffectExecApiService = ExecutionApiService.Service({
+  let testEffectEnvelopeState = WorkflowEnvelopeModel.emptyState();
+  transient let testEffectWorkflowApiService = WorkflowApiService.Service({
     envelopeState = testEffectEnvelopeState;
     workspaces = testWorkspacesState;
     agentRegistry = testEffectAgentRegistry;
@@ -175,7 +175,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     [(0, TestHelpers.dummyKey)],
     Nat.compare,
   );
-  transient let testEffectAsyncEffectService = ExecutionAsyncEffectService.Service({
+  transient let testEffectAsyncEffectService = WorkflowAsyncEffectService.Service({
     sessionStores = testEffectSessionStores;
     agentRegistry = testEffectAgentRegistry;
     workspaces = testWorkspacesState;
@@ -196,7 +196,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     };
   };
 
-  func testOrchestratorEngineDeps() : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState> {
+  func testOrchestratorEngineDeps() : Types.AgentEngineDeps<WorkflowEnvelopeModel.EnvelopeState> {
     // Pre-seed the catalog with the real internal-engine descriptors so that
     // admin-agent-loop sees the full tool list without needing a live self-call
     // to listWorkflows(). This mirrors production behaviour where Core has already
@@ -205,7 +205,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     let catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
     WorkflowCatalogModel.replace(catalog, catalogHash, WorkflowCatalog.allDescriptors);
     {
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine = mockInternalEngine;
       catalogState = catalog;
     };
@@ -251,7 +251,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     #ok(WorkflowCatalog.listWorkflowsJson(catalogHash));
   };
 
-  public shared ({ caller = _ }) func execute(envelope : ExecutionTypes.EnvelopePayload) : async {
+  public shared ({ caller = _ }) func execute(envelope : WorkflowTypes.EnvelopePayload) : async {
     #ok;
     #err : Text;
   } {
@@ -733,7 +733,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       workspaces = baseCtx.workspaces;
       eventStore = baseCtx.eventStore;
       sessionStores = testDispatchSessionStores;
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine = engine;
       catalogState = {
         // Pre-seed the catalog so admin-agent-loop can build workflow tools
@@ -861,7 +861,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       agentRegistry = testAgentRegistry;
       secrets = testSecretsMap;
       internalEngine = null;
-      envelopeState = testExecEnvelopeState;
+      envelopeState = testWorkflowEnvelopeState;
       catalogState = { var cached = null };
       approvalState = testDispatchApprovalState;
     };
@@ -924,7 +924,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       agentRegistry = testEffectAgentRegistry;
       secrets;
       internalEngine = ?mockInternalEngine;
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       catalogState = {
         var cached = ?{
           catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
@@ -1195,21 +1195,21 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Execution API Test Methods
   // ============================================
 
-  /// Sets the internal engine principal used by testExecutionApi's authorization guard.
+  /// Sets the internal engine principal used by testWorkflowApi's authorization guard.
   public shared ({ caller }) func testSetInternalEnginePrincipal(p : Principal) : async () {
     assert caller == parent;
     testInternalEnginePrincipal := ?p;
   };
 
-  /// Issues a full-scope execution token directly into testExecEnvelopeState.
+  /// Issues a full-scope execution token directly into testWorkflowEnvelopeState.
   /// Returns the token nonce.
-  public shared ({ caller }) func testIssueExecutionToken(
+  public shared ({ caller }) func testIssueWorkflowToken(
     turnId : Text,
     workspaceId : Nat,
   ) : async Text {
     assert caller == parent;
-    ExecutionEnvelopeModel.issue(
-      testExecEnvelopeState,
+    WorkflowEnvelopeModel.issue(
+      testWorkflowEnvelopeState,
       turnId,
       workspaceId,
       [
@@ -1221,10 +1221,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     ).nonce;
   };
 
-  /// Mirrors the production executionApi endpoint for unit tests.
-  /// Applies the engine-principal authorization guard then delegates to testExecApiService.
+  /// Mirrors the production workflowApi endpoint for unit tests.
+  /// Applies the engine-principal authorization guard then delegates to testWorkflowApiService.
   /// Async effects are discarded — this tests the synchronous response only.
-  public shared ({ caller }) func testExecutionApi(
+  public shared ({ caller }) func testWorkflowApi(
     method : { #get; #post; #delete },
     path : Text,
     body : Text,
@@ -1237,7 +1237,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         };
       };
     };
-    let { response } = testExecApiService.handleRequest(method, path, body);
+    let { response } = testWorkflowApiService.handleRequest(method, path, body);
     response;
   };
 
@@ -1303,7 +1303,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     workspaceId : Nat,
   ) : async Text {
     assert caller == parent;
-    ExecutionEnvelopeModel.issue(
+    WorkflowEnvelopeModel.issue(
       testEffectEnvelopeState,
       turnId,
       workspaceId,
@@ -1316,10 +1316,10 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     ).nonce;
   };
 
-  /// Call testEffectExecApiService, then synchronously run any async effects
+  /// Call testEffectWorkflowApiService, then synchronously run any async effects
   /// using the provided botToken (bypasses Schnorr key derivation for unit tests).
   /// The botToken is seeded into testEffectSecretsState encrypted with the dummy key
-  /// so ExecutionAsyncEffectService can resolve it without a live Schnorr call.
+  /// so WorkflowAsyncEffectService can resolve it without a live Schnorr call.
   public shared ({ caller }) func testRunAsyncEffect(
     method : { #get; #post; #delete },
     path : Text,
@@ -1335,7 +1335,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       botToken,
       { slackUserId = null; agentId = null; operation = "test-seed" },
     );
-    let { response; asyncEffects } = testEffectExecApiService.handleRequest(method, path, body);
+    let { response; asyncEffects } = testEffectWorkflowApiService.handleRequest(method, path, body);
     for (effect in asyncEffects.vals()) {
       await testEffectAsyncEffectService.processEffect(testEffectKeyCache, effect);
     };
@@ -1344,7 +1344,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   /// Variant of testRunAsyncEffect that wires a succeeding resumeAdminTurn stub.
   /// Use this to exercise the #awaitingWorkflow → #succeeded path in
-  /// ExecutionAsyncEffectService, where the service calls resumeAdminTurn and then
+  /// WorkflowAsyncEffectService, where the service calls resumeAdminTurn and then
   /// applies the result via TurnCompletionService.
   /// The stub returns #ok immediately, avoiding a live LLM or engine call.
   public shared ({ caller }) func testRunAsyncEffectWithResume(
@@ -1363,7 +1363,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       { slackUserId = null; agentId = null; operation = "test-seed-resume" },
     );
     // Build a one-shot service with a succeeding resumeAdminTurn stub.
-    let serviceWithResume = ExecutionAsyncEffectService.Service({
+    let serviceWithResume = WorkflowAsyncEffectService.Service({
       sessionStores = testEffectSessionStores;
       agentRegistry = testEffectAgentRegistry;
       workspaces = testWorkspacesState;
@@ -1373,7 +1373,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
         #ok({ response = "Workflow complete."; steps = [] });
       };
     });
-    let { response; asyncEffects } = testEffectExecApiService.handleRequest(method, path, body);
+    let { response; asyncEffects } = testEffectWorkflowApiService.handleRequest(method, path, body);
     for (effect in asyncEffects.vals()) {
       await serviceWithResume.processEffect(testEffectKeyCache, effect);
     };
@@ -2071,7 +2071,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   ) : async { dispatched : Bool; error : ?Text; knownVersionAfter : ?Text } {
     assert caller == parent;
     let engine = mockInternalEngine;
-    let store = ExecutionEnvelopeModel.emptyState();
+    let store = WorkflowEnvelopeModel.emptyState();
     switch (seedVersion) {
       case (?v) {
         Map.add(store.knownEngineVersions, Text.compare, "internal-engine", v);
@@ -2081,13 +2081,13 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     let apiKeys : [(Text, Text)] = if (includeApiKey) {
       [("openrouter", "test-key"), ("model", "gpt-4")];
     } else { [("model", "gpt-4")] };
-    let { envelopeId; nonce = envelopeNonce } = ExecutionEnvelopeModel.issue(
+    let { envelopeId; nonce = envelopeNonce } = WorkflowEnvelopeModel.issue(
       store,
       "test-turn-dispatch-0_0",
       0,
       [#workspace({ access = #read })],
     );
-    let envelope : ExecutionTypes.EnvelopePayload = {
+    let envelope : WorkflowTypes.EnvelopePayload = {
       envelopeId;
       envelopeNonce;
       dispatchedVersion = null;
@@ -2135,7 +2135,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   /// @param args             JSON-encoded tool arguments (workflow-specific).
   /// @param botToken         Optional Slack bot token (unused when no preValidation directives).
   /// @param mockDispatchFail When true, dispatch returns #err; otherwise #ok.
-  /// Uses a minimal org-admin AgentRecord stub and a fresh ExecutionEnvelopeModel.EnvelopeState.
+  /// Uses a minimal org-admin AgentRecord stub and a fresh WorkflowEnvelopeModel.EnvelopeState.
   public shared ({ caller }) func testWorkflowEngineHandler(
     args : Text,
     botToken : ?Text,
@@ -2164,7 +2164,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       mockInternalEngine;
     };
     let engineDispatch : ToolTypes.EngineDispatch = {
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine;
       catalogState = {
         var cached = ?{
@@ -2243,7 +2243,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     let catalogHash = WorkflowCatalog.computeHash(WorkflowCatalog.allDescriptors);
     WorkflowCatalogModel.replace(catalog, catalogHash, WorkflowCatalog.allDescriptors);
     let engineDispatch : ToolTypes.EngineDispatch = {
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine;
       catalogState = catalog;
       approvalState;

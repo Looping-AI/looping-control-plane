@@ -1,7 +1,7 @@
 /// Envelope Processor
 /// Owns the full lifecycle of a single execution run after it has been enqueued:
 ///   1. Claims the run from the store
-///   2. Delegates to ExecutionRunner to get a RunOutcome
+///   2. Delegates to WorkflowRunner to get a RunOutcome
 ///   3. Applies the outcome to the run store
 ///   4. Emits the final result to Core via CoreEmitter
 ///
@@ -9,10 +9,10 @@
 /// Extracted from main.mo so this logic is independently testable.
 
 import Error "mo:core/Error";
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 import CoreWrapper "../wrappers/core-wrapper";
 import RunStoreModel "../models/run-store-model";
-import ExecutionRunner "./execution-runner";
+import WorkflowRunner "./workflow-runner";
 import CoreEmitter "./core-emitter";
 
 module {
@@ -36,7 +36,7 @@ module {
 
     // ── Execute ────────────────────────────────────────────────────────
     let outcome = try {
-      await ExecutionRunner.run(wrapper, envelope);
+      await WorkflowRunner.run(wrapper, envelope);
     } catch (e : Error) {
       // Trap or unexpected error — mark failed in the store and notify Core
       let errMsg = "Trap: " # Error.message(e);
@@ -77,7 +77,7 @@ module {
   // ── Private helpers ────────────────────────────────────────────────
 
   /// Null stats used in the trap path where no execution data is available.
-  func zeroStats() : ExecutionTypes.ExecutionStats {
+  func zeroStats() : WorkflowTypes.WorkflowStats {
     {
       durationNs = null;
       llmCalls = null;

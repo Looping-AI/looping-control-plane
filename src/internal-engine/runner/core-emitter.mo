@@ -1,6 +1,6 @@
 /// Core Emitter
-/// Sends execution events (complete, milestone) to the Core canister via executionApi.
-/// Extracted from execution-runner.mo so the runner can focus purely on execution
+/// Sends execution events (complete, milestone) to the Core canister via workflowApi.
+/// Extracted from workflow-runner.mo so the runner can focus purely on execution
 /// and the caller owns the emit step.
 
 import Array "mo:core/Array";
@@ -8,7 +8,7 @@ import List "mo:core/List";
 import Error "mo:core/Error";
 import Json "mo:json";
 import { str; arr; int; float; bool; obj } "mo:json";
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 import CoreWrapper "../wrappers/core-wrapper";
 
 module {
@@ -18,9 +18,9 @@ module {
   public func emitComplete(
     wrapper : CoreWrapper.CoreWrapper,
     humanSummary : Text,
-    stepsDetail : [ExecutionTypes.SummarizedStep],
-    status : ExecutionTypes.ExecutionStatus,
-    stats : ExecutionTypes.ExecutionStats,
+    stepsDetail : [WorkflowTypes.SummarizedStep],
+    status : WorkflowTypes.WorkflowStatus,
+    stats : WorkflowTypes.WorkflowStats,
   ) : async { #ok : Text; #err : Text } {
     let fields = List.empty<(Text, Json.Json)>();
     List.add(fields, ("humanSummary", str(humanSummary)));
@@ -33,7 +33,7 @@ module {
     List.add(fields, ("stats", statsToJson(stats)));
     let body = Json.stringify(obj(List.toArray(fields)), null);
     try {
-      await wrapper.callCore(#post, "/execution/complete", body);
+      await wrapper.callCore(#post, "/workflow/complete", body);
     } catch (e : Error) {
       #err("Failed to emit complete: " # Error.message(e));
     };
@@ -45,7 +45,7 @@ module {
   public func emitMilestone(
     wrapper : CoreWrapper.CoreWrapper,
     humanSummary : Text,
-    stepsDetail : [ExecutionTypes.SummarizedStep],
+    stepsDetail : [WorkflowTypes.SummarizedStep],
   ) : async { #ok : Text; #err : Text } {
     let body = Json.stringify(
       obj([
@@ -55,7 +55,7 @@ module {
       null,
     );
     try {
-      await wrapper.callCore(#post, "/execution/milestone", body);
+      await wrapper.callCore(#post, "/workflow/milestone", body);
     } catch (e : Error) {
       #err("Failed to emit milestone: " # Error.message(e));
     };
@@ -63,11 +63,11 @@ module {
 
   // ── Serialization helpers ──────────────────────────────────────────
 
-  func stepsToJson(steps : [ExecutionTypes.SummarizedStep]) : Json.Json {
+  func stepsToJson(steps : [WorkflowTypes.SummarizedStep]) : Json.Json {
     arr(
-      Array.map<ExecutionTypes.SummarizedStep, Json.Json>(
+      Array.map<WorkflowTypes.SummarizedStep, Json.Json>(
         steps,
-        func(s : ExecutionTypes.SummarizedStep) : Json.Json {
+        func(s : WorkflowTypes.SummarizedStep) : Json.Json {
           obj([
             ("tool", str(s.tool)),
             ("summary", str(s.summary)),
@@ -78,7 +78,7 @@ module {
     );
   };
 
-  func statusToJson(status : ExecutionTypes.ExecutionStatus) : Json.Json {
+  func statusToJson(status : WorkflowTypes.WorkflowStatus) : Json.Json {
     switch (status) {
       case (#completed) { str("completed") };
       case (#failed(_)) { str("failed") };
@@ -86,7 +86,7 @@ module {
     };
   };
 
-  func statsToJson(stats : ExecutionTypes.ExecutionStats) : Json.Json {
+  func statsToJson(stats : WorkflowTypes.WorkflowStats) : Json.Json {
     let fields = List.empty<(Text, Json.Json)>();
     switch (stats.durationNs) {
       case (?v) { List.add(fields, ("durationNs", int(v))) };

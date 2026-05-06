@@ -1,8 +1,8 @@
 import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Json "mo:json";
-import ExecutionEnvelopeModel "../models/execution-envelope-model";
-import ExecutionTypes "../types/execution";
+import WorkflowEnvelopeModel "../models/workflow-envelope-model";
+import WorkflowTypes "../types/workflow";
 import InternalEngine "../../internal-engine/main";
 import Logger "../utilities/logger";
 
@@ -22,9 +22,9 @@ module {
   ///
   /// Parameter order: state first, then engine, then payload (per AGENTS.md convention).
   public func dispatch(
-    envelopeState : ExecutionEnvelopeModel.EnvelopeState,
+    envelopeState : WorkflowEnvelopeModel.EnvelopeState,
     engine : InternalEngine.InternalEngine,
-    envelope : ExecutionTypes.EnvelopePayload,
+    envelope : WorkflowTypes.EnvelopePayload,
   ) : async { #ok; #err : Text } {
     let nonce = envelope.envelopeNonce;
     let knownVersion = switch (Map.get(envelopeState.knownEngineVersions, Text.compare, ENGINE_NAME)) {
@@ -36,7 +36,7 @@ module {
     };
     switch (await engine.execute(stamped)) {
       case (#ok) {
-        ExecutionEnvelopeModel.stampDispatchedVersion(envelopeState, nonce, knownVersion);
+        WorkflowEnvelopeModel.stampDispatchedVersion(envelopeState, nonce, knownVersion);
         #ok;
       };
       case (#err(msg)) {
@@ -54,7 +54,7 @@ module {
                 };
                 switch (await engine.execute(retried)) {
                   case (#ok) {
-                    ExecutionEnvelopeModel.stampDispatchedVersion(envelopeState, nonce, requiredVersion);
+                    WorkflowEnvelopeModel.stampDispatchedVersion(envelopeState, nonce, requiredVersion);
                     #ok;
                   };
                   case (#err(retryMsg)) { #err(retryMsg) };
