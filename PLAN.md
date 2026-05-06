@@ -28,32 +28,6 @@ NOTE: Plans are not documentation. They are temporary and will be discarded. If 
 
 ---
 
-### 5.2.4 — Multi-suspension safety: concurrent suspension-triggering tool calls
-
-**TL;DR**: `adminLoop` is designed for a single suspension signal per round, but there is no enforcement. If the LLM emits multiple tool calls in one round and more than one triggers a suspension (`dispatched` or `approvalRequired`), the system exhibits undefined behavior. This task researches and implements a complete enforcement strategy.
-
-**Partial fix landed in 5.2.1 PR**
-
-Two targeted patches were applied to address the most acute symptoms:
-
-- **ToolExecutor stop-at-suspension**: `execute()` now stops after the first suspension signal and fills remaining calls with a synthetic `{"notRun":true,"reason":"..."}` result, preventing eager dispatch of subsequent calls. Suspension detection logic (`isSuspensionResult`) is duplicated in `tool-executor.mo` — factoring it into a shared utility is part of the cleanup for this task.
-- **Non-suspension results no longer dropped**: `adminLoop` now filters `toolResults` for non-suspension results and appends them to `inputHistory` _before_ the early-return, so the LLM sees all results (including "notRun" synthetic ones) on resume.
-
-**Remaining known limitations**
-
-- **Single `pendingToolCallId`**: `SuspensionData` still tracks only one call. If the LLM somehow emits two suspension-capable calls (e.g., both `dispatched`), the stop-at-suspension patch ensures only the first runs — but the design still does not support simultaneous in-flight workflows.
-- **`dispatched` + `approvalRequired` in same round (edge case)**: approval check fires first; the dispatch signal from call #1 is now blocked by the stop-at-suspension patch (call #1 runs, call #2 gets "notRun"). However, if call #1 is approval and call #2 would have dispatched, the dispatch never happens — correct behavior, but the LLM sees "notRun" for call #2 and must re-issue.
-- **No guard against two approval calls in one round**: if the LLM emits two approval-required calls, only the first is real; the second is "notRun". The `SuspensionData.pendingToolCallId` tracks the first only. Correct, but the "notRun" response for call #2 may confuse the LLM.
-- **Detection logic duplicated**: `isSuspensionResult` in `tool-executor.mo` duplicates `isDispatchSignal`/`extractApprovalCode` in `admin-agent-loop.mo`. Should be extracted to a shared `ToolSignal` utility.
-
-**Research directions for full fix**
-
-- **Shared `ToolSignal` utility**: extract signal detection out of both files; single source of truth.
-- **System-prompt constraint (unenforceable but helpful)**: instruct the agent to never call more than one workflow tool per message. Reduces incidence; no correctness guarantee.
-- **Wait-all batch dispatch** (already noted in 5.2.1 "Future considerations — batch dispatch"): full solution, high complexity; requires a barrier counter in `TurnStatus`, all-or-nothing approval semantics, and new prompting idiom. Keep as separate task.
-
----
-
 ### 5.3 — Filesystem: Data Model + Admin Tools
 
 **Goal**

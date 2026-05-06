@@ -661,6 +661,22 @@ Design rules (planned and recommended for any new code):
 - Wrap with try {} catch to log trap messages and keep history of trap logs for future audit.
 - Make processes step-based with logged transitions at every await — if a trap occurs, completed steps are skipped and execution restarts at the failed step.
 
+### Single-Suspension Turn Model
+
+**Current**: Each turn supports exactly one active suspension at a time — either `#awaitingWorkflow` (workflow dispatched to the internal engine) or `#awaitingApproval` (waiting for human approval). When the LLM emits multiple tool calls in one round and more than one would trigger a suspension, the tool executor stops after the first and fills remaining calls with a synthetic `{"notRun":true}` response. `SuspensionData` tracks a single `pendingToolCallId`; the LLM is expected to re-issue any blocked call on the next round.
+
+This single-suspension constraint is intentional for v0.5: it keeps the `TurnStatus` state machine, approval UX, and workflow correlation tractable.
+
+**Future — concurrent suspension** [planned]: lifting this restriction is a meaningful architectural investment. A complete solution requires, at minimum:
+
+- **`TurnStatus` refactor**: replace the single suspension slot with a barrier map keyed by `toolCallId`, tracking each in-flight suspension's state and partial result independently.
+- **Live message field**: the Slack status update must be restructured to show per-tool-call progress and surface partial results as each suspension resolves — a structural change to how Loops status messages are composed and updated.
+- **Resumption model**: a deliberate choice between _wait-all_ (turn resumes only when every suspension completes; all-or-nothing approval semantics), _checkpoint-runner_ (each suspension resolves independently and feeds a partial result back into the LLM mid-turn), or _dynamic_ (the LLM explicitly signals when it wants to be resumed). Each approach carries distinct UX, failure, and cost trade-offs.
+- **Timers and partial-result coalescing**: per-suspension timeouts, result buffering, and ordered re-injection into LLM history.
+- **Suspension GC**: orphaned suspensions — a workflow that never completes, an approval that expires — need a timer-driven reaper with audit logging.
+
+Ship single-dispatch-first; revisit when parallel suspension becomes a genuine use-case bottleneck.
+
 ## Timers and Scheduling
 
 ### Current
