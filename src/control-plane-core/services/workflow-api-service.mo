@@ -11,8 +11,8 @@ import AgentModel "../models/agent-model";
 import ApprovalModel "../models/approval-model";
 import EventStoreModel "../models/event-store-model";
 import SessionModel "../models/session-model";
-import ExecutionTypes "../types/execution";
-import ExecutionEnvelopeModel "../models/execution-envelope-model";
+import WorkflowTypes "../types/workflow";
+import WorkflowEnvelopeModel "../models/workflow-envelope-model";
 import Constants "../constants";
 
 module {
@@ -20,7 +20,7 @@ module {
   // ── Dependencies (threaded from main.mo) ───────────────────────────
 
   public type ServiceDeps = {
-    envelopeState : ExecutionEnvelopeModel.EnvelopeState;
+    envelopeState : WorkflowEnvelopeModel.EnvelopeState;
     workspaces : WorkspaceModel.WorkspacesState;
     agentRegistry : AgentModel.AgentRegistryState;
     approvalState : ApprovalModel.ApprovalState;
@@ -33,11 +33,11 @@ module {
     // ── Main handler (synchronous — NOT async) ─────────────────────────
 
     public func handleRequest(
-      method : ExecutionTypes.HttpMethod,
+      method : WorkflowTypes.HttpMethod,
       path : Text,
       body : Text,
-    ) : ExecutionTypes.HandleResult {
-      let asyncEffects = List.empty<ExecutionTypes.AsyncEffect>();
+    ) : WorkflowTypes.HandleResult {
+      let asyncEffects = List.empty<WorkflowTypes.AsyncEffect>();
 
       // 1. Parse JSON body
       let parsed = switch (Json.parse(body)) {
@@ -120,8 +120,8 @@ module {
               };
             };
 
-            // Execution webhook
-            case (#post, "execution") {
+            // Workflow event webhook
+            case (#post, "workflow") {
               switch (seg1) {
                 case "milestone" {
                   handleEventMilestone(envelopeNonce, asyncEffects, parsed);
@@ -130,7 +130,7 @@ module {
                   handleEventComplete(envelopeNonce, asyncEffects, parsed);
                 };
                 case _ {
-                  errorResponse("routeNotFound", "Not found: POST /execution/" # seg1);
+                  errorResponse("routeNotFound", "Not found: POST /workflow/" # seg1);
                 };
               };
             };
@@ -160,7 +160,7 @@ module {
 
     /// Extract the workspace ID bound to a token. Returns null for invalid/expired tokens.
     private func getTokenWorkspaceId(envelopeNonce : Text) : ?Nat {
-      switch (ExecutionEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
+      switch (WorkflowEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
         case (null) { null };
         case (?record) { ?record.workspaceId };
       };
@@ -170,7 +170,7 @@ module {
     /// Returns #err if scope is missing or the token is invalid/expired.
     private func requireScope(
       envelopeNonce : Text,
-      grant : ExecutionTypes.ScopeGrant,
+      grant : WorkflowTypes.ScopeGrant,
     ) : { #ok : Nat; #err : (Text, Text) } {
       switch (checkGrant(envelopeNonce, grant)) {
         case (#err(e)) { #err(e) };
@@ -298,7 +298,7 @@ module {
           return errorResponse("approvalInvalid", "Approval code has not been approved.");
         };
       };
-      if (ApprovalModel.isExecutionWindowExpired(approval, Time.now())) {
+      if (ApprovalModel.isWorkflowWindowExpired(approval, Time.now())) {
         let ttlHours = 2 * (Nat.fromInt(Constants.APPROVAL_TTL_NS) / 3_600_000_000_000);
         return errorResponse("approvalExpired", "Approval code has expired. Approvals must be executed within " # Nat.toText(ttlHours) # " hour(s) of being requested.");
       };
@@ -580,13 +580,13 @@ module {
 
     private func handleEventMilestone(
       envelopeNonce : Text,
-      asyncEffects : List.List<ExecutionTypes.AsyncEffect>,
+      asyncEffects : List.List<WorkflowTypes.AsyncEffect>,
       body : Json.Json,
     ) : {
       #ok : Text;
       #err : Text;
     } {
-      let record = switch (ExecutionEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
+      let record = switch (WorkflowEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
         case (null) {
           return errorResponse("invalidToken", "Invalid or expired token.");
         };
@@ -613,13 +613,13 @@ module {
 
     private func handleEventComplete(
       envelopeNonce : Text,
-      asyncEffects : List.List<ExecutionTypes.AsyncEffect>,
+      asyncEffects : List.List<WorkflowTypes.AsyncEffect>,
       body : Json.Json,
     ) : {
       #ok : Text;
       #err : Text;
     } {
-      let record = switch (ExecutionEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
+      let record = switch (WorkflowEnvelopeModel.getRecord(deps.envelopeState, envelopeNonce)) {
         case (null) {
           return errorResponse("invalidToken", "Invalid or expired token.");
         };
@@ -632,11 +632,11 @@ module {
         };
       };
       let stepsDetail = parseStepsDetail(body);
-      let status = parseExecutionStatus(body);
-      let stats = parseExecutionStats(body);
+      let status = parseWorkflowStatus(body);
+      let stats = parseWorkflowStats(body);
 
       // Revoke token immediately (defense-in-depth)
-      ExecutionEnvelopeModel.revoke(deps.envelopeState, envelopeNonce);
+      WorkflowEnvelopeModel.revoke(deps.envelopeState, envelopeNonce);
 
       List.add(
         asyncEffects,
@@ -656,8 +656,8 @@ module {
 
     private func result(
       response : { #ok : Text; #err : Text },
-      asyncEffects : List.List<ExecutionTypes.AsyncEffect>,
-    ) : ExecutionTypes.HandleResult {
+      asyncEffects : List.List<WorkflowTypes.AsyncEffect>,
+    ) : WorkflowTypes.HandleResult {
       { response; asyncEffects = List.toArray(asyncEffects) };
     };
 
@@ -828,10 +828,10 @@ module {
       };
     };
 
-    private func parseStepsDetail(body : Json.Json) : [ExecutionTypes.SummarizedStep] {
+    private func parseStepsDetail(body : Json.Json) : [WorkflowTypes.SummarizedStep] {
       switch (Json.get(body, "stepsDetail")) {
         case (?#array(items)) {
-          let steps = List.empty<ExecutionTypes.SummarizedStep>();
+          let steps = List.empty<WorkflowTypes.SummarizedStep>();
           for (item in items.vals()) {
             let tool = switch (Json.get(item, "tool")) {
               case (?#string(t)) { t };
@@ -853,7 +853,7 @@ module {
       };
     };
 
-    private func parseExecutionStatus(body : Json.Json) : ExecutionTypes.ExecutionStatus {
+    private func parseWorkflowStatus(body : Json.Json) : WorkflowTypes.WorkflowStatus {
       switch (Json.get(body, "status")) {
         case (?#string("completed")) { #completed };
         case (?#string("roundLimitReached")) { #roundLimitReached };
@@ -868,7 +868,7 @@ module {
       };
     };
 
-    private func parseExecutionStats(body : Json.Json) : ExecutionTypes.ExecutionStats {
+    private func parseWorkflowStats(body : Json.Json) : WorkflowTypes.WorkflowStats {
       let statsObj = switch (Json.get(body, "stats")) {
         case (?obj) { obj };
         case (null) {
@@ -917,14 +917,14 @@ module {
     };
 
     // ── Scope validation ───────────────────────────────────────────────
-    private func accessText(access : ExecutionTypes.ScopeAccess) : Text {
+    private func accessText(access : WorkflowTypes.ScopeAccess) : Text {
       switch (access) {
         case (#read) { "read" };
         case (#write) { "write" };
       };
     };
 
-    private func grantText(grant : ExecutionTypes.ScopeGrant) : Text {
+    private func grantText(grant : WorkflowTypes.ScopeGrant) : Text {
       switch (grant) {
         case (#workspace(w)) { "workspace:" # accessText(w.access) };
         case (#agents(a)) { "agents:" # accessText(a.access) };
@@ -939,7 +939,7 @@ module {
     /// Checks a scope grant, returning #ok or a derived error tuple on failure.
     private func checkGrant(
       envelopeNonce : Text,
-      grant : ExecutionTypes.ScopeGrant,
+      grant : WorkflowTypes.ScopeGrant,
     ) : { #ok; #err : (Text, Text) } {
       if (validateScope(envelopeNonce, grant)) { #ok } else {
         #err("unauthorized", "Token does not grant " # grantText(grant) # ".");
@@ -947,9 +947,9 @@ module {
     };
     private func validateScope(
       envelopeNonce : Text,
-      requiredGrant : ExecutionTypes.ScopeGrant,
+      requiredGrant : WorkflowTypes.ScopeGrant,
     ) : Bool {
-      ExecutionEnvelopeModel.validate(deps.envelopeState, envelopeNonce, requiredGrant);
+      WorkflowEnvelopeModel.validate(deps.envelopeState, envelopeNonce, requiredGrant);
     };
 
   }; // end class Service

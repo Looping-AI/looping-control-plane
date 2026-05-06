@@ -1,24 +1,24 @@
 import { test; suite; expect } "mo:test";
-import ExecutionEnvelopeModel "../../../../src/control-plane-core/models/execution-envelope-model";
-import ExecutionTypes "../../../../src/control-plane-core/types/execution";
+import WorkflowEnvelopeModel "../../../../src/control-plane-core/models/workflow-envelope-model";
+import WorkflowTypes "../../../../src/control-plane-core/types/workflow";
 
 // ============================================
 // Helpers
 // ============================================
 
-func makeStore() : ExecutionEnvelopeModel.EnvelopeState {
-  ExecutionEnvelopeModel.emptyState();
+func makeStore() : WorkflowEnvelopeModel.EnvelopeState {
+  WorkflowEnvelopeModel.emptyState();
 };
 
-let workspaceGrant : ExecutionTypes.ScopeGrant = #workspace({ access = #write });
-let agentsReadGrant : ExecutionTypes.ScopeGrant = #agents({ access = #read });
-let slackQueueGrant : ExecutionTypes.ScopeGrant = #slackQueue({
+let workspaceGrant : WorkflowTypes.ScopeGrant = #workspace({ access = #write });
+let agentsReadGrant : WorkflowTypes.ScopeGrant = #agents({ access = #read });
+let slackQueueGrant : WorkflowTypes.ScopeGrant = #slackQueue({
   access = #write;
 });
-let sessionGrant : ExecutionTypes.ScopeGrant = #session({ access = #write });
+let sessionGrant : WorkflowTypes.ScopeGrant = #session({ access = #write });
 
-func issueBasic(store : ExecutionEnvelopeModel.EnvelopeState) : Text {
-  ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
+func issueBasic(store : WorkflowEnvelopeModel.EnvelopeState) : Text {
+  WorkflowEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
 };
 
 // ============================================
@@ -92,8 +92,8 @@ suite(
       "returns true when token carries the exact required grant",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
+        let nonce = WorkflowEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
       },
     );
 
@@ -101,10 +101,10 @@ suite(
       "write grant covers read requirement on same scope",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
+        let nonce = WorkflowEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
         // Token has #write; requiring #read should be satisfied
         expect.bool(
-          ExecutionEnvelopeModel.validate(store, nonce, #workspace({ access = #read }))
+          WorkflowEnvelopeModel.validate(store, nonce, #workspace({ access = #read }))
         ).isTrue();
       },
     );
@@ -113,14 +113,14 @@ suite(
       "read grant does NOT cover write requirement on same scope",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(
+        let nonce = WorkflowEnvelopeModel.issue(
           store,
           "1_0",
           1,
           [#workspace({ access = #read })],
         ).nonce;
         expect.bool(
-          ExecutionEnvelopeModel.validate(store, nonce, #workspace({ access = #write }))
+          WorkflowEnvelopeModel.validate(store, nonce, #workspace({ access = #write }))
         ).isFalse();
       },
     );
@@ -129,9 +129,9 @@ suite(
       "wrong scope type is rejected",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
+        let nonce = WorkflowEnvelopeModel.issue(store, "1_0", 1, [workspaceGrant]).nonce;
         // Token only has #workspace, not #agents
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, agentsReadGrant)).isFalse();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, agentsReadGrant)).isFalse();
       },
     );
 
@@ -139,7 +139,7 @@ suite(
       "returns false for unknown nonce",
       func() {
         let store = makeStore();
-        expect.bool(ExecutionEnvelopeModel.validate(store, "does-not-exist", workspaceGrant)).isFalse();
+        expect.bool(WorkflowEnvelopeModel.validate(store, "does-not-exist", workspaceGrant)).isFalse();
       },
     );
 
@@ -147,17 +147,17 @@ suite(
       "token with multiple grants satisfies any of them",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(
+        let nonce = WorkflowEnvelopeModel.issue(
           store,
           "1_0",
           1,
           [workspaceGrant, agentsReadGrant, slackQueueGrant],
         ).nonce;
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, agentsReadGrant)).isTrue();
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, slackQueueGrant)).isTrue();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, agentsReadGrant)).isTrue();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, slackQueueGrant)).isTrue();
         // Still rejects a grant not in the list
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, sessionGrant)).isFalse();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, sessionGrant)).isFalse();
       },
     );
 
@@ -165,15 +165,15 @@ suite(
       "per-agent grant matches on exact id and access",
       func() {
         let store = makeStore();
-        let agentGrant : ExecutionTypes.ScopeGrant = #agent({
+        let agentGrant : WorkflowTypes.ScopeGrant = #agent({
           id = 7;
           access = #write;
         });
-        let nonce = ExecutionEnvelopeModel.issue(store, "1_0", 1, [agentGrant]).nonce;
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, #agent({ id = 7; access = #write }))).isTrue();
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, #agent({ id = 7; access = #read }))).isTrue();
+        let nonce = WorkflowEnvelopeModel.issue(store, "1_0", 1, [agentGrant]).nonce;
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, #agent({ id = 7; access = #write }))).isTrue();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, #agent({ id = 7; access = #read }))).isTrue();
         // Wrong agent id
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, #agent({ id = 99; access = #write }))).isFalse();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, #agent({ id = 99; access = #write }))).isFalse();
       },
     );
   },
@@ -191,9 +191,9 @@ suite(
       func() {
         let store = makeStore();
         let nonce = issueBasic(store);
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
-        ExecutionEnvelopeModel.revoke(store, nonce);
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, workspaceGrant)).isFalse();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
+        WorkflowEnvelopeModel.revoke(store, nonce);
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, workspaceGrant)).isFalse();
       },
     );
 
@@ -202,8 +202,8 @@ suite(
       func() {
         let store = makeStore();
         let nonce = issueBasic(store);
-        ExecutionEnvelopeModel.revoke(store, nonce);
-        ExecutionEnvelopeModel.revoke(store, nonce); // should not trap
+        WorkflowEnvelopeModel.revoke(store, nonce);
+        WorkflowEnvelopeModel.revoke(store, nonce); // should not trap
       },
     );
 
@@ -211,7 +211,7 @@ suite(
       "revoke on unknown nonce is a no-op",
       func() {
         let store = makeStore();
-        ExecutionEnvelopeModel.revoke(store, "ghost"); // should not trap
+        WorkflowEnvelopeModel.revoke(store, "ghost"); // should not trap
       },
     );
 
@@ -220,8 +220,8 @@ suite(
       func() {
         let store = makeStore();
         let nonce = issueBasic(store);
-        ExecutionEnvelopeModel.revoke(store, nonce);
-        switch (ExecutionEnvelopeModel.getRecord(store, nonce)) {
+        WorkflowEnvelopeModel.revoke(store, nonce);
+        switch (WorkflowEnvelopeModel.getRecord(store, nonce)) {
           case (null) {}; // expected
           case (?_) { expect.bool(false).isTrue() };
         };
@@ -241,8 +241,8 @@ suite(
       "returns the token record for a valid nonce",
       func() {
         let store = makeStore();
-        let nonce = ExecutionEnvelopeModel.issue(store, "2_0", 3, [workspaceGrant]).nonce;
-        switch (ExecutionEnvelopeModel.getRecord(store, nonce)) {
+        let nonce = WorkflowEnvelopeModel.issue(store, "2_0", 3, [workspaceGrant]).nonce;
+        switch (WorkflowEnvelopeModel.getRecord(store, nonce)) {
           case (?record) {
             expect.nat(record.envelopeId).equal(0);
             expect.text(record.turnId).equal("2_0");
@@ -257,7 +257,7 @@ suite(
       "returns null for unknown nonce",
       func() {
         let store = makeStore();
-        switch (ExecutionEnvelopeModel.getRecord(store, "none")) {
+        switch (WorkflowEnvelopeModel.getRecord(store, "none")) {
           case (null) {}; // expected
           case (?_) { expect.bool(false).isTrue() };
         };
@@ -277,7 +277,7 @@ suite(
       "returns 0 on empty store",
       func() {
         let store = makeStore();
-        expect.nat(ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 1)).equal(0);
+        expect.nat(WorkflowEnvelopeModel.deleteEnvelopesOlderThan(store, 1)).equal(0);
       },
     );
 
@@ -288,7 +288,7 @@ suite(
         ignore issueBasic(store);
         ignore issueBasic(store);
         // Use a cutoff far in the future so createdAtNs (Time.now()) is always older
-        let removed = ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
+        let removed = WorkflowEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
         expect.nat(removed).equal(2);
         expect.nat(store.nextTokenId).equal(2); // counter untouched
       },
@@ -300,9 +300,9 @@ suite(
         let store = makeStore();
         let nonce = issueBasic(store);
         // cutoff of 0 — createdAtNs (Time.now(), a positive value) is not < 0, so nothing removed
-        let removed = ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 0);
+        let removed = WorkflowEnvelopeModel.deleteEnvelopesOlderThan(store, 0);
         expect.nat(removed).equal(0);
-        expect.bool(ExecutionEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
+        expect.bool(WorkflowEnvelopeModel.validate(store, nonce, workspaceGrant)).isTrue();
       },
     );
 
@@ -311,8 +311,8 @@ suite(
       func() {
         let store = makeStore();
         ignore issueBasic(store);
-        ignore ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
-        let removed2 = ExecutionEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
+        ignore WorkflowEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
+        let removed2 = WorkflowEnvelopeModel.deleteEnvelopesOlderThan(store, 9_999_999_999_999_999_999);
         expect.nat(removed2).equal(0);
       },
     );

@@ -67,9 +67,9 @@ module {
   // timer. Kept as a separate constant from TRACE_CLEANUP_RETENTION_NS for independent tuning.
   public let ENVELOPE_CLEANUP_RETENTION_NS : Nat = 2_592_000_000_000_000;
 
-  // Execution token time-to-live — 60 minutes in nanoseconds (60 * 60 * 1_000_000_000)
+  // Workflow token time-to-live — 60 minutes in nanoseconds (60 * 60 * 1_000_000_000)
   // Tokens are issued by Core when spawning an engine run and auto-expire after this window.
-  public let EXECUTION_TOKEN_TTL_NS : Int = 3_600_000_000_000;
+  public let WORKFLOW_TOKEN_TTL_NS : Int = 3_600_000_000_000;
 
   // Approval TTL — 1 hour in nanoseconds (60 * 60 * 1_000_000_000)
   // Pending approvals auto-expire after this window; the per-turn one-shot timer fires

@@ -9,8 +9,8 @@ import SecretModel "../../../models/secret-model";
 import AgentModel "../../../models/agent-model";
 import SessionModel "../../../models/session-model";
 import ApprovalModel "../../../models/approval-model";
-import ExecutionTypes "../../../types/execution";
-import ExecutionEnvelopeModel "../../../models/execution-envelope-model";
+import WorkflowTypes "../../../types/workflow";
+import WorkflowEnvelopeModel "../../../models/workflow-envelope-model";
 import InstructionComposer "../../instructions/instruction-composer";
 import AgentHelpers "../../helpers";
 import ContextAssembler "../../context-assembler";
@@ -32,7 +32,7 @@ module {
     secrets : SecretModel.SecretsState,
     workspaceKey : [Nat8],
     resolveSlackBotToken : (Text -> ?Text),
-    engineDeps : Types.AgentEngineDeps<ExecutionEnvelopeModel.EnvelopeState>,
+    engineDeps : Types.AgentEngineDeps<WorkflowEnvelopeModel.EnvelopeState>,
     approvalState : ApprovalModel.ApprovalState,
     sourceRef : ?SessionModel.SourceRef,
     resumeOverride : ?{
@@ -286,10 +286,10 @@ module {
       role : { #user; #assistant; #system_; #developer };
       content : Text;
     }]
-  ) : [ExecutionTypes.ChatMessage] {
+  ) : [WorkflowTypes.ChatMessage] {
     Array.map(
       msgs,
-      func(m : { role : { #user; #assistant; #system_; #developer }; content : Text }) : ExecutionTypes.ChatMessage {
+      func(m : { role : { #user; #assistant; #system_; #developer }; content : Text }) : WorkflowTypes.ChatMessage {
         { role = m.role; content = m.content };
       },
     );

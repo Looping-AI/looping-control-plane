@@ -301,7 +301,7 @@ export async function freshDeferredTestCanister(pic: PocketIc): Promise<{
 
 /**
  * Deploy the stub-core canister on an existing PocketIc instance.
- * The stub records every `executionApi` call and returns `#ok("{}")`.
+ * The stub records every `workflowApi` call and returns `#ok("{}")`.
  */
 export async function createStubCoreActor(pic: PocketIc): Promise<{
   actor: Actor<StubCoreService>;

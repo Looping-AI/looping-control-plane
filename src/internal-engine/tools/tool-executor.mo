@@ -8,7 +8,7 @@ import ToolTypes "./tool-types";
 import ToolRegistry "./tool-registry";
 import LlmWrapper "../wrappers/llm-wrapper";
 import CoreWrapper "../wrappers/core-wrapper";
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 
 module {
 
@@ -19,7 +19,7 @@ module {
   public func execute(
     wrapper : CoreWrapper.CoreWrapper,
     workflowName : Text,
-    scopeGrants : [ExecutionTypes.ScopeGrant],
+    scopeGrants : [WorkflowTypes.ScopeGrant],
     toolCalls : [LlmWrapper.ToolCall],
   ) : async [ToolTypes.ToolResult] {
     let results = List.empty<ToolTypes.ToolResult>();

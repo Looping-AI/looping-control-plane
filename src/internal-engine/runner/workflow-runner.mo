@@ -1,6 +1,6 @@
-/// Execution Runner
+/// Workflow Runner
 /// Multi-round LLM loop extracted from main.mo for testability.
-/// Executes an envelope and returns a RunOutcome describing what happened.
+/// Runs a workflow envelope and returns a RunOutcome describing what happened.
 ///
 /// Responsibilities of this module:
 ///   1. Extracts API key and model from the envelope
@@ -20,7 +20,7 @@ import Time "mo:core/Time";
 import List "mo:core/List";
 import Debug "mo:core/Debug";
 import Error "mo:core/Error";
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 import CoreWrapper "../wrappers/core-wrapper";
 import LlmWrapper "../wrappers/llm-wrapper";
 import ToolRegistry "../tools/tool-registry";
@@ -38,7 +38,7 @@ module {
   /// Caller must wrap this in try/catch for trap safety.
   public func run(
     wrapper : CoreWrapper.CoreWrapper,
-    envelope : ExecutionTypes.EnvelopePayload,
+    envelope : WorkflowTypes.EnvelopePayload,
   ) : async RunTypes.RunOutcome {
 
     // Extract API key
@@ -76,7 +76,7 @@ module {
     };
 
     let runSteps = List.empty<RunTypes.RunStep>();
-    let summarizedSteps = List.empty<ExecutionTypes.SummarizedStep>();
+    let summarizedSteps = List.empty<WorkflowTypes.SummarizedStep>();
     var rounds : Nat = 0;
     var totalInputTokens : Nat = 0;
     var totalOutputTokens : Nat = 0;
@@ -175,7 +175,7 @@ module {
       );
 
       switch (response.result) {
-        // ── Text response — execution complete ──
+        // ── Text response — workflow run complete ──
         case (#ok(#textResponse({ content; thinking = _ }))) {
           let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
           return {
@@ -258,7 +258,7 @@ module {
               );
             } catch (e : Error) {
               // Milestone failure is non-fatal — continue execution
-              Debug.print("[execution-runner] Milestone emission failed: " # Error.message(e));
+              Debug.print("[workflow-runner] Milestone emission failed: " # Error.message(e));
             };
           };
         };
@@ -288,7 +288,7 @@ module {
     toolCalls : Nat,
     model : Text,
     totalCost : ?Float,
-  ) : ExecutionTypes.ExecutionStats {
+  ) : WorkflowTypes.WorkflowStats {
     {
       durationNs = ?(Time.now() - startNs);
       llmCalls = ?rounds;
@@ -301,7 +301,7 @@ module {
     };
   };
 
-  func resolveModel(envelope : ExecutionTypes.EnvelopePayload) : Text {
+  func resolveModel(envelope : WorkflowTypes.EnvelopePayload) : Text {
     let m = envelope.model;
     if (m == "") { Constants.DEFAULT_LLM_MODEL } else { m };
   };

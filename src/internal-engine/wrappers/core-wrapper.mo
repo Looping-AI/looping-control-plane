@@ -1,6 +1,6 @@
 import Json "mo:json";
 import List "mo:core/List";
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 
 module {
 
@@ -8,7 +8,7 @@ module {
 
   /// The Core canister actor interface used by the internal engine.
   public type CoreActor = actor {
-    executionApi : shared ({ #get; #post; #delete }, Text, Text) -> async {
+    workflowApi : shared ({ #get; #post; #delete }, Text, Text) -> async {
       #ok : Text;
       #err : Text;
     };
@@ -17,20 +17,20 @@ module {
   // ── Wrapper class ──────────────────────────────────────────────────
 
   /// Bundles the Core canister actor and the envelope nonce for the
-  /// current execution. Pass a single `CoreWrapper` instance downstream
+  /// current workflow run. Pass a single `CoreWrapper` instance downstream
   /// instead of threading (core, envelopeNonce) as separate parameters.
   public class CoreWrapper(coreActor : CoreActor, envelopeNonce : Text) {
 
-    /// Call Core's execution API, automatically injecting the envelope nonce.
+    /// Call Core's workflow API, automatically injecting the envelope nonce.
     public func callCore(
-      method : ExecutionTypes.HttpMethod,
+      method : WorkflowTypes.HttpMethod,
       path : Text,
       body : Text,
     ) : async { #ok : Text; #err : Text } {
       switch (injectNonce(body, envelopeNonce)) {
         case (#err(e)) { #err(e) };
         case (#ok(enrichedBody)) {
-          await coreActor.executionApi(method, path, enrichedBody);
+          await coreActor.workflowApi(method, path, enrichedBody);
         };
       };
     };

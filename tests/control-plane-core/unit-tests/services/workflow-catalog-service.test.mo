@@ -5,7 +5,7 @@
 
 import { test; expect } "mo:test";
 import WorkflowCatalogService "../../../../src/control-plane-core/services/workflow-catalog-service";
-import ExecutionTypes "../../../../src/control-plane-core/types/execution";
+import WorkflowTypes "../../../../src/control-plane-core/types/workflow";
 
 // ── parseListWorkflowsResponse ───────────────────────────────────────
 
@@ -181,7 +181,7 @@ let allDescriptors = [workspaceReadDescriptor, workspaceWriteDescriptor, agentsR
 test(
   "filterByScopes: write grant satisfies read requirement",
   func() {
-    let grants : [ExecutionTypes.ScopeGrant] = [#workspace({ access = #write })];
+    let grants : [WorkflowTypes.ScopeGrant] = [#workspace({ access = #write })];
     let result = WorkflowCatalogService.filterByScopes([workspaceReadDescriptor], grants);
     expect.nat(result.size()).equal(1);
   },
@@ -190,7 +190,7 @@ test(
 test(
   "filterByScopes: write grant satisfies write requirement",
   func() {
-    let grants : [ExecutionTypes.ScopeGrant] = [#workspace({ access = #write })];
+    let grants : [WorkflowTypes.ScopeGrant] = [#workspace({ access = #write })];
     let result = WorkflowCatalogService.filterByScopes([workspaceWriteDescriptor], grants);
     expect.nat(result.size()).equal(1);
   },
@@ -199,7 +199,7 @@ test(
 test(
   "filterByScopes: read grant satisfies read requirement",
   func() {
-    let grants : [ExecutionTypes.ScopeGrant] = [#workspace({ access = #read })];
+    let grants : [WorkflowTypes.ScopeGrant] = [#workspace({ access = #read })];
     let result = WorkflowCatalogService.filterByScopes([workspaceReadDescriptor], grants);
     expect.nat(result.size()).equal(1);
   },
@@ -208,7 +208,7 @@ test(
 test(
   "filterByScopes: read grant does NOT satisfy write requirement",
   func() {
-    let grants : [ExecutionTypes.ScopeGrant] = [#workspace({ access = #read })];
+    let grants : [WorkflowTypes.ScopeGrant] = [#workspace({ access = #read })];
     let result = WorkflowCatalogService.filterByScopes([workspaceWriteDescriptor], grants);
     expect.nat(result.size()).equal(0);
   },
@@ -217,7 +217,7 @@ test(
 test(
   "filterByScopes: #agent grant does NOT satisfy collection-level agents scope",
   func() {
-    let grants : [ExecutionTypes.ScopeGrant] = [#agent({ id = 1; access = #read })];
+    let grants : [WorkflowTypes.ScopeGrant] = [#agent({ id = 1; access = #read })];
     let result = WorkflowCatalogService.filterByScopes([agentsReadDescriptor], grants);
     expect.nat(result.size()).equal(0);
   },
@@ -226,7 +226,7 @@ test(
 test(
   "filterByScopes: #agents grant satisfies agents scope",
   func() {
-    let grants : [ExecutionTypes.ScopeGrant] = [#agents({ access = #read })];
+    let grants : [WorkflowTypes.ScopeGrant] = [#agents({ access = #read })];
     let result = WorkflowCatalogService.filterByScopes([agentsReadDescriptor], grants);
     expect.nat(result.size()).equal(1);
   },
@@ -243,7 +243,7 @@ test(
 test(
   "filterByScopes: grants matching all scopes returns all descriptors",
   func() {
-    let grants : [ExecutionTypes.ScopeGrant] = [
+    let grants : [WorkflowTypes.ScopeGrant] = [
       #workspace({ access = #write }),
       #agents({ access = #write }),
     ];

@@ -5,7 +5,7 @@ import Blob "mo:core/Blob";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
 import List "mo:core/List";
-import ExecutionTypes "../types/execution";
+import WorkflowTypes "../types/workflow";
 import Constants "../constants";
 import Nonce "../utilities/nonce";
 
@@ -18,7 +18,7 @@ module {
     envelopeId : Nat;
     turnId : Text;
     workspaceId : Nat;
-    grants : [ExecutionTypes.ScopeGrant];
+    grants : [WorkflowTypes.ScopeGrant];
     createdAtNs : Int;
     expiresAtNs : Int;
     var revoked : Bool;
@@ -57,13 +57,13 @@ module {
 
   /// Issue a new envelope. Generates both a unique envelopeId (Nat)
   /// and an unpredictable nonce (64-char hex) atomically from the same counter.
-  /// Returns { envelopeId; nonce } so the caller can build the ExecutionEnvelope
+  /// Returns { envelopeId; nonce } so the caller can build the WorkflowEnvelope
   /// and store the nonce for later validation.
   public func issue(
     store : EnvelopeState,
     turnId : Text,
     workspaceId : Nat,
-    grants : [ExecutionTypes.ScopeGrant],
+    grants : [WorkflowTypes.ScopeGrant],
   ) : { envelopeId : Nat; nonce : Text } {
     let now = Time.now();
     let envelopeId = store.nextTokenId;
@@ -76,7 +76,7 @@ module {
       workspaceId;
       grants;
       createdAtNs = now;
-      expiresAtNs = now + Constants.EXECUTION_TOKEN_TTL_NS;
+      expiresAtNs = now + Constants.WORKFLOW_TOKEN_TTL_NS;
       var revoked = false;
       var dispatchedVersion = null;
     };
@@ -90,7 +90,7 @@ module {
   public func validate(
     store : EnvelopeState,
     nonce : Text,
-    requiredGrant : ExecutionTypes.ScopeGrant,
+    requiredGrant : WorkflowTypes.ScopeGrant,
   ) : Bool {
     switch (Map.get(store.envelopes, Text.compare, nonce)) {
       case (null) { false };
@@ -159,8 +159,8 @@ module {
   // ── Helpers ────────────────────────────────────────────────────────
 
   private func hasGrant(
-    grants : [ExecutionTypes.ScopeGrant],
-    required : ExecutionTypes.ScopeGrant,
+    grants : [WorkflowTypes.ScopeGrant],
+    required : WorkflowTypes.ScopeGrant,
   ) : Bool {
     for (grant in grants.vals()) {
       let matched = switch (grant, required) {
@@ -183,8 +183,8 @@ module {
   };
 
   private func coversAccess(
-    held : ExecutionTypes.ScopeAccess,
-    required : ExecutionTypes.ScopeAccess,
+    held : WorkflowTypes.ScopeAccess,
+    required : WorkflowTypes.ScopeAccess,
   ) : Bool {
     switch (required) {
       case (#read) { true }; // any access level covers read

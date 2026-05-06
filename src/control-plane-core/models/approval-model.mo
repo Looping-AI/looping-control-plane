@@ -93,9 +93,9 @@ module {
     now > record.requestedAt + Constants.APPROVAL_TTL_NS;
   };
 
-  /// Returns true when the execution window has passed (requestedAt + 2 × TTL).
+  /// Returns true when the workflow execution window has passed (requestedAt + 2 × TTL).
   /// After this point, the internal engine can no longer use an #approved record.
-  public func isExecutionWindowExpired(record : ApprovalRecord, now : Int) : Bool {
+  public func isWorkflowWindowExpired(record : ApprovalRecord, now : Int) : Bool {
     now > record.requestedAt + (2 * Constants.APPROVAL_TTL_NS);
   };
 

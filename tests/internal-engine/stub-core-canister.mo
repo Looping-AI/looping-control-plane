@@ -7,7 +7,7 @@ import List "mo:core/List";
 // A minimal substitute for the control-plane-core canister, used in
 // internal-engine integration tests.
 //
-// Implements the CoreApi `executionApi` interface and records every call so
+// Implements the CoreApi `workflowApi` interface and records every call so
 // TypeScript tests can assert which paths were hit and with what payloads.
 //
 // Default behaviour: return #ok("{}") for every call.  This is sufficient
@@ -29,9 +29,9 @@ persistent actor class StubCoreCanister() = self {
 
   // ── CoreApi implementation ────────────────────────────────────────
 
-  /// Stub implementation of the Core executionApi.
+  /// Stub implementation of the Core workflowApi.
   /// Records the call and returns #ok("{}") for all paths.
-  public shared func executionApi(
+  public shared func workflowApi(
     method : { #get; #post; #delete },
     path : Text,
     body : Text,
@@ -42,7 +42,7 @@ persistent actor class StubCoreCanister() = self {
 
   // ── Inspection helpers ────────────────────────────────────────────
 
-  /// Return all recorded executionApi calls in the order they were received.
+  /// Return all recorded workflowApi calls in the order they were received.
   public query func getRecordedCalls() : async [RecordedCall] {
     List.toArray(calls);
   };

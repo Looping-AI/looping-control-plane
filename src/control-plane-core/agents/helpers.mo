@@ -3,7 +3,7 @@ import Array "mo:core/Array";
 import Json "mo:json";
 import { str; obj; arr; int; float; bool; nullable } "mo:json";
 import AgentModel "../models/agent-model";
-import ExecutionTypes "../types/execution";
+import WorkflowTypes "../types/workflow";
 import InstructionTypes "./instructions/instruction-types";
 
 module {
@@ -33,7 +33,7 @@ module {
   ///   #_system(#admin) + org workspace (ownedBy=0) → 4 write grants (workspace, agents, slackQueue, session)
   ///   #_system(#admin) + other workspace           → 3 grants (workspace read, agents write, session write)
   ///   #_system(#onboarding) or #custom             → 1 per-agent read grant
-  public func buildScopeGrants(agent : AgentModel.AgentRecord) : [ExecutionTypes.ScopeGrant] {
+  public func buildScopeGrants(agent : AgentModel.AgentRecord) : [WorkflowTypes.ScopeGrant] {
     switch (agent.category) {
       case (#_system(#admin)) {
         if (AgentModel.isOrgAdmin(agent)) {
@@ -62,9 +62,9 @@ module {
   public func buildSyntheticToolResult(
     c : {
       humanSummary : Text;
-      stepsDetail : [ExecutionTypes.SummarizedStep];
-      status : ExecutionTypes.ExecutionStatus;
-      stats : ExecutionTypes.ExecutionStats;
+      stepsDetail : [WorkflowTypes.SummarizedStep];
+      status : WorkflowTypes.WorkflowStatus;
+      stats : WorkflowTypes.WorkflowStats;
     }
   ) : Text {
     let statusText = switch (c.status) {
@@ -74,7 +74,7 @@ module {
     };
 
     let stepsJson = arr(
-      Array.map<ExecutionTypes.SummarizedStep, Json.Json>(
+      Array.map<WorkflowTypes.SummarizedStep, Json.Json>(
         c.stepsDetail,
         func(s) {
           obj([("tool", str(s.tool)), ("summary", str(s.summary)), ("success", bool(s.success))]);

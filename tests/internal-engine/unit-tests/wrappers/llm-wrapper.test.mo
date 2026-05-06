@@ -7,7 +7,7 @@
 
 import { test; expect } "mo:test";
 import LlmWrapper "../../../../src/internal-engine/wrappers/llm-wrapper";
-import ExecutionTypes "../../../../src/internal-engine/execution-types";
+import WorkflowTypes "../../../../src/internal-engine/workflow-types";
 
 // ─────────────────────────────────────────────────────────────────
 // chatMessagesToInput
@@ -23,7 +23,7 @@ test(
 test(
   "chatMessagesToInput: single message produces one InputItem",
   func() {
-    let msgs : [ExecutionTypes.ChatMessage] = [{
+    let msgs : [WorkflowTypes.ChatMessage] = [{
       role = #user;
       content = "hello";
     }];
@@ -34,7 +34,7 @@ test(
 test(
   "chatMessagesToInput: item is a #message variant",
   func() {
-    let msgs : [ExecutionTypes.ChatMessage] = [{ role = #user; content = "hi" }];
+    let msgs : [WorkflowTypes.ChatMessage] = [{ role = #user; content = "hi" }];
     let items = LlmWrapper.chatMessagesToInput(msgs);
     switch (items[0]) {
       case (#message(_)) {}; // expected
@@ -46,7 +46,7 @@ test(
 test(
   "chatMessagesToInput: #user role is preserved",
   func() {
-    let msgs : [ExecutionTypes.ChatMessage] = [{ role = #user; content = "q" }];
+    let msgs : [WorkflowTypes.ChatMessage] = [{ role = #user; content = "q" }];
     let items = LlmWrapper.chatMessagesToInput(msgs);
     switch (items[0]) {
       case (#message({ role; content = _ })) {
@@ -63,7 +63,7 @@ test(
 test(
   "chatMessagesToInput: #assistant role is preserved",
   func() {
-    let msgs : [ExecutionTypes.ChatMessage] = [{
+    let msgs : [WorkflowTypes.ChatMessage] = [{
       role = #assistant;
       content = "a";
     }];
@@ -83,7 +83,7 @@ test(
 test(
   "chatMessagesToInput: content is preserved",
   func() {
-    let msgs : [ExecutionTypes.ChatMessage] = [{
+    let msgs : [WorkflowTypes.ChatMessage] = [{
       role = #user;
       content = "exact content";
     }];
@@ -100,7 +100,7 @@ test(
 test(
   "chatMessagesToInput: multiple messages produce same count",
   func() {
-    let msgs : [ExecutionTypes.ChatMessage] = [
+    let msgs : [WorkflowTypes.ChatMessage] = [
       { role = #user; content = "msg1" },
       { role = #assistant; content = "msg2" },
       { role = #user; content = "msg3" },
@@ -112,7 +112,7 @@ test(
 test(
   "chatMessagesToInput: multiple messages preserve order",
   func() {
-    let msgs : [ExecutionTypes.ChatMessage] = [
+    let msgs : [WorkflowTypes.ChatMessage] = [
       { role = #user; content = "first" },
       { role = #assistant; content = "second" },
     ];

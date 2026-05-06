@@ -10,13 +10,13 @@ import Int "mo:core/Int";
 import Time "mo:core/Time";
 
 import SessionModel "../models/session-model";
-import ExecutionEnvelopeModel "../models/execution-envelope-model";
+import WorkflowEnvelopeModel "../models/workflow-envelope-model";
 import Constants "../constants";
 
 module {
   public func run(
     stores : SessionModel.SessionStores,
-    envelopeState : ExecutionEnvelopeModel.EnvelopeState,
+    envelopeState : WorkflowEnvelopeModel.EnvelopeState,
   ) : {
     #ok : Nat;
     #err : Text;
@@ -27,7 +27,7 @@ module {
     let turnCutoffNs : Int = now - Int.fromNat(Constants.TURN_CLEANUP_RETENTION_NS);
 
     ignore SessionModel.deleteTracesOlderThan(stores, traceCutoffNs);
-    ignore ExecutionEnvelopeModel.deleteEnvelopesOlderThan(envelopeState, envelopeCutoffNs);
+    ignore WorkflowEnvelopeModel.deleteEnvelopesOlderThan(envelopeState, envelopeCutoffNs);
     let deletedTurnIds = SessionModel.deleteTurnsOlderThan(stores, turnCutoffNs);
     #ok(deletedTurnIds.size());
   };

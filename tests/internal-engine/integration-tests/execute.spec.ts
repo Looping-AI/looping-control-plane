@@ -340,7 +340,7 @@ describe("internal-engine / execute (async completion)", () => {
     expect(recordedCalls.length).toBeGreaterThan(0);
 
     const completionCall = recordedCalls.find(
-      (c) => c.path === "/execution/complete",
+      (c) => c.path === "/workflow/complete",
     );
     expect(completionCall).toBeDefined();
     expect("post" in completionCall!.method).toBe(true);
@@ -376,7 +376,7 @@ describe("internal-engine / execute (async completion)", () => {
     const recordedCalls = await stubActor.getRecordedCalls();
 
     const completionCall = recordedCalls.find(
-      (c) => c.path === "/execution/complete",
+      (c) => c.path === "/workflow/complete",
     );
     expect(completionCall).toBeDefined();
     expect("post" in completionCall!.method).toBe(true);

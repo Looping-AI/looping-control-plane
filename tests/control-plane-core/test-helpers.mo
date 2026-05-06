@@ -5,7 +5,7 @@ import Nat "mo:core/Nat";
 
 import AgentModel "../../src/control-plane-core/models/agent-model";
 import ChannelHistoryModel "../../src/control-plane-core/models/channel-history-model";
-import ExecutionEnvelopeModel "../../src/control-plane-core/models/execution-envelope-model";
+import WorkflowEnvelopeModel "../../src/control-plane-core/models/workflow-envelope-model";
 import SecretModel "../../src/control-plane-core/models/secret-model";
 import SlackUserModel "../../src/control-plane-core/models/slack-user-model";
 import WorkspaceModel "../../src/control-plane-core/models/workspace-model";
@@ -87,7 +87,7 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
@@ -145,7 +145,7 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
@@ -202,7 +202,7 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
@@ -277,7 +277,7 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();
@@ -349,7 +349,7 @@ module {
       workspaces;
       eventStore = EventStoreModel.empty();
       sessionStores = SessionModel.emptyStores();
-      envelopeState = ExecutionEnvelopeModel.emptyState();
+      envelopeState = WorkflowEnvelopeModel.emptyState();
       internalEngine = actor "aaaaa-aa" : InternalEngine.InternalEngine; // sentinel: never called in these tests
       catalogState = WorkflowCatalogModel.empty();
       approvalState = ApprovalModel.emptyState();

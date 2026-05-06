@@ -1,7 +1,7 @@
 /// Run Types
-/// Types for tracking the lifecycle of execution runs inside the engine.
+/// Types for tracking the lifecycle of workflow runs inside the engine.
 
-import ExecutionTypes "../execution-types";
+import WorkflowTypes "../workflow-types";
 
 module {
 
@@ -18,7 +18,7 @@ module {
   };
 
   // ── Run Record ───────────────────────────────────────────────────
-  // Full lifecycle record for one execution run.
+  // Full lifecycle record for one workflow run.
 
   public type RunRecord = {
     // Identity — from the envelope
@@ -28,7 +28,7 @@ module {
     workflowName : Text;
 
     // The full envelope — needed by the runner to execute
-    envelope : ExecutionTypes.EnvelopePayload;
+    envelope : WorkflowTypes.EnvelopePayload;
 
     // Lifecycle timestamps
     enqueuedAt : Int;
@@ -38,8 +38,8 @@ module {
     failedError : Text;
 
     // Outcome (populated on completion)
-    status : ?ExecutionTypes.ExecutionStatus;
-    stats : ?ExecutionTypes.ExecutionStats;
+    status : ?WorkflowTypes.WorkflowStatus;
+    stats : ?WorkflowTypes.WorkflowStats;
 
     // Per-step detail (accumulated during execution)
     steps : [RunStep];
@@ -56,11 +56,11 @@ module {
   // The caller is responsible for marking the store and emitting to Core.
 
   public type RunOutcome = {
-    status : ExecutionTypes.ExecutionStatus;
+    status : WorkflowTypes.WorkflowStatus;
     humanSummary : Text;
     steps : [RunStep];
-    summarizedSteps : [ExecutionTypes.SummarizedStep];
-    stats : ExecutionTypes.ExecutionStats;
+    summarizedSteps : [WorkflowTypes.SummarizedStep];
+    stats : WorkflowTypes.WorkflowStats;
   };
 
 };

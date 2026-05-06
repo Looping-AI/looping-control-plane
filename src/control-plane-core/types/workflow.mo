@@ -37,20 +37,20 @@ module {
     content : Text;
   };
 
-  // ── Execution constraints ──────────────────────────────────────────
+  // ── Workflow constraints ──────────────────────────────────────────
 
-  public type ExecutionConstraints = {
+  public type WorkflowConstraints = {
     maxRounds : Nat;
     maxTokenBudget : ?Nat;
   };
 
   // ── Secrets ────────────────────────────────────────────────────────
 
-  public type ExecutionSecrets = {
+  public type WorkflowSecrets = {
     apiKeys : [(Text, Text)];
   };
 
-  // ── Execution Envelope ─────────────────────────────────────────────
+  // ── Workflow Envelope ──────────────────────────────────────────────
 
   public type EnvelopePayload = {
     envelopeId : Nat;
@@ -67,8 +67,8 @@ module {
     model : Text;
     messages : [ChatMessage];
     instructions : Text;
-    constraints : ExecutionConstraints;
-    secrets : ExecutionSecrets;
+    constraints : WorkflowConstraints;
+    secrets : WorkflowSecrets;
     scopeGrants : [ScopeGrant];
     envelopeNonce : Text;
     /// The catalog hash Core received from the engine's listWorkflows() response.
@@ -77,9 +77,9 @@ module {
     catalogHash : ?Text;
   };
 
-  // ── Execution Stats ────────────────────────────────────────────────
+  // ── Workflow Stats ─────────────────────────────────────────────────
 
-  public type ExecutionStats = {
+  public type WorkflowStats = {
     durationNs : ?Int;
     llmCalls : ?Nat;
     toolCalls : ?Nat;
@@ -90,19 +90,19 @@ module {
     estimatedDollarCost : ?Float;
   };
 
-  // ── Execution Status ───────────────────────────────────────────────
+  // ── Workflow Status ────────────────────────────────────────────────
 
-  public type ExecutionStatus = {
+  public type WorkflowStatus = {
     #completed;
     #failed : Text;
     #roundLimitReached;
   };
 
-  // ── Execution Result (engine → Core return value) ──────────────────
+  // ── Workflow Result (engine → Core return value) ────────────────────
 
-  public type ExecutionResult = {
-    status : ExecutionStatus;
-    stats : ExecutionStats;
+  public type WorkflowResult = {
+    status : WorkflowStatus;
+    stats : WorkflowStats;
   };
 
   // ── Summarized Step (lightweight per-step detail for events) ───────
@@ -113,18 +113,18 @@ module {
     success : Bool;
   };
 
-  // ── Execution Events (engine → Core via execution API) ─────────────
+  // ── Workflow Events (engine → Core via workflow API) ────────────────
 
-  public type ExecutionEvent = {
-    #executionMilestone : {
+  public type WorkflowEvent = {
+    #workflowMilestone : {
       humanSummary : Text;
       stepsDetail : [SummarizedStep];
     };
-    #executionComplete : {
+    #workflowComplete : {
       humanSummary : Text;
       stepsDetail : [SummarizedStep];
-      status : ExecutionStatus;
-      stats : ExecutionStats;
+      status : WorkflowStatus;
+      stats : WorkflowStats;
     };
   };
 
@@ -142,8 +142,8 @@ module {
       turnId : Text;
       humanSummary : Text;
       stepsDetail : [SummarizedStep];
-      status : ExecutionStatus;
-      stats : ExecutionStats;
+      status : WorkflowStatus;
+      stats : WorkflowStats;
     };
   };
 
