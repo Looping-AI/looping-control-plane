@@ -1,5 +1,5 @@
 /// Envelope Processor
-/// Owns the full lifecycle of a single execution run after it has been enqueued:
+/// Owns the full lifecycle of a single workflow run after it has been enqueued:
 ///   1. Claims the run from the store
 ///   2. Delegates to WorkflowRunner to get a RunOutcome
 ///   3. Applies the outcome to the run store
@@ -76,7 +76,7 @@ module {
 
   // ── Private helpers ────────────────────────────────────────────────
 
-  /// Null stats used in the trap path where no execution data is available.
+  /// Null stats used in the trap path where no workflow run data is available.
   func zeroStats() : WorkflowTypes.WorkflowStats {
     {
       durationNs = null;

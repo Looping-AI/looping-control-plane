@@ -30,7 +30,7 @@ module {
 
   public class Service(deps : ServiceDeps) {
 
-    /// Process a single execution async effect — posts results to Slack and completes turns.
+    /// Process a single workflow async effect — posts results to Slack and completes turns.
     /// `keyCache` is passed at call time (not captured in deps) because it is a transient
     /// var in main.mo that may be replaced by the 30-day key-rotation timer; capturing it
     /// at construction would leave the service with a stale reference after rotation.

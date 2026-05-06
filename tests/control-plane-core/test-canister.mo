@@ -137,7 +137,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // testGetApprovalStatus can observe state changes across separate calls.
   let testDispatchApprovalState = ApprovalModel.emptyState();
 
-  // Execution API token store — dedicated store for workflowApi endpoint tests.
+  // Workflow API token store — dedicated store for workflowApi endpoint tests.
   let testWorkflowEnvelopeState = WorkflowEnvelopeModel.emptyState();
 
   // Internal engine principal for workflowApi authorization guard tests.
@@ -145,7 +145,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
 
   let mockInternalEngine : InternalEngine.InternalEngine = actor (Principal.toText(Principal.fromActor(self))) : InternalEngine.InternalEngine;
 
-  // Execution API service wired up for unit tests.
+  // Workflow API service wired up for unit tests.
   transient let testWorkflowApiService = WorkflowApiService.Service({
     envelopeState = testWorkflowEnvelopeState;
     workspaces = testWorkspacesState;
@@ -155,7 +155,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     sessionStores = testDispatchSessionStores;
   });
 
-  // Execution async effect end-to-end test state.
+  // Workflow async effect end-to-end test state.
   // Uses AgentModel.defaultState() so agent 0 (workspace-admin, ownedBy=0) is pre-seeded.
   let testEffectAgentRegistry = AgentModel.defaultState();
   let testEffectSessionStores = SessionModel.emptyStores();
@@ -1192,7 +1192,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   };
 
   // ============================================
-  // Execution API Test Methods
+  // Workflow API Test Methods
   // ============================================
 
   /// Sets the internal engine principal used by testWorkflowApi's authorization guard.
@@ -1201,7 +1201,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     testInternalEnginePrincipal := ?p;
   };
 
-  /// Issues a full-scope execution token directly into testWorkflowEnvelopeState.
+  /// Issues a full-scope workflow token directly into testWorkflowEnvelopeState.
   /// Returns the token nonce.
   public shared ({ caller }) func testIssueWorkflowToken(
     turnId : Text,
@@ -1242,7 +1242,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   };
 
   // ============================================
-  // Execution Async Effect Test Methods
+  // Workflow Async Effect Test Methods
   // ============================================
 
   /// Seed a pending turn in testEffectSessionStores with a Slack sourceRef.
@@ -1296,7 +1296,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     turn.turnId;
   };
 
-  /// Issues a full-scope execution token into testEffectEnvelopeState.
+  /// Issues a full-scope workflow token into testEffectEnvelopeState.
   /// Returns the token nonce.
   public shared ({ caller }) func testIssueEffectToken(
     turnId : Text,

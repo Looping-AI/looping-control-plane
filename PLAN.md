@@ -26,8 +26,6 @@ Then other optional sections can be added that you think are relevant for that s
 
 NOTE: Plans are not documentation. They are temporary and will be discarded. If behavior changes later, there’s no need to update an already struck-through Task.
 
-Previous, not implemented, phases have been archived to [PLAN.archive.md](docs/plans/PLAN.archive.md).
-
 ---
 
 ### 5.2.4 — Multi-suspension safety: concurrent suspension-triggering tool calls

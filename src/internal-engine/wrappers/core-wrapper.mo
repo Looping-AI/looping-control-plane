@@ -17,11 +17,11 @@ module {
   // ── Wrapper class ──────────────────────────────────────────────────
 
   /// Bundles the Core canister actor and the envelope nonce for the
-  /// current execution. Pass a single `CoreWrapper` instance downstream
+  /// current workflow run. Pass a single `CoreWrapper` instance downstream
   /// instead of threading (core, envelopeNonce) as separate parameters.
   public class CoreWrapper(coreActor : CoreActor, envelopeNonce : Text) {
 
-    /// Call Core's execution API, automatically injecting the envelope nonce.
+    /// Call Core's workflow API, automatically injecting the envelope nonce.
     public func callCore(
       method : WorkflowTypes.HttpMethod,
       path : Text,

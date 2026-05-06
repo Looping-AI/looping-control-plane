@@ -1,5 +1,5 @@
 /// Run Types
-/// Types for tracking the lifecycle of execution runs inside the engine.
+/// Types for tracking the lifecycle of workflow runs inside the engine.
 
 import WorkflowTypes "../workflow-types";
 
@@ -18,7 +18,7 @@ module {
   };
 
   // ── Run Record ───────────────────────────────────────────────────
-  // Full lifecycle record for one execution run.
+  // Full lifecycle record for one workflow run.
 
   public type RunRecord = {
     // Identity — from the envelope

@@ -39,7 +39,7 @@ module {
     approvalState : ApprovalModel.ApprovalState;
   };
 
-  /// Per-turn envelope context needed to build an ExecutionEnvelope.
+  /// Per-turn envelope context needed to build a WorkflowEnvelope.
   /// All fields map directly onto EnvelopePayload fields — nothing else.
   public type EnvelopeContext = {
     agent : AgentModel.AgentRecord;
@@ -92,7 +92,7 @@ module {
     // Carries the envelope state (token store + counter + salt) and the pre-resolved engine actor.
     engineDispatch : ?EngineDispatch;
 
-    // Per-turn envelope context needed by workflow tools to build the ExecutionEnvelope.
+    // Per-turn envelope context needed by workflow tools to build the WorkflowEnvelope.
     // Requires engineDispatch to also be set.
     envelopeContext : ?EnvelopeContext;
   };

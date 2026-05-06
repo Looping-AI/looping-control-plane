@@ -1,5 +1,5 @@
 /// Run Store Model
-/// Persistent 3-map store tracking the lifecycle of execution runs.
+/// Persistent 3-map store tracking the lifecycle of workflow runs.
 /// Follows the same pattern as EventStoreModel in control-plane-core.
 ///
 /// Maps: running (enqueued/in-progress) → completed → failed

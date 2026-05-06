@@ -120,7 +120,7 @@ module {
               };
             };
 
-            // Execution webhook
+            // Workflow event webhook
             case (#post, "workflow") {
               switch (seg1) {
                 case "milestone" {

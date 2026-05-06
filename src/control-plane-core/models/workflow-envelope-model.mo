@@ -57,7 +57,7 @@ module {
 
   /// Issue a new envelope. Generates both a unique envelopeId (Nat)
   /// and an unpredictable nonce (64-char hex) atomically from the same counter.
-  /// Returns { envelopeId; nonce } so the caller can build the ExecutionEnvelope
+  /// Returns { envelopeId; nonce } so the caller can build the WorkflowEnvelope
   /// and store the nonce for later validation.
   public func issue(
     store : EnvelopeState,

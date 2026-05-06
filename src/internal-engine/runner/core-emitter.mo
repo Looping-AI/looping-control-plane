@@ -1,5 +1,5 @@
 /// Core Emitter
-/// Sends execution events (complete, milestone) to the Core canister via workflowApi.
+/// Sends workflow events (complete, milestone) to the Core canister via workflowApi.
 /// Extracted from workflow-runner.mo so the runner can focus purely on execution
 /// and the caller owns the emit step.
 

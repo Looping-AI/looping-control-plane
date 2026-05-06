@@ -1,6 +1,6 @@
-/// Execution Runner
+/// Workflow Runner
 /// Multi-round LLM loop extracted from main.mo for testability.
-/// Executes an envelope and returns a RunOutcome describing what happened.
+/// Runs a workflow envelope and returns a RunOutcome describing what happened.
 ///
 /// Responsibilities of this module:
 ///   1. Extracts API key and model from the envelope
@@ -175,7 +175,7 @@ module {
       );
 
       switch (response.result) {
-        // ── Text response — execution complete ──
+        // ── Text response — workflow run complete ──
         case (#ok(#textResponse({ content; thinking = _ }))) {
           let stats = buildStats(startNs, rounds, totalInputTokens, totalOutputTokens, totalToolCalls, resolvedModel, totalCost);
           return {

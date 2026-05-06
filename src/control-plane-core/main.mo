@@ -84,7 +84,7 @@ persistent actor class OpenOrgBackend() {
   // Approval gate state — holds pending approval codes for workflow approval gate.
   let approvalState = ApprovalModel.emptyState();
 
-  // Execution API service (instantiated once with all deps captured in class scope)
+  // Workflow API service (instantiated once with all deps captured in class scope)
   transient let workflowApiService = WorkflowApiService.Service({
     envelopeState = workflowEnvelopeState;
     workspaces;
@@ -119,7 +119,7 @@ persistent actor class OpenOrgBackend() {
     );
   };
 
-  // Execution async-effect service (processes engine results: Slack posts, turn completion)
+  // Workflow async-effect service (processes engine results: Slack posts, turn completion)
   transient let workflowAsyncEffectService = WorkflowAsyncEffectService.Service({
     sessionStores;
     agentRegistry;
@@ -528,7 +528,7 @@ persistent actor class OpenOrgBackend() {
   };
 
   // ============================================
-  // Execution API (engine → Core)
+  // Workflow API (engine → Core)
   // ============================================
 
   /// Single endpoint for engine-to-Core communication.
