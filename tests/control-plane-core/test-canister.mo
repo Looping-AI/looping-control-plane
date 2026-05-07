@@ -2095,7 +2095,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       agentId = 0;
       agentName = "test-agent";
       workspaceId = 0;
-      workflowName = "admin-v1";
+      workflowName = "workspace_get";
       model = "";
       messages = [];
       instructions = "test instructions";
@@ -2186,7 +2186,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
     };
     let descriptor : WorkflowCatalogTypes.WorkflowDescriptor = {
-      workflowName = "admin-v1";
+      workflowName = "workspace_get";
       description = "Administrative operations";
       parametersJsonSchema = "{\"type\":\"object\"}";
       requiredScopes = [];
