@@ -64,8 +64,8 @@ module {
   /// This covers the threshold signature computation
   public let SIGN_WITH_SCHNORR_COST_CYCLES : Nat = 26_153_846_153;
 
-  /// Key name for local development (dfx)
-  public let KEY_NAME_LOCAL : Text = "dfx_test_key";
+  /// Key name for local development
+  public let KEY_NAME_LOCAL : Text = "key_1";
 
   /// Key name for mainnet test
   public let KEY_NAME_TEST : Text = "test_key_1";

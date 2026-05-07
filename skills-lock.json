@@ -4,57 +4,80 @@
     "asset-canister": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "adfdb667a6beba07ca3ca906a213d261355663dcb363d418ef19d6dbd3e326c9"
+      "skillPath": "skills/asset-canister/SKILL.md",
+      "computedHash": "9c7d9f132a00440288123f76af21a50977178b65d3bd56d4077250ec008c71e7"
+    },
+    "canhelp": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "skillPath": "skills/canhelp/SKILL.md",
+      "computedHash": "d7418dc6133afbf815501c1c46ce2129c6eb1e9332adbc485e0bdeef9f31505c"
     },
     "canister-security": {
       "source": "dfinity/icskills",
       "sourceType": "github",
+      "skillPath": "skills/canister-security/SKILL.md",
       "computedHash": "aa599635ccf3d5996cab1230b49e2e345535cd25b5d522d1ffc07804c2944a51"
     },
     "certified-variables": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "abce10708b779012de0792bca858f044d4e52bb695ede6306e4efbbc41c434c6"
+      "skillPath": "skills/certified-variables/SKILL.md",
+      "computedHash": "9c099d6cf8cebdb4dd7ee97f4f9fe200ea0e8c297b9c6bc062a8d9c6c8978d5a"
+    },
+    "custom-domains": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "skillPath": "skills/custom-domains/SKILL.md",
+      "computedHash": "005687085a6e2e57f7c3bb35481f6f1c2689a33c32b3ae1d58a7cf0ecec645f2"
     },
     "cycles-management": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "b14f8da81ce7bb78c10297b9051951d778fac20b9cf3b9c0e29c70fcf738d3c9"
+      "skillPath": "skills/cycles-management/SKILL.md",
+      "computedHash": "4b8f9ac545376886b6473084ae5de6c77edc4856c2da339f95d3a0b22528068d"
     },
     "https-outcalls": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "dd90859b2db2148630a7c04350549104f6f383072fdfc06ec3f75f463bad104a"
+      "skillPath": "skills/https-outcalls/SKILL.md",
+      "computedHash": "0207638b0c3b0410900d355ad0dc63343f6ac1102b338b0349d430de34265118"
     },
     "icp-cli": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "e41aaffa2732d908b71959b236a28545c805fbe74c77cf2b71a6c9024901e93d"
+      "skillPath": "skills/icp-cli/SKILL.md",
+      "computedHash": "da74dbb9e76285fb7266119026d2e067329e19aa65b586a5437dffdc176a1701"
     },
     "internet-identity": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "d5f736e3f0504a3a1efbe96cc5b7d6e5620d6ad19304ec39b25c5108510ac51a"
+      "skillPath": "skills/internet-identity/SKILL.md",
+      "computedHash": "cd47219be9f133050f9057531b308ead05bb69d6c60e8a0825cfe8572010b547"
     },
     "motoko": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "7aaa41b291cc376acddd601ede12c2c18ae1708d8d711da49309906609a43f88"
+      "skillPath": "skills/motoko/SKILL.md",
+      "computedHash": "4847670a56acc0264f22392edb3212c18fa12f07a803cd4b0f61b7d844d10376"
     },
     "multi-canister": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "72b81c31acec791302467cda7d340b730e9f4f0b0fcf0d4dfb2a7f0d82695146"
+      "skillPath": "skills/multi-canister/SKILL.md",
+      "computedHash": "278aff0df2bf5c20af2ca0c5ae64452c1784d3f770540c78f11481b3da9c443d"
     },
     "stable-memory": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "9f6cea447d4d6182113b7b0e16faf0e28d9311fa8a0bc1cbb3c1ad8219761b24"
+      "skillPath": "skills/stable-memory/SKILL.md",
+      "computedHash": "bc26d61750c8a22000fed6b7d752d82dfd773fc22889346e904e6cefd88b0078"
     },
     "vetkd": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "996470d1009af486e187e2a7c7135d2124c811b0fa64871e2fca3f7a5f9bd130"
+      "skillPath": "skills/vetkd/SKILL.md",
+      "computedHash": "c80cee4c04d2b9e044e5cfd9436e7a8ac973ef895296c4e7824b3adfaafcccdd"
     }
   }
 }
