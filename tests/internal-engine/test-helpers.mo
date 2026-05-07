@@ -18,20 +18,21 @@ module {
   ) : WorkflowTypes.EnvelopePayload {
     {
       envelopeId;
+      dispatchedVersion = ?"v1";
+      catalogHash = null;
       requestId = "req-test-" # Nat.toText(envelopeId);
       agentId = 0;
+      agentName;
       workspaceId = 0;
       workflowName = "wf-test";
-      agentName;
-      dispatchedVersion = ?"v1";
-      instructions = "You are a test assistant.";
-      messages = [{ role = #user; content = prompt }];
-      constraints = { maxRounds = 3; maxTokenBudget = null };
+      workflowArguments = null;
       model = "openai/gpt-oss-120b";
+      messages = [{ role = #user; content = prompt }];
+      instructions = "You are a test assistant.";
+      constraints = { maxRounds = 3; maxTokenBudget = null };
       secrets = { apiKeys = [("openrouter", "test-key-placeholder")] };
       scopeGrants = [];
       envelopeNonce = "nonce-" # Nat.toText(envelopeId);
-      catalogHash = null;
     };
   };
 

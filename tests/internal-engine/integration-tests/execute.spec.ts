@@ -52,6 +52,7 @@ function minimalEnvelope(
     scopeGrants: [],
     catalogHash: hash as [] | [string],
     envelopeNonce: `nonce-${envelopeId}`,
+    workflowArguments: [],
   };
 }
 
@@ -424,6 +425,7 @@ describe("internal-engine / execute (async completion)", () => {
         ),
         workflowName: "workspace_get",
         scopeGrants: [{ workspace: { access: { read: null } } }],
+        workflowArguments: ['{"action":"get_workspace"}'],
         instructions:
           "You are a workspace management assistant. Use the available tools to fulfil the user's request. When done, report the result.",
       };
