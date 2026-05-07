@@ -52,6 +52,7 @@ function minimalEnvelope(
     scopeGrants: [],
     catalogHash: hash as [] | [string],
     envelopeNonce: `nonce-${envelopeId}`,
+    workflowArguments: [],
   };
 }
 
@@ -370,7 +371,7 @@ describe("internal-engine / execute (async completion)", () => {
     // Tick until EnvelopeProcessor.process completes and emitComplete fires.
     // No HTTP outcalls to serve — the round-limit path is purely synchronous
     // inside the runner, so all async boundaries resolve quickly.
-    await pic.tick(10);
+    await pic.tick(5);
 
     // ── Assertions ────────────────────────────────────────────────
     const recordedCalls = await stubActor.getRecordedCalls();
@@ -393,4 +394,80 @@ describe("internal-engine / execute (async completion)", () => {
     expect(typeof stats["durationNs"]).toBe("number");
     expect(stats["rounds"]).toBe(0);
   });
+
+  // ── Tool routing: catalog workflow dispatches tool to LLM ─────
+
+  it(
+    "provides tools to LLM and emits completed when scope grants match",
+    async () => {
+      const cassetteName =
+        "internal-engine/integration-tests/execute/workspace-get-tool-call";
+
+      await stubActor.clearRecordedCalls();
+      // Inject a realistic workspace record so the LLM receives meaningful data
+      // and can conclude the task with a text response rather than looping.
+      await stubActor.setPathResponse(
+        "/workspace",
+        JSON.stringify({
+          id: 1,
+          name: "Engineering",
+          adminChannelId: "C07ABCDEFGH",
+        }),
+      );
+      const cassette = await HttpCassette.auto(cassetteName);
+
+      const envelope: EnvelopePayload = {
+        ...minimalEnvelope(
+          200n,
+          "test-agent",
+          "Get the workspace information.",
+          [catalogHash],
+        ),
+        workflowName: "workspace_get",
+        scopeGrants: [{ workspace: { access: { read: null } } }],
+        workflowArguments: ['{"action":"get_workspace"}'],
+        instructions:
+          "You are a workspace management assistant. Use the available tools to fulfil the user's request. When done, report the result.",
+      };
+
+      const submitResult = await engineActor.execute(envelope);
+      expect("ok" in submitResult).toBe(true);
+
+      // Round 1: timer fires → LLM calls get_workspace tool
+      await pic.tick(2);
+      await cassette.handleOutcalls(pic);
+
+      // Inter-canister: engine calls stub-core GET /workspace, gets workspace JSON.
+      // Round 2: LLM sees the workspace data → may make a follow-up tool call or return text.
+      await pic.tick(2);
+      await cassette.handleOutcalls(pic);
+
+      // Allow a Round 3 in case the model issues a second tool call before concluding.
+      await pic.tick(2);
+      await cassette.handleOutcalls(pic);
+
+      // Engine receives text response → emits /workflow/complete to stub-core.
+      await pic.tick(2);
+
+      await cassette.save();
+
+      // ── Assertions ──────────────────────────────────────────────────
+      const recordedCalls = await stubActor.getRecordedCalls();
+
+      // Tool call: engine called Core's workflowApi for /workspace (GET)
+      const toolCall = recordedCalls.find((c) => c.path === "/workspace");
+      expect(toolCall).toBeDefined();
+      expect("get" in toolCall!.method).toBe(true);
+
+      // Completion: engine emitted completed to Core after the LLM summarised the workspace
+      const completionCall = recordedCalls.find(
+        (c) => c.path === "/workflow/complete",
+      );
+      expect(completionCall).toBeDefined();
+      const body = JSON.parse(completionCall!.body) as Record<string, unknown>;
+      expect(body["envelopeNonce"]).toBe("nonce-200");
+      expect(body["status"]).toBe("completed");
+    },
+    { timeout: 60_000 },
+  );
 });

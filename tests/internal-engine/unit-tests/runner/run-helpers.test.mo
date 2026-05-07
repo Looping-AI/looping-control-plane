@@ -14,20 +14,21 @@ import WorkflowTypes "../../../../src/internal-engine/workflow-types";
 func makeEnvelope(id : Nat) : WorkflowTypes.EnvelopePayload {
   {
     envelopeId = id;
+    dispatchedVersion = ?"v1";
+    catalogHash = null;
     requestId = "req-" # Nat.toText(id);
     agentId = 0;
+    agentName = "test-agent";
     workspaceId = 0;
     workflowName = "wf-test";
-    agentName = "test-agent";
-    dispatchedVersion = ?"v1";
-    instructions = "test";
-    messages = [];
-    constraints = { maxRounds = 3; maxTokenBudget = null };
+    workflowArguments = null;
     model = "openai/gpt-oss-120b";
+    messages = [];
+    instructions = "test";
+    constraints = { maxRounds = 3; maxTokenBudget = null };
     secrets = { apiKeys = [("openrouter", "key")] };
     scopeGrants = [];
     envelopeNonce = "nonce-" # Nat.toText(id);
-    catalogHash = null;
   };
 };
 

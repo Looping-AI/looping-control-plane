@@ -205,11 +205,15 @@ module {
     let envelope : WorkflowTypes.EnvelopePayload = {
       envelopeId;
       dispatchedVersion = null;
+      catalogHash = ?catalogHash;
       requestId = envelopeContext.turnId;
       agentId = envelopeContext.agent.id;
       agentName = envelopeContext.agent.config.name;
       workspaceId = envelopeContext.agent.ownedBy;
       workflowName = descriptor.workflowName;
+      workflowArguments = if (args == "" or args == "{}") { null } else {
+        ?args;
+      };
       model = envelopeContext.agent.config.model;
       messages = envelopeContext.messages;
       instructions = envelopeContext.instructions;
@@ -222,7 +226,6 @@ module {
       };
       scopeGrants;
       envelopeNonce;
-      catalogHash = ?catalogHash;
     };
 
     // 6. Dispatch to engine

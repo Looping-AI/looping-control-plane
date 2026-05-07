@@ -59,11 +59,20 @@ module {
     /// After a successful dispatch the lambda stamps the accepted version for audit trail.
     /// Format: "v1", "v1.1" — major.minor, no patch.
     dispatchedVersion : ?Text;
+    /// The catalog hash Core received from the engine's listWorkflows() response.
+    /// Must be included on every execute() call. The engine rejects calls where the
+    /// hash is missing or does not match its current catalog.
+    catalogHash : ?Text;
     requestId : Text;
     agentId : Nat;
     agentName : Text;
     workspaceId : Nat;
     workflowName : Text;
+    /// The raw JSON arguments string the Core LLM supplied when it called this
+    /// workflow tool. Forwarded verbatim so the engine's LLM knows exactly what
+    /// the orchestrator requested (e.g. {"workspaceId":42,"format":"detailed"}).
+    /// null when the Core LLM provided no arguments or an empty object.
+    workflowArguments : ?Text;
     model : Text;
     messages : [ChatMessage];
     instructions : Text;
@@ -71,10 +80,6 @@ module {
     secrets : WorkflowSecrets;
     scopeGrants : [ScopeGrant];
     envelopeNonce : Text;
-    /// The catalog hash Core received from the engine's listWorkflows() response.
-    /// Must be included on every execute() call. The engine rejects calls where the
-    /// hash is missing or does not match its current catalog.
-    catalogHash : ?Text;
   };
 
   // ── Workflow Stats ─────────────────────────────────────────────────

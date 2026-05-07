@@ -85,7 +85,7 @@ describe("WorkflowEngineHandler", () => {
       const response = parseError(result);
       expect(response.type).toBe("parseError");
       expect(response.message).toContain("Invalid JSON arguments");
-      expect(response.message).toContain("admin-v1");
+      expect(response.message).toContain("workspace_get");
     });
   });
 

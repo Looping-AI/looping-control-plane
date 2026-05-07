@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "name": "workspace-get-tool-call",
+  "recordedAt": "2026-05-07T14:43:21.699Z",
+  "interactions": [
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Get the workspace information.\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Execution context — Workflow: workspace_get | Workspace ID: 0 | Agent: test-agent (ID: 0) | Workflow arguments: {\\\"action\\\":\\\"get_workspace\\\"}\\n\\nYou are a workspace management assistant. Use the available tools to fulfil the user's request. When done, report the result.\",\"tools\":[{\"type\":\"function\",\"name\":\"get_workspace\",\"description\":\"Returns the current workspace record including its ID, name, and Slack admin channel anchor.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}],\"store\":false,\"stream\":false,\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"}}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "X-Generation-Id,cf-ray"],
+          ["cf-ray", "9f80ff1e18d0f778-MAD"],
+          ["content-type", "application/json"],
+          ["date", "Thu, 07 May 2026 14:43:22 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"],
+          ["x-generation-id", "gen-1778165002-afsSZG5aRrQTlEFQS6ZZ"]
+        ],
+        "body": "\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n{\"id\":\"gen-1778165002-afsSZG5aRrQTlEFQS6ZZ\",\"object\":\"response\",\"created_at\":1778165002,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1778165006,\"output\":[{\"id\":\"rs_tmp_07h6bnbha2sb\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"We have a user request: \\\"Get the workspace information.\\\"\\n\\nWe need to use the tool get_workspace. The workspace ID is 0. According to the instruction: Execution context — Workflow: workspace_get | Workspace ID: 0 | Agent: test-agent (ID: 0) | Workflow arguments: {\\\"action\\\":\\\"get_workspace\\\"}\\n\\nSo we just need to call get_workspace with no arguments.\\n\\nWe must output the result after using the tool.\\n\\nThus we will call `functions.get_workspace({})`.\\n\\nAfter that we need to report the result. So let's call the function.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"fc_tmp_fhhhfd0p14j\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"chatcmpl-tool-a1b9d601aa244d568e6a3eed3d708989\",\"name\":\"get_workspace\",\"arguments\":\"{}\"}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"get_workspace\",\"description\":\"Returns the current workspace record including its ID, name, and Slack admin channel anchor.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":\"Execution context — Workflow: workspace_get | Workspace ID: 0 | Agent: test-agent (ID: 0) | Workflow arguments: {\\\"action\\\":\\\"get_workspace\\\"}\\n\\nYou are a workspace management assistant. Use the available tools to fulfil the user's request. When done, report the result.\",\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"safety_identifier\":null,\"prompt_cache_key\":null,\"usage\":{\"input_tokens\":181,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":134,\"output_tokens_details\":{\"reasoning_tokens\":137},\"total_tokens\":315,\"cost\":0.000032519,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.000032519,\"upstream_inference_input_cost\":0.000007059,\"upstream_inference_output_cost\":0.00002546}}}",
+        "bodyEncoding": "text"
+      }
+    },
+    {
+      "request": {
+        "url": "https://openrouter.ai/api/v1/responses",
+        "method": "POST",
+        "headers": [
+          ["Authorization", "[REDACTED]"],
+          ["Content-Type", "application/json"],
+          ["HTTP-Referer", "https://loopingai.app"],
+          ["X-Title", "Looping AI"]
+        ],
+        "body": "{\"input\":[{\"role\":\"user\",\"content\":\"Get the workspace information.\"},{\"type\":\"function_call\",\"call_id\":\"chatcmpl-tool-a1b9d601aa244d568e6a3eed3d708989\",\"name\":\"get_workspace\",\"arguments\":\"{}\"},{\"type\":\"function_call_output\",\"call_id\":\"chatcmpl-tool-a1b9d601aa244d568e6a3eed3d708989\",\"output\":\"{\\\"id\\\":1,\\\"name\\\":\\\"Engineering\\\",\\\"adminChannelId\\\":\\\"C07ABCDEFGH\\\"}\"}],\"model\":\"openai/gpt-oss-120b\",\"instructions\":\"Execution context — Workflow: workspace_get | Workspace ID: 0 | Agent: test-agent (ID: 0) | Workflow arguments: {\\\"action\\\":\\\"get_workspace\\\"}\\n\\nYou are a workspace management assistant. Use the available tools to fulfil the user's request. When done, report the result.\",\"tools\":[{\"type\":\"function\",\"name\":\"get_workspace\",\"description\":\"Returns the current workspace record including its ID, name, and Slack admin channel anchor.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}],\"store\":false,\"stream\":false,\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"}}",
+        "bodyEncoding": "text"
+      },
+      "response": {
+        "statusCode": 200,
+        "headers": [
+          ["access-control-allow-origin", "*"],
+          ["access-control-expose-headers", "X-Generation-Id,cf-ray"],
+          ["cf-ray", "9f80ff3cbbcef778-MAD"],
+          ["content-type", "application/json"],
+          ["date", "Thu, 07 May 2026 14:43:27 GMT"],
+          [
+            "permissions-policy",
+            "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")"
+          ],
+          ["referrer-policy", "no-referrer, strict-origin-when-cross-origin"],
+          ["server", "cloudflare"],
+          ["x-content-type-options", "nosniff"],
+          ["x-generation-id", "gen-1778165006-lK5I14AUXlvAQaQGK3Fr"]
+        ],
+        "body": "\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n\n         \n{\"id\":\"gen-1778165006-lK5I14AUXlvAQaQGK3Fr\",\"object\":\"response\",\"created_at\":1778165006,\"model\":\"openai/gpt-oss-120b\",\"status\":\"completed\",\"completed_at\":1778165013,\"output\":[{\"id\":\"rs_tmp_p53x4ryn4m\",\"type\":\"reasoning\",\"status\":\"completed\",\"content\":[{\"type\":\"reasoning_text\",\"text\":\"The user asked: \\\"Get the workspace information.\\\" The assistant just called get_workspace and returned JSON with id, name, adminChannelId. Need to respond with the result, likely presenting it in a user-friendly format. The workspace ID is 1, name is Engineering, admin channel ID is C07ABCDEFGH. We can also wrap in a markdown code block or plain text.\\n\\nThus respond: \\\"Here is the workspace info: ID: 1, Name: Engineering, Admin Channel ID: C07ABCDEFGH\\\". Possibly also mention Slack channel link format. Might add link to channel: <#C07ABCDEFGH> (Slack format). So produce final answer.\"}],\"summary\":[],\"format\":\"unknown\"},{\"id\":\"msg_tmp_wtm4jb5qrop\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"Here’s the information for the current workspace:\\n\\n- **Workspace ID:** `1`  \\n- **Name:** `Engineering`  \\n- **Admin Slack channel:** `<#C07ABCDEFGH>` (channel ID: `C07ABCDEFGH`)  \",\"annotations\":[],\"logprobs\":[]}]}],\"error\":null,\"incomplete_details\":null,\"tools\":[{\"type\":\"function\",\"name\":\"get_workspace\",\"description\":\"Returns the current workspace record including its ID, name, and Slack admin channel anchor.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]},\"strict\":null}],\"tool_choice\":\"auto\",\"parallel_tool_calls\":true,\"max_output_tokens\":null,\"temperature\":1,\"top_p\":1,\"presence_penalty\":0,\"frequency_penalty\":0,\"top_logprobs\":0,\"max_tool_calls\":null,\"metadata\":{},\"background\":false,\"previous_response_id\":null,\"service_tier\":\"auto\",\"truncation\":\"disabled\",\"store\":false,\"instructions\":\"Execution context — Workflow: workspace_get | Workspace ID: 0 | Agent: test-agent (ID: 0) | Workflow arguments: {\\\"action\\\":\\\"get_workspace\\\"}\\n\\nYou are a workspace management assistant. Use the available tools to fulfil the user's request. When done, report the result.\",\"text\":{\"format\":{\"type\":\"text\"}},\"reasoning\":{\"effort\":\"high\",\"summary\":\"auto\"},\"safety_identifier\":null,\"prompt_cache_key\":null,\"usage\":{\"input_tokens\":225,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":195,\"output_tokens_details\":{\"reasoning_tokens\":148},\"total_tokens\":420,\"cost\":0.000045825,\"is_byok\":false,\"cost_details\":{\"upstream_inference_cost\":0.000045825,\"upstream_inference_input_cost\":0.000008775,\"upstream_inference_output_cost\":0.00003705}}}",
+        "bodyEncoding": "text"
+      }
+    }
+  ]
+}

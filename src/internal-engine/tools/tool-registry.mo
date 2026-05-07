@@ -20,51 +20,16 @@ module {
 
   // ── Public API ─────────────────────────────────────────────────────
 
-  /// Get all tools available for the given workflow and scope grants.
+  /// Get all tools available for the given scope grants.
   public func getTools(
-    workflowName : Text,
-    scopeGrants : [WorkflowTypes.ScopeGrant],
-  ) : [FunctionTool] {
-    switch (workflowName) {
-      case "admin-v1" { getAdminTools(scopeGrants) };
-      case _ { [] };
-    };
-  };
-
-  /// Get all tool definitions (for passing to LLM API).
-  public func getDefinitions(
-    workflowName : Text,
-    scopeGrants : [WorkflowTypes.ScopeGrant],
-  ) : [LlmWrapper.Tool] {
-    Array.map<FunctionTool, LlmWrapper.Tool>(
-      getTools(workflowName, scopeGrants),
-      func(t : FunctionTool) : LlmWrapper.Tool { t.definition },
-    );
-  };
-
-  /// Lookup a single tool by name.
-  public func get(
-    workflowName : Text,
-    scopeGrants : [WorkflowTypes.ScopeGrant],
-    name : Text,
-  ) : ?FunctionTool {
-    Array.find<FunctionTool>(
-      getTools(workflowName, scopeGrants),
-      func(t : FunctionTool) : Bool { t.definition.function_.name == name },
-    );
-  };
-
-  // ── Admin workflow tools ───────────────────────────────────────────
-
-  private func getAdminTools(
-    grants : [WorkflowTypes.ScopeGrant]
+    scopeGrants : [WorkflowTypes.ScopeGrant]
   ) : [FunctionTool] {
     let tools = List.empty<FunctionTool>();
 
     // Workspace tools — require workspace scope
-    if (hasScope(grants, "workspace", #read)) {
+    if (hasScope(scopeGrants, "workspace", #read)) {
       List.add(tools, getWorkspaceTool());
-      if (hasScope(grants, "workspace", #write)) {
+      if (hasScope(scopeGrants, "workspace", #write)) {
         List.add(tools, createWorkspaceTool());
         List.add(tools, deleteWorkspaceTool());
         List.add(tools, setAdminChannelTool());
@@ -72,10 +37,10 @@ module {
     };
 
     // Agent tools — require agents scope
-    if (hasScope(grants, "agents", #read)) {
+    if (hasScope(scopeGrants, "agents", #read)) {
       List.add(tools, listAgentsTool());
       List.add(tools, getAgentTool());
-      if (hasScope(grants, "agents", #write)) {
+      if (hasScope(scopeGrants, "agents", #write)) {
         List.add(tools, registerAgentTool());
         List.add(tools, updateAgentTool());
         List.add(tools, unregisterAgentTool());
@@ -83,17 +48,38 @@ module {
     };
 
     // Slack queue tools — require slackQueue scope
-    if (hasScope(grants, "slackQueue", #read)) {
+    if (hasScope(scopeGrants, "slackQueue", #read)) {
       List.add(tools, getSlackQueueStatsTool());
       List.add(tools, getFailedSlackQueueEventsTool());
     };
 
     // Session tools — require session scope
-    if (hasScope(grants, "session", #write)) {
+    if (hasScope(scopeGrants, "session", #write)) {
       List.add(tools, updateSessionPolicyTool());
     };
 
     List.toArray(tools);
+  };
+
+  /// Get all tool definitions (for passing to LLM API).
+  public func getDefinitions(
+    scopeGrants : [WorkflowTypes.ScopeGrant]
+  ) : [LlmWrapper.Tool] {
+    Array.map<FunctionTool, LlmWrapper.Tool>(
+      getTools(scopeGrants),
+      func(t : FunctionTool) : LlmWrapper.Tool { t.definition },
+    );
+  };
+
+  /// Lookup a single tool by name.
+  public func get(
+    scopeGrants : [WorkflowTypes.ScopeGrant],
+    name : Text,
+  ) : ?FunctionTool {
+    Array.find<FunctionTool>(
+      getTools(scopeGrants),
+      func(t : FunctionTool) : Bool { t.definition.function_.name == name },
+    );
   };
 
   // ── Scope checking ─────────────────────────────────────────────────

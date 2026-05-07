@@ -38,7 +38,7 @@ Sections and items marked **[planned]** describe target architecture not yet imp
 
 - Two Motoko backend canisters:
   - **Control Plane Core**: Slack ingress (`http_request` / `http_request_update`), signature verification, event intake/routing, state ownership, secrets, sessions, and timers.
-  - **Internal Engine**: asynchronous workflow execution canister (`execute`) with its own run store and tool handlers, calling back into Core via `executionApi`.
+  - **Internal Engine**: asynchronous workflow execution canister (`execute`) with its own run store and tool handlers, calling back into Core via `workflowApi`.
 - Slack event adapter with HMAC-SHA256 signature verification and normalized event mapping.
 - Event store with lifecycle management (unprocessed → processed/failed) and per-event timer dispatch.
 - Event router dispatching to implemented handlers (`message`, assistant thread events, `message_changed`, `message_deleted`, `member_joined_channel`, `member_left_channel`, `team_join`).
@@ -46,14 +46,17 @@ Sections and items marked **[planned]** describe target architecture not yet imp
 - `#_system(#onboarding)` and `#custom` category loops are registered/routable but currently return not-yet-implemented errors.
 - Tooling split by boundary:
   - Control-plane function tools (web search, secrets management, workflow dispatch).
-  - Internal-engine workflow tools (`admin-v1`) with migrated handlers for workspace, agent, Slack queue, and session policy operations.
-- Execution envelope model implemented (nonce/token issuance, scope grants, operation permits, version stamping, and revocation).
-- Execution async effects implemented (`milestone` / `complete`) to post Slack updates and finalize turns.
+  - Internal-engine workflow tools (scope-based routing) with handlers for workspace, agent, Slack queue, and session policy operations.
+- **Workflow envelope model** implemented (nonce/token issuance, scope grants, version stamping, and revocation). File: [src/control-plane-core/models/workflow-envelope-model.mo](src/control-plane-core/models/workflow-envelope-model.mo).
+- **Workflow async effects** implemented (`milestone` / `complete`) to post Slack updates and finalize turns. File: [src/control-plane-core/services/workflow-async-effect-service.mo](src/control-plane-core/services/workflow-async-effect-service.mo).
+- **Workflow Catalog system**: the internal-engine exposes `listWorkflows()` returning a hash-versioned catalog of `WorkflowDescriptor`s. Core lazily fetches the catalog on first dispatch, caches it in `workflowCatalogState`, and refreshes automatically on `#staleCatalog` errors. See [Workflow Catalog](#workflow-catalog).
+- **Approval system**: workflows with a `#require("approval")` core directive pause the turn, generate a short-lived approval code, and post a Slack Block Kit message with Approve/Deny buttons. `block_actions` payloads from Slack are handled by `BlockActionsHandler`. Approval TTL is enforced by `ApprovalTimer`. See [Approval System](#approval-system).
 - API keys and secrets encrypted at rest using workspace-scoped derived keys (ICP Threshold Schnorr).
 - Credential cascade implemented in secrets model (agent → workspace → org), with access audit logging. See [Credential Cascade](#credential-cascade).
 - Identity and authorization derived from Slack, with workspace administration anchored on admin channels.
 - Agent registry with `::` routing and category-based dispatch via Agent Router.
 - Session tracking linking Slack message IDs to user auth context and agent execution context. Agent session model with per-agent persistent sessions, turn logs, and trace entries (see [src/control-plane-core/models/session-model.mo](src/control-plane-core/models/session-model.mo)).
+- **`AgentRunner` module** (`src/control-plane-core/agents/agent-runner.mo`): single entry point for both new-turn orchestration (`start`) and engine-completion resume (`resume`). `TurnSuspensionService` handles suspension-only outcomes; `TurnCompletionService` handles terminal outcomes with Slack I/O.
 
 Primary code entrypoints: [src/control-plane-core/main.mo](src/control-plane-core/main.mo) and [src/internal-engine/main.mo](src/internal-engine/main.mo)
 
@@ -65,7 +68,7 @@ Primary code entrypoints: [src/control-plane-core/main.mo](src/control-plane-cor
 - **Admin-channel-only workspace model**: each workspace is anchored by an admin channel. The member-channel concept and workspace member role are removed from the target model.
 - **Agent channel allowlist**: each agent has an explicit list of Slack channels where it is allowed to run. Agents are still configured from the workspace admin channel, but execution is gated by this per-agent allowlist.
 - **Out-of-allowlist behavior**: execution is blocked and the bot posts an automatic warning; enforcement details in [Agent routing and round control](#agent-routing-and-round-control).
-- **Execution API + async effect bridge**: the current `executionApiService` + `executionAsyncEffectService` pair is the implemented stepping stone toward a fuller process/effect architecture.
+- **Workflow API + async effect bridge**: the current `WorkflowApiService` + `WorkflowAsyncEffectService` pair is the implemented stepping stone toward a fuller process/effect architecture.
 - **[Process Engine (Loop Engine)](#process-engine-loop-engine)**: all agent invocations, multi-turn LLM conversations, and delegation chains are modelled as processes; `LoopEngine.step(process, event) → [Effect]` is a pure function executed by the Effect Applicator.
 - **[Effect-driven execution](#effect)**: the only side-effect mechanism is the effect list returned by a process step — `StateWrite`, `SlackPost`, `EventEmit`, `ProcessSuspend`. Process logic never writes state or calls external APIs directly.
 - **[Channel History](#channel-history)**: per-channel Slack message timeline, append-optimised, with retroactive edit support; the source material for agent context assembly, maintained independently of agents.
@@ -76,7 +79,7 @@ Primary code entrypoints: [src/control-plane-core/main.mo](src/control-plane-cor
 - **[Hierarchical credential management](#credential-cascade)**: org → workspace → agent credential cascade, with audit logging, secret-exposure scanning, and environment-variable isolation in the runner.
 - **Agent Runner scope boundary**: runtime agent execution (Copilot session, tool use, file operations) lives in a dedicated GitHub repository. The control plane dispatches sessions, tracks state, and receives results — it does not contain the runner implementation. No "Store" file lives in Control Plane in this type of agent, to avoid out of sync issues.
 - Read-only external access via resource-based, short-lived (1h) auth tokens generated within the canister (future).
-- Interactive Messages (block actions, view submissions) for configuration and onboarding flows (future).
+- **Interactive Messages** (`block_actions`): Slack Block Kit approval buttons implemented for the workflow approval gate. `view_submission` and broader configuration UX remain future.
 - **[DM Concierge agent](#dm-concierge-agent-planned)** [planned]: a stateless, informative-only agent permanently assigned to workspace 0 that handles all DM interactions. Because all other agents require an explicit channel allowlist, DMs are currently unserved; this agent is the sole exception. Equipped with tools to trigger the weekly reconciliation runner, query agent and workspace health, and surface recovery steps for common admin issues.
 - **[Agent channel aliases](#agent-channel-aliases-planned)** [planned]: agents can register short, human-friendly aliases scoped to a specific Slack channel (e.g., `::Admin`, `::Alice`). The Event Router alias resolver maps the alias to the canonical agent name before dispatch, so users never need to type the globally unique agent identifier inside a channel where the alias is unambiguous.
 
@@ -91,13 +94,13 @@ flowchart LR
   ED["Event Store\n+ Router"]
   Core["Control Plane Core\nagent orchestration + envelope issue"]
   Engine["Internal Engine\nrun store + tool execution"]
-  AsyncFx["Execution Async Effects\nSlack post + turn completion"]
+  AsyncFx["Workflow Async Effects\nSlack post + turn completion"]
   IO["Wrappers\nSlack · OpenRouter · GitHub (planned)"]
   State(["State\nsessions · history\nregistry · secrets · envelopes"])
 
   Ext -->|Slack webhook| Ing --> ED --> Core
   Core -->|dispatch_workflow| Engine
-  Engine -->|executionApi milestone/complete| AsyncFx --> IO -->|API calls| Ext
+  Engine -->|workflowApi milestone/complete| AsyncFx --> IO -->|API calls| Ext
   Core -.->|read/write| State
   ED -.->|claim/mark| State
   AsyncFx -.->|write| State
@@ -119,10 +122,13 @@ flowchart TD
   AAL -->|dispatch_workflow| EDS[EngineDispatchService]
   EDS --> IE[InternalEngine.execute]
   IE --> RUN[ExecutionRunner]
-  RUN -->|execution milestone/complete| EAPI[Core executionApi]
-  EAPI --> AFX[ExecutionAsyncEffectService]
+  RUN -->|workflowApi milestone/complete| EAPI[Core workflowApi]
+  EAPI --> AFX[WorkflowAsyncEffectService]
   AFX --> SW["SlackWrapper → Slack API"]
   AFX --> SS(["Sessions + Traces"])
+
+  S -->|block_actions| BA[BlockActionsHandler]
+  BA --> AFX
 
   GH([GitHub]) -->|"/github/webhook"| GHA[GitHubWebhookAdapter]
   GHA --> ES
@@ -140,7 +146,7 @@ flowchart TD
   - **Effect Applicator**: executes effects returned by the Process Engine; the only place where state is written or external APIs are called. [→ know more](#process-engine-loop-engine)
   - **Wrappers**: encapsulate external API calls (Slack, OpenRouter, GitHub planned); called by orchestration/effect services. [→ know more](#tooling-and-integrations)
 - Verified-source security: all webhook operations must originate from a verified source — Slack events (HMAC-SHA256 with signing secret) or GitHub webhooks (HMAC-SHA256 with webhook secret). The canister never trusts a hook that doesn't come through a verified signature. Slack remains the only user interaction layer.
-- **Controller-only surface**: the canister exposes `http_request` and `http_request_update` as its public HTTP gateway — these are the webhook ingress points protected by per-source HMAC verification (see Verified-source security above). Beyond that gateway there are two guarded update paths: controller-only operations (critical secret setup/recovery) and `executionApi` (transport-guarded to the spawned internal-engine principal). All other system activity is internal: timer-fired work (scheduled) or event-queue dispatch. Timer-fired operations or queue-dispatched operations may be system- or user-triggered. User-triggered operations are always attributed to both the agent executing them and the Slack user who originated the request chain.
+- **Controller-only surface**: the canister exposes `http_request` and `http_request_update` as its public HTTP gateway — these are the webhook ingress points protected by per-source HMAC verification (see Verified-source security above). Beyond that gateway there are two guarded update paths: controller-only operations (critical secret setup/recovery) and `workflowApi` (transport-guarded to the spawned internal-engine principal). All other system activity is internal: timer-fired work (scheduled) or event-queue dispatch. Timer-fired operations or queue-dispatched operations may be system- or user-triggered. User-triggered operations are always attributed to both the agent executing them and the Slack user who originated the request chain.
 - **Least-privilege, capability-scoped control**: grant a minimal tool set and Slack channel allowlist rather than micro-managing individual actions. Do not interrupt flows for decisions that have already been approved at the capability level — trust previously established allowlists and policies. Control at the capability boundary (which effects and tools an agent may invoke) rather than at the action level. For powerful but necessary tools (e.g., `browser`), prefer constraining _what they can reach_ (URL/domain firewall) over removing the tool entirely.
 - Specialized agents is desired as a strategy (Lower input/context window, easier A/B testing for cost/quality optimizing, lower risk on model upgrading) over a single, big, monolithic agent that accumulates very distinct domains.
 - Auditable: the system should be auditable (events, session, secrets and effects).
@@ -211,18 +217,60 @@ Key characteristics:
 
 Agents have one of two execution types:
 
-- **`#canister`** (implemented): Core orchestrates the turn, issues an execution envelope, and dispatches workflow execution to the internal-engine canister. The engine reports milestones and completion back through `executionApi`, and Core posts/finalizes via async effects.
+- **`#canister`** (implemented): Core orchestrates the turn, issues a workflow envelope, and dispatches workflow execution to the internal-engine canister. The engine reports milestones and completion back through `workflowApi`, and Core posts/finalizes via async effects.
 - **`#github`** [planned]: Runs remotely through GitHub Coding Agents in an agent-specific repository. The control plane dispatches a workflow run (`workflow_dispatch`) with the session payload, receives a structured result via signed GitHub webhook, then composes and posts the final Slack reply.
 
 `workflowEngines` is validated and persisted on agent records today (`#canister | #github`). Runtime branching by engine is currently driven by tool/orchestration flow (`dispatch_workflow`) and will be expanded as `#github` execution lands.
 
-### Agent Category
+### Workflow Catalog
 
-A class of agent behavior (`#admin`, `#onboarding`, `#custom`). Each category defines:
+The internal engine exposes a `listWorkflows()` endpoint (caller-restricted to Core) that returns a hash-versioned catalog of `WorkflowDescriptor`s. Each descriptor contains:
 
-- `category_tools`: the set of tool enum variants available to agents in this category.
+- `workflowName`: unique kebab-case identifier (e.g. `agents_register`).
+- `description`: human-readable description forwarded to the LLM tool definition.
+- `parametersJsonSchema`: raw JSON schema string used directly in the LLM tool call.
+- `requiredScopes`: access scopes Core must grant before dispatching (e.g. `{ scope: "agents", access: "write" }`).
+- `coreDirectives`: instructions Core must act on _before_ dispatching:
+  - `#require("approval")` — suspend the turn and post a Slack Block Kit approval prompt.
+  - `#preValidation(rules)` — validate arguments against external systems (e.g. `slack_channel_exists`).
+
+Core lazily fetches the catalog on first dispatch and caches it in `workflowCatalogState`. If the engine returns `#staleCatalog`, Core refetches automatically and retries. The catalog hash is included in every `EnvelopePayload` so the engine can reject stale dispatches.
+
+Descriptors live in [src/internal-engine/workflows/workflow-catalog.mo](src/internal-engine/workflows/workflow-catalog.mo). Core's contract definition lives in [src/control-plane-core/types/workflow-catalog.mo](src/control-plane-core/types/workflow-catalog.mo).
+
+### Approval System
+
+Workflows that require human confirmation carry a `#require("approval")` core directive. The approval gate flow:
+
+1. LLM calls `dispatch_workflow` for a protected workflow (no `approvalCode` in args).
+2. `WorkflowEngineHandler` generates an approval code via `ApprovalModel.request`, which stores an `ApprovalRecord` keyed by code, linked to the workflow name, original args, turn, and requesting user.
+3. A Slack Block Kit message is posted to the conversation thread with Approve / Deny buttons (`action_id: approve_workflow` / `deny_workflow`). The `approvalCode` is embedded in each button's `value` field.
+4. The turn transitions to `#awaitingApproval`. An `ApprovalTimer` one-shot timer is armed; if the deadline passes without a response, `resumeWithDenial("approval timed out")` fires automatically.
+5. When a user clicks a button, Slack sends a `block_actions` payload to the webhook. Main.mo returns HTTP 200 immediately and schedules `BlockActionsHandler.handle` in a zero-delay timer.
+6. `BlockActionsHandler` resolves the approval code, verifies the clicker is either the original requester or a workspace admin, cancels the TTL timer, marks the approval `#approved` or `#denied`, and fires `AgentRunner.resumeWithApproval` or `AgentRunner.resumeWithDenial`. The button message is replaced with an outcome line (e.g. "✅ Approved by <@userId>").
+7. On approval, `resumeWithApproval` re-runs the LLM with the approval code injected as a synthetic tool result; the LLM then re-calls `dispatch_workflow` with `approvalCode` present, which passes the gate and dispatches to the engine.
+
+Authorization: only the original requester or a workspace admin of the agent's owning workspace may click the buttons.
+
+Approval timer state is durable across upgrades: `postupgrade` re-arms TTL timers for all turns still in `#awaitingApproval`.
+
+See [src/control-plane-core/models/approval-model.mo](src/control-plane-core/models/approval-model.mo), [src/control-plane-core/timers/approval-timer.mo](src/control-plane-core/timers/approval-timer.mo), and [src/control-plane-core/events/handlers/block-actions-handler.mo](src/control-plane-core/events/handlers/block-actions-handler.mo).
+
+### Agent categories
+
+A class of agent behavior. Three categories exist: `#_system(#admin)`, `#_system(#onboarding)`, and `#custom`. Each category has its own process handler module under `src/control-plane-core/agents/categories/`.
+
+**Implementation status:**
+
+- **`#_system(#admin)`** (implemented): `AdminAgentLoop` — full LLM orchestration loop with function tools (web search, secrets management, workflow dispatch via catalog), context assembly, multi-round execution, and suspension handling. See [src/control-plane-core/agents/categories/system/admin-agent-loop.mo](src/control-plane-core/agents/categories/system/admin-agent-loop.mo).
+- **`#_system(#onboarding)`** (stub): handler exists but returns `"category service not yet implemented"`.
+- **`#custom`** (stub): handler exists but returns `"category service not yet implemented"`.
+
+Each category defines (target model):
+
+- `category_tools`: the set of function tools available to agents in this category. For `#admin` this is the control-plane function tool registry (web search, secrets, workflow dispatch); for `#custom` it will be a configurable subset.
 - LLM model selection strategy.
-- Template Skills and source/knowledge configuration.
+- Store-backed knowledge configuration (including skill documents under `/skills/`) [planned].
 
 ### Policies (future)
 
@@ -309,7 +357,7 @@ External writes enter the control plane through verified webhook endpoints:
 - **GitHub Webhooks** [planned] (`http_request_update` at `/github/webhook`): workflow lifecycle and runtime agent session result callbacks from GitHub Actions. HMAC-SHA256 with `X-Hub-Signature-256` header using a stored GitHub webhook secret.
 - **Slack API** (outbound HTTP outcalls): the canister calls Slack to post messages, read user lists, and read channel memberships.
 
-The internal-engine callback path uses a separate shared method, `executionApi`, guarded by caller principal (must match the spawned internal engine canister). This is not an external/public client surface. Controller-restricted methods (callable only by the canister controller principal) exist for secret setup and recovery. Each webhook source has its own signature verification as the authentication layer.
+The internal-engine callback path uses a separate shared method, `workflowApi`, guarded by caller principal (must match the spawned internal engine canister). This is not an external/public client surface. Controller-restricted methods (callable only by the canister controller principal) exist for secret setup and recovery. Each webhook source has its own signature verification as the authentication layer.
 
 ### Read Surface — Token-Gated Queries [planned]
 
@@ -326,7 +374,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 
 ### Interactions
 
-- **Slack** (primary, implemented): Events API, Web API (`postMessage`, `users.list`, `conversations.list`, `conversations.members`).
+- **Slack** (primary, implemented): Events API, Web API (`postMessage`, `users.list`, `conversations.list`, `conversations.members`), and Interactive Payloads API (`block_actions` for approval buttons).
 - **GitHub** (planned): GitHub Actions APIs for `workflow_dispatch` session execution, run status APIs, and webhook delivery for agent session lifecycle and result callbacks.
 - **OpenRouter** (implemented): OpenAI-compatible APIs used by both Control Plane Core and Internal Engine loops via HTTP outcalls. Supports BYOK — no need to configure specific API provider keys in the repo; free tier covers up to 1M calls/month.
 - **Slack Interactive Messages** (future): `block_actions` and `view_submission` payloads for configuration and onboarding UX.
@@ -343,7 +391,7 @@ This design aligns with security best practices: short-lived tokens, server-side
 6. The router claims the event, dispatches to the appropriate handler.
 7. `MessageHandler` persists the message, resolves auth/round context, creates a turn, and routes to `AgentRouter`.
 8. The admin loop may dispatch a workflow envelope to Internal Engine (or return a synchronous error/response).
-9. Engine milestones/completion callback through `executionApi`; async effects post to Slack and complete the turn.
+9. Engine milestones/completion callback through `workflowApi`; async effects post to Slack and complete the turn.
 10. Event is marked as processed or failed.
 
 ### Agent talk flow — `#canister` execution (current)
@@ -351,9 +399,12 @@ This design aligns with security best practices: short-lived tokens, server-side
 1. Message handler receives a normalized message event.
 2. It derives workspace/org keys, resolves secrets, and creates/updates session turn context.
 3. Admin agent loop calls OpenRouter with assembled context and function tools.
-4. When `dispatch_workflow` is chosen, Core validates permits, issues an execution envelope (nonce + grants), and dispatches to Internal Engine.
-5. Internal Engine enqueues/claims the run, executes LLM + tool rounds (`admin-v1`), and emits `milestone`/`complete` events to Core `executionApi`.
-6. Core `executionAsyncEffectService` posts Slack updates and marks the turn `#pending` → terminal status with aggregated cost.
+4. When `dispatch_workflow` is chosen:
+   a. Core checks if a workflow catalog is cached and if its hash matches. If not, it fetches `listWorkflows()` from the engine and caches the result.
+   b. If the target workflow has a `#require("approval")` core directive and no valid approval code is present, Core generates an approval code, posts a Slack Block Kit message (Approve/Deny buttons) to the thread, and suspends the turn as `#awaitingApproval`. An `ApprovalTimer` is armed for TTL enforcement.
+   c. Once approved (via `block_actions` → `BlockActionsHandler`) or if approval is not required, Core validates pre-validation rules, issues a workflow envelope (nonce + scope grants), and dispatches to Internal Engine.
+5. Internal Engine enqueues the run, executes an LLM + tool loop (tools assembled from `scopeGrants`), and emits `milestone`/`complete` events to Core `workflowApi`.
+6. Core `WorkflowAsyncEffectService` posts Slack updates and marks the turn `#pending` → terminal status with aggregated cost.
 
 ### Agent talk flow — `#github` execution (planned)
 
@@ -429,9 +480,11 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo) and [src/in
   - `secrets`: encrypted secrets + per-workspace audit logs.
   - `eventStore`: unprocessed/processed/failed lifecycle maps.
   - `sessionStores`: persistent sessions, turns, traces.
-  - `executionEnvelopeState`: envelope nonce store, grants/permits, dispatch version stamps, known engine versions.
+  - `workflowEnvelopeState`: envelope nonce store, grants/permits, dispatch version stamps, known engine versions.
+  - `workflowCatalogState`: lazily-populated workflow catalog cache (hash + descriptors fetched from engine).
+  - `approvalState`: pending/resolved approval codes for the workflow approval gate; each code is linked to a workflow, turn, and requesting user.
   - `httpCertStore`: HTTP certification state.
-  - `internalEnginePrincipal`: persisted engine principal used for transport-level guard on `executionApi`.
+  - `internalEnginePrincipal`: persisted engine principal used for transport-level guard on `workflowApi`.
 - **Internal Engine canister**:
   - `runStore`: running/completed/failed execution lifecycle store for dispatched envelopes.
 
@@ -443,15 +496,17 @@ See [src/control-plane-core/main.mo](src/control-plane-core/main.mo) and [src/in
 - **Agent session store**: `Map<agentId, AgentSessionRecord>` — one persistent session per agent, with compaction state (summary layers, cursor) and context-budget policy. No separate session ID; the agent ID is the key. File: [src/control-plane-core/models/session-model.mo](src/control-plane-core/models/session-model.mo).
 - **Agent turn store**: `Map<agentId, List<AgentTurnRecord>>` — append-only turn log per agent. Each turn has a deterministic `turnId` (`"{agentId}_{turnNumber}"`), execution status, source ref, delegation lineage (`triggerTurnId`), user auth context snapshot, cost, and Slack reply ts list.
 - **Turn trace store**: `Map<turnId, List<TurnTraceEntry>>` — immutable, append-only trace per turn. Each entry is a self-contained `TraceDetail` variant (`#llmCall`, `#toolCall`, `#slackPost`, etc.) with per-entry cost on LLM calls. Truncated fields (`truncatedContent`, `truncatedOutput`) are pre-computed at write time; raw originals always retained. Context assembly uses raw fields for turns < 1h old, truncated fields for older turns. Hard deletion after 3 months.
-- **Execution envelope store**: `Map<nonce, EnvelopeRecord>` with turn linkage, workspace scope grants, operation permits, expiry/revocation, and accepted engine dispatch version. File: [src/control-plane-core/models/execution-envelope-model.mo](src/control-plane-core/models/execution-envelope-model.mo).
+- **Workflow envelope store**: `Map<nonce, EnvelopeRecord>` with turn linkage, workspace scope grants, expiry/revocation, and accepted engine dispatch version. File: [src/control-plane-core/models/workflow-envelope-model.mo](src/control-plane-core/models/workflow-envelope-model.mo).
 - **Internal-engine run store**: `Map<envelopeId, RunRecord>` split by `running/completed/failed`, with per-step execution detail and retention cleanup helpers. File: [src/internal-engine/models/run-store-model.mo](src/internal-engine/models/run-store-model.mo).
-- **GitHub runtime session store**: `Map<sessionId, GithubAgentSessionRecord>` where `GithubAgentSessionRecord = { sessionId, agentId, repoFullName, workflowId, runId: ?Nat64, status: #queued | #running | #succeeded | #failed | #cancelled | #unknown, requestId, startedAt, completedAt, lastWebhookAt, lastError }`. Tracks remote execution lifecycle and callback correlation. File: `src/control-plane-core/models/github-agent-session-model.mo` (new).
+- **Workflow catalog cache**: `CatalogState = { cached : ?{ catalogHash : Text; descriptors : [WorkflowDescriptor] } }`. Atomic replace-only; either fully populated or absent (no stale intermediate state). File: [src/control-plane-core/models/workflow-catalog-model.mo](src/control-plane-core/models/workflow-catalog-model.mo).
+- **Approval state**: `ApprovalState = { counter, approvalSalt, approvals : Map<Text, ApprovalRecord> }` where `ApprovalRecord = { code, workflowName, originalArgs, workspaceId, agentId, turnId, requestedByUserId, requestedAt, status : #pending | #approved | #denied }`. File: [src/control-plane-core/models/approval-model.mo](src/control-plane-core/models/approval-model.mo).
+- **GitHub runtime session store** [planned]: `Map<sessionId, GithubAgentSessionRecord>` — tracks remote execution lifecycle and callback correlation.
 - **Embedding indexes**: searchable indexes for memory records, core files, and Store documents (including skill documents under `skills/`) used during prompt-time retrieval.
 - **Auth token store**: `Map<tokenId, TokenRecord>` with `{ slackUserId, isOrgAdmin, workspaceAdminScopes: [workspaceId], resourceScope, expiry }`. Cleaned up on Sundays in a Timer.
 - **Secrets**: encrypted secrets per workspace. Includes `#custom(Text)` secret types for flexible credential mapping. Per-workspace audit state: `SecretAuditState = { changeLog: List<SecretChangeEntry>, accessLog: List<SecretAccessEntry> }` tracking stores, deletes, and accesses with timestamps and sources.
 - **Channel History**: channel-keyed, timeline-structured persistent store (Phase 1.4, implemented). Each channel has posts and threads indexed by Slack timestamp, with 1-month ts-based retention. See [src/control-plane-core/models/channel-history-model.mo](src/control-plane-core/models/channel-history-model.mo) for the `ChannelHistoryStore` structure: `Map<channelId, ChannelStore>` where `ChannelStore = { timeline: Map<ts, TimelineEntry>, replyIndex: Map<ts, rootTs> }`. `TimelineEntry` is either a `#post` (top-level message) or `#thread` (root + replies). Messages carry `userAuthContext` (null for bot replies, set for user messages) enabling LLM role mapping without additional lookups. Tool call/response artifacts are ephemeral (in-memory only, not persisted) pending Phase 1.7 session tracking.
 - **Event store**: event lifecycle with timer dispatch (existing, retained).
-- **Tool registries**: control-plane function tool registry and internal-engine workflow tool registry (`admin-v1`) are implemented; broader dynamic registries (including MCP) remain planned.
+- **Tool registries**: control-plane function tool registry and internal-engine workflow tool registry (scope-based) are implemented; broader dynamic registries (including MCP) remain planned.
 
 ### Transient state
 
@@ -586,9 +641,10 @@ Each agent category defines the process logic that handles execution:
 **Phased implementation:**
 
 - **v0.2**: Agent registry, `::` routing, admin agent process handler, `#onboarding`/`#custom` category stubs, Slack-only write surface.
-- **v0.5 (implemented core path)**: `#canister` execution flow (Core + Internal Engine), envelope grants/permits, execution API callbacks (`milestone`/`complete`), credential cascade hardening, Agent Session, Channel History, and weekly reconciliation.
-- **v0.6 (planned)**: `#github` runtime execution via Actions + webhooks, richer Process Engine/Effect Applicator, and Store/embedding layers.
-- **Future**: Full pluggable agent framework, interactive Slack messages, auth tokens, cost optimization, and richer Store document conventions.
+- **v0.5 (implemented core path)**: `#canister` execution flow (Core + Internal Engine), workflow envelope grants/permits, workflow API callbacks (`milestone`/`complete`), credential cascade hardening, Agent Session, Channel History, and weekly reconciliation.
+- **v0.6 (implemented)**: Workflow Catalog system, approval gate with Block Kit buttons and TTL timers, `BlockActionsHandler`, `AgentRunner` refactor, `TurnSuspensionService`/`TurnCompletionService` extraction, `EnvelopeProcessor`/`WorkflowRunner`/`CoreEmitter` extraction, internal-engine run-store maintenance timer.
+- **v0.7 (planned)**: `#github` runtime execution via Actions + webhooks, richer Process Engine/Effect Applicator, and Store/embedding layers.
+- **Future**: Full pluggable agent framework, `view_submission` interactive messages, auth tokens, cost optimization, and richer Store document conventions.
 
 ### Agent routing and round control
 
@@ -661,6 +717,24 @@ Design rules (planned and recommended for any new code):
 - Wrap with try {} catch to log trap messages and keep history of trap logs for future audit.
 - Make processes step-based with logged transitions at every await — if a trap occurs, completed steps are skipped and execution restarts at the failed step.
 
+### Single-Suspension Turn Model
+
+**Current**: Each turn supports exactly one active suspension at a time — either `#awaitingWorkflow` (workflow dispatched to the internal engine) or `#awaitingApproval` (waiting for human approval via Block Kit button). When the LLM emits multiple tool calls in one round and more than one would trigger a suspension, the tool executor stops after the first and fills remaining calls with a synthetic `{"notRun":true}` response. `SuspensionData` tracks a single `pendingToolCallId`; the LLM is expected to re-issue any blocked call on the next round.
+
+The `#awaitingApproval` status carries extra fields alongside `SuspensionData`: `approvalCode`, `expiresAtNs`, and a mutable `timerId` (the `ApprovalTimer` ID, stored so it can be cancelled when the user responds before expiry). The `timerId` is set asynchronously after the timer is armed and updated in-place via `SessionModel.setApprovalTimerId`.
+
+This single-suspension constraint is intentional: it keeps the `TurnStatus` state machine, approval UX, and workflow correlation tractable.
+
+**Future — concurrent suspension** [planned]: lifting this restriction is a meaningful architectural investment. A complete solution requires, at minimum:
+
+- **`TurnStatus` refactor**: replace the single suspension slot with a barrier map keyed by `toolCallId`, tracking each in-flight suspension's state and partial result independently.
+- **Live message field**: the Slack status update must be restructured to show per-tool-call progress and surface partial results as each suspension resolves — a structural change to how Loops status messages are composed and updated.
+- **Resumption model**: a deliberate choice between _wait-all_ (turn resumes only when every suspension completes; all-or-nothing approval semantics), _checkpoint-runner_ (each suspension resolves independently and feeds a partial result back into the LLM mid-turn), or _dynamic_ (the LLM explicitly signals when it wants to be resumed). Each approach carries distinct UX, failure, and cost trade-offs.
+- **Timers and partial-result coalescing**: per-suspension timeouts, result buffering, and ordered re-injection into LLM history.
+- **Suspension GC**: orphaned suspensions — a workflow that never completes, an approval that expires — need a timer-driven reaper with audit logging.
+
+Ship single-dispatch-first; revisit when parallel suspension becomes a genuine use-case bottleneck.
+
 ## Timers and Scheduling
 
 ### Current
@@ -671,6 +745,8 @@ Design rules (planned and recommended for any new code):
 - Channel history prune timer (7 days): prunes entries older than retention window.
 - Turn cleanup timer (7 days): hard-deletes old turns/traces and envelope records.
 - Engine top-up timer (7 days): checks spawned internal-engine cycle balance and tops up when below threshold.
+- **Approval TTL timer** (per-turn, one-shot): arms when a turn enters `#awaitingApproval`. Fires `resumeWithDenial("approval timed out")` if the user does not respond before the deadline. TTL timers are re-armed for all still-awaiting turns on every upgrade. See [src/control-plane-core/timers/approval-timer.mo](src/control-plane-core/timers/approval-timer.mo).
+- **Internal-engine run-store maintenance timer** (7 days, inside internal-engine): prunes completed/failed run records via `recurringTimer`.
 - Keep timer state minimal and upgrade-safe (store "next run time" and reschedule in `postupgrade`).
 
 Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
@@ -682,17 +758,19 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 - **Process Engine timer**: kick the Process Engine step loop periodically.
 - **Recurring task timer**: goal-monitoring, reporting, and dashboard alerts.
 - **Workspace deletion cascading cleanup timer**: when a workspace is deleted, ensure all associated objects (agents, secrets, sessions, traces, stored documents) are cleaned up thoroughly. This will require an async cleanup queue to handle the cascade safely, retrying failed deletions and ensuring all cleanup operations succeed before removing the workspace from the registry.
-- **Internal-engine run-store maintenance timer**: schedule `running` stale-fail and completed/failed retention purges directly inside the internal-engine canister.
 
 ## Tooling and Integrations
 
 ### Current
 
 - **Control-plane function tool registry**: static, resource-gated. Includes `web_search`, workspace secret management tools, and `dispatch_workflow`. See [src/control-plane-core/agents/tools/function-tool-registry.mo](src/control-plane-core/agents/tools/function-tool-registry.mo).
-- **Control-plane tool executor**: executes function tools selected by the admin loop and can return dispatch signals for engine handoff.
-- **Internal-engine workflow tool registry**: workflow-scoped tool catalogue (`admin-v1`) backed by migrated handlers (`workspace`, `agent`, `slack-queue`, `session`). See [src/internal-engine/tools/tool-registry.mo](src/internal-engine/tools/tool-registry.mo).
-- **Execution API services**: `execution-api-service` (sync route + authz + permits) and `execution-async-effect-service` (Slack milestone/final posts + turn finalization).
+- **Control-plane tool executor**: executes function tools selected by the admin loop and can return dispatch signals for engine handoff. The `WorkflowEngineHandler` processes `coreDirectives` (approval gate, pre-validation) before issuing envelopes.
+- **Internal-engine workflow tool registry**: scope-based tool assembly — tools are selected dynamically from `scopeGrants` in the envelope, covering `workspace`, `agent`, `slack-queue`, and `session` operations. See [src/internal-engine/tools/tool-registry.mo](src/internal-engine/tools/tool-registry.mo).
+- **Workflow API services**: `WorkflowApiService` (sync route + authz + permits) and `WorkflowAsyncEffectService` (Slack milestone/final posts + turn finalization + approval-gate LLM resume). See [src/control-plane-core/services/workflow-api-service.mo](src/control-plane-core/services/workflow-api-service.mo) and [src/control-plane-core/services/workflow-async-effect-service.mo](src/control-plane-core/services/workflow-async-effect-service.mo).
+- **Workflow Catalog service**: parses `listWorkflows()` JSON, filters by scopes, and drives lazy cache refresh. See [src/control-plane-core/services/workflow-catalog-service.mo](src/control-plane-core/services/workflow-catalog-service.mo).
+- **Approval system**: `ApprovalModel`, `ApprovalTimer`, and `BlockActionsHandler` together implement the human-in-the-loop approval gate. Block Kit Approve/Deny buttons are posted to Slack; `block_actions` callbacks are routed to `BlockActionsHandler` in a zero-delay timer (well within Slack's 3-second interactive-payload window). Response URL is used for ephemeral outcome messages without requiring a bot token.
 - **Wrappers**: Slack wrapper and OpenRouter wrappers are implemented in both canister boundaries where needed.
+- **Internal engine runner modules**: `WorkflowRunner` (multi-round LLM loop), `EnvelopeProcessor` (full run lifecycle), `CoreEmitter` (emits milestones/complete to Core), and `RunHelpers`. See [src/internal-engine/runner/](src/internal-engine/runner/).
 
 ### Planned
 
@@ -704,7 +782,7 @@ Relevant code: [src/control-plane-core/main.mo](src/control-plane-core/main.mo)
 - **Tool scoping**: keep grants/permits and userAuthContext checks aligned across control plane and runtime engines.
 - **Category tools**: formalize per-category tool contracts and stricter runtime subsets while preserving `toolsState` telemetry.
 - **Broader LLM tool surface**: additional file/memory/store/browser/MCP patterns remain planned once workflow-engine contracts stabilize.
-- **Interactive Messages** (future): support for `block_actions` and `view_submission` payloads in the Slack adapter.
+- **Interactive Messages** (partial): `block_actions` is implemented for approval buttons. `view_submission` and richer configuration/onboarding UX remain future.
 - Agents empowered with:
   - LLM internal tools (function calling).
   - Remote MCPs (planned).
@@ -777,7 +855,7 @@ Pattern follows `SlackUserModel`'s `AccessChangeLog` (source-tagged, retention-b
 
 ## Tool Output Contract
 
-All tool handlers (`ToolCallOutcome`) and the `executionApi` endpoint share a common response contract:
+All tool handlers (`ToolCallOutcome`) and the `workflowApi` endpoint share a common response contract:
 
 - **`#ok : Text`** — a structured JSON string containing meaningful result data.
 - **`#err : Text`** — a structured JSON string of the form `{"type":"camelCaseIdentifier","message":"Human readable sentence."}`.
@@ -821,8 +899,14 @@ See [AGENTS.md](AGENTS.md) for build commands, test strategy, cassette usage, an
 - Wrappers and outcalls: [src/control-plane-core/wrappers](src/control-plane-core/wrappers)
 - Event system: [src/control-plane-core/events](src/control-plane-core/events)
 - Control-plane tools: [src/control-plane-core/agents/tools](src/control-plane-core/agents/tools)
+- Approval gate: [src/control-plane-core/models/approval-model.mo](src/control-plane-core/models/approval-model.mo), [src/control-plane-core/timers/approval-timer.mo](src/control-plane-core/timers/approval-timer.mo), [src/control-plane-core/events/handlers/block-actions-handler.mo](src/control-plane-core/events/handlers/block-actions-handler.mo)
+- Workflow catalog: [src/control-plane-core/models/workflow-catalog-model.mo](src/control-plane-core/models/workflow-catalog-model.mo), [src/control-plane-core/services/workflow-catalog-service.mo](src/control-plane-core/services/workflow-catalog-service.mo), [src/control-plane-core/types/workflow-catalog.mo](src/control-plane-core/types/workflow-catalog.mo)
+- Workflow envelope: [src/control-plane-core/models/workflow-envelope-model.mo](src/control-plane-core/models/workflow-envelope-model.mo)
+- Agent runner: [src/control-plane-core/agents/agent-runner.mo](src/control-plane-core/agents/agent-runner.mo)
 - Internal-engine runtime: [src/internal-engine](src/internal-engine)
+- Internal-engine runner modules: [src/internal-engine/runner](src/internal-engine/runner)
 - Internal-engine tools: [src/internal-engine/tools](src/internal-engine/tools)
+- Workflow catalog (engine side): [src/internal-engine/workflows/workflow-catalog.mo](src/internal-engine/workflows/workflow-catalog.mo)
 - Models: [src/control-plane-core/models](src/control-plane-core/models)
 - Cassette system: [tests/lib](tests/lib) and [tests/cassettes](tests/cassettes)
 

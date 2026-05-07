@@ -2089,20 +2089,21 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
     );
     let envelope : WorkflowTypes.EnvelopePayload = {
       envelopeId;
-      envelopeNonce;
       dispatchedVersion = null;
+      catalogHash = null;
       requestId = "test-turn-dispatch-0_0";
       agentId = 0;
       agentName = "test-agent";
       workspaceId = 0;
-      workflowName = "admin-v1";
+      workflowName = "workspace_get";
+      workflowArguments = null;
       model = "";
       messages = [];
       instructions = "test instructions";
       constraints = { maxRounds = 1; maxTokenBudget = null };
       secrets = { apiKeys };
       scopeGrants = [#workspace({ access = #read })];
-      catalogHash = null;
+      envelopeNonce;
     };
     let knownVersionAfter = func() : ?Text {
       Map.get(store.knownEngineVersions, Text.compare, "internal-engine");
@@ -2186,7 +2187,7 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
       case (?token) { ?(func(_ : Text) : ?Text { ?token }) };
     };
     let descriptor : WorkflowCatalogTypes.WorkflowDescriptor = {
-      workflowName = "admin-v1";
+      workflowName = "workspace_get";
       description = "Administrative operations";
       parametersJsonSchema = "{\"type\":\"object\"}";
       requiredScopes = [];

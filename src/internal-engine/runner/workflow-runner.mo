@@ -64,10 +64,19 @@ module {
     };
 
     let model = resolveModel(envelope);
-    let tools = ToolRegistry.getDefinitions(envelope.workflowName, envelope.scopeGrants);
+    let tools = ToolRegistry.getDefinitions(envelope.scopeGrants);
     let toolsArg : ?[LlmWrapper.Tool] = if (tools.size() > 0) { ?tools } else {
       null;
     };
+
+    // Prepend execution context so the LLM knows which workflow it is running,
+    // which workspace it is operating on, and which agent invoked it.
+    let argsContext = switch (envelope.workflowArguments) {
+      case (?a) { " | Workflow arguments: " # a };
+      case (null) { "" };
+    };
+    let executionContext = "Execution context — Workflow: " # envelope.workflowName # " | Workspace ID: " # Nat.toText(envelope.workspaceId) # " | Agent: " # envelope.agentName # " (ID: " # Nat.toText(envelope.agentId) # ")" # argsContext;
+    let enrichedInstructions = executionContext # "\n\n" # envelope.instructions;
 
     // Initialize conversation from envelope messages
     let inputHistory = List.empty<LlmWrapper.InputItem>();
@@ -106,7 +115,7 @@ module {
           apiKey,
           List.toArray(inputHistory),
           model,
-          ?envelope.instructions,
+          ?enrichedInstructions,
           null,
           toolsArg,
         );
@@ -193,7 +202,6 @@ module {
           let results = try {
             await ToolExecutor.execute(
               wrapper,
-              envelope.workflowName,
               envelope.scopeGrants,
               calls,
             );
