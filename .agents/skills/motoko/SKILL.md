@@ -5,7 +5,7 @@ license: Apache-2.0
 compatibility: "moc >= 1.0.0, mops with core >= 2.0.0"
 metadata:
   title: Motoko Language
-  category: Architecture
+  category: Core
 ---
 
 # Motoko Language
@@ -49,6 +49,8 @@ core = "2.3.1"
    };
 
    ```
+
+   **Migrating from Caffeine:** The Caffeine platform used a moc fork with `--default-persistent-actors`, making `persistent` optional and all variables implicitly stable. On standard moc, add `persistent` to every actor and use `transient var` for variables that should reset on upgrade (see pitfall #3).
 
 2. **Putting type declarations before the actor.** Only `import` statements are allowed before `persistent actor`. All type definitions, `let`, and `var` declarations must go inside the actor body. Violation produces error M0141.
 

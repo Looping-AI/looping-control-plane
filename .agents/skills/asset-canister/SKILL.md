@@ -1,14 +1,14 @@
 ---
 name: asset-canister
-description: "Deploy frontend assets to the IC. Covers certified assets, SPA routing with .ic-assets.json5, custom domains, content encoding, and programmatic uploads. Use when hosting a frontend, deploying static files, configuring custom domains, or setting up SPA routing on IC. Do NOT use for canister-level code patterns."
+description: "Deploy frontend assets to the IC. Covers certified assets, SPA routing with .ic-assets.json5, content encoding, and programmatic uploads. Use when hosting a frontend, deploying static files, or setting up SPA routing on IC. Do NOT use for canister-level code patterns or custom domain setup — use custom-domains instead."
 license: Apache-2.0
-compatibility: "icp-cli >= 0.1.0, Node.js >= 22"
+compatibility: "icp-cli >= 0.2.2, Node.js >= 22"
 metadata:
-  title: "Asset Canister & Frontend"
+  title: Asset Canister
   category: Frontend
 ---
 
-# Asset Canister & Frontend Hosting
+# Asset Canister
 
 ## What This Is
 
@@ -46,6 +46,8 @@ Access patterns:
 7. **Pinning the asset canister Wasm version below `0.30.2`.** The `ic_env` cookie (used by `safeGetCanisterEnv()` from `@icp-sdk/core` to read canister IDs and the root key at runtime) is only served by asset canister Wasm versions >= `0.30.2`. The Wasm version is set via `configuration.version` in the recipe, independently of the recipe version itself. If you pin an older Wasm version, the cookie is silently missing and frontend code relying on `ic_env` will fail. Either omit `configuration.version` (latest is used) or pin to `0.30.2` or later.
 
 8. **Not configuring `allow_raw_access` correctly.** The asset canister has two serving modes: certified (via `ic0.app` / `icp0.io`, where HTTP gateways verify response integrity) and raw (via `raw.ic0.app` / `raw.icp0.io`, where no verification occurs). By default, `allow_raw_access` is `true`, meaning assets are also available on the raw domain. On the raw domain, boundary nodes or a network-level attacker can tamper with response content undetected. Set `"allow_raw_access": false` in `.ic-assets.json5` for any sensitive assets. Only enable raw access when strictly needed.
+
+9. **Downgrading the asset canister WASM version.** Upgrading a canister to an older WASM version can fail with "Cannot parse header" panics if the stable memory format changed between versions. Prefer the `@dfinity/asset-canister` recipe over `type: pre-built` with a manually specified WASM URL — the recipe loads the latest asset canister version automatically if not explicitly specified in `configuration.version`. If you must pin a version, ensure it matches or exceeds the version currently deployed on-chain. If a downgrade is intentional, use reinstall mode (`icp deploy --mode reinstall`) instead of upgrade — this wipes stable memory and all uploaded assets.
 
 ## Implementation
 
@@ -124,44 +126,7 @@ icp canister call frontend http_request '(record {
 
 ### Custom Domain Setup
 
-To serve your asset canister from a custom domain:
-
-1. Create a file `.well-known/ic-domains` in your `dir` directory containing your domain:
-
-```text
-yourdomain.com
-www.yourdomain.com
-```
-
-2. Add DNS records:
-
-```text
-# CNAME record pointing to boundary nodes
-yourdomain.com.  CNAME  yourdomain.com.icp1.io.
-
-# ACME challenge record for TLS certificate provisioning
-_acme-challenge.yourdomain.com.  CNAME  _acme-challenge.yourdomain.com.icp2.io.
-
-# Canister ID TXT record for verification
-_canister-id.yourdomain.com.  TXT  "<your-canister-id>"
-```
-
-3. Deploy your canister so the `.well-known/ic-domains` file is available.
-
-4. Validate that DNS records and canister ownership are correct:
-
-```bash
-curl -sL -X GET https://icp0.io/custom-domains/v1/yourdomain.com/validate | jq
-# Expected: { "status": "success", "message": "Domain is eligible for registration: DNS records are valid and canister ownership is verified", ... }
-```
-
-5. Register the domain with the boundary nodes (required — registration is NOT automatic):
-
-```bash
-curl -sL -X POST https://icp0.io/custom-domains/v1/yourdomain.com | jq
-```
-
-6. Wait for the boundary nodes to provision the TLS certificate. This typically takes a few minutes. Verify by visiting `https://yourdomain.com` once DNS has propagated.
+For custom domain setup (DNS configuration, TLS certificates, domain registration via the REST API), see the `custom-domains` skill. The only asset-canister-specific detail: your `.well-known/ic-domains` file must be in your `dir` directory so it gets deployed. Add `{ "match": ".well-known", "ignore": false }` to your `.ic-assets.json5` to ensure the hidden directory is included.
 
 ### Programmatic Uploads with @icp-sdk/canisters
 

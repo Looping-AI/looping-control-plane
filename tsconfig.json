@@ -29,6 +29,7 @@
     "./src/**/*.ts",
     "./tests/**/*.ts",
     "./global-setup.ts",
-    "./types.d.ts"
+    "./types.d.ts",
+    "./scripts/**/*.ts"
   ]
 }

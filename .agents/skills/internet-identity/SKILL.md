@@ -2,9 +2,9 @@
 name: internet-identity
 description: "Integrate Internet Identity authentication. Covers passkey and OpenID login flows, delegation handling, and principal-per-app isolation. Use when adding login, sign-in, auth, passkeys, or Internet Identity to a frontend or canister. Do NOT use for wallet integration or ICRC signer flows — use wallet-integration instead."
 license: Apache-2.0
-compatibility: "icp-cli >= 0.1.0, Node.js >= 22"
+compatibility: "icp-cli >= 0.2.2, Node.js >= 22"
 metadata:
-  title: Internet Identity Auth
+  title: Internet Identity
   category: Auth
 ---
 
@@ -20,13 +20,14 @@ Internet Identity (II) is the Internet Computer's native authentication system. 
 
 ## Canister IDs
 
-| Canister          | ID                            | URL             | Purpose                                                        |
-| ----------------- | ----------------------------- | --------------- | -------------------------------------------------------------- |
-| Internet Identity | `rdmx6-jaaaa-aaaaa-aaadq-cai` | `https://id.ai` | Stores and manages user keys, serves the II web app over HTTPS |
+| Canister                     | ID                            | URL             | Purpose                                                  |
+| ---------------------------- | ----------------------------- | --------------- | -------------------------------------------------------- |
+| Internet Identity (backend)  | `rdmx6-jaaaa-aaaaa-aaadq-cai` |                 | Manages user keys and authentication logic               |
+| Internet Identity (frontend) | `uqzsh-gqaaa-aaaaq-qaada-cai` | `https://id.ai` | Serves the II web app; identity provider URL points here |
 
 ## Mistakes That Break Your Build
 
-1. **Using the wrong II URL for the environment.** Local development must point to `http://rdmx6-jaaaa-aaaaa-aaadq-cai.localhost:8000`. Mainnet must use `https://id.ai`. Internet Identity has a well-known canister ID (`rdmx6-jaaaa-aaaaa-aaadq-cai`) that is the same on mainnet and local replicas -- hardcode it rather than doing a dynamic lookup.
+1. **Using the wrong II URL for the environment.** The identity provider URL must point to the **frontend** canister (`uqzsh-gqaaa-aaaaq-qaada-cai`), not the backend. Local development should use `http://id.ai.localhost:8000`. Mainnet must use `https://id.ai` (which resolves to the frontend canister). Both canister IDs are well-known and identical on mainnet and local replicas -- hardcode them rather than doing a dynamic lookup.
 
 2. **Setting delegation expiry too long.** Maximum delegation expiry is 30 days (2_592_000_000_000_000 nanoseconds). Longer values are silently clamped, which causes confusing session behavior. Use 8 hours for normal apps, 30 days maximum for "remember me" flows.
 
@@ -38,7 +39,14 @@ Internet Identity (II) is the Internet Computer's native authentication system. 
 
 6. **Passing principal as string to backend.** The `AuthClient` gives you an `Identity` object. Backend canister methods receive the caller principal automatically via the IC protocol -- you do not pass it as a function argument. The caller principal is available on the backend via `shared(msg) { msg.caller }` in Motoko or `ic_cdk::api::msg_caller()` in Rust. For backend access control patterns, see the **canister-security** skill.
 
-## Implementation
+7. **Adding `derivationOrigin` or `ii-alternative-origins` to handle `icp0.io` vs `ic0.app`.** Internet Identity automatically rewrites `icp0.io` to `ic0.app` during delegation, so both domains produce the same principal. Do not add `derivationOrigin` or `ii-alternative-origins` configuration to handle this — it will break authentication. If a user reports getting a different principal, the cause is almost certainly a different passkey or device, not the domain.
+
+## Using II during local development
+
+You have two choices for local development:
+
+- Starting with `icp-cli >= 0.2.4` the local network can validate signatures from https://id.ai, so you can use mainnet identities with the local network.
+- You can configure your local network to deploy internet identity to the local network which makes it accessible at http://id.ai.localhost:8000 by default.
 
 ### icp.yaml Configuration
 
@@ -51,7 +59,9 @@ networks:
     ii: true
 ```
 
-This tells icp-cli to pull and run the II canister automatically when you deploy. No canister entry needed — II is not part of your project's canisters. For the full `icp.yaml` canister configuration, see the **icp-cli** and **asset-canister** skills.
+This deploys the II canisters automatically when the local network is started. By default, the II frontend will be available at http://id.ai.localhost:8000
+No canister entry needed — II is not part of your project's canisters.
+For the full `icp.yaml` canister configuration, see the **icp-cli** and **asset-canister** skills.
 
 ### Frontend: Vanilla JavaScript/TypeScript Login Flow
 
@@ -70,14 +80,15 @@ let authClient;
 const canisterEnv = safeGetCanisterEnv();
 
 // Determine II URL based on environment.
-// Internet Identity has a well-known canister ID (rdmx6-jaaaa-aaaaa-aaadq-cai) that is
-// the same on mainnet and local replicas (icp-cli pulls the mainnet II wasm).
+// The identity provider URL points to the frontend canister which gets mapped to http://id.ai.localhost,
+// not the backend (rdmx6-jaaaa-aaaaa-aaadq-cai). Both are well-known IDs, identical on
+// mainnet and local replicas.
 function getIdentityProviderUrl() {
   const host = window.location.hostname;
   const isLocal =
     host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost");
   if (isLocal) {
-    return "http://rdmx6-jaaaa-aaaaa-aaadq-cai.localhost:8000";
+    return "http://id.ai.localhost:8000";
   }
   return "https://id.ai";
 }

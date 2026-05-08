@@ -83,8 +83,8 @@ module {
 
   // ── Engine lifecycle ───────────────────────────────────────────────
 
-  // Cycles attached when spawning the engine canister (1 trillion)
-  public let ENGINE_SPAWN_CYCLES : Nat = 1_000_000_000_000;
+  // Cycles attached when spawning the engine canister (2 trillion)
+  public let ENGINE_SPAWN_CYCLES : Nat = 2_000_000_000_000;
 
   // Minimum cycle balance before triggering a top-up (500 billion)
   public let ENGINE_MIN_CYCLES : Nat = 500_000_000_000;
