@@ -94,9 +94,6 @@ persistent actor class OpenOrgBackend() {
     sessionStores;
   });
 
-  // Internal engine canister principal — set when engine is spawned (Phase 6)
-  var internalEnginePrincipal : ?Principal = null;
-
   // Internal engine canister reference — set when engine is spawned or re-acquired on upgrade
   var internalEngine : ?InternalEngine.InternalEngine = null;
 
@@ -151,10 +148,10 @@ persistent actor class OpenOrgBackend() {
     switch (internalEngine) {
       case (?e) { e };
       case null {
+        /// Spawn a new engine canister with initial cycles.
         let e = await deployInternalEngine();
         internalEngine := ?e;
-        internalEnginePrincipal := ?Principal.fromActor(e);
-        Logger.log(#info, ?"EngineLifecycle", "Engine canister spawned: " # Principal.toText(Principal.fromActor(e)));
+        Logger.log(#info, ?"EngineLifecycle", "Internal Engine canister spawned: " # Principal.toText(Principal.fromActor(e)));
         e;
       };
     };
@@ -239,7 +236,7 @@ persistent actor class OpenOrgBackend() {
         getLastRun = func() : Int { lastEngineTopUpTimestamp };
         setLastRun = func(t : Int) { lastEngineTopUpTimestamp := t };
         wrappedRun = func() : async { #ok; #err : Text } {
-          await EngineTopUpRunner.run(internalEnginePrincipal);
+          await EngineTopUpRunner.run(switch (internalEngine) { case (?e) { ?Principal.fromActor(e) }; case null { null } });
         };
       },
     ];
@@ -303,7 +300,14 @@ persistent actor class OpenOrgBackend() {
 
   // Per-event timer callback factory — returns an async closure that processes one event by ID
   private func makeEventProcessor(eventId : Text) : async () {
-    let e = await ensureInternalEngine();
+    let e = try {
+      await ensureInternalEngine();
+    } catch (err) {
+      let msg = Error.message(err);
+      Logger.log(#error, ?"EngineLifecycle", "Engine spawn failed for event " # eventId # ": " # msg);
+      EventStoreModel.markFailed(eventStore, eventId, "Engine spawn failed: " # msg);
+      return;
+    };
     // Async body → <system> is implicitly available here.
     // armApprovalTimer returns async Timer.TimerId so its closure body is also
     // async → Timer.setTimer<system> can be called without threading <system> through modules.
@@ -336,13 +340,7 @@ persistent actor class OpenOrgBackend() {
   // Canister Init and Postupgrade
   // ============================================
 
-  // Certify HTTP endpoints on first install
-  certifyHttpEndpoints();
-
-  // Schedule all recurring timers on first install.
-  // Subsequent upgrades will wipe these timers; postupgrade re-creates them.
-  scheduleAll<system>(func(config : TimerRegistryEntry) : Nat { config.interval });
-
+  // Body timer runs both on canister init AND postupgrade
   ignore Timer.setTimer<system>(
     #nanoseconds 0,
     func() : async () {
@@ -352,30 +350,33 @@ persistent actor class OpenOrgBackend() {
       // Refresh approval salt with fresh entropy on install.
       approvalState.approvalSalt := await Random.blob();
 
+      // Certify or Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
+      // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
+      httpCertStore := HttpCertification.initStore();
+      certifyHttpEndpoints();
+
+      // Restart each recurring timer with its remaining time
+      let now = Time.now();
+      scheduleAll<system>(
+        func(config : TimerRegistryEntry) : Nat {
+          let elapsed = now - config.getLastRun();
+          if (elapsed >= config.interval) { 0 } else {
+            Nat.fromInt(config.interval - elapsed);
+          };
+        }
+      );
+
       // Pre-warm the engine canister so the first dispatch doesn't pay the spawn cost.
-      ignore await ensureInternalEngine();
+      try {
+        ignore await ensureInternalEngine();
+      } catch (err) {
+        Logger.log(#error, ?"EngineLifecycle", "Engine spawn failed during init/upgrade: " # Error.message(err));
+      };
     },
   );
 
   // System hook called after every upgrade
   system func postupgrade() {
-    let now = Time.now();
-
-    // Restart each recurring timer with its remaining time
-    scheduleAll<system>(
-      func(config : TimerRegistryEntry) : Nat {
-        let elapsed = now - config.getLastRun();
-        if (elapsed >= config.interval) { 0 } else {
-          Nat.fromInt(config.interval - elapsed);
-        };
-      }
-    );
-
-    // Re-certify HTTP endpoints (IC clears CertifiedData on upgrade)
-    // Start from empty store to ensure consistency if paths changed in certifyHttpEndpoints()
-    httpCertStore := HttpCertification.initStore();
-    certifyHttpEndpoints();
-
     // Propagate upgrade to engine canister (if spawned).
     switch (internalEngine) {
       case (?e) {
@@ -385,39 +386,16 @@ persistent actor class OpenOrgBackend() {
             try {
               let upgraded = await (system InternalEngine.InternalEngine)(#upgrade e)();
               internalEngine := ?upgraded;
-              Logger.log(#info, ?"EngineLifecycle", "Engine canister upgrade propagated");
+              Logger.log(#info, ?"EngineLifecycle", "Internal Engine canister upgrade propagated");
             } catch (err) {
-              Logger.log(#error, ?"EngineLifecycle", "Engine upgrade failed: " # Error.message(err));
+              Logger.log(#error, ?"EngineLifecycle", "Internal Engine upgrade failed: " # Error.message(err));
             };
           },
         );
       };
-      case null {
-        // Engine not yet spawned — pre-warm so first dispatch is fast.
-        ignore Timer.setTimer<system>(
-          #nanoseconds 0,
-          func() : async () {
-            ignore await ensureInternalEngine();
-          },
-        );
-      };
+      // Engine not yet spawned — will be spawned on the timer defined on the main body.
+      case null {};
     };
-
-    // Refresh envelope salt with new entropy on every upgrade
-    ignore Timer.setTimer<system>(
-      #nanoseconds 0,
-      func() : async () {
-        workflowEnvelopeState.envelopeSalt := await Random.blob();
-      },
-    );
-
-    // Refresh approval salt with new entropy on every upgrade
-    ignore Timer.setTimer<system>(
-      #nanoseconds 0,
-      func() : async () {
-        approvalState.approvalSalt := await Random.blob();
-      },
-    );
 
     // Re-arm TTL timers for any turns still awaiting approval after upgrade.
     // Runs in a zero-delay timer so the postupgrade hook returns fast — the IC
@@ -452,6 +430,128 @@ persistent actor class OpenOrgBackend() {
         };
       },
     );
+  };
+
+  // ============================================
+  // Engine Shutdown
+  // ============================================
+
+  // Actor references cannot be stored in stable memory — must be transient.
+  transient let ic : Types.IcManagement = actor ("aaaaa-aa");
+
+  /// Shuts down the internal engine canister: recovers its cycles, stops it, then deletes it.
+  /// Clears the local engine references when complete.
+  /// Must be called before a canister reinstall to avoid orphaning the engine and its cycles.
+  /// Returns cycle accounting: cyclesBefore, ~cyclesRecovered (approximate), and cyclesAfter.
+  /// Aborts with #err if cyclesAfter >= 200B, indicating recovery was not successful enough.
+  public shared ({ caller }) func shutdownInternalEngine() : async {
+    #ok : { cyclesBefore : Nat; cyclesRecovered : Nat; cyclesAfter : Nat };
+    #err : Text;
+  } {
+    if (not Principal.isController(caller)) {
+      return #err("Unauthorized: caller is not a canister controller.");
+    };
+
+    let (canisterId, engine) = switch (internalEngine) {
+      case (null) {
+        return #ok({ cyclesBefore = 0; cyclesRecovered = 0; cyclesAfter = 0 });
+      }; // Engine not spawned — nothing to do
+      case (?e) { (Principal.fromActor(e), e) };
+    };
+
+    var step = "canister_status_before";
+    var cyclesBefore : Nat = 0;
+    var cyclesRecovered : Nat = 0;
+    var cyclesAfter : Nat = 0;
+
+    try {
+      // 1. Record cycle balance before recovery
+      let statusBefore = await ic.canister_status({ canister_id = canisterId });
+      cyclesBefore := statusBefore.cycles;
+
+      // 2. Transfer available cycles back to this canister before stopping
+      step := "recoverAvailableCycles";
+      await engine.recoverAvailableCycles();
+
+      // 3. Record cycle balance after recovery
+      step := "canister_status_after";
+      let statusAfter = await ic.canister_status({ canister_id = canisterId });
+      cyclesAfter := statusAfter.cycles;
+
+      cyclesRecovered := if (cyclesBefore >= cyclesAfter) {
+        cyclesBefore - cyclesAfter;
+      } else { 0 };
+      if (cyclesAfter >= 200_000_000_000) {
+        return #err(
+          "Engine cycle recovery incomplete: " #
+          "before=" # Nat.toText(cyclesBefore) # ", " #
+          "~recovered=" # Nat.toText(cyclesRecovered) # ", " #
+          "after=" # Nat.toText(cyclesAfter) # " " #
+          "(expected < 200B remaining after recovery)"
+        );
+      };
+
+      // 4. Stop the engine canister
+      step := "stop_canister";
+      await ic.stop_canister({ canister_id = canisterId });
+
+      // 5. Delete the engine canister (any remaining cycles are lost)
+      step := "delete_canister";
+      await ic.delete_canister({ canister_id = canisterId });
+    } catch (e) {
+      return #err("Engine shutdown failed at step '" # step # "': code=" # debug_show (Error.code(e)) # " msg=" # Error.message(e));
+    };
+
+    // Clear local references
+    internalEngine := null;
+
+    Logger.log(
+      #info,
+      ?"EngineLifecycle",
+      "Engine canister shut down: " # Principal.toText(canisterId) #
+      " | before: " # Nat.toText(cyclesBefore) #
+      " | ~recovered: " # Nat.toText(cyclesRecovered) #
+      " | after: " # Nat.toText(cyclesAfter),
+    );
+    #ok({ cyclesBefore; cyclesRecovered; cyclesAfter });
+  };
+
+  /// Returns the cycle balance, status, and memory of the internal engine child canister.
+  public shared ({ caller }) func getInternalEngineStatus() : async {
+    #ok : {
+      cycles : Nat;
+      idleCyclesBurnedPerDay : Nat;
+      status : { #running; #stopping; #stopped };
+      memorySize : Nat;
+      principal : Text;
+      freezingThreshold : ?Nat;
+      controllers : ?[Principal];
+    };
+    #err : Text;
+  } {
+    if (not Principal.isController(caller)) {
+      return #err("Unauthorized: caller is not a canister controller.");
+    };
+
+    let canisterId = switch (internalEngine) {
+      case (null) { return #err("Engine not spawned.") };
+      case (?e) { Principal.fromActor(e) };
+    };
+
+    try {
+      let s = await ic.canister_status({ canister_id = canisterId });
+      #ok({
+        cycles = s.cycles;
+        idleCyclesBurnedPerDay = s.idle_cycles_burned_per_day;
+        status = s.status;
+        memorySize = s.memory_size;
+        principal = Principal.toText(canisterId);
+        freezingThreshold = s.settings.freezing_threshold;
+        controllers = s.settings.controllers;
+      });
+    } catch (e) {
+      #err("canister_status failed: " # Error.message(e));
+    };
   };
 
   // ============================================
@@ -539,11 +639,11 @@ persistent actor class OpenOrgBackend() {
     path : Text,
     body : Text,
   ) : async { #ok : Text; #err : Text } {
-    let expected = switch (internalEnginePrincipal) {
+    let expected = switch (internalEngine) {
       case (null) {
         return #err(Json.stringify(obj([("type", str("engineNotInitialized")), ("message", str("Unauthorized: engine not yet initialized."))]), null));
       };
-      case (?p) { p };
+      case (?e) { Principal.fromActor(e) };
     };
     if (caller != expected) {
       return #err(Json.stringify(obj([("type", str("unauthorized")), ("message", str("Unauthorized: caller " # Principal.toText(caller) # " is not the internal engine canister."))]), null));

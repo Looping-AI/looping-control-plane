@@ -32,6 +32,7 @@ dist/
 # environment variables
 .env
 .env.test
+.env.staging
 test-env.mo
 .mops
 

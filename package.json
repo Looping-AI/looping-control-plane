@@ -2,6 +2,7 @@
   "type": "module",
   "scripts": {
     "dev:setup": "bun run scripts/dev-setup.ts",
+    "staging:reinstall": "bun run scripts/staging-reinstall.ts",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "lint": "eslint . && bun run lint:lintoko && bun run lint:moc",

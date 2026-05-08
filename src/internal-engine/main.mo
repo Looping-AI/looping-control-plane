@@ -1,4 +1,5 @@
 import Principal "mo:core/Principal";
+import Cycles "mo:core/Cycles";
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
@@ -133,6 +134,28 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
       },
     );
     #ok;
+  };
+
+  // ── Cycle recovery ────────────────────────────────────────────────
+
+  type IC = actor {
+    deposit_cycles : shared { canister_id : Principal } -> async ();
+  };
+
+  transient let ic : IC = actor ("aaaaa-aa");
+
+  /// Called by Core before stopping and deleting this canister.
+  /// Transfers available cycles (minus a small buffer) back to Core.
+  public shared ({ caller }) func recoverAvailableCycles() : async () {
+    assert caller == coreId;
+    let balance : Nat = Cycles.balance();
+    let buffer : Nat = 100_000_000_000;
+    if (balance > buffer) {
+      let available : Nat = balance - buffer;
+      await (with cycles = available) ic.deposit_cycles({
+        canister_id = coreId;
+      });
+    };
   };
 
 };

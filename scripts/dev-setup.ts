@@ -176,15 +176,15 @@ async function seedSecrets(envVars: Record<string, string>): Promise<void> {
   logStep(3, "Seeding secrets...");
 
   log("Storing OpenRouter API key...", colors.blue);
-  await storeSecret("openRouterApiKey", envVars.OPENROUTER_DEV_KEY);
+  await storeSecret("openRouterApiKey", envVars["OPENROUTER_DEV_KEY"]);
   logSuccess("OpenRouter API key stored");
 
   log("Storing Slack signing secret...", colors.blue);
-  await storeSecret("slackSigningSecret", envVars.SLACK_APP_SIGNING_SECRET);
+  await storeSecret("slackSigningSecret", envVars["SLACK_APP_SIGNING_SECRET"]);
   logSuccess("Slack signing secret stored");
 
   log("Storing Slack bot token...", colors.blue);
-  await storeSecret("slackBotToken", envVars.SLACK_APP_BOT_TOKEN);
+  await storeSecret("slackBotToken", envVars["SLACK_APP_BOT_TOKEN"]);
   logSuccess("Slack bot token stored");
 }
 

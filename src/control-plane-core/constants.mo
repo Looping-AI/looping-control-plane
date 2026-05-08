@@ -2,7 +2,7 @@ import Types "./types";
 
 module {
   // Environment - important for dependency management (it can be local, test, staging, production)
-  public let ENVIRONMENT : Types.Environment = #local;
+  public let ENVIRONMENT : Types.Environment = #staging;
 
   // 30 days in nanoseconds (30 * 24 * 60 * 60 * 1_000_000_000)
   public let THIRTY_DAYS_NS : Nat = 2_592_000_000_000_000;
@@ -83,8 +83,8 @@ module {
 
   // ── Engine lifecycle ───────────────────────────────────────────────
 
-  // Cycles attached when spawning the engine canister (1 trillion)
-  public let ENGINE_SPAWN_CYCLES : Nat = 1_000_000_000_000;
+  // Cycles attached when spawning the engine canister (2 trillion)
+  public let ENGINE_SPAWN_CYCLES : Nat = 2_000_000_000_000;
 
   // Minimum cycle balance before triggering a top-up (500 billion)
   public let ENGINE_MIN_CYCLES : Nat = 500_000_000_000;
