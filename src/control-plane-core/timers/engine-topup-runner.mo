@@ -4,22 +4,10 @@
 
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
+import { ic } "mo:ic";
 import Constants "../constants";
 
 module {
-
-  /// Minimal management canister interface for canister_status + deposit_cycles.
-  type IC = actor {
-    canister_status : shared { canister_id : Principal } -> async {
-      cycles : Nat;
-      status : { #running; #stopping; #stopped };
-      memory_size : Nat;
-      module_hash : ?Blob;
-    };
-    deposit_cycles : shared { canister_id : Principal } -> async ();
-  };
-
-  let ic : IC = actor ("aaaaa-aa");
 
   public func run(enginePrincipal : ?Principal) : async {
     #ok;

@@ -11,58 +11,15 @@ import Blob "mo:core/Blob";
 import Map "mo:core/Map";
 import Array "mo:core/Array";
 import Sha256 "mo:sha2/Sha256";
+import IC "mo:ic/Types";
+import ICCall "mo:ic/Call";
 import Types "../types";
 import Constants "../constants";
 
 module {
   // ============================================
-  // Types for Threshold Schnorr API
-  // ============================================
-
-  /// Schnorr signature algorithm variants
-  public type SchnorrAlgorithm = {
-    #bip340secp256k1;
-    #ed25519;
-  };
-
-  /// Key identifier for Schnorr operations
-  public type KeyId = {
-    algorithm : SchnorrAlgorithm;
-    name : Text;
-  };
-
-  /// Unused optional type. Related with Bitcoin signing.
-  public type SchnorrAux = {
-    #bip341 : {
-      merkle_root_hash : Blob;
-    };
-  };
-
-  /// Arguments for sign_with_schnorr management canister call
-  public type SignWithSchnorrArgs = {
-    message : Blob;
-    derivation_path : [Blob];
-    key_id : KeyId;
-    aux : ?SchnorrAux;
-  };
-
-  /// Reply from sign_with_schnorr
-  public type SignWithSchnorrReply = {
-    signature : Blob;
-  };
-
-  /// Management canister interface for Schnorr operations
-  public type ManagementCanister = actor {
-    sign_with_schnorr : (SignWithSchnorrArgs) -> async SignWithSchnorrReply;
-  };
-
-  // ============================================
   // Constants
   // ============================================
-
-  /// Cost in cycles for sign_with_schnorr (26.15 billion cycles)
-  /// This covers the threshold signature computation
-  public let SIGN_WITH_SCHNORR_COST_CYCLES : Nat = 26_153_846_153;
 
   /// Key name for local development
   public let KEY_NAME_LOCAL : Text = "key_1";
@@ -124,15 +81,13 @@ module {
   /// @param workspaceId - The workspace ID to derive a key for
   /// @returns A 32-byte encryption key as [Nat8]
   public func deriveKeyFromSchnorr(workspaceId : Nat) : async [Nat8] {
-    // Get reference to management canister
-    let ic : ManagementCanister = actor ("aaaaa-aa");
     let keyName = getSchnorrKeyName(Constants.ENVIRONMENT);
 
     // Convert workspace ID to bytes for derivation path
     let workspaceIdBytes = natToBytes(workspaceId);
 
     // Prepare the signing request
-    let signArgs : SignWithSchnorrArgs = {
+    let signArgs : IC.SignWithSchnorrArgs = {
       message = KEY_DERIVATION_MESSAGE;
       derivation_path = [Blob.fromArray(workspaceIdBytes)];
       key_id = {
@@ -142,8 +97,8 @@ module {
       aux = null; // No BIP341 tweak needed
     };
 
-    // Call the management canister with cycles attached
-    let { signature } = await (with cycles = SIGN_WITH_SCHNORR_COST_CYCLES) ic.sign_with_schnorr(signArgs);
+    // Call the management canister with automatically calculated cycles
+    let { signature } = await ICCall.signWithSchnorr(signArgs);
 
     // Hash the signature to get a 32-byte key
     // This ensures uniform distribution and fixed length

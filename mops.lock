@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "22d06b847344e1726d1cbe3953b5aa748de35441e8586ea27357b7c9be43a72f",
+  "mopsTomlDepsHash": "56455c02e2ca9777410fab6a72cdc1f41876d1c8b77a286d1d67e3edd26f621d",
   "deps": {
     "core": "2.5.0",
     "llm": "2.1.0",
@@ -9,6 +9,7 @@
     "json": "1.4.0",
     "xtended-numbers": "0.3.1",
     "ic-certification": "1.1.0",
+    "ic": "4.0.0",
     "base@0": "0.16.0",
     "sha2@0": "0.1.6",
     "cbor@4": "4.1.0",
@@ -18,6 +19,12 @@
     "test": "2.1.2"
   },
   "hashes": {
+    "ic@4.0.0": {
+      "ic@4.0.0/mops.toml": "7a6bb3d74b1ec5539b9bb88e0a0a0ba09e8c46e00b38cb5feda009d6b80723df",
+      "ic@4.0.0/src/Call.mo": "b4a3572e5617d0b1eb696450344b65e99504f844794e7ddf1cff664fcfeb2994",
+      "ic@4.0.0/src/Types.mo": "373c3a18e072058aecaaec99385a08f95746c7e86cc9694f9f23caa982c2ad6c",
+      "ic@4.0.0/src/lib.mo": "9d9ec84a85eb25d191c1cae99cb841d9b6e0cf0f9bc27c3f3805ac9673d7bef1"
+    },
     "core@2.5.0": {
       "core@2.5.0/src/Blob.mo": "25d7c07e9786f11ceb8611a32a83b8491769580024054086e4548607a67afbe4",
       "core@2.5.0/LICENSE": "840e3d57a38a8061f55d04470fbd58b9345326fa04ea10ee42add5c6e3b2aa08",

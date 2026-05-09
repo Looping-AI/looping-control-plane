@@ -9,6 +9,7 @@ import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
 import Error "mo:core/Error";
+import { ic } "mo:ic";
 import Types "./types";
 import AgentModel "./models/agent-model";
 import ChannelHistoryModel "./models/channel-history-model";
@@ -436,9 +437,6 @@ persistent actor class OpenOrgBackend() {
   // Engine Shutdown
   // ============================================
 
-  // Actor references cannot be stored in stable memory — must be transient.
-  transient let ic : Types.IcManagement = actor ("aaaaa-aa");
-
   /// Shuts down the internal engine canister: recovers its cycles, stops it, then deletes it.
   /// Clears the local engine references when complete.
   /// Must be called before a canister reinstall to avoid orphaning the engine and its cycles.
@@ -546,8 +544,8 @@ persistent actor class OpenOrgBackend() {
         status = s.status;
         memorySize = s.memory_size;
         principal = Principal.toText(canisterId);
-        freezingThreshold = s.settings.freezing_threshold;
-        controllers = s.settings.controllers;
+        freezingThreshold = ?s.settings.freezing_threshold;
+        controllers = ?s.settings.controllers;
       });
     } catch (e) {
       #err("canister_status failed: " # Error.message(e));

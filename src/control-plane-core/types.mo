@@ -1,6 +1,7 @@
 import InternalEngine "../internal-engine/main";
 import WorkflowCatalogModel "./models/workflow-catalog-model";
 import OpenRouterWrapper "./wrappers/openrouter-wrapper";
+import IC "mo:ic/Types";
 
 module {
   /// Environment configuration for the bot-agent application
@@ -144,22 +145,6 @@ module {
   // IC Management Canister Interface
   // ============================================
 
-  /// Subset of the IC management canister interface used by the control-plane core.
-  public type IcManagement = actor {
-    canister_status : shared { canister_id : Principal } -> async {
-      cycles : Nat;
-      status : { #running; #stopping; #stopped };
-      settings : {
-        freezing_threshold : ?Nat;
-        controllers : ?[Principal];
-        compute_allocation : ?Nat;
-        memory_allocation : ?Nat;
-      };
-      idle_cycles_burned_per_day : Nat;
-      memory_size : Nat;
-      module_hash : ?Blob;
-    };
-    stop_canister : shared { canister_id : Principal } -> async ();
-    delete_canister : shared { canister_id : Principal } -> async ();
-  };
+  /// Full IC management canister interface from the `mo:ic` package.
+  public type IcManagement = IC.Self;
 };

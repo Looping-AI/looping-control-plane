@@ -1,9 +1,8 @@
 import Blob "mo:core/Blob";
 import Text "mo:core/Text";
 import Error "mo:core/Error";
-import Nat64 "mo:core/Nat64";
-import Float "mo:core/Float";
-import Int "mo:core/Int";
+import IC "mo:ic/Types";
+import ICCall "mo:ic/Call";
 
 module {
   // ============================================
@@ -21,61 +20,7 @@ module {
   // Types
   // ============================================
 
-  public type HttpHeader = {
-    name : Text;
-    value : Text;
-  };
-
-  public type HttpMethod = {
-    #get;
-    #post;
-    #head;
-  };
-
-  public type HttpRequestArgs = {
-    url : Text;
-    max_response_bytes : ?Nat64;
-    headers : [HttpHeader];
-    body : ?Blob;
-    method : HttpMethod;
-    transform : ?TransformContext;
-    is_replicated : ?Bool;
-  };
-
-  public type TransformContext = {
-    function : shared query TransformArgs -> async HttpResponsePayload;
-    context : Blob;
-  };
-
-  public type TransformArgs = {
-    response : HttpResponsePayload;
-    context : Blob;
-  };
-
-  public type HttpResponsePayload = {
-    status : Nat;
-    headers : [HttpHeader];
-    body : Blob;
-  };
-
-  public type ManagementCanister = actor {
-    http_request : HttpRequestArgs -> async HttpResponsePayload;
-  };
-
-  // ============================================
-  // Constants
-  // ============================================
-
-  /// Maximum response bytes allowed for HTTP outcalls (2 MB hard limit)
-  /// Requests exceeding this will result in an error.
-  public let MAX_RESPONSE_BYTES : Nat64 = 2_000_000;
-
-  /// Typical subnet size (13 nodes on application subnets)
-  public let SUBNET_SIZE : Nat = 13;
-
-  /// Safety multiplier for cycle calculations to account for uncertainty
-  /// Multiply by this factor to avoid rejections; excess cycles are refunded
-  public let SAFETY_MULTIPLIER : Float = 1.5;
+  public type HttpHeader = IC.HttpHeader;
 
   // ============================================
   // Helper Functions
@@ -99,78 +44,6 @@ module {
     };
   };
 
-  /// Calculates the total size of an HTTP request in bytes
-  ///
-  /// Formula: request_size = url.len + header_len + body.len
-  /// where header_len = header_1.name + header_1.value + ... + header_n.name + header_n.value
-  ///
-  /// # Parameters
-  /// - `url` : The request URL
-  /// - `headers` : Array of HTTP headers
-  /// - `body` : Optional request body
-  ///
-  /// # Returns
-  /// Total request size in bytes
-  public func calculateRequestBytes(
-    url : Text,
-    headers : [HttpHeader],
-    body : ?Blob,
-  ) : Nat {
-    var totalBytes = Text.size(url);
-
-    // Add headers size (name + value for each header)
-    for (header in headers.vals()) {
-      totalBytes += Text.size(header.name);
-      totalBytes += Text.size(header.value);
-    };
-
-    // Add body size
-    switch (body) {
-      case (null) {};
-      case (?bodyBlob) {
-        totalBytes += Blob.size(bodyBlob);
-      };
-    };
-
-    totalBytes;
-  };
-
-  /// Calculates the total cycles needed for an HTTPS outcall using the official IC formula
-  ///
-  /// Documentation: https://docs.internetcomputer.org/references/cycles-cost-formulas
-  ///
-  /// Official formula:
-  /// total_fee = base_fee + size_fee
-  /// base_fee = (3_000_000 + 60_000 * n) * n
-  /// size_fee = (400 * request_bytes + 800 * max_response_bytes) * n
-  /// where n = number of nodes in the subnet
-  ///
-  /// The result is multiplied by a safety factor to handle uncertainty and subnet variations.
-  /// Excess cycles are automatically refunded.
-  ///
-  /// # Parameters
-  /// - `requestBytes` : Total request size in bytes (URL + headers + body)
-  ///
-  /// # Returns
-  /// Cycles needed for the HTTP outcall request
-  public func calculateHttpOutcallCycles(
-    requestBytes : Nat
-  ) : Nat {
-    let n = SUBNET_SIZE;
-
-    // Calculate base fee: (3_000_000 + 60_000 * n) * n
-    let baseFee = (3_000_000 + 60_000 * n) * n;
-
-    // Calculate size fee: (400 * request_bytes + 800 * max_response_bytes) * n
-    let sizeFee = (400 * requestBytes + 800 * Nat64.toNat(MAX_RESPONSE_BYTES)) * n;
-
-    // Total fee with safety multiplier
-    let totalFeeBeforeMultiplier = baseFee + sizeFee;
-    let totalFee = Int.toNat(Float.toInt(Float.fromInt(totalFeeBeforeMultiplier) * SAFETY_MULTIPLIER));
-
-    totalFee;
-  };
-
   /// Performs a GET HTTP request with custom headers
   ///
   /// # Parameters
@@ -186,18 +59,11 @@ module {
     #err : Text;
   } {
     try {
-      // Get reference to management canister
-      let ic : ManagementCanister = actor ("aaaaa-aa");
-
       // 1. Validate and normalize the URL
       let validatedUrl = validateAndNormalizeUrl(url);
 
-      // 2. Calculate cycles needed based on request size
-      let requestBytes = calculateRequestBytes(validatedUrl, headers, null);
-      let cyclesNeeded = calculateHttpOutcallCycles(requestBytes);
-
-      // 3. Build the HTTP request args
-      let http_request_args : HttpRequestArgs = {
+      // 2. Build the HTTP request args
+      let http_request_args : IC.HttpRequestArgs = {
         url = validatedUrl;
         max_response_bytes = null;
         headers;
@@ -207,13 +73,11 @@ module {
         is_replicated = ?false;
       };
 
-      // 4. ADD CYCLES TO PAY FOR HTTP REQUEST
-      // The IC management canister will make the HTTP request so it needs cycles
-      // We attach cycles using the with cycles syntax before making the call
-      // Cycles are calculated dynamically based on request size
-      let httpResponse = await (with cycles = cyclesNeeded) ic.http_request(http_request_args);
+      // 3. Make the HTTP request via the IC management canister.
+      // Cycles are calculated automatically by ICCall.httpRequest using the IC cost formula.
+      let httpResponse = await ICCall.httpRequest(http_request_args);
 
-      // 5. DECODE THE RESPONSE
+      // 4. DECODE THE RESPONSE
       let decodedText : Text = switch (Text.decodeUtf8(httpResponse.body)) {
         case (null) { "No value returned" };
         case (?y) { y };
@@ -241,22 +105,14 @@ module {
     #err : Text;
   } {
     try {
-      // Get reference to management canister
-      let ic : ManagementCanister = actor ("aaaaa-aa");
-
       // 1. Validate and normalize the URL
       let validatedUrl = validateAndNormalizeUrl(url);
 
-      // 2. SETUP ARGUMENTS FOR HTTP POST request
-      // Use the provided body text
+      // 2. Encode the body
       let requestBody = Text.encodeUtf8(body);
 
-      // 3. Calculate cycles needed based on request size (including body)
-      let requestBytes = calculateRequestBytes(validatedUrl, headers, ?requestBody);
-      let cyclesNeeded = calculateHttpOutcallCycles(requestBytes);
-
-      // 4. Build the HTTP request args
-      let http_request_args : HttpRequestArgs = {
+      // 3. Build the HTTP request args
+      let http_request_args : IC.HttpRequestArgs = {
         url = validatedUrl;
         max_response_bytes = null;
         headers;
@@ -266,13 +122,11 @@ module {
         is_replicated = ?false;
       };
 
-      // 5. ADD CYCLES TO PAY FOR HTTP REQUEST
-      // The IC management canister will make the HTTP request so it needs cycles
-      // We attach cycles using the with cycles syntax before making the call
-      // Cycles are calculated dynamically based on request size
-      let httpResponse = await (with cycles = cyclesNeeded) ic.http_request(http_request_args);
+      // 4. Make the HTTP request via the IC management canister.
+      // Cycles are calculated automatically by ICCall.httpRequest using the IC cost formula.
+      let httpResponse = await ICCall.httpRequest(http_request_args);
 
-      // 6. DECODE THE RESPONSE
+      // 5. DECODE THE RESPONSE
       let decodedText : Text = switch (Text.decodeUtf8(httpResponse.body)) {
         case (null) { "No value returned" };
         case (?y) { y };
