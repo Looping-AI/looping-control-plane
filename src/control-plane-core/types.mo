@@ -1,7 +1,6 @@
 import InternalEngine "../internal-engine/main";
 import WorkflowCatalogModel "./models/workflow-catalog-model";
 import OpenRouterWrapper "./wrappers/openrouter-wrapper";
-import IC "mo:ic/Types";
 
 module {
   /// Log level for filtering and categorizing messages
@@ -139,11 +138,4 @@ module {
     event_type : Text;
     event_payload : AgentMetadataPayload;
   };
-
-  // ============================================
-  // IC Management Canister Interface
-  // ============================================
-
-  /// Full IC management canister interface from the `mo:ic` package.
-  public type IcManagement = IC.Self;
 };
