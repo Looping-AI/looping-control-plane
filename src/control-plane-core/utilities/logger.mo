@@ -41,7 +41,7 @@ module {
   };
 
   /// Log a message at the specified level
-  /// Respects environment-specific log level filtering
+  /// Respects the configured minimum log level threshold
   public func log(level : LogLevel, domain : ?Text, message : Text) {
     if (shouldLog(level)) {
       Debug.print(formatMessage(level, domain, message));
