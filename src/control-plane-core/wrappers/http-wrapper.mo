@@ -1,4 +1,3 @@
-import Blob "mo:core/Blob";
 import Text "mo:core/Text";
 import Error "mo:core/Error";
 import IC "mo:ic/Types";
