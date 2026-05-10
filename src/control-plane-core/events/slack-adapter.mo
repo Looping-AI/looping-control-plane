@@ -98,15 +98,16 @@ module {
   /// Slack signs requests with: v0=HMAC-SHA256(signing_secret, "v0:{timestamp}:{body}")
   /// See: https://api.slack.com/authentication/verifying-requests-from-slack
   ///
-  /// In non-test environments this also validates the timestamp to prevent replay attacks
-  /// (requests older than 5 minutes are rejected). In #test the timestamp check is skipped
-  /// so that cassette-recorded requests with fixed timestamps remain verifiable.
+  /// When CANISTER_ENV is set to "test", timestamp validation is skipped to allow
+  /// cassette-recorded requests with fixed timestamps to remain verifiable. In all other
+  /// environments, the timestamp is validated to prevent replay attacks (requests older
+  /// than 5 minutes are rejected).
   ///
   /// @param signingSecret - The Slack signing secret (from app settings)
   /// @param signature - The X-Slack-Signature header value
   /// @param timestamp - The X-Slack-Request-Timestamp header value (Unix timestamp in seconds as text)
   /// @param body - The raw request body
-  /// @returns true if the signature (and, outside of #test, the timestamp) is valid
+  /// @returns true if the signature (and, outside of test environment, the timestamp) is valid
   public func verifySignature<system>(
     signingSecret : Text,
     signature : Text,
