@@ -25,9 +25,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Set environment to test
-        run: sed -i 's/#local/#test/' src/control-plane-core/constants.mo
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
