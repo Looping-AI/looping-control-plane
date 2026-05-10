@@ -23,11 +23,23 @@ environments:
   - name: local
     network: local
     canisters: [control-plane-core]
+    settings:
+      control-plane-core:
+        environment_variables:
+          CANISTER_ENV: local
 
   - name: staging
     network: ic
     canisters: [control-plane-core]
+    settings:
+      control-plane-core:
+        environment_variables:
+          CANISTER_ENV: staging
 
   - name: production
     network: ic
     canisters: [control-plane-core]
+    settings:
+      control-plane-core:
+        environment_variables:
+          CANISTER_ENV: production

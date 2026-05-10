@@ -13,32 +13,14 @@ import Array "mo:core/Array";
 import Sha256 "mo:sha2/Sha256";
 import IC "mo:ic/Types";
 import ICCall "mo:ic/Call";
-import Types "../types";
-import Constants "../constants";
 
 module {
   // ============================================
   // Constants
   // ============================================
 
-  /// Key name for local development
-  public let KEY_NAME_LOCAL : Text = "key_1";
-
-  /// Key name for mainnet test
-  public let KEY_NAME_TEST : Text = "test_key_1";
-
-  /// Key name for production
-  public let KEY_NAME_PROD : Text = "key_1";
-
-  /// Get the Schnorr key name based on environment
-  public func getSchnorrKeyName(env : Types.Environment) : Text {
-    switch (env) {
-      case (#local) { KEY_NAME_LOCAL };
-      case (#test) { KEY_NAME_LOCAL };
-      case (#staging) { KEY_NAME_TEST };
-      case (#production) { KEY_NAME_PROD };
-    };
-  };
+  /// Schnorr key name — "key_1" is used across all environments
+  public let KEY_NAME : Text = "key_1";
 
   /// Static message used for key derivation
   /// The workspace ID in derivation_path makes each key unique
@@ -81,8 +63,6 @@ module {
   /// @param workspaceId - The workspace ID to derive a key for
   /// @returns A 32-byte encryption key as [Nat8]
   public func deriveKeyFromSchnorr(workspaceId : Nat) : async [Nat8] {
-    let keyName = getSchnorrKeyName(Constants.ENVIRONMENT);
-
     // Convert workspace ID to bytes for derivation path
     let workspaceIdBytes = natToBytes(workspaceId);
 
@@ -92,7 +72,7 @@ module {
       derivation_path = [Blob.fromArray(workspaceIdBytes)];
       key_id = {
         algorithm = #ed25519; // Ed25519 is simpler and sufficient for our purpose
-        name = keyName;
+        name = KEY_NAME;
       };
       aux = null; // No BIP341 tweak needed
     };

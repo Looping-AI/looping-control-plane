@@ -767,7 +767,7 @@ persistent actor class OpenOrgBackend() {
       case (?secret) { secret };
     };
 
-    if (not SlackAdapter.verifySignature(signingSecret, signature, timestamp, bodyText)) {
+    if (not SlackAdapter.verifySignature<system>(signingSecret, signature, timestamp, bodyText)) {
       Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
       return respondWithText(401, "Invalid signature");
     };

@@ -1,15 +1,10 @@
 import Debug "mo:core/Debug";
 import Text "mo:core/Text";
+import Types "../types";
 import Constants "../constants";
 
 module {
-  /// Log level for filtering and categorizing messages
-  public type LogLevel = {
-    #_debug; // "_" prefix needed, `debug` is reserved in Motoko
-    #info;
-    #warn;
-    #error;
-  };
+  public type LogLevel = Types.LogLevel;
 
   /// Convert log level to text representation
   private func levelToText(level : LogLevel) : Text {
@@ -30,23 +25,19 @@ module {
     };
   };
 
-  /// Check if logging should occur based on environment and level
-  /// - test: no logs
-  /// - local: all levels
-  /// - staging: all levels
-  /// - production: warn and error only
-  private func shouldLog(level : LogLevel) : Bool {
-    switch (Constants.ENVIRONMENT) {
-      case (#test) { false };
-      case (#local) { true };
-      case (#staging) { true };
-      case (#production) {
-        switch (level) {
-          case (#warn or #error) { true };
-          case _ { false };
-        };
-      };
+  /// Numeric value for a log level (used for threshold comparison)
+  private func levelValue(level : LogLevel) : Nat {
+    switch (level) {
+      case (#_debug) { 0 };
+      case (#info) { 1 };
+      case (#warn) { 2 };
+      case (#error) { 3 };
     };
+  };
+
+  /// Check if logging should occur based on configured minimum level
+  private func shouldLog(level : LogLevel) : Bool {
+    levelValue(level) >= levelValue(Constants.MIN_LOG_LEVEL);
   };
 
   /// Log a message at the specified level

@@ -1,8 +1,9 @@
 import Types "./types";
 
 module {
-  // Environment - important for dependency management (it can be local, test, staging, production)
-  public let ENVIRONMENT : Types.Environment = #staging;
+  // Minimum log level — set this to #info or #warn for production to reduce noise.
+  // All levels at or above this threshold will be emitted.
+  public let MIN_LOG_LEVEL : Types.LogLevel = #_debug;
 
   // 30 days in nanoseconds (30 * 24 * 60 * 60 * 1_000_000_000)
   public let THIRTY_DAYS_NS : Nat = 2_592_000_000_000_000;

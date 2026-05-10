@@ -107,15 +107,16 @@ module {
   /// @param timestamp - The X-Slack-Request-Timestamp header value (Unix timestamp in seconds as text)
   /// @param body - The raw request body
   /// @returns true if the signature (and, outside of #test, the timestamp) is valid
-  public func verifySignature(
+  public func verifySignature<system>(
     signingSecret : Text,
     signature : Text,
     timestamp : Text,
     body : Text,
   ) : Bool {
-    let timestampValid = switch (Constants.ENVIRONMENT) {
-      case (#test) { true };
-      case (_) { verifyTimestamp(timestamp) };
+    let timestampValid = if (Runtime.envVar<system>("CANISTER_ENV") == ?"test") {
+      true; // skip timestamp check in test environment
+    } else {
+      verifyTimestamp(timestamp);
     };
 
     if (not timestampValid) { return false };
