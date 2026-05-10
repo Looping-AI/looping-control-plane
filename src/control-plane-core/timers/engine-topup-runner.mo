@@ -5,6 +5,7 @@
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 import { ic } "mo:ic";
+import IcCompat "../wrappers/ic-management-compat";
 import Constants "../constants";
 
 module {
@@ -19,7 +20,7 @@ module {
     };
 
     let status = try {
-      await ic.canister_status({ canister_id = canisterId });
+      await IcCompat.ic.canister_status({ canister_id = canisterId });
     } catch (e) {
       return #err("canister_status failed: " # Error.message(e));
     };
