@@ -160,6 +160,7 @@ export async function createBackendCanister(): Promise<{
     idlFactory,
     wasm: getControlPlaneWasm(),
     sender: controllerPrincipal,
+    environmentVariables: [{ name: "CANISTER_ENV", value: "test" }],
   });
 
   // Set the controller as the initial actor identity so privileged calls work
@@ -188,6 +189,7 @@ export async function createDeferredTestCanister(): Promise<{
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,
     wasm: getTestCanisterWasm(),
+    environmentVariables: [{ name: "CANISTER_ENV", value: "test" }],
   });
 
   // Create a deferred actor for cassette recording
@@ -214,6 +216,7 @@ export async function createTestCanister(): Promise<{
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,
     wasm: getTestCanisterWasm(),
+    environmentVariables: [{ name: "CANISTER_ENV", value: "test" }],
   });
 
   return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
@@ -238,6 +241,7 @@ export async function createSchnorrTestCanister(): Promise<{
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,
     wasm: getTestCanisterWasm(),
+    environmentVariables: [{ name: "CANISTER_ENV", value: "test" }],
   });
 
   return { pic, actor: fixture.actor, canisterId: fixture.canisterId };
@@ -258,6 +262,7 @@ export async function freshBackendCanister(
     idlFactory,
     wasm: getControlPlaneWasm(),
     sender: controllerIdentity.getPrincipal(),
+    environmentVariables: [{ name: "CANISTER_ENV", value: "test" }],
   });
   fixture.actor.setIdentity(controllerIdentity);
   return { actor: fixture.actor, canisterId: fixture.canisterId };
@@ -274,6 +279,7 @@ export async function freshTestCanister(pic: PocketIc): Promise<{
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,
     wasm: getTestCanisterWasm(),
+    environmentVariables: [{ name: "CANISTER_ENV", value: "test" }],
   });
   return { actor: fixture.actor, canisterId: fixture.canisterId };
 }
@@ -289,6 +295,7 @@ export async function freshDeferredTestCanister(pic: PocketIc): Promise<{
   const fixture = await pic.setupCanister<TestCanisterService>({
     idlFactory: testCanisterIdlFactory,
     wasm: getTestCanisterWasm(),
+    environmentVariables: [{ name: "CANISTER_ENV", value: "test" }],
   });
   const deferredActor = pic.createDeferredActor<TestCanisterService>(
     testCanisterIdlFactory,

@@ -1787,14 +1787,14 @@ shared ({ caller = parent }) persistent actor class TestCanister() = self {
   // Slack Adapter Test Methods
   // ============================================
 
-  public shared query ({ caller }) func testSlackSignatureVerification(
+  public shared ({ caller }) func testSlackSignatureVerification(
     signingSecret : Text,
     signature : Text,
     timestamp : Text,
     body : Text,
   ) : async Bool {
     assert caller == parent;
-    SlackAdapter.verifySignature(signingSecret, signature, timestamp, body);
+    SlackAdapter.verifySignature<system>(signingSecret, signature, timestamp, body);
   };
 
   public shared query ({ caller }) func testSlackTimestampVerification(timestamp : Text) : async Bool {

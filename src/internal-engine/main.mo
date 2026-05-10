@@ -7,6 +7,7 @@ import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 import Json "mo:json";
 import { str; obj } "mo:json";
+import { ic } "mo:ic";
 import WorkflowTypes "./workflow-types";
 import CoreWrapper "./wrappers/core-wrapper";
 import RunHelpers "./runner/run-helpers";
@@ -137,12 +138,6 @@ shared ({ caller = coreId }) persistent actor class InternalEngine() = self {
   };
 
   // ── Cycle recovery ────────────────────────────────────────────────
-
-  type IC = actor {
-    deposit_cycles : shared { canister_id : Principal } -> async ();
-  };
-
-  transient let ic : IC = actor ("aaaaa-aa");
 
   /// Called by Core before stopping and deleting this canister.
   /// Transfers available cycles (minus a small buffer) back to Core.

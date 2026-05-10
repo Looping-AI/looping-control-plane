@@ -9,6 +9,8 @@ import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Runtime "mo:core/Runtime";
 import Error "mo:core/Error";
+import { ic } "mo:ic";
+import IcCompat "./wrappers/ic-management-compat";
 import Types "./types";
 import AgentModel "./models/agent-model";
 import ChannelHistoryModel "./models/channel-history-model";
@@ -436,9 +438,6 @@ persistent actor class OpenOrgBackend() {
   // Engine Shutdown
   // ============================================
 
-  // Actor references cannot be stored in stable memory — must be transient.
-  transient let ic : Types.IcManagement = actor ("aaaaa-aa");
-
   /// Shuts down the internal engine canister: recovers its cycles, stops it, then deletes it.
   /// Clears the local engine references when complete.
   /// Must be called before a canister reinstall to avoid orphaning the engine and its cycles.
@@ -466,7 +465,9 @@ persistent actor class OpenOrgBackend() {
 
     try {
       // 1. Record cycle balance before recovery
-      let statusBefore = await ic.canister_status({ canister_id = canisterId });
+      let statusBefore = await IcCompat.ic.canister_status({
+        canister_id = canisterId;
+      });
       cyclesBefore := statusBefore.cycles;
 
       // 2. Transfer available cycles back to this canister before stopping
@@ -475,7 +476,9 @@ persistent actor class OpenOrgBackend() {
 
       // 3. Record cycle balance after recovery
       step := "canister_status_after";
-      let statusAfter = await ic.canister_status({ canister_id = canisterId });
+      let statusAfter = await IcCompat.ic.canister_status({
+        canister_id = canisterId;
+      });
       cyclesAfter := statusAfter.cycles;
 
       cyclesRecovered := if (cyclesBefore >= cyclesAfter) {
@@ -539,15 +542,15 @@ persistent actor class OpenOrgBackend() {
     };
 
     try {
-      let s = await ic.canister_status({ canister_id = canisterId });
+      let s = await IcCompat.ic.canister_status({ canister_id = canisterId });
       #ok({
         cycles = s.cycles;
         idleCyclesBurnedPerDay = s.idle_cycles_burned_per_day;
         status = s.status;
         memorySize = s.memory_size;
         principal = Principal.toText(canisterId);
-        freezingThreshold = s.settings.freezing_threshold;
-        controllers = s.settings.controllers;
+        freezingThreshold = ?s.settings.freezing_threshold;
+        controllers = ?s.settings.controllers;
       });
     } catch (e) {
       #err("canister_status failed: " # Error.message(e));
@@ -764,7 +767,7 @@ persistent actor class OpenOrgBackend() {
       case (?secret) { secret };
     };
 
-    if (not SlackAdapter.verifySignature(signingSecret, signature, timestamp, bodyText)) {
+    if (not SlackAdapter.verifySignature<system>(signingSecret, signature, timestamp, bodyText)) {
       Logger.log(#warn, ?"SlackWebhook", "Signature verification failed");
       return respondWithText(401, "Invalid signature");
     };

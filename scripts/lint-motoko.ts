@@ -11,14 +11,13 @@
  */
 
 import { $ } from "bun";
-import { existsSync, readFileSync, readdirSync, statSync } from "fs";
-import { dirname, join, normalize } from "path";
+import { existsSync, readdirSync, statSync } from "fs";
+import { join } from "path";
 
 const ROOT = process.cwd();
 const SRC_DIR = join(ROOT, "src");
 const TESTS_DIR = join(ROOT, "tests");
 const CHECK_DIRS = [SRC_DIR, TESTS_DIR];
-const IMPORT_PATTERN = /^\s*import\b.*"([^"]+)";\s*$/gm;
 
 /** Recursively collect all .mo files under a directory. */
 function findMoFiles(dir: string): string[] {
@@ -34,68 +33,20 @@ function findMoFiles(dir: string): string[] {
   return results;
 }
 
-function findLocalDependencies(
-  file: string,
-  knownFiles: Set<string>,
-): string[] {
-  const source = readFileSync(file, "utf8");
-  const dependencies = new Set<string>();
-
-  for (const match of source.matchAll(IMPORT_PATTERN)) {
-    const specifier = match[1];
-    if (!specifier.startsWith("./") && !specifier.startsWith("../")) {
-      continue;
-    }
-
-    const resolved = normalize(
-      join(
-        dirname(file),
-        specifier.endsWith(".mo") ? specifier : `${specifier}.mo`,
-      ),
-    );
-
-    if (knownFiles.has(resolved)) {
-      dependencies.add(resolved);
-    }
-  }
-
-  return [...dependencies];
-}
-
-function findCheckRoots(moFiles: string[]): string[] {
-  const normalizedFiles = moFiles.map((file) => normalize(file));
-  const knownFiles = new Set(normalizedFiles);
-  const incomingEdges = new Map<string, number>();
-
-  for (const file of normalizedFiles) {
-    incomingEdges.set(file, 0);
-  }
-
-  for (const file of normalizedFiles) {
-    for (const dependency of findLocalDependencies(file, knownFiles)) {
-      incomingEdges.set(dependency, (incomingEdges.get(dependency) ?? 0) + 1);
-    }
-  }
-
-  return normalizedFiles
-    .filter((file) => (incomingEdges.get(file) ?? 0) === 0)
-    .sort();
-}
-
-function findCheckRootsByDirectory(dirs: string[]): string[] {
-  const roots = new Set<string>();
+function findAllMoFiles(dirs: string[]): string[] {
+  const files = new Set<string>();
 
   for (const dir of dirs) {
     if (!existsSync(dir)) {
       continue;
     }
 
-    for (const file of findCheckRoots(findMoFiles(dir))) {
-      roots.add(file);
+    for (const file of findMoFiles(dir)) {
+      files.add(file);
     }
   }
 
-  return [...roots].sort();
+  return [...files].sort();
 }
 
 async function main() {
@@ -104,17 +55,16 @@ async function main() {
   // `mops sources` emits one "--package name path" per line; split into tokens.
   const sourcesArgs = sourcesRaw.split(/\s+/).filter((arg) => arg.length > 0);
 
-  const rootFiles = findCheckRootsByDirectory(CHECK_DIRS);
+  const allFiles = findAllMoFiles(CHECK_DIRS);
 
-  // Root-only checks avoid re-checking files that are already compiled via a
-  // local importer. Source and test directories are analyzed separately so test
-  // imports do not change which source files count as roots. Shared dependencies
-  // can still appear under multiple roots, so diagnostics are deduplicated by
-  // their source location header.
+  // Check every .mo file individually so that warnings (e.g. M0194 unused
+  // identifier) are never suppressed by transitive compilation. Diagnostics
+  // are deduplicated by their source location header in case the same warning
+  // appears when checking multiple files.
   const seen = new Set<string>();
   const uniqueDiagnostics: string[] = [];
 
-  for (const file of rootFiles) {
+  for (const file of allFiles) {
     const proc = Bun.spawn([mocPath, ...sourcesArgs, "--check", file], {
       stdout: "pipe",
       stderr: "pipe",

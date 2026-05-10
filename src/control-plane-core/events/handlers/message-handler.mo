@@ -41,7 +41,6 @@ import SecretModel "../../models/secret-model";
 import KeyDerivationService "../../services/key-derivation-service";
 import ChannelHistoryModel "../../models/channel-history-model";
 import AgentRunner "../../agents/agent-runner";
-import ApprovalModel "../../models/approval-model";
 import SlackWrapper "../../wrappers/slack-wrapper";
 import SlackAuthMiddleware "../../middleware/slack-auth-middleware";
 import AgentRefParser "../../utilities/agent-ref-parser";

@@ -3,13 +3,12 @@ import WorkflowCatalogModel "./models/workflow-catalog-model";
 import OpenRouterWrapper "./wrappers/openrouter-wrapper";
 
 module {
-  /// Environment configuration for the bot-agent application
-  /// Determines which Schnorr key to use for key derivation and other environment-specific behavior
-  public type Environment = {
-    #local;
-    #test;
-    #staging;
-    #production;
+  /// Log level for filtering and categorizing messages
+  public type LogLevel = {
+    #_debug; // "_" prefix needed, `debug` is reserved in Motoko
+    #info;
+    #warn;
+    #error;
   };
 
   /// Secret identifier for encrypted-at-rest secrets
@@ -138,28 +137,5 @@ module {
   public type AgentMessageMetadata = {
     event_type : Text;
     event_payload : AgentMetadataPayload;
-  };
-
-  // ============================================
-  // IC Management Canister Interface
-  // ============================================
-
-  /// Subset of the IC management canister interface used by the control-plane core.
-  public type IcManagement = actor {
-    canister_status : shared { canister_id : Principal } -> async {
-      cycles : Nat;
-      status : { #running; #stopping; #stopped };
-      settings : {
-        freezing_threshold : ?Nat;
-        controllers : ?[Principal];
-        compute_allocation : ?Nat;
-        memory_allocation : ?Nat;
-      };
-      idle_cycles_burned_per_day : Nat;
-      memory_size : Nat;
-      module_hash : ?Blob;
-    };
-    stop_canister : shared { canister_id : Principal } -> async ();
-    delete_canister : shared { canister_id : Principal } -> async ();
   };
 };
